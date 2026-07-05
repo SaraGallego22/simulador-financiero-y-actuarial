@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { addSkillAction, removeSkillAction, updateRubricWeightsAction, updateSkillWeightAction } from "@/lib/adminActions";
 import { CreateTeamForm } from "./CreateTeamForm";
 import { DeleteTeamButton } from "./DeleteTeamButton";
+import { RosterUpload } from "./RosterUpload";
 
 export default async function ConfigPage() {
   const cohort = await getOrCreateActiveCohort();
@@ -71,6 +72,7 @@ export default async function ConfigPage() {
         </div>
 
         <CreateTeamForm />
+        <RosterUpload />
       </section>
 
       <section className="flex flex-col gap-4">

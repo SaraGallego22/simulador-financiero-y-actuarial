@@ -35,7 +35,7 @@ export default async function TeamDayPage({
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs] = await Promise.all([
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs, teamScores, memberScores] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true } })
       : null,
@@ -48,6 +48,13 @@ export default async function TeamDayPage({
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
+    teamId ? prisma.score.findMany({ where: { teamId, day, published: true }, include: { skill: true } }) : [],
+    teamId
+      ? prisma.memberScore.findMany({
+          where: { day, published: true, teamMember: { teamId } },
+          include: { skill: true, teamMember: true },
+        })
+      : [],
   ]);
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsByKey = Object.fromEntries(
@@ -134,8 +141,58 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "subj" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
-          Tu calificación subjetiva aparecerá aquí una vez el evaluador la publique.
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+            Calificación subjetiva — Día {day}
+          </h3>
+          {teamScores.length === 0 && memberScores.length === 0 ? (
+            <p className="text-sm text-gray-500">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {teamScores.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Equipo</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {teamScores.map((s) => (
+                      <div key={s.id} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                        <p className="text-xs text-gray-500">{s.skill.name}</p>
+                        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                          {s.value ?? "—"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {memberScores.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Por integrante</p>
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(
+                      memberScores.reduce<Record<string, typeof memberScores>>((acc, s) => {
+                        acc[s.teamMember.name] = [...(acc[s.teamMember.name] ?? []), s];
+                        return acc;
+                      }, {} as Record<string, typeof memberScores>)
+                    ).map(([name, scores]) => (
+                      <div key={name}>
+                        <p className="text-xs font-semibold text-gray-700">{name}</p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {scores.map((s) => (
+                            <div key={s.id} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                              <p className="text-xs text-gray-500">{s.skill.name}</p>
+                              <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                                {s.value ?? "—"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

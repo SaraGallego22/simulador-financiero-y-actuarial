@@ -140,3 +140,106 @@ export async function publishAllAction(simulationRunId: string, day: number): Pr
   await prisma.teamSimResult.updateMany({ where: { simulationRunId }, data: { published: true } });
   revalidatePath(`/admin/day/${day}`);
 }
+
+/** Bulk-upserts one team's subjective Score per skill for a day (form fields named by skillId). */
+export async function submitScoresAction(teamId: string, day: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  const cohort = await getOrCreateActiveCohort();
+  const skills = await prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } } });
+
+  const rows: { skillId: string; value: number }[] = [];
+  for (const skill of skills) {
+    const raw = formData.get(skill.id);
+    if (raw == null || raw === "") continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) rows.push({ skillId: skill.id, value });
+  }
+
+  await prisma.$transaction(
+    rows.map((r) =>
+      prisma.score.upsert({
+        where: { teamId_skillId_day: { teamId, skillId: r.skillId, day } },
+        update: { value: r.value },
+        create: { teamId, skillId: r.skillId, day, value: r.value },
+      })
+    )
+  );
+  revalidatePath(`/admin/day/${day}`);
+}
+
+export async function toggleScoresPublishedAction(teamId: string, day: number): Promise<void> {
+  await requireAdmin();
+  const scores = await prisma.score.findMany({ where: { teamId, day } });
+  if (scores.length === 0) return;
+  const nextPublished = !scores[0].published;
+  await prisma.score.updateMany({ where: { teamId, day }, data: { published: nextPublished } });
+  revalidatePath(`/admin/day/${day}`);
+}
+
+export interface UploadRosterState {
+  error?: string;
+  success?: string;
+}
+
+export async function uploadRosterAction(_prev: UploadRosterState, formData: FormData): Promise<UploadRosterState> {
+  await requireAdmin();
+  const { parseCsv } = await import("./csv");
+  const { rosterCsvSchema } = await import("./csvSchemas");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecciona un archivo CSV." };
+  const text = await file.text();
+  const { rows, errors } = parseCsv(text, rosterCsvSchema);
+  if (rows.length === 0) return { error: errors[0]?.message ?? "No se reconoció ninguna fila válida." };
+
+  const cohort = await getOrCreateActiveCohort();
+  const teams = await prisma.team.findMany({ where: { cohortId: cohort.id } });
+  const teamByLowerName = new Map(teams.map((t) => [t.name.toLowerCase(), t]));
+
+  let created = 0;
+  const unmatched: string[] = [];
+  for (const row of rows) {
+    const team = teamByLowerName.get(row.equipo.toLowerCase());
+    if (!team) {
+      unmatched.push(row.equipo);
+      continue;
+    }
+    const existing = await prisma.teamMember.findFirst({ where: { teamId: team.id, name: row.nombre } });
+    if (existing) continue;
+    await prisma.teamMember.create({ data: { teamId: team.id, name: row.nombre } });
+    created++;
+  }
+
+  revalidatePath("/admin/config");
+  if (unmatched.length > 0) {
+    return { success: `${created} integrante(s) creados. Equipos no encontrados: ${[...new Set(unmatched)].join(", ")}.` };
+  }
+  return { success: `${created} integrante(s) creados.` };
+}
+
+/** Bulk-upserts one member's subjective MemberScore per skill for a day (form fields named by skillId). */
+export async function submitMemberScoresAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId }, include: { team: true } });
+  if (!member) return;
+  const skills = await prisma.skill.findMany({ where: { rubricConfig: { cohortId: member.team.cohortId } } });
+
+  const rows: { skillId: string; value: number }[] = [];
+  for (const skill of skills) {
+    const raw = formData.get(skill.id);
+    if (raw == null || raw === "") continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) rows.push({ skillId: skill.id, value });
+  }
+
+  await prisma.$transaction(
+    rows.map((r) =>
+      prisma.memberScore.upsert({
+        where: { teamMemberId_skillId_day: { teamMemberId, skillId: r.skillId, day } },
+        update: { value: r.value },
+        create: { teamMemberId, skillId: r.skillId, day, value: r.value },
+      })
+    )
+  );
+  revalidatePath(`/admin/day/${day}`);
+}

@@ -1,6 +1,6 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { publishAllAction, togglePublishedAction } from "@/lib/adminActions";
+import { publishAllAction, togglePublishedAction, toggleScoresPublishedAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero } from "@/domain/finance/alm";
@@ -10,6 +10,7 @@ import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
 import type { Recommendation } from "@/domain/grading/analytics";
 import { SimulationTrigger } from "./SimulationTrigger";
+import { ScoreForm } from "./ScoreForm";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 
@@ -39,9 +40,26 @@ export default async function AdminDayPage({
     include: {
       tariffSubmissions: { where: { day }, select: { meanPremium: true } },
       portfolioAllocations: { where: { day }, select: { allocation: true } },
+      members: true,
     },
     orderBy: { createdAt: "asc" },
   });
+
+  const [skills, teamScores, memberScores] = await Promise.all([
+    prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } }, orderBy: { name: "asc" } }),
+    prisma.score.findMany({ where: { day, team: { cohortId: cohort.id } } }),
+    prisma.memberScore.findMany({ where: { day, teamMember: { team: { cohortId: cohort.id } } } }),
+  ]);
+  const teamScoresByTeamId = new Map<string, { published: boolean; values: Record<string, number | null> }>();
+  for (const s of teamScores) {
+    if (!teamScoresByTeamId.has(s.teamId)) teamScoresByTeamId.set(s.teamId, { published: s.published, values: {} });
+    teamScoresByTeamId.get(s.teamId)!.values[s.skillId] = s.value;
+  }
+  const memberScoresByMemberId = new Map<string, Record<string, number | null>>();
+  for (const s of memberScores) {
+    if (!memberScoresByMemberId.has(s.teamMemberId)) memberScoresByMemberId.set(s.teamMemberId, {});
+    memberScoresByMemberId.get(s.teamMemberId)![s.skillId] = s.value;
+  }
 
   const latestRun = await prisma.simulationRun.findFirst({
     where: { cohortId: cohort.id, day },
@@ -432,8 +450,58 @@ export default async function AdminDayPage({
       )}
 
       {activeTab === "subj" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
-          Calificación subjetiva por equipo/integrante — próximamente.
+        <div className="flex flex-col gap-4">
+          {skills.length === 0 ? (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
+              No hay habilidades configuradas en la rúbrica —{" "}
+              <a href="/admin/config" className="text-[var(--color-brand-blue)] underline">
+                configúralas aquí
+              </a>
+              .
+            </div>
+          ) : (
+            teams.map((team) => {
+              const teamScore = teamScoresByTeamId.get(team.id);
+              return (
+                <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </h3>
+                    <form action={toggleScoresPublishedAction.bind(null, team.id, day)}>
+                      <button
+                        type="submit"
+                        className={`rounded px-3 py-1 text-xs font-semibold ${
+                          teamScore?.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {teamScore?.published ? "Publicado" : "Publicar"}
+                      </button>
+                    </form>
+                  </div>
+                  <ScoreForm kind="team" id={team.id} day={day} skills={skills} initialValues={teamScore?.values ?? {}} />
+
+                  {team.members.length > 0 && (
+                    <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-brand-gray-light)] pt-3">
+                      {team.members.map((member) => (
+                        <div key={member.id}>
+                          <p className="mb-1 text-xs font-semibold text-gray-600">{member.name}</p>
+                          <ScoreForm
+                            kind="member"
+                            id={member.id}
+                            day={day}
+                            skills={skills}
+                            initialValues={memberScoresByMemberId.get(member.id) ?? {}}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
