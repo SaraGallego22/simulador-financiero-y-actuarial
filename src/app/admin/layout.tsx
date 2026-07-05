@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { AdminNav } from "./AdminNav";
 
 /**
  * Defense-in-depth: proxy.ts already blocks non-admins from /admin/*, but
@@ -9,5 +10,10 @@ import { auth } from "@/lib/auth";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") redirect("/login");
-  return <>{children}</>;
+  return (
+    <div className="flex flex-1 flex-col">
+      <AdminNav />
+      {children}
+    </div>
+  );
 }
