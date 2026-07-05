@@ -49,6 +49,14 @@ The prototype generates a synthetic universe of **10,000,000** policies (`genera
 
 The legacy app already has a claims-visibility-censoring pattern by notice date (`esVisible2027`/`esVisible2028`/`esVisible2029`, simulating real IBNR opacity). This generalizes into a **`published`** flag on every result/score (per team, per day): the admin controls when each team sees its results, grading at their own pace without forcing an all-or-nothing global reveal.
 
+### 4.3 Team CSV uploads: chunked, not a single request
+
+A team's tariff CSV covers all 1,000,000 exposures (`id_expuesto,prima`) — as plain text that's realistically 15-20 MB. **Vercel Functions hard-cap the request body at 4.5 MB** (`FUNCTION_PAYLOAD_TOO_LARGE` above that, confirmed against Vercel's docs, no streaming workaround for request bodies on the Node.js runtime). A single-request upload would fail in production for any real-size file, even though it "works" against a small test CSV — this is exactly the kind of gap that only shows up at realistic scale.
+
+**Decision:** the team's browser does the CSV parsing (reusing `src/lib/csv.ts`, which is plain isomorphic TS — no server-only APIs) and builds the full `Float32Array(1_000_000)` client-side, then uploads it in ~800 KB binary chunks (200,000 floats each, 5 chunks total) via sequential `POST` requests to the same submission. The server accumulates chunks by reading the current stored `Bytes` value, splicing in the new chunk at its offset, and writing back — no new Prisma model needed, `TariffSubmission.data` just gets progressively filled in. `meanPremium` is only set (marking the submission complete) after the final chunk, so a submission stuck mid-upload is visibly incomplete rather than silently corrupt.
+
+This keeps every individual request tiny and free-tier-safe without adding Vercel Blob or any other service, at the cost of a few sequential round-trips per upload — acceptable given uploads happen a handful of times per team per day, not continuously.
+
 ## 5. Repo structure (target)
 
 ```

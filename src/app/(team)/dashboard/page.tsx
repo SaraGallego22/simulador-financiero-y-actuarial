@@ -1,12 +1,23 @@
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
+import { TariffUpload } from "./TariffUpload";
+
+const DAY = 1;
 
 export default async function TeamDashboard() {
   const session = await auth();
-  const team = session?.user.teamId
-    ? await prisma.team.findUnique({ where: { id: session.user.teamId } })
-    : null;
+  const teamId = session?.user.teamId ?? null;
+
+  const [team, submission] = await Promise.all([
+    teamId ? prisma.team.findUnique({ where: { id: teamId } }) : null,
+    teamId
+      ? prisma.tariffSubmission.findUnique({
+          where: { teamId_day: { teamId, day: DAY } },
+          select: { meanPremium: true },
+        })
+      : null,
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -21,9 +32,11 @@ export default async function TeamDashboard() {
         </form>
       </div>
       <p className="text-sm text-gray-600">
-        Aquí verás el día habilitado, tus formularios de tarifas/portafolio/entregables, y tus resultados una vez
-        publicados por el evaluador. (Vistas en construcción.)
+        Sube tu tarifa del Día 1. Tus resultados objetivos y la calificación subjetiva aparecerán aquí una vez que el
+        evaluador corra la simulación y los publique.
       </p>
+
+      <TariffUpload day={DAY} initialComplete={submission?.meanPremium != null} initialMeanPremium={submission?.meanPremium ?? null} />
     </main>
   );
 }
