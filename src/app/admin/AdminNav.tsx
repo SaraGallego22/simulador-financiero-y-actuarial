@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/admin/universo", label: "Universo" },
   { href: "/admin/config", label: "Configuración" },
   { href: "/admin/day/1", label: "Día 1" },
+  { href: "/admin/standings", label: "Consolidado" },
 ];
 
 export function AdminNav() {

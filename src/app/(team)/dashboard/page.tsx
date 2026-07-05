@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
@@ -31,11 +32,16 @@ export default async function TeamDashboard() {
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
           {team?.name ?? "Equipo"}
         </h1>
-        <form action={signOutAction}>
-          <button type="submit" className="text-sm text-gray-500 underline hover:text-gray-700">
-            Cerrar sesión
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link href="/standings" className="text-sm text-[var(--color-brand-blue)] underline">
+            Ver ranking
+          </Link>
+          <form action={signOutAction}>
+            <button type="submit" className="text-sm text-gray-500 underline hover:text-gray-700">
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
       </div>
       <p className="text-sm text-gray-600">
         Descarga el universo de pólizas, define tu tarifa por póliza y sube el resultado. Tus resultados objetivos y
