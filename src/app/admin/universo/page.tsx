@@ -19,10 +19,10 @@ export default async function UniversoPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-8">
-      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Universo de datos
       </h1>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-[var(--color-brand-text-secondary)]">
         Genera el universo sintético de pólizas de Colombia y el dataset de referencia de Chile. Hazlo una sola vez
         por cohorte, antes del Día 1 — todos los equipos tarifican sobre el mismo universo.
       </p>

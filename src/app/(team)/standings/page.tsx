@@ -15,17 +15,17 @@ export default async function TeamStandingsPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Ranking general
       </h1>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-[var(--color-brand-text-secondary)]">
         Nota final ponderada de los días publicados. Solo se muestran los resultados que el evaluador ya publicó.
       </p>
 
       {ranked.length === 0 ? (
-        <p className="text-sm text-gray-500">El evaluador aún no ha publicado resultados.</p>
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[var(--color-brand-blue)] text-left text-white">
@@ -48,7 +48,7 @@ export default async function TeamStandingsPage() {
                       {r.teamName}
                       {isMine && " (tu equipo)"}
                     </td>
-                    <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                    <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                       {fmt(r.notaFinal)}
                     </td>
                   </tr>

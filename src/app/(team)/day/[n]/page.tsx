@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 function TabNote({ children }: { children: string }) {
   return (
     <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-      <span className="font-semibold text-[var(--color-brand-blue)]">Indicación — </span>
+      <span className="font-semibold text-[var(--color-brand-blue-accent)]">Indicación — </span>
       {children}
     </p>
   );
@@ -94,7 +94,7 @@ export default async function TeamDayPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
       <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Día {day} — {DAY_TITLES[day]}
         </h1>
         <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
@@ -107,7 +107,7 @@ export default async function TeamDayPage({
           {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
           <a
             href="/api/universe/public-csv"
-            className="w-fit rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+            className="w-fit rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
           >
             Descargar CSV público del universo
           </a>
@@ -141,7 +141,7 @@ export default async function TeamDayPage({
             </>
           )}
           {!includeSim && reportConcepts.length === 0 && !hasAnalitica && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               No hay entregables para este día.
             </div>
           )}
@@ -149,39 +149,39 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "obj" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
+          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             Resultados objetivos — Día {day}
           </h3>
           {publishedResult ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div>
-                <p className="text-xs uppercase text-gray-500">Asegurados</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Asegurados</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   {publishedResult.insuredCount.toLocaleString("es-CO")}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase text-gray-500">Prima total</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Prima total</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   ${Math.round(publishedResult.totalPremium).toLocaleString("es-CO")}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase text-gray-500">Siniestros</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Siniestros</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   {publishedResult.claimsCount.toLocaleString("es-CO")}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase text-gray-500">Monto siniestros</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Monto siniestros</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   ${Math.round(publishedResult.claimsAmount).toLocaleString("es-CO")}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase text-gray-500">Loss ratio</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Loss ratio</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   {publishedResult.totalPremium > 0
                     ? `${((publishedResult.claimsAmount / publishedResult.totalPremium) * 100).toFixed(1)}%`
                     : "—"}
@@ -191,7 +191,7 @@ export default async function TeamDayPage({
                 <div className="col-span-2 sm:col-span-4">
                   <a
                     href={`/api/teams/report?day=${day}`}
-                    className="inline-block rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+                    className="inline-block rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
                   >
                     Descargar reporte de tu cartera (CSV)
                   </a>
@@ -199,28 +199,28 @@ export default async function TeamDayPage({
               )}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">El evaluador aún no ha publicado los resultados de este día.</p>
+            <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados de este día.</p>
           )}
         </div>
       )}
 
       {activeTab === "subj" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             Calificación subjetiva — Día {day}
           </h3>
           {memberScores.length === 0 ? (
-            <p className="text-sm text-gray-500">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
+            <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
           ) : (
             <div className="flex flex-col gap-3">
               {teamAverageBySkill.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Nota de tu equipo (promedio por integrante)</p>
+                  <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Nota de tu equipo (promedio por integrante)</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {teamAverageBySkill.map((s) => (
                       <div key={s.skillName} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                        <p className="text-xs text-gray-500">{s.skillName}</p>
-                        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                        <p className="text-xs text-[var(--color-brand-text-secondary)]">{s.skillName}</p>
+                        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
                           {s.average.toFixed(1)}
                         </p>
                       </div>
@@ -230,7 +230,7 @@ export default async function TeamDayPage({
               )}
               {memberScores.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Por integrante</p>
+                  <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Por integrante</p>
                   <div className="flex flex-col gap-2">
                     {Object.entries(
                       memberScores.reduce<Record<string, typeof memberScores>>((acc, s) => {
@@ -239,12 +239,12 @@ export default async function TeamDayPage({
                       }, {} as Record<string, typeof memberScores>)
                     ).map(([name, scores]) => (
                       <div key={name}>
-                        <p className="text-xs font-semibold text-gray-700">{name}</p>
+                        <p className="text-xs font-semibold text-[var(--color-foreground)]">{name}</p>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                           {scores.map((s) => (
                             <div key={s.id} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                              <p className="text-xs text-gray-500">{s.skill.name}</p>
-                              <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                              <p className="text-xs text-[var(--color-brand-text-secondary)]">{s.skill.name}</p>
+                              <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
                                 {s.value ?? "—"}
                               </p>
                             </div>
@@ -261,9 +261,9 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "top" && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           {!topRows || topRows.every((r) => r.perDay[day - 1]?.nota == null) ? (
-            <p className="p-5 text-sm text-gray-500">El evaluador aún no ha publicado resultados de este día.</p>
+            <p className="p-5 text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados de este día.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -287,7 +287,7 @@ export default async function TeamDayPage({
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
                         {r.teamName}
                       </td>
-                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {r.perDay[day - 1]!.nota!.toFixed(1)}
                       </td>
                     </tr>

@@ -25,20 +25,20 @@ export default async function ConfigPage() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-8">
       <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Configuración
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
           Cohorte activa: <strong>{cohort.name}</strong>
         </p>
       </div>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Equipos
         </h2>
 
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[var(--color-brand-blue)] text-left text-white">
@@ -50,7 +50,7 @@ export default async function ConfigPage() {
             <tbody>
               {teams.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={3} className="px-4 py-4 text-center text-[var(--color-brand-text-secondary)]">
                     Aún no hay equipos creados.
                   </td>
                 </tr>
@@ -61,7 +61,7 @@ export default async function ConfigPage() {
                     <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                     {team.name}
                   </td>
-                  <td className="px-4 py-2 text-gray-600">{team.user?.username ?? "—"}</td>
+                  <td className="px-4 py-2 text-[var(--color-brand-text-secondary)]">{team.user?.username ?? "—"}</td>
                   <td className="px-4 py-2 text-right">
                     <DeleteTeamButton teamId={team.id} teamName={team.name} />
                   </td>
@@ -76,12 +76,12 @@ export default async function ConfigPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Rúbrica de evaluación
         </h2>
 
-        <form action={updateRubricWeightsAction} className="grid grid-cols-1 gap-4 rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <form action={updateRubricWeightsAction} className="grid grid-cols-1 gap-4 rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Peso subjetivo (0-1)
             <input
               name="subjectiveWeight"
@@ -90,10 +90,10 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.subjectiveWeight}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Peso actuarial dentro de lo objetivo (0-1)
             <input
               name="actuarialWeight"
@@ -102,10 +102,10 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.actuarialWeight}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Escala máxima de la rúbrica
             <input
               name="maxScale"
@@ -113,17 +113,17 @@ export default async function ConfigPage() {
               step="1"
               min="1"
               defaultValue={rubric.maxScale}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Modo de normalización objetiva
-            <select name="objectiveMode" defaultValue={rubric.objectiveMode} className="rounded border border-gray-300 px-3 py-2 text-sm">
+            <select name="objectiveMode" defaultValue={rubric.objectiveMode} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm">
               <option value="relative">Relativa (percentil 10-90)</option>
               <option value="ranking">Ranking (posición)</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Tolerancia para 100 (error ≤)
             <input
               name="tolerancePerfect"
@@ -132,10 +132,10 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.tolerancePerfect}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Tolerancia para 0 (error ≥)
             <input
               name="toleranceZero"
@@ -144,7 +144,7 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.toleranceZero}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
           </label>
 
@@ -158,12 +158,12 @@ export default async function ConfigPage() {
           </div>
         </form>
 
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-          <h3 className="mb-3 text-sm font-semibold text-gray-700">Habilidades blandas</h3>
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--color-foreground)]">Habilidades blandas</h3>
           <div className="flex flex-col gap-2">
             {rubric.skills.map((skill) => (
               <div key={skill.id} className="flex items-center gap-3">
-                <span className="flex-1 text-sm text-gray-800">{skill.name}</span>
+                <span className="flex-1 text-sm text-[var(--color-foreground)]">{skill.name}</span>
                 <form action={updateSkillWeightAction} className="flex items-center gap-2">
                   <input type="hidden" name="skillId" value={skill.id} />
                   <input
@@ -172,20 +172,20 @@ export default async function ConfigPage() {
                     step="0.1"
                     min="0"
                     defaultValue={skill.weight}
-                    className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+                    className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
                   />
-                  <button type="submit" className="text-xs text-[var(--color-brand-blue)] underline">
+                  <button type="submit" className="text-xs text-[var(--color-brand-blue-accent)] underline">
                     Guardar
                   </button>
                 </form>
                 <form action={removeSkillAction.bind(null, skill.id)}>
-                  <button type="submit" className="text-xs text-red-600 underline">
+                  <button type="submit" className="text-xs text-[var(--color-brand-red)] underline">
                     Eliminar
                   </button>
                 </form>
               </div>
             ))}
-            {rubric.skills.length === 0 && <p className="text-sm text-gray-500">Sin habilidades configuradas.</p>}
+            {rubric.skills.length === 0 && <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin habilidades configuradas.</p>}
           </div>
 
           <form action={addSkillAction} className="mt-4 flex gap-2">
@@ -193,11 +193,11 @@ export default async function ConfigPage() {
               name="name"
               placeholder="Nueva habilidad (ej. Trabajo en equipo)"
               required
-              className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+              className="flex-1 rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
             />
             <button
               type="submit"
-              className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+              className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
             >
               Añadir
             </button>

@@ -31,7 +31,17 @@ export default function RootLayout({
       lang="es"
       className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-brand-bg text-[#1a1a2e]">
+      <head>
+        {/* Runs before paint to avoid a flash of the wrong theme — reads the
+            same "theme" key ThemeToggle writes to localStorage. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();",
+          }}
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)]">
         <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>

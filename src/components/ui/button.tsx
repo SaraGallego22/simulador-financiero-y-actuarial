@@ -20,16 +20,16 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 function variantClasses(variant: ButtonVariant, onDark: boolean): string {
   if (variant === "primary") {
-    return "bg-[var(--color-brand-blue)] text-white hover:bg-[var(--color-brand-blue-dark)] focus-visible:ring-[var(--color-brand-blue)] focus-visible:ring-offset-white";
+    return "bg-[var(--color-brand-blue)] text-white hover:bg-[var(--color-brand-blue-dark)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   if (variant === "secondary") {
-    return "bg-transparent text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue)] focus-visible:ring-offset-white";
+    return "bg-transparent text-[var(--color-brand-blue-accent)] border border-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   // ghost
   if (onDark) {
     return "border border-white/30 text-white/90 hover:bg-white/10 focus-visible:ring-white focus-visible:ring-offset-[var(--color-brand-blue)]";
   }
-  return "bg-transparent text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue)] focus-visible:ring-offset-white";
+  return "bg-transparent text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
 }
 
 export function Button({

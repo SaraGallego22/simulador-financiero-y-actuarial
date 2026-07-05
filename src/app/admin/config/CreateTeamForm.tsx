@@ -26,20 +26,20 @@ export function CreateTeamForm() {
   }, {});
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded border border-dashed border-gray-300 p-4">
-      <h3 className="text-sm font-semibold text-gray-700">Crear cuenta de equipo</h3>
+    <form action={formAction} className="flex flex-col gap-3 rounded border border-dashed border-[var(--color-brand-gray-light)] p-4">
+      <h3 className="text-sm font-semibold text-[var(--color-foreground)]">Crear cuenta de equipo</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <input
           name="name"
           placeholder="Nombre del equipo"
           required
-          className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+          className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
         />
         <input
           name="username"
           placeholder="Usuario"
           required
-          className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+          className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
         />
         <div className="flex gap-2">
           <input
@@ -49,21 +49,21 @@ export function CreateTeamForm() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+            className="w-full rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
           />
           <button
             type="button"
             onClick={() => setPassword(randomPassword())}
-            className="whitespace-nowrap rounded border border-gray-300 px-2 text-xs text-gray-600 hover:bg-gray-50"
+            className="whitespace-nowrap rounded border border-[var(--color-brand-gray-light)] px-2 text-xs text-[var(--color-brand-text-secondary)] hover:bg-[var(--color-brand-gray-light)]"
           >
             Generar
           </button>
         </div>
       </div>
 
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.error && <p className="text-sm text-[var(--color-brand-red)]">{state.error}</p>}
       {state.success && (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">
+        <p className="rounded bg-[var(--color-brand-green)]/10 px-3 py-2 text-sm text-[var(--color-brand-green)]">
           Cuenta creada: <strong>{state.success.username}</strong> / <strong>{state.success.password}</strong> —
           cópiala, no se vuelve a mostrar.
         </p>

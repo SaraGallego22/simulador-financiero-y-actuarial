@@ -74,11 +74,11 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
   }
 
   return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-5">
-      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Tarifas — Día {day}
       </h3>
-      <p className="mb-3 text-sm text-gray-600">
+      <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
         Sube un CSV con columnas <code>id_expuesto,prima</code> cubriendo al menos el {MIN_COVERAGE * 100}% de las{" "}
         {N_COLOMBIA.toLocaleString("es-CO")} pólizas del universo.
       </p>
@@ -104,15 +104,15 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
         </span>
       </div>
 
-      {status.phase === "parsing" && <p className="text-sm text-gray-500">Leyendo y validando el CSV…</p>}
+      {status.phase === "parsing" && <p className="text-sm text-[var(--color-brand-text-secondary)]">Leyendo y validando el CSV…</p>}
       {status.phase === "uploading" && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
           Subiendo… {status.sent}/{status.total} fragmentos
         </p>
       )}
-      {status.phase === "error" && <p className="text-sm text-red-600">{status.message}</p>}
+      {status.phase === "error" && <p className="text-sm text-[var(--color-brand-red)]">{status.message}</p>}
       {status.phase === "done" && (
-        <p className="text-sm text-green-700">
+        <p className="text-sm text-[var(--color-brand-green)]">
           Tarifa cargada. Prima promedio: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}
         </p>
       )}

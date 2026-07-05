@@ -38,8 +38,8 @@ export function DayTabBar({
             href={`${basePath}/${day}?tab=${tab.key}`}
             className={`-mb-px border-b-[3px] px-4 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide transition-colors ${
               active
-                ? "border-[var(--color-brand-yellow)] text-[var(--color-brand-blue)]"
-                : "border-transparent text-gray-500 hover:text-[var(--color-brand-blue)]"
+                ? "border-[var(--color-brand-yellow)] text-[var(--color-brand-blue-accent)]"
+                : "border-transparent text-[var(--color-brand-text-secondary)] hover:text-[var(--color-brand-blue-accent)]"
             }`}
           >
             {tab.label}

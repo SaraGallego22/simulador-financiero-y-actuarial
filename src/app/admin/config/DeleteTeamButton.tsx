@@ -12,7 +12,7 @@ export function DeleteTeamButton({ teamId, teamName }: { teamId: string; teamNam
         }
       }}
     >
-      <button type="submit" className="text-xs text-red-600 underline hover:text-red-800">
+      <button type="submit" className="text-xs text-[var(--color-brand-red)] underline hover:opacity-80">
         Eliminar
       </button>
     </form>
