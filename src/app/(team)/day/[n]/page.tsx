@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TariffUpload } from "@/components/team/TariffUpload";
 import { PortfolioUpload } from "@/components/team/PortfolioUpload";
+import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
 import { DayTabBar } from "@/components/DayTabBar";
@@ -43,7 +44,7 @@ export default async function TeamDayPage({
   const topRows =
     activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs, teamScores, memberScores] = await Promise.all([
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs, memberScores] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true } })
       : null,
@@ -56,7 +57,6 @@ export default async function TeamDayPage({
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
-    teamId ? prisma.score.findMany({ where: { teamId, day, published: true }, include: { skill: true } }) : [],
     teamId
       ? prisma.memberScore.findMany({
           where: { day, published: true, teamMember: { teamId } },
@@ -64,6 +64,20 @@ export default async function TeamDayPage({
         })
       : [],
   ]);
+  // Subjective grading is person-level only — the team's grade per skill is
+  // the average across members who have a published score for it.
+  const teamAverageBySkill: { skillName: string; average: number }[] = [];
+  {
+    const bySkill = new Map<string, { skillName: string; values: number[] }>();
+    for (const s of memberScores) {
+      if (s.value == null) continue;
+      if (!bySkill.has(s.skillId)) bySkill.set(s.skillId, { skillName: s.skill.name, values: [] });
+      bySkill.get(s.skillId)!.values.push(s.value);
+    }
+    for (const { skillName, values } of bySkill.values()) {
+      if (values.length > 0) teamAverageBySkill.push({ skillName, average: values.reduce((a, b) => a + b, 0) / values.length });
+    }
+  }
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsByKey = Object.fromEntries(
     analyticsRecs.map((r) => [r.segmentKey, r.recommendation as Recommendation])
@@ -95,6 +109,7 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
+          {includeSim && <InstrumentsPanel />}
           {includeSim && <PortfolioUpload day={day} hasAllocation={!!allocation} />}
           {reportConcepts.length > 0 && (
             <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
@@ -134,6 +149,12 @@ export default async function TeamDayPage({
                 </p>
               </div>
               <div>
+                <p className="text-xs uppercase text-gray-500">Monto siniestros</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                  ${Math.round(publishedResult.claimsAmount).toLocaleString("es-CO")}
+                </p>
+              </div>
+              <div>
                 <p className="text-xs uppercase text-gray-500">Loss ratio</p>
                 <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
                   {publishedResult.totalPremium > 0
@@ -163,19 +184,19 @@ export default async function TeamDayPage({
           <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
             Calificación subjetiva — Día {day}
           </h3>
-          {teamScores.length === 0 && memberScores.length === 0 ? (
+          {memberScores.length === 0 ? (
             <p className="text-sm text-gray-500">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {teamScores.length > 0 && (
+              {teamAverageBySkill.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Equipo</p>
+                  <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Nota de tu equipo (promedio por integrante)</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {teamScores.map((s) => (
-                      <div key={s.id} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                        <p className="text-xs text-gray-500">{s.skill.name}</p>
+                    {teamAverageBySkill.map((s) => (
+                      <div key={s.skillName} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                        <p className="text-xs text-gray-500">{s.skillName}</p>
                         <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
-                          {s.value ?? "—"}
+                          {s.average.toFixed(1)}
                         </p>
                       </div>
                     ))}

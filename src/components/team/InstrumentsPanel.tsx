@@ -1,0 +1,45 @@
+import { INSTRUMENTS } from "@/domain/finance/instruments";
+
+export function InstrumentsPanel() {
+  return (
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          Instrumentos disponibles
+        </h3>
+        <div className="flex gap-2">
+          <a href="/api/instruments?kind=menu" className="text-xs text-[var(--color-brand-blue)] underline">
+            Descargar menú (CSV)
+          </a>
+          <a href="/api/instruments?kind=template" className="text-xs text-[var(--color-brand-blue)] underline">
+            Descargar plantilla de portafolio (CSV)
+          </a>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+              <th className="py-1 pr-4">ID</th>
+              <th className="py-1 pr-4">Nombre</th>
+              <th className="py-1 pr-4">Rendimiento EA</th>
+              <th className="py-1 pr-4">Plazo</th>
+              <th className="py-1 pr-4">Nota</th>
+            </tr>
+          </thead>
+          <tbody>
+            {INSTRUMENTS.map((ins) => (
+              <tr key={ins.id} className="border-t border-[var(--color-brand-gray-light)]">
+                <td className="py-1 pr-4 font-mono">{ins.id}</td>
+                <td className="py-1 pr-4">{ins.nombre}</td>
+                <td className="py-1 pr-4">{(ins.yield * 100).toFixed(1)}%</td>
+                <td className="py-1 pr-4">{ins.plazoM >= 400 ? "sin venc." : `${ins.plazoM} meses`}</td>
+                <td className="py-1 pr-4 text-gray-500">{ins.nota}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

@@ -1,21 +1,20 @@
 "use client";
 
-import { submitScoresAction, submitMemberScoresAction } from "@/lib/adminActions";
+import { submitMemberScoresAction } from "@/lib/adminActions";
 
+/** Subjective grading is person-level only — see toggleMemberScoresPublishedForTeamAction. */
 export function ScoreForm({
-  kind,
   id,
   day,
   skills,
   initialValues,
 }: {
-  kind: "team" | "member";
   id: string;
   day: number;
   skills: { id: string; name: string }[];
   initialValues: Record<string, number | null | undefined>;
 }) {
-  const action = kind === "team" ? submitScoresAction.bind(null, id, day) : submitMemberScoresAction.bind(null, id, day);
+  const action = submitMemberScoresAction.bind(null, id, day);
 
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">

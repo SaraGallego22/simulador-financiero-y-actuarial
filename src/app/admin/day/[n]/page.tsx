@@ -1,9 +1,9 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { publishAllAction, togglePublishedAction, toggleScoresPublishedAction } from "@/lib/adminActions";
+import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedForTeamAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
-import { scoreFinanciero } from "@/domain/finance/alm";
+import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import type { Allocation } from "@/domain/finance/instruments";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -49,20 +49,19 @@ export default async function AdminDayPage({
     orderBy: { createdAt: "asc" },
   });
 
-  const [skills, teamScores, memberScores] = await Promise.all([
+  const [skills, memberScores] = await Promise.all([
     prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } }, orderBy: { name: "asc" } }),
-    prisma.score.findMany({ where: { day, team: { cohortId: cohort.id } } }),
-    prisma.memberScore.findMany({ where: { day, teamMember: { team: { cohortId: cohort.id } } } }),
+    prisma.memberScore.findMany({
+      where: { day, teamMember: { team: { cohortId: cohort.id } } },
+      include: { teamMember: { select: { teamId: true } } },
+    }),
   ]);
-  const teamScoresByTeamId = new Map<string, { published: boolean; values: Record<string, number | null> }>();
-  for (const s of teamScores) {
-    if (!teamScoresByTeamId.has(s.teamId)) teamScoresByTeamId.set(s.teamId, { published: s.published, values: {} });
-    teamScoresByTeamId.get(s.teamId)!.values[s.skillId] = s.value;
-  }
   const memberScoresByMemberId = new Map<string, Record<string, number | null>>();
+  const teamPublishedByTeamId = new Map<string, boolean>();
   for (const s of memberScores) {
     if (!memberScoresByMemberId.has(s.teamMemberId)) memberScoresByMemberId.set(s.teamMemberId, {});
     memberScoresByMemberId.get(s.teamMemberId)![s.skillId] = s.value;
+    if (!teamPublishedByTeamId.has(s.teamMember.teamId)) teamPublishedByTeamId.set(s.teamMember.teamId, s.published);
   }
 
   const latestRun = await prisma.simulationRun.findFirst({
@@ -80,6 +79,7 @@ export default async function AdminDayPage({
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
+  const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
   if (latestRun?.status === "DONE") {
     const book = await getTeamBookForDay(cohort.id, day);
     if (book) {
@@ -89,14 +89,17 @@ export default async function AdminDayPage({
         const reserves = reservesByTeamId.get(team.id);
         if (allocation && reserves) {
           almScoreByTeamId.set(team.id, scoreFinanciero(reserves, allocation));
+          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, allocation));
         }
       }
     }
   }
 
-  // finBench (P&L/balance/solvency) needs Year 1 to exist — meaningful from
-  // Day 2 onward, once Year 1's simulation is DONE.
-  const finBenchByTeamId = day >= 2 ? await computeFinBenchForCohort(cohort.id) : new Map();
+  // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
+  // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
+  // before any portfolio/Year-2 data exists (it falls back to a default
+  // reinvestment yield when almYear1 is null).
+  const finBenchByTeamId = day >= 1 ? await computeFinBenchForCohort(cohort.id) : new Map();
 
   // Deliverables: teams self-report numeric concepts, graded against
   // finBench's computed benchmark within a tolerance band.
@@ -156,7 +159,10 @@ export default async function AdminDayPage({
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima total</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Monto siniestros</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Gastos (adq+com+adm)</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">RT</th>
                   {day === 2 && (
                     <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
                   )}
@@ -168,6 +174,8 @@ export default async function AdminDayPage({
                   const submitted = team.tariffSubmissions[0]?.meanPremium != null;
                   const result = resultByTeamId.get(team.id);
                   const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
+                  const bench = finBenchByTeamId.get(team.id);
+                  const gastos = bench ? bench.p1.gadq + bench.p1.gcom + bench.p1.gadm : null;
                   return (
                     <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                       <td className="px-4 py-2">
@@ -180,7 +188,10 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}</td>
                       <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
+                      <td className="px-4 py-2">{result ? `$${Math.round(result.claimsAmount).toLocaleString("es-CO")}` : "—"}</td>
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-2">{gastos != null ? `$${Math.round(gastos).toLocaleString("es-CO")}` : "—"}</td>
+                      <td className="px-4 py-2">{bench ? `$${Math.round(bench.p1.rt).toLocaleString("es-CO")}` : "—"}</td>
                       {day === 2 && (
                         <td className="px-4 py-2">
                           {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
@@ -339,34 +350,125 @@ export default async function AdminDayPage({
 
       {activeTab === "obj" && (
         <div className="flex flex-col gap-4">
-          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
-            <div className="p-4 pb-0">
-              <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-                ALM — calce del portafolio vs. reservas
-              </h3>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="px-4 py-2">Equipo</th>
-                  <th className="px-4 py-2">Nota ALM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((team) => {
-                  const almScore = almScoreByTeamId.get(team.id);
-                  return (
-                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                      <td className="px-4 py-2">
+          <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-4">
+            <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+              ALM — calce del portafolio vs. reservas
+            </h3>
+            <div className="flex flex-col gap-3">
+              {teams.map((team) => {
+                const almScore = almScoreByTeamId.get(team.id);
+                const ladder = almLadderByTeamId.get(team.id);
+                const allocation = team.portfolioAllocations[0]?.allocation as Allocation | undefined;
+                return (
+                  <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                    <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+                      <span>
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                         {team.name}
-                      </td>
-                      <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </span>
+                      <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                        {almScore ? `Nota ALM: ${almScore.nota.toFixed(1)}` : "Sin portafolio o sin reservas aún"}
+                      </span>
+                    </summary>
+                    {almScore && (
+                      <div className="border-t border-[var(--color-brand-gray-light)] p-3">
+                        <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          <div>
+                            <p className="text-xs text-gray-500">Calce (45%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                              {almScore.calce.toFixed(1)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Rendimiento (45%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                              {almScore.rendimiento.toFixed(1)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Liquidez (10%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                              {almScore.liquidez.toFixed(1)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Reserva</p>
+                            <p className="text-sm font-semibold">${Math.round(almScore.reserva).toLocaleString("es-CO")}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Brecha máxima (peak gap)</p>
+                            <p className="text-sm font-semibold">
+                              ${Math.round(almScore.peakGap).toLocaleString("es-CO")} ({(almScore.brechaRel * 100).toFixed(1)}% de la reserva)
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Rendimiento portafolio (nominal)</p>
+                            <p className="text-sm font-semibold">{(almScore.portYield * 100).toFixed(2)}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Rendimiento efectivo simulado</p>
+                            <p className="text-sm font-semibold">{(almScore.effYield * 100).toFixed(2)}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Cobertura liquidez (6 meses)</p>
+                            <p className="text-sm font-semibold">
+                              ${Math.round(almScore.liq6).toLocaleString("es-CO")} / ${Math.round(almScore.liab6).toLocaleString("es-CO")} ({(almScore.cobertura * 100).toFixed(0)}%)
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Ingreso total simulado</p>
+                            <p className="text-sm font-semibold">${Math.round(almScore.totIncome).toLocaleString("es-CO")}</p>
+                          </div>
+                        </div>
+
+                        <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Portafolio enviado</p>
+                        <p className="mb-3 text-xs text-gray-600">
+                          {allocation
+                            ? Object.entries(allocation)
+                                .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
+                                .join(" · ")
+                            : "—"}
+                        </p>
+
+                        {ladder && ladder.rows.length > 0 && (
+                          <>
+                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                              Flujo esperado (pasivo) vs. lo que aportó el portafolio, mes a mes
+                            </p>
+                            <div className="max-h-64 overflow-y-auto overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-white">
+                                  <tr className="text-left uppercase tracking-wide text-gray-500">
+                                    <th className="px-2 py-1">Mes</th>
+                                    <th className="px-2 py-1">Pago requerido</th>
+                                    <th className="px-2 py-1">Aporte</th>
+                                    <th className="px-2 py-1">Ingresos (aporte+venc.+rend.)</th>
+                                    <th className="px-2 py-1">Saldo caja</th>
+                                    <th className="px-2 py-1">Brecha (déficit)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {ladder.rows.map((r, i) => (
+                                    <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brecha > 0 ? "bg-red-50" : ""}`}>
+                                      <td className="px-2 py-1">{r.mes}</td>
+                                      <td className="px-2 py-1">${Math.round(r.pago).toLocaleString("es-CO")}</td>
+                                      <td className="px-2 py-1">${Math.round(r.aporte).toLocaleString("es-CO")}</td>
+                                      <td className="px-2 py-1">${Math.round(r.ingresos).toLocaleString("es-CO")}</td>
+                                      <td className="px-2 py-1">${Math.round(r.saldo).toLocaleString("es-CO")}</td>
+                                      <td className="px-2 py-1">{r.brecha > 0 ? `$${Math.round(r.brecha).toLocaleString("es-CO")}` : "—"}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </details>
+                );
+              })}
+            </div>
           </div>
 
           {day >= 2 && finBenchByTeamId.size > 0 && (
@@ -467,7 +569,7 @@ export default async function AdminDayPage({
             </div>
           ) : (
             teams.map((team) => {
-              const teamScore = teamScoresByTeamId.get(team.id);
+              const published = teamPublishedByTeamId.get(team.id) ?? false;
               return (
                 <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
                   <div className="mb-3 flex items-center justify-between">
@@ -475,26 +577,34 @@ export default async function AdminDayPage({
                       <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                       {team.name}
                     </h3>
-                    <form action={toggleScoresPublishedAction.bind(null, team.id, day)}>
-                      <button
-                        type="submit"
-                        className={`rounded px-3 py-1 text-xs font-semibold ${
-                          teamScore?.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                        }`}
-                      >
-                        {teamScore?.published ? "Publicado" : "Publicar"}
-                      </button>
-                    </form>
+                    {team.members.length > 0 && (
+                      <form action={toggleMemberScoresPublishedForTeamAction.bind(null, team.id, day)}>
+                        <button
+                          type="submit"
+                          className={`rounded px-3 py-1 text-xs font-semibold ${
+                            published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {published ? "Publicado" : "Publicar"}
+                        </button>
+                      </form>
+                    )}
                   </div>
-                  <ScoreForm kind="team" id={team.id} day={day} skills={skills} initialValues={teamScore?.values ?? {}} />
 
-                  {team.members.length > 0 && (
-                    <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-brand-gray-light)] pt-3">
+                  {team.members.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      Este equipo no tiene integrantes cargados. La calificación subjetiva es por integrante — sube el{" "}
+                      <a href="/admin/config" className="text-[var(--color-brand-blue)] underline">
+                        roster
+                      </a>{" "}
+                      primero.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-3">
                       {team.members.map((member) => (
                         <div key={member.id}>
                           <p className="mb-1 text-xs font-semibold text-gray-600">{member.name}</p>
                           <ScoreForm
-                            kind="member"
                             id={member.id}
                             day={day}
                             skills={skills}

@@ -141,38 +141,20 @@ export async function publishAllAction(simulationRunId: string, day: number): Pr
   revalidatePath(`/admin/day/${day}`);
 }
 
-/** Bulk-upserts one team's subjective Score per skill for a day (form fields named by skillId). */
-export async function submitScoresAction(teamId: string, day: number, formData: FormData): Promise<void> {
+
+/**
+ * Publishes/unpublishes all of one team's *member*-level scores for a day at
+ * once — subjective grading is person-level only (see CLAUDE.md's domain
+ * glossary — notaSubjetivaEquipo averages member scores into the team's
+ * grade), so "publish this team's subjective grade" means publishing every
+ * member's rows together, not a separate team-level Score.
+ */
+export async function toggleMemberScoresPublishedForTeamAction(teamId: string, day: number): Promise<void> {
   await requireAdmin();
-  const cohort = await getOrCreateActiveCohort();
-  const skills = await prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } } });
-
-  const rows: { skillId: string; value: number }[] = [];
-  for (const skill of skills) {
-    const raw = formData.get(skill.id);
-    if (raw == null || raw === "") continue;
-    const value = Number(raw);
-    if (Number.isFinite(value)) rows.push({ skillId: skill.id, value });
-  }
-
-  await prisma.$transaction(
-    rows.map((r) =>
-      prisma.score.upsert({
-        where: { teamId_skillId_day: { teamId, skillId: r.skillId, day } },
-        update: { value: r.value },
-        create: { teamId, skillId: r.skillId, day, value: r.value },
-      })
-    )
-  );
-  revalidatePath(`/admin/day/${day}`);
-}
-
-export async function toggleScoresPublishedAction(teamId: string, day: number): Promise<void> {
-  await requireAdmin();
-  const scores = await prisma.score.findMany({ where: { teamId, day } });
+  const scores = await prisma.memberScore.findMany({ where: { day, teamMember: { teamId } } });
   if (scores.length === 0) return;
   const nextPublished = !scores[0].published;
-  await prisma.score.updateMany({ where: { teamId, day }, data: { published: nextPublished } });
+  await prisma.memberScore.updateMany({ where: { day, teamMember: { teamId } }, data: { published: nextPublished } });
   revalidatePath(`/admin/day/${day}`);
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { INSTRUMENTS } from "@/domain/finance/instruments";
+import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 
 const DAYS = [
   { n: 1, label: "Día 1 — Tarifación Año 1" },
@@ -49,33 +49,7 @@ export default async function TeamDashboard() {
         ))}
       </div>
 
-      <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-        <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-          Instrumentos disponibles
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                <th className="py-1 pr-4">ID</th>
-                <th className="py-1 pr-4">Nombre</th>
-                <th className="py-1 pr-4">Rendimiento EA</th>
-                <th className="py-1 pr-4">Plazo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {INSTRUMENTS.map((ins) => (
-                <tr key={ins.id} className="border-t border-[var(--color-brand-gray-light)]">
-                  <td className="py-1 pr-4 font-mono">{ins.id}</td>
-                  <td className="py-1 pr-4">{ins.nombre}</td>
-                  <td className="py-1 pr-4">{(ins.yield * 100).toFixed(1)}%</td>
-                  <td className="py-1 pr-4">{ins.plazoM >= 999 ? "sin venc." : `${ins.plazoM} meses`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <InstrumentsPanel />
     </main>
   );
 }
