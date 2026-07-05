@@ -6,10 +6,28 @@ import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import type { Allocation } from "@/domain/finance/instruments";
 import { SimulationTrigger } from "./SimulationTrigger";
+import { DayTabBar } from "@/components/DayTabBar";
+import type { DayTabKey } from "@/components/DayTabBar";
 
-export default async function AdminDayPage({ params }: { params: Promise<{ n: string }> }) {
+const DAY_TITLES: Record<number, string> = {
+  1: "Tarificación Año 1 y portafolio",
+  2: "P&G Año 1 y retarifación Año 2",
+  3: "P&G Año 2 (+proy. A3) y Balance",
+  4: "Solvencia, dividendos y analítica",
+};
+
+export default async function AdminDayPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ n: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { n } = await params;
   const day = Number(n);
+  const includeSim = day <= 2;
+  const { tab } = await searchParams;
+  const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
 
   const teams = await prisma.team.findMany({
@@ -53,180 +71,292 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
   const finBenchByTeamId = day >= 2 ? await computeFinBenchForCohort(cohort.id) : new Map();
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
       <div>
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-          Día {day}
+          Día {day} — {DAY_TITLES[day]}
         </h1>
         <p className="text-sm text-gray-600">
           {submittedCount} de {teams.length} equipos han subido su tarifa completa.
         </p>
       </div>
 
-      <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
+      <DayTabBar basePath="/admin/day" day={day} activeTab={activeTab} includeSim={includeSim} />
 
-      <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[var(--color-brand-blue)] text-left text-white">
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Tarifa</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima total</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
-              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota ALM</th>
-              {day === 2 && (
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
-              )}
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map((team) => {
-              const submitted = team.tariffSubmissions[0]?.meanPremium != null;
-              const result = resultByTeamId.get(team.id);
-              const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
-              const almScore = almScoreByTeamId.get(team.id);
-              return (
-                <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                  <td className="px-4 py-2">
-                    <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                    {team.name}
-                  </td>
-                  <td className="px-4 py-2">
-                    {submitted ? (
-                      <span className="text-green-700">Completa</span>
-                    ) : (
-                      <span className="text-gray-400">Pendiente</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
-                  <td className="px-4 py-2">
-                    {result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}
-                  </td>
-                  <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
-                  <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
-                  <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
+      {activeTab === "sim" && includeSim && (
+        <div className="flex flex-col gap-4">
+          <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
+
+          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Tarifa</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima total</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
                   {day === 2 && (
-                    <td className="px-4 py-2">
-                      {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
-                        ? `${(result.extra as { retainedCount: number }).retainedCount.toLocaleString("es-CO")} / ${(result.extra as { newCount: number }).newCount.toLocaleString("es-CO")}`
-                        : "—"}
-                    </td>
+                    <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
                   )}
-                  <td className="px-4 py-2 text-right">
-                    {result && (
-                      <form action={togglePublishedAction.bind(null, result.id, day)}>
-                        <button
-                          type="submit"
-                          className={`rounded px-3 py-1 text-xs font-semibold ${
-                            result.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          {result.published ? "Publicado" : "Publicar"}
-                        </button>
-                      </form>
-                    )}
-                  </td>
+                  <th className="px-4 py-2" />
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {day >= 2 && finBenchByTeamId.size > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
-          <div className="p-4 pb-0">
-            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-              Financiero (finBench) — Año 1{day >= 2 ? " / Año 2" : ""}
-            </h3>
+              </thead>
+              <tbody>
+                {teams.map((team) => {
+                  const submitted = team.tariffSubmissions[0]?.meanPremium != null;
+                  const result = resultByTeamId.get(team.id);
+                  const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
+                  return (
+                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name}
+                      </td>
+                      <td className="px-4 py-2">
+                        {submitted ? <span className="text-green-700">Completa</span> : <span className="text-gray-400">Pendiente</span>}
+                      </td>
+                      <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
+                      <td className="px-4 py-2">{result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}</td>
+                      <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
+                      <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
+                      {day === 2 && (
+                        <td className="px-4 py-2">
+                          {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
+                            ? `${(result.extra as { retainedCount: number }).retainedCount.toLocaleString("es-CO")} / ${(result.extra as { newCount: number }).newCount.toLocaleString("es-CO")}`
+                            : "—"}
+                        </td>
+                      )}
+                      <td className="px-4 py-2 text-right">
+                        {result && (
+                          <form action={togglePublishedAction.bind(null, result.id, day)}>
+                            <button
+                              type="submit"
+                              className={`rounded px-3 py-1 text-xs font-semibold ${
+                                result.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                              }`}
+                            >
+                              {result.published ? "Publicado" : "Publicar"}
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+
+          {latestRun && latestRun.status === "DONE" && (
+            <form action={publishAllAction.bind(null, latestRun.id, day)}>
+              <button
+                type="submit"
+                className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+              >
+                Publicar todos los resultados de este día
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {activeTab === "entreg" && (
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+            Portafolios de inversión — Día {day}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <th className="py-1 pr-4">Equipo</th>
+                  <th className="py-1 pr-4">Portafolio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map((team) => (
+                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="py-1 pr-4">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {team.portfolioAllocations[0] ? (
+                        <span className="text-green-700">Cargado</span>
+                      ) : (
+                        <span className="text-gray-400">Pendiente</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Entregables financieros/analíticos adicionales (Días 3-4) se agregan próximamente.
+          </p>
+        </div>
+      )}
+
+      {activeTab === "obj" && (
+        <div className="flex flex-col gap-4">
+          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+            <div className="p-4 pb-0">
+              <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                ALM — calce del portafolio vs. reservas
+              </h3>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <th className="px-4 py-2">Equipo</th>
+                  <th className="px-4 py-2">Nota ALM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map((team) => {
+                  const almScore = almScoreByTeamId.get(team.id);
+                  return (
+                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name}
+                      </td>
+                      <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {day >= 2 && finBenchByTeamId.size > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+              <div className="p-4 pb-0">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                  Financiero (finBench) — Año 1 / Año 2
+                </h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2">Equipo</th>
+                    <th className="px-4 py-2">Reservas A1</th>
+                    <th className="px-4 py-2">Utilidad neta A1</th>
+                    <th className="px-4 py-2">Utilidad neta A2</th>
+                    <th className="px-4 py-2">Capital (RK)</th>
+                    <th className="px-4 py-2">Margen solvencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team) => {
+                    const bench = finBenchByTeamId.get(team.id);
+                    if (!bench) return null;
+                    return (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="px-4 py-2">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {day >= 3 && finBenchByTeamId.size > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+              <div className="p-4 pb-0">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                  Balance y proyección Año 3
+                </h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2">Equipo</th>
+                    <th className="px-4 py-2">Activos (fin A1)</th>
+                    <th className="px-4 py-2">Activos (fin A2)</th>
+                    <th className="px-4 py-2">Patrimonio (fin A2)</th>
+                    <th className="px-4 py-2">Utilidad neta A3 (proy.)</th>
+                    <th className="px-4 py-2">Margen solvencia</th>
+                    <th className="px-4 py-2">Dividendo sugerido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team) => {
+                    const bench = finBenchByTeamId.get(team.id);
+                    if (!bench) return null;
+                    return (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="px-4 py-2">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="px-4 py-2">${Math.round(bench.bal1.activos).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.activos).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.patrimonio).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">{bench.p3 ? `$${Math.round(bench.p3.uneta).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
+                        <td className="px-4 py-2">${Math.round(bench.div).toLocaleString("es-CO")}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "subj" && (
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
+          Calificación subjetiva por equipo/integrante — próximamente.
+        </div>
+      )}
+
+      {activeTab === "top" && (
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-2">Equipo</th>
-                <th className="px-4 py-2">Reservas A1</th>
-                <th className="px-4 py-2">Utilidad neta A1</th>
-                <th className="px-4 py-2">Utilidad neta A2</th>
-                <th className="px-4 py-2">Capital (RK)</th>
-                <th className="px-4 py-2">Margen solvencia</th>
+              <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota ALM</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Margen solvencia</th>
               </tr>
             </thead>
             <tbody>
-              {teams.map((team) => {
-                const bench = finBenchByTeamId.get(team.id);
-                if (!bench) return null;
-                return (
+              {teams
+                .map((team) => ({
+                  team,
+                  almScore: almScoreByTeamId.get(team.id)?.nota ?? -Infinity,
+                  margen: finBenchByTeamId.get(team.id)?.solMargen ?? -Infinity,
+                }))
+                .sort((a, b) => b.almScore - a.almScore)
+                .map(({ team, almScore, margen }, i) => (
                   <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="px-4 py-2">{i + 1}</td>
                     <td className="px-4 py-2">
                       <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                       {team.name}
                     </td>
-                    <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
-                    <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
-                    <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
-                    <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
-                    <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
+                    <td className="px-4 py-2">{Number.isFinite(almScore) ? almScore.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2">{Number.isFinite(margen) ? `${margen.toFixed(2)}×` : "—"}</td>
                   </tr>
-                );
-              })}
+                ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {day >= 3 && finBenchByTeamId.size > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
-          <div className="p-4 pb-0">
-            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-              Balance y proyección Año 3
-            </h3>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-2">Equipo</th>
-                <th className="px-4 py-2">Activos (fin A1)</th>
-                <th className="px-4 py-2">Activos (fin A2)</th>
-                <th className="px-4 py-2">Patrimonio (fin A2)</th>
-                <th className="px-4 py-2">Utilidad neta A3 (proy.)</th>
-                <th className="px-4 py-2">Dividendo sugerido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teams.map((team) => {
-                const bench = finBenchByTeamId.get(team.id);
-                if (!bench) return null;
-                return (
-                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                    <td className="px-4 py-2">
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name}
-                    </td>
-                    <td className="px-4 py-2">${Math.round(bench.bal1.activos).toLocaleString("es-CO")}</td>
-                    <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.activos).toLocaleString("es-CO")}` : "—"}</td>
-                    <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.patrimonio).toLocaleString("es-CO")}` : "—"}</td>
-                    <td className="px-4 py-2">{bench.p3 ? `$${Math.round(bench.p3.uneta).toLocaleString("es-CO")}` : "—"}</td>
-                    <td className="px-4 py-2">${Math.round(bench.div).toLocaleString("es-CO")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {latestRun && latestRun.status === "DONE" && (
-        <form action={publishAllAction.bind(null, latestRun.id, day)}>
-          <button
-            type="submit"
-            className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
-          >
-            Publicar todos los resultados de este día
-          </button>
-        </form>
       )}
     </main>
   );

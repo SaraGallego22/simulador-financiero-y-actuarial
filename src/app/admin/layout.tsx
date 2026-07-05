@@ -11,9 +11,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") redirect("/login");
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1">
       <AdminNav />
-      {children}
+      <div className="flex flex-1 flex-col overflow-y-auto">{children}</div>
     </div>
   );
 }
