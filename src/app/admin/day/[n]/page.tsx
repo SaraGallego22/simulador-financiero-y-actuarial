@@ -14,16 +14,10 @@ import { SimulationTrigger } from "./SimulationTrigger";
 import { ScoreForm } from "./ScoreForm";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
+import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
-
-const DAY_TITLES: Record<number, string> = {
-  1: "Tarificación Año 1 y portafolio",
-  2: "P&G Año 1 y retarifación Año 2",
-  3: "P&G Año 2 (+proy. A3) y Balance",
-  4: "Solvencia, dividendos y analítica",
-};
 
 export default async function AdminDayPage({
   params,
@@ -139,7 +133,8 @@ export default async function AdminDayPage({
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
           Día {day} — {DAY_TITLES[day]}
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
+        <p className="mt-1 text-sm text-gray-600">
           {submittedCount} de {teams.length} equipos han subido su tarifa completa.
         </p>
       </div>
