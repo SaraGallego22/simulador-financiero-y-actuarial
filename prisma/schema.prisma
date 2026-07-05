@@ -1,0 +1,236 @@
+// Data model for the Simulador Financiero y Actuarial platform.
+// See CLAUDE.md §7 for the rationale behind each modeling choice
+// (cohort isolation, Bytes columns instead of a blob service, published flags).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEAM
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         Role
+  team         Team?    @relation(fields: [teamId], references: [id])
+  teamId       String?  @unique
+  createdAt    DateTime @default(now())
+}
+
+model Cohort {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  teams          Team[]
+  universeRuns   UniverseRun[]
+  simulationRuns SimulationRun[]
+  rubricConfig   RubricConfig?
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  cohortId  String
+  cohort    Cohort   @relation(fields: [cohortId], references: [id])
+  name      String
+  color     String
+  createdAt DateTime @default(now())
+
+  user                     User?
+  members                  TeamMember[]
+  tariffSubmissions        TariffSubmission[]
+  portfolioAllocations     PortfolioAllocation[]
+  deliverables             Deliverable[]
+  analyticsRecommendations AnalyticsRecommendation[]
+  simResults               TeamSimResult[]
+  scores                   Score[]
+
+  @@unique([cohortId, name])
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name   String
+
+  memberScores MemberScore[]
+}
+
+// Bulk-generated reference datasets (Colombia universe, Chile reference set).
+// `data` holds the serialized typed array directly as a Postgres bytea column —
+// no separate blob service (see CLAUDE.md §3/§4.1).
+model UniverseRun {
+  id         String    @id @default(cuid())
+  cohortId   String
+  cohort     Cohort    @relation(fields: [cohortId], references: [id])
+  kind       String // "colombia" | "chile"
+  seed       Int
+  rowCount   Int
+  status     JobStatus @default(PENDING)
+  data       Bytes?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// One market-clearing simulation run for a given challenge day/year.
+// `resultData` is the full per-policy team assignment, kept only for audit/export;
+// the numbers the UI actually queries live in TeamSimResult.
+model SimulationRun {
+  id         String    @id @default(cuid())
+  cohortId   String
+  cohort     Cohort    @relation(fields: [cohortId], references: [id])
+  day        Int
+  status     JobStatus @default(PENDING)
+  params     Json
+  resultData Bytes?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  teamResults TeamSimResult[]
+}
+
+model TeamSimResult {
+  id              String        @id @default(cuid())
+  simulationRunId String
+  simulationRun   SimulationRun @relation(fields: [simulationRunId], references: [id], onDelete: Cascade)
+  teamId          String
+  team            Team          @relation(fields: [teamId], references: [id])
+
+  insuredCount  Int
+  totalPremium  Float
+  claimsCount   Int
+  claimsAmount  Float
+  rejectedCount Int
+  // Catch-all for the many finBench/almSim/scoreFinanciero output fields
+  // (P&L lines, balance sheet, solvency ratios, NAV sensitivities) — kept as
+  // Json until the engine port stabilizes their exact shape (see CLAUDE.md §7).
+  extra         Json
+
+  published Boolean @default(false)
+
+  @@unique([simulationRunId, teamId])
+}
+
+model TariffSubmission {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  day         Int
+  data        Bytes
+  meanPremium Float?
+  submittedAt DateTime @default(now())
+
+  @@unique([teamId, day])
+}
+
+model PortfolioAllocation {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  day         Int
+  allocation  Json
+  submittedAt DateTime @default(now())
+
+  @@unique([teamId, day])
+}
+
+model Deliverable {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  day         Int
+  conceptId   String
+  value       Float
+  submittedAt DateTime @default(now())
+
+  @@unique([teamId, day, conceptId])
+}
+
+model AnalyticsRecommendation {
+  id             String @id @default(cuid())
+  teamId         String
+  team           Team   @relation(fields: [teamId], references: [id])
+  day            Int
+  segmentKey     String
+  recommendation String // 'crecer' | 'disminuir' | 'mantener'
+
+  @@unique([teamId, day, segmentKey])
+}
+
+model RubricConfig {
+  id       String @id @default(cuid())
+  cohortId String @unique
+  cohort   Cohort @relation(fields: [cohortId], references: [id])
+
+  subjectiveWeight Float  @default(0.30)
+  actuarialWeight  Float  @default(0.50)
+  maxScale         Int    @default(5)
+  objectiveMode    String @default("relative")
+  tolerancePerfect Float  @default(0.05)
+  toleranceZero    Float  @default(0.40)
+
+  skills Skill[]
+}
+
+model Skill {
+  id             String       @id @default(cuid())
+  rubricConfigId String
+  rubricConfig   RubricConfig @relation(fields: [rubricConfigId], references: [id], onDelete: Cascade)
+  name           String
+  weight         Float        @default(1)
+
+  scores       Score[]
+  memberScores MemberScore[]
+}
+
+// Team-level subjective + objective composite score for one skill, one day.
+model Score {
+  id      String @id @default(cuid())
+  teamId  String
+  team    Team   @relation(fields: [teamId], references: [id])
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  day     Int
+  value   Float?
+
+  published Boolean @default(false)
+
+  @@unique([teamId, skillId, day])
+}
+
+// Per-member variant of Score, used when the admin has uploaded a team roster.
+model MemberScore {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  skillId      String
+  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  day          Int
+  value        Float?
+
+  published Boolean @default(false)
+
+  @@unique([teamMemberId, skillId, day])
+}
