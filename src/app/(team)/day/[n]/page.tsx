@@ -9,6 +9,11 @@ import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import type { Recommendation } from "@/domain/grading/analytics";
+import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { computeConsolidado } from "@/lib/consolidado";
+
+// Never statically prerender — see admin/standings/page.tsx.
+export const dynamic = "force-dynamic";
 
 const DAY_TITLES: Record<number, string> = {
   1: "Tarificación Año 1 y portafolio",
@@ -34,6 +39,9 @@ export default async function TeamDayPage({
 
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
+
+  const topRows =
+    activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
 
   const [submission, publishedResult, allocation, deliverables, analyticsRecs, teamScores, memberScores] = await Promise.all([
     teamId
@@ -197,8 +205,40 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "top" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
-          Consulta el <a href="/standings" className="text-[var(--color-brand-blue)] underline">ranking general</a>.
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+          {!topRows || topRows.every((r) => r.perDay[day - 1]?.nota == null) ? (
+            <p className="p-5 text-sm text-gray-500">El evaluador aún no ha publicado resultados de este día.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topRows
+                  .filter((r) => r.perDay[day - 1]?.nota != null)
+                  .sort((a, b) => (b.perDay[day - 1]!.nota ?? 0) - (a.perDay[day - 1]!.nota ?? 0))
+                  .map((r, i) => (
+                    <tr
+                      key={r.teamId}
+                      className={`border-t border-[var(--color-brand-gray-light)] ${r.teamId === teamId ? "bg-[var(--color-brand-blue-light)] font-semibold" : ""}`}
+                    >
+                      <td className="px-4 py-2">{i + 1}</td>
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
+                        {r.teamName}
+                      </td>
+                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                        {r.perDay[day - 1]!.nota!.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </main>

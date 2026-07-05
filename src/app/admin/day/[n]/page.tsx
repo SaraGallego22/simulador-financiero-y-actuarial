@@ -9,10 +9,14 @@ import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
 import type { Recommendation } from "@/domain/grading/analytics";
+import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { ScoreForm } from "./ScoreForm";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
+
+// Never statically prerender — see admin/standings/page.tsx.
+export const dynamic = "force-dynamic";
 
 const DAY_TITLES: Record<number, string> = {
   1: "Tarificación Año 1 y portafolio",
@@ -70,6 +74,8 @@ export default async function AdminDayPage({
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
   const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
+
+  const consolidadoRows = activeTab === "top" ? await computeConsolidado(cohort.id) : null;
 
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
@@ -512,29 +518,32 @@ export default async function AdminDayPage({
               <tr className="bg-[var(--color-brand-blue)] text-left text-white">
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota ALM</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Margen solvencia</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
               </tr>
             </thead>
             <tbody>
-              {teams
-                .map((team) => ({
-                  team,
-                  almScore: almScoreByTeamId.get(team.id)?.nota ?? -Infinity,
-                  margen: finBenchByTeamId.get(team.id)?.solMargen ?? -Infinity,
-                }))
-                .sort((a, b) => b.almScore - a.almScore)
-                .map(({ team, almScore, margen }, i) => (
-                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                    <td className="px-4 py-2">{i + 1}</td>
-                    <td className="px-4 py-2">
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name}
-                    </td>
-                    <td className="px-4 py-2">{Number.isFinite(almScore) ? almScore.toFixed(1) : "—"}</td>
-                    <td className="px-4 py-2">{Number.isFinite(margen) ? `${margen.toFixed(2)}×` : "—"}</td>
-                  </tr>
-                ))}
+              {(consolidadoRows ?? [])
+                .map((r) => ({ r, nota: r.perDay[day - 1]?.nota ?? -Infinity }))
+                .sort((a, b) => b.nota - a.nota)
+                .map(({ r }, i) => {
+                  const d = r.perDay[day - 1];
+                  return (
+                    <tr key={r.teamId} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="px-4 py-2">{i + 1}</td>
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
+                        {r.teamName}
+                      </td>
+                      <td className="px-4 py-2">{d?.objective != null ? d.objective.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2">{d?.subjective != null ? d.subjective.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                        {d?.nota != null ? d.nota.toFixed(1) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
