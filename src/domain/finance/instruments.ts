@@ -34,3 +34,26 @@ export const YIELD_MAX = Math.max(...INSTRUMENTS.map((x) => x.yield));
 
 /** A team's target allocation: instrument id -> weight (not necessarily normalized to 1). */
 export type Allocation = Record<string, number>;
+
+/**
+ * A team's full portfolio decision for a day: `initial` governs the Year-1
+ * premium build-up, `reinvest` governs every reinvestment once that phase
+ * ends (i.e., what happens as the initially-picked instruments mature) —
+ * see almSim()'s doc comment for the full rationale.
+ */
+export interface PortfolioDecision {
+  initial: Allocation;
+  reinvest: Allocation;
+}
+
+/**
+ * Guards against a stored PortfolioAllocation.allocation predating the
+ * initial/reinvest split (a flat {instrumentId: weight} object) — reads
+ * should treat that as "no decision submitted yet" rather than crash on
+ * `.initial`/`.reinvest` being undefined.
+ */
+export function isPortfolioDecision(value: unknown): value is PortfolioDecision {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.initial === "object" && v.initial !== null && typeof v.reinvest === "object" && v.reinvest !== null;
+}

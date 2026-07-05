@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { CsvSchema } from "./csv";
-import { INSTRUMENT_BY_ID } from "@/domain/finance/instruments";
 import { CONCEPTO_BY_ID } from "@/domain/grading/concepts";
 import { SEGMENT_BY_KEY } from "@/domain/grading/analytics";
 
@@ -22,21 +21,6 @@ export type TariffRow = z.infer<typeof tariffRowSchema>;
 export const tariffCsvSchema: CsvSchema<TariffRow> = {
   headerAliases: { id_expuesto: ["expuesto"], prima: ["prima"] },
   rowSchema: tariffRowSchema,
-};
-
-/** Portfolio allocation upload: `instrumento_id,asignacion` (also accepts monto/peso). */
-export const portfolioRowSchema = z.object({
-  instrumento_id: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .refine((id) => id in INSTRUMENT_BY_ID, { message: "instrumento_id no reconocido" }),
-  asignacion: numericString.pipe(z.number().min(0)),
-});
-export type PortfolioRow = z.infer<typeof portfolioRowSchema>;
-export const portfolioCsvSchema: CsvSchema<PortfolioRow> = {
-  headerAliases: { instrumento_id: ["instrumento"], asignacion: ["asignacion", "monto", "peso"] },
-  rowSchema: portfolioRowSchema,
 };
 
 /** Team roster upload: `nombre,equipo` — matched against team names case-insensitively. */

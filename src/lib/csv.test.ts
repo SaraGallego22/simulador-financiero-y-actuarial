@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCsv } from "./csv";
-import {
-  analyticsCsvSchema,
-  deliverableCsvSchema,
-  portfolioCsvSchema,
-  rosterCsvSchema,
-  tariffCsvSchema,
-} from "./csvSchemas";
+import { analyticsCsvSchema, deliverableCsvSchema, rosterCsvSchema, tariffCsvSchema } from "./csvSchemas";
 
 describe("parseCsv / tariffCsvSchema", () => {
   it("parses valid rows", () => {
@@ -36,23 +30,6 @@ describe("parseCsv / tariffCsvSchema", () => {
     // id_expuesto "1,000" -> numeric coercion strips non-digits -> 1000
     expect(errors).toHaveLength(0);
     expect(rows[0].id_expuesto).toBe(1000);
-  });
-});
-
-describe("portfolioCsvSchema", () => {
-  it("accepts monto/peso as aliases for asignacion", () => {
-    const { rows, errors } = parseCsv("instrumento_id,monto\nLIQ,50\nTES1,50", portfolioCsvSchema);
-    expect(errors).toHaveLength(0);
-    expect(rows).toEqual([
-      { instrumento_id: "LIQ", asignacion: 50 },
-      { instrumento_id: "TES1", asignacion: 50 },
-    ]);
-  });
-
-  it("rejects unrecognized instrument ids", () => {
-    const { rows, errors } = parseCsv("instrumento_id,asignacion\nNOPE,100", portfolioCsvSchema);
-    expect(rows).toHaveLength(0);
-    expect(errors).toHaveLength(1);
   });
 });
 

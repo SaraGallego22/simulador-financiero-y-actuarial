@@ -7,14 +7,9 @@ export function InstrumentsPanel() {
         <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
           Instrumentos disponibles
         </h3>
-        <div className="flex gap-2">
-          <a href="/api/instruments?kind=menu" className="text-xs text-[var(--color-brand-blue)] underline">
-            Descargar menú (CSV)
-          </a>
-          <a href="/api/instruments?kind=template" className="text-xs text-[var(--color-brand-blue)] underline">
-            Descargar plantilla de portafolio (CSV)
-          </a>
-        </div>
+        <a href="/api/instruments?kind=menu" className="text-xs text-[var(--color-brand-blue)] underline">
+          Descargar menú (CSV)
+        </a>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

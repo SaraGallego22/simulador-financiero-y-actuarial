@@ -12,13 +12,16 @@ const claims = [
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
 describe("almSim / scoreFinanciero", () => {
-  it("returns null for an allocation with no recognized instruments", () => {
-    expect(almSim(lib, { NOPE: 100 })).toBeNull();
-    expect(scoreFinanciero(lib, {})).toBeNull();
+  it("returns null when either allocation has no recognized instruments", () => {
+    expect(almSim(lib, { NOPE: 100 }, { LIQ: 100 })).toBeNull();
+    expect(almSim(lib, { LIQ: 100 }, { NOPE: 100 })).toBeNull();
+    expect(scoreFinanciero(lib, {}, { LIQ: 100 })).toBeNull();
+    expect(scoreFinanciero(lib, { LIQ: 100 }, {})).toBeNull();
   });
 
   it("produces a composite score within [0, 100] for a diversified allocation", () => {
-    const score = scoreFinanciero(lib, { LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 });
+    const alloc = { LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 };
+    const score = scoreFinanciero(lib, alloc, alloc);
     expect(score).not.toBeNull();
     expect(score!.nota).toBeGreaterThanOrEqual(0);
     expect(score!.nota).toBeLessThanOrEqual(100);
@@ -26,13 +29,25 @@ describe("almSim / scoreFinanciero", () => {
     expect(score!.calce).toBeLessThanOrEqual(100);
   });
 
-  it("an all-cash allocation fully funds every payment (no funding gap)", () => {
-    const score = scoreFinanciero(lib, { LIQ: 100 });
+  it("an all-cash allocation fully funds every payment (no funding gap, peak or average)", () => {
+    const score = scoreFinanciero(lib, { LIQ: 100 }, { LIQ: 100 });
     expect(score).not.toBeNull();
     // Cash never needs to wait for a maturity, so the notional monthly
     // contribution should always be able to cover what's due.
     expect(score!.peakGap).toBeCloseTo(0, 4);
+    expect(score!.avgShortfallRatio).toBeCloseTo(0, 4);
     expect(score!.calce).toBeCloseTo(100, 4);
+  });
+
+  it("a reinvestment policy that ignores liquidity needs hurts calce even with a perfect initial allocation", () => {
+    // Perfect initial cash funding for Year 1, but reinvesting everything
+    // into a single very-long-dated instrument thereafter should create
+    // funding gaps in the post-buildup reserve runoff.
+    const good = scoreFinanciero(lib, { LIQ: 100 }, { LIQ: 100 });
+    const badReinvest = scoreFinanciero(lib, { LIQ: 100 }, { TESUVR8: 100 });
+    expect(good).not.toBeNull();
+    expect(badReinvest).not.toBeNull();
+    expect(badReinvest!.calce).toBeLessThan(good!.calce);
   });
 });
 
@@ -40,7 +55,7 @@ describe("almObjetivo", () => {
   it("produces a target allocation that sums to ~100%", () => {
     const objective = almObjetivo(lib);
     expect(objective).not.toBeNull();
-    const total = Object.values(objective!.alloc).reduce((s, v) => s + v, 0);
+    const total = Object.values(objective!.allocInitial).reduce((s, v) => s + v, 0);
     expect(total).toBeCloseTo(100, 4);
   });
 });

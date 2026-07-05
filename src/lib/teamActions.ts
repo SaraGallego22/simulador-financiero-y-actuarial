@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import { parseCsv } from "./csv";
-import { portfolioCsvSchema } from "./csvSchemas";
+import { INSTRUMENTS } from "@/domain/finance/instruments";
+import type { Allocation, PortfolioDecision } from "@/domain/finance/instruments";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { SEGMENTS } from "@/domain/grading/analytics";
@@ -16,32 +17,45 @@ async function requireTeam(): Promise<string> {
   return session.user.teamId;
 }
 
-export interface UploadPortfolioState {
+export interface SubmitPortfolioState {
   error?: string;
   success?: boolean;
 }
 
-export async function uploadPortfolioAction(day: number, _prev: UploadPortfolioState, formData: FormData): Promise<UploadPortfolioState> {
+function readAllocation(formData: FormData, prefix: string): Allocation {
+  const alloc: Allocation = {};
+  for (const ins of INSTRUMENTS) {
+    const raw = formData.get(`${prefix}_${ins.id}`);
+    const value = raw == null || raw === "" ? 0 : Number(raw);
+    if (Number.isFinite(value) && value > 0) alloc[ins.id] = value;
+  }
+  return alloc;
+}
+
+/**
+ * A team's portfolio decision has two parts, not one: `initial` (how the
+ * Year-1 premium build-up is invested) and `reinvest` (the ongoing policy
+ * applied every time an initially-picked instrument matures, once the
+ * build-up phase ends) — see almSim()'s doc comment in
+ * src/domain/finance/alm.ts for the full rationale. Both are required: a
+ * team that only plans the initial pick and has no reinvestment policy
+ * shouldn't score as if they'd planned the whole horizon.
+ */
+export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioState, formData: FormData): Promise<SubmitPortfolioState> {
   const teamId = await requireTeam();
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Selecciona un archivo CSV." };
+  const initial = readAllocation(formData, "initial");
+  const reinvest = readAllocation(formData, "reinvest");
+  if (Object.keys(initial).length === 0) return { error: "Define al menos un instrumento en la asignación inicial." };
+  if (Object.keys(reinvest).length === 0) return { error: "Define al menos un instrumento en la política de reinversión." };
 
-  const text = await file.text();
-  const { rows, errors } = parseCsv(text, portfolioCsvSchema);
-  if (rows.length === 0) {
-    return { error: errors[0]?.message ?? "No se reconoció ningún instrumento válido." };
-  }
-
-  const allocation: Record<string, number> = {};
-  for (const row of rows) {
-    allocation[row.instrumento_id] = (allocation[row.instrumento_id] ?? 0) + row.asignacion;
-  }
+  const decision: PortfolioDecision = { initial, reinvest };
+  const decisionJson = decision as unknown as Prisma.InputJsonValue;
 
   await prisma.portfolioAllocation.upsert({
     where: { teamId_day: { teamId, day } },
-    update: { allocation },
-    create: { teamId, day, allocation },
+    update: { allocation: decisionJson },
+    create: { teamId, day, allocation: decisionJson },
   });
 
   revalidatePath("/dashboard");

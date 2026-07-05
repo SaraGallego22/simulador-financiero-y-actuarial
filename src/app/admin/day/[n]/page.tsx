@@ -4,7 +4,7 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import type { Allocation } from "@/domain/finance/instruments";
+import { isPortfolioDecision } from "@/domain/finance/instruments";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -85,11 +85,11 @@ export default async function AdminDayPage({
     if (book) {
       const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
       for (const team of teams) {
-        const allocation = team.portfolioAllocations[0]?.allocation as Allocation | undefined;
+        const rawAllocation = team.portfolioAllocations[0]?.allocation;
         const reserves = reservesByTeamId.get(team.id);
-        if (allocation && reserves) {
-          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, allocation));
-          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, allocation));
+        if (reserves && isPortfolioDecision(rawAllocation)) {
+          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation.initial, rawAllocation.reinvest));
+          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation.initial, rawAllocation.reinvest));
         }
       }
     }
@@ -358,7 +358,8 @@ export default async function AdminDayPage({
               {teams.map((team) => {
                 const almScore = almScoreByTeamId.get(team.id);
                 const ladder = almLadderByTeamId.get(team.id);
-                const allocation = team.portfolioAllocations[0]?.allocation as Allocation | undefined;
+                const rawAllocation = team.portfolioAllocations[0]?.allocation;
+                const decision = isPortfolioDecision(rawAllocation) ? rawAllocation : undefined;
                 return (
                   <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                     <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
@@ -396,13 +397,19 @@ export default async function AdminDayPage({
                             <p className="text-sm font-semibold">${Math.round(almScore.reserva).toLocaleString("es-CO")}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Brecha máxima (peak gap)</p>
+                            <p className="text-xs text-gray-500">Brecha máxima (peor mes)</p>
                             <p className="text-sm font-semibold">
-                              ${Math.round(almScore.peakGap).toLocaleString("es-CO")} ({(almScore.brechaRel * 100).toFixed(1)}% de la reserva)
+                              ${Math.round(almScore.peakGap).toLocaleString("es-CO")} ({(almScore.peakShortfallRatio * 100).toFixed(1)}% de la reserva)
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Rendimiento portafolio (nominal)</p>
+                            <p className="text-xs text-gray-500">Brecha promedio (todo el horizonte)</p>
+                            <p className="text-sm font-semibold">
+                              {(almScore.avgShortfallRatio * 100).toFixed(1)}% de la reserva acumulada en déficit
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Rendimiento portafolio (nominal, ponderado)</p>
                             <p className="text-sm font-semibold">{(almScore.portYield * 100).toFixed(2)}%</p>
                           </div>
                           <div>
@@ -421,14 +428,32 @@ export default async function AdminDayPage({
                           </div>
                         </div>
 
-                        <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Portafolio enviado</p>
-                        <p className="mb-3 text-xs text-gray-600">
-                          {allocation
-                            ? Object.entries(allocation)
-                                .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
-                                .join(" · ")
-                            : "—"}
-                        </p>
+                        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                              Asignación inicial (fondeo Año 1)
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {decision?.initial
+                                ? Object.entries(decision.initial)
+                                    .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
+                                    .join(" · ")
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                              Política de reinversión (post Año 1)
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {decision?.reinvest
+                                ? Object.entries(decision.reinvest)
+                                    .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
+                                    .join(" · ")
+                                : "—"}
+                            </p>
+                          </div>
+                        </div>
 
                         {ladder && ladder.rows.length > 0 && (
                           <>
@@ -440,6 +465,7 @@ export default async function AdminDayPage({
                                 <thead className="sticky top-0 bg-white">
                                   <tr className="text-left uppercase tracking-wide text-gray-500">
                                     <th className="px-2 py-1">Mes</th>
+                                    <th className="px-2 py-1">Política</th>
                                     <th className="px-2 py-1">Pago requerido</th>
                                     <th className="px-2 py-1">Aporte</th>
                                     <th className="px-2 py-1">Ingresos (aporte+venc.+rend.)</th>
@@ -451,6 +477,7 @@ export default async function AdminDayPage({
                                   {ladder.rows.map((r, i) => (
                                     <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brecha > 0 ? "bg-red-50" : ""}`}>
                                       <td className="px-2 py-1">{r.mes}</td>
+                                      <td className="px-2 py-1">{r.fase === "a1" ? "Inicial" : "Reinversión"}</td>
                                       <td className="px-2 py-1">${Math.round(r.pago).toLocaleString("es-CO")}</td>
                                       <td className="px-2 py-1">${Math.round(r.aporte).toLocaleString("es-CO")}</td>
                                       <td className="px-2 py-1">${Math.round(r.ingresos).toLocaleString("es-CO")}</td>

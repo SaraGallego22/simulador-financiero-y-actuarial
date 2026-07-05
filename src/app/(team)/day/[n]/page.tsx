@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TariffUpload } from "@/components/team/TariffUpload";
-import { PortfolioUpload } from "@/components/team/PortfolioUpload";
+import { PortfolioForm } from "@/components/team/PortfolioForm";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
@@ -10,6 +10,7 @@ import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import type { Recommendation } from "@/domain/grading/analytics";
+import { isPortfolioDecision } from "@/domain/finance/instruments";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
 
@@ -114,7 +115,9 @@ export default async function TeamDayPage({
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
           {includeSim && <InstrumentsPanel />}
-          {includeSim && <PortfolioUpload day={day} hasAllocation={!!allocation} />}
+          {includeSim && (
+            <PortfolioForm day={day} initialDecision={isPortfolioDecision(allocation?.allocation) ? allocation.allocation : null} />
+          )}
           {reportConcepts.length > 0 && (
             <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
           )}
