@@ -176,7 +176,7 @@ export default async function ConfigPage() {
                     Guardar
                   </button>
                 </form>
-                <form action={() => removeSkillAction(skill.id)}>
+                <form action={removeSkillAction.bind(null, skill.id)}>
                   <button type="submit" className="text-xs text-red-600 underline">
                     Eliminar
                   </button>
