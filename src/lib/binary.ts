@@ -64,6 +64,23 @@ export function deserializeColombiaUniverse(buf: Buffer): ColombiaUniverse {
   return result as ColombiaUniverse;
 }
 
+/**
+ * Safely views a byte buffer as a Float32Array of `length` elements,
+ * regardless of the underlying buffer's byteOffset alignment — a
+ * `Uint8Array` read back from Postgres (or copied via `Buffer.from`) isn't
+ * guaranteed to start at a 4-byte-aligned offset, which would throw if
+ * wrapped directly in a `Float32Array`. Copies only when actually needed.
+ */
+export function toFloat32View(data: Uint8Array, length: number): Float32Array {
+  const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
+  if (data.byteOffset % 4 === 0 && data.buffer.byteLength >= data.byteOffset + byteLength) {
+    return new Float32Array(data.buffer, data.byteOffset, length);
+  }
+  const aligned = new Uint8Array(byteLength);
+  aligned.set(data.subarray(0, byteLength));
+  return new Float32Array(aligned.buffer);
+}
+
 /** Chile is a heterogeneous array of policy objects (not parallel typed arrays), so a single JSON blob is simplest — still one Bytes value per run, not one row per policy. */
 export function serializeChilePolicies(policies: unknown): Buffer {
   return Buffer.from(JSON.stringify(policies), "utf-8");

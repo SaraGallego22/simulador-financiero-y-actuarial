@@ -126,3 +126,17 @@ export async function updateSkillWeightAction(formData: FormData): Promise<void>
   await prisma.skill.update({ where: { id: skillId }, data: { weight } });
   revalidatePath("/admin/config");
 }
+
+export async function togglePublishedAction(teamSimResultId: string, day: number): Promise<void> {
+  await requireAdmin();
+  const current = await prisma.teamSimResult.findUnique({ where: { id: teamSimResultId } });
+  if (!current) return;
+  await prisma.teamSimResult.update({ where: { id: teamSimResultId }, data: { published: !current.published } });
+  revalidatePath(`/admin/day/${day}`);
+}
+
+export async function publishAllAction(simulationRunId: string, day: number): Promise<void> {
+  await requireAdmin();
+  await prisma.teamSimResult.updateMany({ where: { simulationRunId }, data: { published: true } });
+  revalidatePath(`/admin/day/${day}`);
+}

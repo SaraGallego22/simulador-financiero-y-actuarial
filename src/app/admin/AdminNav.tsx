@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/admin", label: "Resumen" },
   { href: "/admin/universo", label: "Universo" },
   { href: "/admin/config", label: "Configuración" },
+  { href: "/admin/day/1", label: "Día 1" },
 ];
 
 export function AdminNav() {
@@ -15,7 +16,7 @@ export function AdminNav() {
 
   return (
     <header className="border-b border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)]">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-8 py-3">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-8 py-3">
         <nav className="flex gap-1">
           {LINKS.map((link) => {
             const active = pathname === link.href;

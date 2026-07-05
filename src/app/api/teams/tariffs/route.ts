@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { BYTES_PER_PREMIUM, MIN_COVERAGE, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
+import { toFloat32View } from "@/lib/binary";
 
 async function requireTeam() {
   const session = await auth();
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
   let meanPremium: number | null = existing?.meanPremium ?? null;
 
   if (isLastChunk) {
-    const view = new Float32Array(buffer.buffer, buffer.byteOffset, N_COLOMBIA);
+    const view = toFloat32View(buffer, N_COLOMBIA);
     let sum = 0;
     let covered = 0;
     for (let i = 0; i < N_COLOMBIA; i++) {

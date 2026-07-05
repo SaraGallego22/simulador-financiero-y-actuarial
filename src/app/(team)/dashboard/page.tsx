@@ -9,12 +9,18 @@ export default async function TeamDashboard() {
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const [team, submission] = await Promise.all([
+  const [team, submission, publishedResult] = await Promise.all([
     teamId ? prisma.team.findUnique({ where: { id: teamId } }) : null,
     teamId
       ? prisma.tariffSubmission.findUnique({
           where: { teamId_day: { teamId, day: DAY } },
           select: { meanPremium: true },
+        })
+      : null,
+    teamId
+      ? prisma.teamSimResult.findFirst({
+          where: { teamId, published: true, simulationRun: { day: DAY } },
+          orderBy: { simulationRun: { createdAt: "desc" } },
         })
       : null,
   ]);
@@ -44,6 +50,44 @@ export default async function TeamDashboard() {
       </a>
 
       <TariffUpload day={DAY} initialComplete={submission?.meanPremium != null} initialMeanPremium={submission?.meanPremium ?? null} />
+
+      <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white p-5">
+        <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          Resultados — Día {DAY}
+        </h3>
+        {publishedResult ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-xs uppercase text-gray-500">Asegurados</p>
+              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                {publishedResult.insuredCount.toLocaleString("es-CO")}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-gray-500">Prima total</p>
+              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                ${Math.round(publishedResult.totalPremium).toLocaleString("es-CO")}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-gray-500">Siniestros</p>
+              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                {publishedResult.claimsCount.toLocaleString("es-CO")}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-gray-500">Loss ratio</p>
+              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
+                {publishedResult.totalPremium > 0
+                  ? `${((publishedResult.claimsAmount / publishedResult.totalPremium) * 100).toFixed(1)}%`
+                  : "—"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">El evaluador aún no ha publicado los resultados de este día.</p>
+        )}
+      </div>
     </main>
   );
 }
