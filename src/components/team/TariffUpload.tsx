@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { parseCsv } from "@/lib/csv";
 import { tariffCsvSchema } from "@/lib/csvSchemas";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { TARIFF_CHUNK_ROWS, MIN_COVERAGE, chunkCount } from "@/lib/tariffUpload";
+import { Button } from "@/components/ui/button";
 
 type Status =
   | { phase: "idle" }
@@ -17,8 +18,12 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
   const [status, setStatus] = useState<Status>(
     initialComplete && initialMeanPremium != null ? { phase: "done", meanPremium: initialMeanPremium } : { phase: "idle" }
   );
+  const [fileName, setFileName] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const busy = status.phase === "parsing" || status.phase === "uploading";
 
   async function handleFile(file: File) {
+    setFileName(file.name);
     setStatus({ phase: "parsing" });
     const text = await file.text();
     const { rows, errors } = parseCsv(text, tariffCsvSchema);
@@ -79,6 +84,7 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
       </p>
 
       <input
+        ref={inputRef}
         type="file"
         accept=".csv"
         onChange={(e) => {
@@ -86,9 +92,17 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
           if (file) handleFile(file);
           e.target.value = "";
         }}
-        disabled={status.phase === "parsing" || status.phase === "uploading"}
-        className="mb-3 block text-sm"
+        disabled={busy}
+        className="hidden"
       />
+      <div className="mb-3 flex items-center gap-3">
+        <Button type="button" variant="secondary" size="default" onClick={() => inputRef.current?.click()} disabled={busy}>
+          Elegir archivo CSV
+        </Button>
+        <span className="truncate text-sm text-[var(--color-brand-text-secondary)]">
+          {fileName ?? "Ningún archivo seleccionado"}
+        </span>
+      </div>
 
       {status.phase === "parsing" && <p className="text-sm text-gray-500">Leyendo y validando el CSV…</p>}
       {status.phase === "uploading" && (
