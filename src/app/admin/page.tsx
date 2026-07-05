@@ -19,34 +19,34 @@ export default async function AdminHome() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Panel de administración
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
           Cohorte activa: <strong>{cohort.name}</strong>
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Equipos creados</p>
-          <p className="mt-1 font-[family-name:var(--font-condensed)] text-2xl font-bold text-[var(--color-brand-blue)]">
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">Equipos creados</p>
+          <p className="mt-1 font-[family-name:var(--font-condensed)] text-2xl font-bold text-[var(--color-brand-blue-accent)]">
             {teamCount}
           </p>
         </div>
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Universo Colombia</p>
-          <p className="mt-1 text-sm font-semibold text-gray-800">{colombiaDone ? "Generado" : "Pendiente"}</p>
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">Universo Colombia</p>
+          <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">{colombiaDone ? "Generado" : "Pendiente"}</p>
         </div>
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Dataset Chile</p>
-          <p className="mt-1 text-sm font-semibold text-gray-800">{chileDone ? "Generado" : "Pendiente"}</p>
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">Dataset Chile</p>
+          <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">{chileDone ? "Generado" : "Pendiente"}</p>
         </div>
       </div>
 
-      <p className="text-sm text-gray-600">
-        Empieza en <Link href="/admin/universo" className="text-[var(--color-brand-blue)] underline">Universo</Link> para
-        generar los datos, luego en <Link href="/admin/config" className="text-[var(--color-brand-blue)] underline">Configuración</Link> para
+      <p className="text-sm text-[var(--color-brand-text-secondary)]">
+        Empieza en <Link href="/admin/universo" className="text-[var(--color-brand-blue-accent)] underline">Universo</Link> para
+        generar los datos, luego en <Link href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">Configuración</Link> para
         crear las cuentas de los equipos y ajustar la rúbrica. Las vistas de simulación y calificación por día siguen
         en construcción.
       </p>

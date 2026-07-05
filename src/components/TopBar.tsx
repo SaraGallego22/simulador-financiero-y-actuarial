@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { signOutAction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /**
  * Matches the legacy prototype's `.topbar` (line ~221): blue bar, SURA logo,
@@ -25,6 +26,7 @@ export function TopBar({ subtitle, badge }: { subtitle: string; badge: string })
         <span className="rounded-full bg-[var(--color-brand-yellow)] px-3 py-1 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
           {badge}
         </span>
+        <ThemeToggle onDark />
         <form action={signOutAction}>
           <Button type="submit" variant="ghost" onDark size="sm">
             Cerrar sesión

@@ -25,11 +25,11 @@ function AllocationSection({
 
   return (
     <div>
-      <p className="mb-1 text-sm font-semibold text-gray-700">{title}</p>
-      <p className="mb-2 text-xs text-gray-500">{help}</p>
+      <p className="mb-1 text-sm font-semibold text-[var(--color-foreground)]">{title}</p>
+      <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">{help}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {INSTRUMENTS.map((ins) => (
-          <label key={ins.id} className="flex flex-col gap-1 text-xs text-gray-600">
+          <label key={ins.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
             {ins.id}
             <input
               type="number"
@@ -38,12 +38,12 @@ function AllocationSection({
               name={`${prefix}_${ins.id}`}
               value={values[ins.id] || ""}
               onChange={(e) => setValues((v) => ({ ...v, [ins.id]: Number(e.target.value) }))}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
             />
           </label>
         ))}
       </div>
-      <p className={`mt-1 text-xs ${Math.round(total) === 100 ? "text-green-700" : "text-gray-500"}`}>
+      <p className={`mt-1 text-xs ${Math.round(total) === 100 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
         Total: {total.toFixed(0)}% {Math.round(total) !== 100 && "(se normaliza automáticamente a 100%)"}
       </p>
     </div>
@@ -63,11 +63,11 @@ export function PortfolioForm({
   );
 
   return (
-    <form action={formAction} className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-5">
-      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+    <form action={formAction} className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Portafolio de inversión — Día {day}
       </h3>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Define dos decisiones, no una: cómo inviertes el fondeo del Año 1, y qué política sigues para reinvertir
         cada vez que uno de esos instrumentos venza. La nota de calce evalúa el match en <em>todo</em> el horizonte,
         no solo el peor mes — una buena asignación inicial sin un plan de reinversión no basta.
@@ -88,8 +88,8 @@ export function PortfolioForm({
         />
       </div>
 
-      {state.error && <p className="mt-3 text-sm text-red-600">{state.error}</p>}
-      {state.success && <p className="mt-3 text-sm text-green-700">Portafolio guardado.</p>}
+      {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
+      {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Portafolio guardado.</p>}
       <button
         type="submit"
         disabled={pending}

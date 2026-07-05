@@ -19,7 +19,7 @@ export function ScoreForm({
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       {skills.map((skill) => (
-        <label key={skill.id} className="flex flex-col gap-1 text-xs text-gray-600">
+        <label key={skill.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
           {skill.name}
           <input
             type="number"
@@ -27,7 +27,7 @@ export function ScoreForm({
             min="0"
             name={skill.id}
             defaultValue={initialValues[skill.id] ?? ""}
-            className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
           />
         </label>
       ))}

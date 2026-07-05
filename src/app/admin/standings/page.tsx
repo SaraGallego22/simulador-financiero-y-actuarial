@@ -16,16 +16,16 @@ export default async function AdminStandingsPage() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Consolidado final
         </h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
           Nota final ponderada de los 4 días (objetiva + subjetiva). El objetivo mezcla resultado actuarial y
           financiero; el subjetivo, la rúbrica por habilidad.
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+      <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[var(--color-brand-blue)] text-left text-white">
@@ -55,7 +55,7 @@ export default async function AdminStandingsPage() {
                 ))}
                 <td className="px-4 py-2">{fmt(r.objectiveFinal)}</td>
                 <td className="px-4 py-2">{fmt(r.subjectiveFinal)}</td>
-                <td className="px-4 py-2 font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue)]">
+                <td className="px-4 py-2 font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)]">
                   {fmt(r.notaFinal)}
                 </td>
               </tr>

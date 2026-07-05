@@ -130,11 +130,11 @@ export default async function AdminDayPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
       <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Día {day} — {DAY_TITLES[day]}
         </h1>
         <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
           {submittedCount} de {teams.length} equipos han subido su tarifa completa.
         </p>
       </div>
@@ -145,7 +145,7 @@ export default async function AdminDayPage({
         <div className="flex flex-col gap-4">
           <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
 
-          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--color-brand-blue)] text-left text-white">
@@ -178,7 +178,7 @@ export default async function AdminDayPage({
                         {team.name}
                       </td>
                       <td className="px-4 py-2">
-                        {submitted ? <span className="text-green-700">Completa</span> : <span className="text-gray-400">Pendiente</span>}
+                        {submitted ? <span className="text-[var(--color-brand-green)]">Completa</span> : <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>}
                       </td>
                       <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}</td>
@@ -200,7 +200,7 @@ export default async function AdminDayPage({
                             <button
                               type="submit"
                               className={`rounded px-3 py-1 text-xs font-semibold ${
-                                result.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                                result.published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
                               }`}
                             >
                               {result.published ? "Publicado" : "Publicar"}
@@ -219,7 +219,7 @@ export default async function AdminDayPage({
             <form action={publishAllAction.bind(null, latestRun.id, day)}>
               <button
                 type="submit"
-                className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+                className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
               >
                 Publicar todos los resultados de este día
               </button>
@@ -231,14 +231,14 @@ export default async function AdminDayPage({
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
           {includeSim && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolios de inversión — Día {day}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                       <th className="py-1 pr-4">Equipo</th>
                       <th className="py-1 pr-4">Portafolio</th>
                     </tr>
@@ -252,9 +252,9 @@ export default async function AdminDayPage({
                         </td>
                         <td className="py-1 pr-4">
                           {team.portfolioAllocations[0] ? (
-                            <span className="text-green-700">Cargado</span>
+                            <span className="text-[var(--color-brand-green)]">Cargado</span>
                           ) : (
-                            <span className="text-gray-400">Pendiente</span>
+                            <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
                           )}
                         </td>
                       </tr>
@@ -266,15 +266,15 @@ export default async function AdminDayPage({
           )}
 
           {reportConcepts.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Reportes numéricos — Día {day}
                 </h3>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">Concepto</th>
                     <th className="px-4 py-2">Reportado</th>
@@ -310,15 +310,15 @@ export default async function AdminDayPage({
           )}
 
           {hasAnalitica && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Analítica sectorial — Día {day}
                 </h3>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">Nota analítica</th>
                   </tr>
@@ -345,8 +345,8 @@ export default async function AdminDayPage({
 
       {activeTab === "obj" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-4">
-            <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+            <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               ALM — calce del portafolio vs. reservas
             </h3>
             <div className="flex flex-col gap-3">
@@ -362,7 +362,7 @@ export default async function AdminDayPage({
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                         {team.name}
                       </span>
-                      <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                      <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {almScore ? `Nota ALM: ${almScore.nota.toFixed(1)}` : "Sin portafolio o sin reservas aún"}
                       </span>
                     </summary>
@@ -370,65 +370,65 @@ export default async function AdminDayPage({
                       <div className="border-t border-[var(--color-brand-gray-light)] p-3">
                         <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                           <div>
-                            <p className="text-xs text-gray-500">Calce (45%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Calce (45%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
                               {almScore.calce.toFixed(1)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Rendimiento (45%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento (45%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
                               {almScore.rendimiento.toFixed(1)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Liquidez (10%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue)]">
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Liquidez (10%)</p>
+                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
                               {almScore.liquidez.toFixed(1)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Reserva</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Reserva</p>
                             <p className="text-sm font-semibold">${Math.round(almScore.reserva).toLocaleString("es-CO")}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Brecha máxima (peor mes)</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha máxima (peor mes)</p>
                             <p className="text-sm font-semibold">
                               ${Math.round(almScore.peakGap).toLocaleString("es-CO")} ({(almScore.peakShortfallRatio * 100).toFixed(1)}% de la reserva)
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Brecha promedio (todo el horizonte)</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha promedio (todo el horizonte)</p>
                             <p className="text-sm font-semibold">
                               {(almScore.avgShortfallRatio * 100).toFixed(1)}% de la reserva acumulada en déficit
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Rendimiento portafolio (nominal, ponderado)</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento portafolio (nominal, ponderado)</p>
                             <p className="text-sm font-semibold">{(almScore.portYield * 100).toFixed(2)}%</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Rendimiento efectivo simulado</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento efectivo simulado</p>
                             <p className="text-sm font-semibold">{(almScore.effYield * 100).toFixed(2)}%</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Cobertura liquidez (6 meses)</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Cobertura liquidez (6 meses)</p>
                             <p className="text-sm font-semibold">
                               ${Math.round(almScore.liq6).toLocaleString("es-CO")} / ${Math.round(almScore.liab6).toLocaleString("es-CO")} ({(almScore.cobertura * 100).toFixed(0)}%)
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500">Ingreso total simulado</p>
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Ingreso total simulado</p>
                             <p className="text-sm font-semibold">${Math.round(almScore.totIncome).toLocaleString("es-CO")}</p>
                           </div>
                         </div>
 
                         <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
-                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
                               Asignación inicial (fondeo Año 1)
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">
                               {decision?.initial
                                 ? Object.entries(decision.initial)
                                     .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
@@ -437,10 +437,10 @@ export default async function AdminDayPage({
                             </p>
                           </div>
                           <div>
-                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
                               Política de reinversión (post Año 1)
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">
                               {decision?.reinvest
                                 ? Object.entries(decision.reinvest)
                                     .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
@@ -452,13 +452,13 @@ export default async function AdminDayPage({
 
                         {ladder && ladder.rows.length > 0 && (
                           <>
-                            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
                               Flujo esperado (pasivo) vs. lo que aportó el portafolio, mes a mes
                             </p>
                             <div className="max-h-64 overflow-y-auto overflow-x-auto">
                               <table className="w-full text-xs">
-                                <thead className="sticky top-0 bg-white">
-                                  <tr className="text-left uppercase tracking-wide text-gray-500">
+                                <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
+                                  <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                                     <th className="px-2 py-1">Mes</th>
                                     <th className="px-2 py-1">Política</th>
                                     <th className="px-2 py-1">Pago requerido</th>
@@ -470,7 +470,7 @@ export default async function AdminDayPage({
                                 </thead>
                                 <tbody>
                                   {ladder.rows.map((r, i) => (
-                                    <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brecha > 0 ? "bg-red-50" : ""}`}>
+                                    <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brecha > 0 ? "bg-[var(--color-brand-red)]/10" : ""}`}>
                                       <td className="px-2 py-1">{r.mes}</td>
                                       <td className="px-2 py-1">{r.fase === "a1" ? "Inicial" : "Reinversión"}</td>
                                       <td className="px-2 py-1">${Math.round(r.pago).toLocaleString("es-CO")}</td>
@@ -494,15 +494,15 @@ export default async function AdminDayPage({
           </div>
 
           {day >= 2 && finBenchByTeamId.size > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Financiero (finBench) — Año 1 / Año 2
                 </h3>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">Reservas A1</th>
                     <th className="px-4 py-2">Utilidad neta A1</th>
@@ -535,15 +535,15 @@ export default async function AdminDayPage({
           )}
 
           {day >= 3 && finBenchByTeamId.size > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Balance y proyección Año 3
                 </h3>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">Activos (fin A1)</th>
                     <th className="px-4 py-2">Activos (fin A2)</th>
@@ -582,9 +582,9 @@ export default async function AdminDayPage({
       {activeTab === "subj" && (
         <div className="flex flex-col gap-4">
           {skills.length === 0 ? (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               No hay habilidades configuradas en la rúbrica —{" "}
-              <a href="/admin/config" className="text-[var(--color-brand-blue)] underline">
+              <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
                 configúralas aquí
               </a>
               .
@@ -593,9 +593,9 @@ export default async function AdminDayPage({
             teams.map((team) => {
               const published = teamPublishedByTeamId.get(team.id) ?? false;
               return (
-                <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+                <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                    <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                       <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                       {team.name}
                     </h3>
@@ -604,7 +604,7 @@ export default async function AdminDayPage({
                         <button
                           type="submit"
                           className={`rounded px-3 py-1 text-xs font-semibold ${
-                            published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                            published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
                           }`}
                         >
                           {published ? "Publicado" : "Publicar"}
@@ -614,9 +614,9 @@ export default async function AdminDayPage({
                   </div>
 
                   {team.members.length === 0 ? (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-[var(--color-brand-text-secondary)]">
                       Este equipo no tiene integrantes cargados. La calificación subjetiva es por integrante — sube el{" "}
-                      <a href="/admin/config" className="text-[var(--color-brand-blue)] underline">
+                      <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
                         roster
                       </a>{" "}
                       primero.
@@ -625,7 +625,7 @@ export default async function AdminDayPage({
                     <div className="flex flex-col gap-3">
                       {team.members.map((member) => (
                         <div key={member.id}>
-                          <p className="mb-1 text-xs font-semibold text-gray-600">{member.name}</p>
+                          <p className="mb-1 text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
                           <ScoreForm
                             id={member.id}
                             day={day}
@@ -644,7 +644,7 @@ export default async function AdminDayPage({
       )}
 
       {activeTab === "top" && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[var(--color-brand-blue)] text-left text-white">
@@ -670,7 +670,7 @@ export default async function AdminDayPage({
                       </td>
                       <td className="px-4 py-2">{d?.objective != null ? d.objective.toFixed(1) : "—"}</td>
                       <td className="px-4 py-2">{d?.subjective != null ? d.subjective.toFixed(1) : "—"}</td>
-                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue)]">
+                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {d?.nota != null ? d.nota.toFixed(1) : "—"}
                       </td>
                     </tr>

@@ -24,23 +24,23 @@ export function AnalyticsForm({
   );
 
   return (
-    <form action={formAction} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+    <form action={formAction} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Recomendación sectorial — Día {day}
       </h3>
-      <p className="mb-3 text-sm text-gray-600">
+      <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
         Para cada segmento, recomienda si la aseguradora debería crecer, mantener o disminuir su exposición, en
         vista del Año 3. Se califica contra el loss ratio real observado en ese segmento.
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {SEGMENTS.map((seg) => (
-          <label key={seg.key} className="flex items-center justify-between gap-2 text-sm text-gray-700">
+          <label key={seg.key} className="flex items-center justify-between gap-2 text-sm text-[var(--color-foreground)]">
             {seg.label}
             <select
               name={seg.key}
               defaultValue={initialRecommendations[seg.key] ?? ""}
               disabled={pending}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
+              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
             >
               <option value="">—</option>
               {OPTIONS.map((o) => (
@@ -52,8 +52,8 @@ export function AnalyticsForm({
           </label>
         ))}
       </div>
-      {state.error && <p className="mt-3 text-sm text-red-600">{state.error}</p>}
-      {state.success && <p className="mt-3 text-sm text-green-700">Recomendación guardada.</p>}
+      {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
+      {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Recomendación guardada.</p>}
       <button
         type="submit"
         disabled={pending}

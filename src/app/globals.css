@@ -1,8 +1,34 @@
 @import "tailwindcss";
 
+/* Tailwind v4 defaults dark: to prefers-color-scheme; this app toggles a
+   .dark class on <html> instead (see ThemeToggle), so dark: must key off
+   that class rather than the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f5f6fa;
   --foreground: #1a1a2e;
+  --brand-surface: #ffffff;
+  --brand-gray-light: #e8e8e8;
+  --brand-blue-light: #eef2fb;
+  --brand-cyan-light: #e0f6fa;
+  --brand-text-secondary: #555555;
+  --brand-blue-accent: #0033a0;
+  --brand-red: #d0021b;
+  --brand-green: #007a50;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --brand-surface: #1e293b;
+  --brand-gray-light: #334155;
+  --brand-blue-light: #1e2a4a;
+  --brand-cyan-light: #0e3a42;
+  --brand-text-secondary: #94a3b8;
+  --brand-blue-accent: #60a5fa;
+  --brand-red: #f87171;
+  --brand-green: #4ade80;
 }
 
 @theme inline {
@@ -11,20 +37,31 @@
   --font-sans: var(--font-barlow);
   --font-condensed: var(--font-barlow-condensed);
 
-  /* Brand palette ported from the legacy prototype (Pasantia_SURA_v3_inversiones_dinamicas.html) */
+  /* Brand palette ported from the legacy prototype (Pasantia_SURA_v3_inversiones_dinamicas.html).
+     --color-brand-blue/-blue-dark/-cyan/-yellow stay fixed across themes —
+     they're used for solid fills (TopBar, sidebar, primary buttons, the
+     yellow role badge) whose contrast doesn't depend on the page theme.
+     Everything else routes through a var that /.dark overrides above, so
+     usages never need a separate dark: utility. */
   --color-brand-blue: #0033a0;
   --color-brand-blue-dark: #002280;
-  --color-brand-blue-light: #eef2fb;
+  --color-brand-blue-light: var(--brand-blue-light);
+  /* Text/border use of brand blue on a surface (headings, outline buttons,
+     focus rings) — same navy in light mode, but lightened in dark mode
+     since #0033a0 text on a dark card is close to unreadable (~1:1). */
+  --color-brand-blue-accent: var(--brand-blue-accent);
   --color-brand-cyan: #00aec7;
-  --color-brand-cyan-light: #e0f6fa;
+  --color-brand-cyan-light: var(--brand-cyan-light);
   --color-brand-yellow: #e3e829;
   --color-brand-gray: #888b8d;
-  --color-brand-gray-light: #e8e8e8;
-  --color-brand-bg: #f5f6fa;
-  --color-brand-red: #d0021b;
-  --color-brand-green: #007a50;
+  --color-brand-gray-light: var(--brand-gray-light);
+  --color-brand-bg: var(--background);
+  --color-brand-red: var(--brand-red);
+  --color-brand-green: var(--brand-green);
   /* Secondary text, ported from the legacy prototype's --texto-sec (never brought over before) */
-  --color-brand-text-secondary: #555555;
+  --color-brand-text-secondary: var(--brand-text-secondary);
+  /* Card/panel background — replaces raw bg-white so surfaces darken with the theme */
+  --color-brand-surface: var(--brand-surface);
 }
 
 /*
@@ -36,11 +73,24 @@
  *   backgrounds) — never a solid button fill with white text. Even the legacy
  *   hover-darkened cyan (#0090a8) only reaches ~3.77:1 with white text, below
  *   the 4.5:1 AA minimum for text. Solid/primary buttons use brand-blue
- *   (~11.7:1), which is always safe.
+ *   (~11.7:1), which is always safe. Cyan itself is bright enough to stay
+ *   fixed across themes (~5.6:1 on the dark surface).
+ * - Brand blue as TEXT/BORDER on a surface must use --color-brand-blue-accent,
+ *   not --color-brand-blue directly, or it disappears on dark surfaces.
  */
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-barlow), Arial, Helvetica, sans-serif;
+}
+
+/* Lets native form controls (inputs/selects without an explicit bg/text
+   class, autofill, scrollbars) pick a dark-appropriate rendering on their
+   own, instead of staying light-chrome inside a dark card. */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }

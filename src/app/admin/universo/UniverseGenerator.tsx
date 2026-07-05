@@ -14,11 +14,11 @@ export interface UniverseRunSummary {
 
 function StatusBadge({ status }: { status: UniverseRunSummary["status"] | "NONE" }) {
   const styles: Record<string, string> = {
-    NONE: "bg-gray-100 text-gray-500",
-    PENDING: "bg-gray-100 text-gray-500",
-    RUNNING: "bg-[var(--color-brand-cyan-light)] text-[#005a6e]",
-    DONE: "bg-green-100 text-green-700",
-    FAILED: "bg-red-100 text-red-700",
+    NONE: "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]",
+    PENDING: "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]",
+    RUNNING: "bg-[var(--color-brand-cyan)]/15 text-[var(--color-brand-cyan)]",
+    DONE: "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]",
+    FAILED: "bg-[var(--color-brand-red)]/15 text-[var(--color-brand-red)]",
   };
   const labels: Record<string, string> = {
     NONE: "Sin generar",
@@ -48,16 +48,16 @@ function DatasetCard({
   downloadHref?: string;
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-5">
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <h2 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           {title}
         </h2>
         <StatusBadge status={latest?.status ?? "NONE"} />
       </div>
-      <p className="mb-3 text-sm text-gray-600">{description}</p>
+      <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">{description}</p>
       {latest && (
-        <p className="mb-3 text-xs text-gray-500">
+        <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
           Última corrida: semilla {latest.seed}, {latest.rowCount.toLocaleString("es-CO")} filas
           {latest.status === "FAILED" && latest.error ? ` — ${latest.error}` : ""}
         </p>
@@ -73,7 +73,7 @@ function DatasetCard({
         {downloadHref && latest?.status === "DONE" && (
           <a
             href={downloadHref}
-            className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+            className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
           >
             Descargar CSV
           </a>
@@ -119,7 +119,7 @@ export function UniverseGenerator({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <label htmlFor="seed" className="text-sm font-medium text-gray-700">
+        <label htmlFor="seed" className="text-sm font-medium text-[var(--color-foreground)]">
           Semilla
         </label>
         <input
@@ -127,12 +127,12 @@ export function UniverseGenerator({
           type="number"
           value={seed}
           onChange={(e) => setSeed(Number(e.target.value))}
-          className="w-32 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+          className="w-32 rounded border border-[var(--color-brand-gray-light)] px-3 py-1.5 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
         />
-        <span className="text-xs text-gray-500">La misma semilla siempre genera el mismo universo.</span>
+        <span className="text-xs text-[var(--color-brand-text-secondary)]">La misma semilla siempre genera el mismo universo.</span>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-[var(--color-brand-red)]">{error}</p>}
 
       <DatasetCard
         title="Universo Colombia"

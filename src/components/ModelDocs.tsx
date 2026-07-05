@@ -33,11 +33,11 @@ export function ModelDocs() {
   return (
     <div className="flex flex-col gap-4">
       {SECTIONS.map((s) => (
-        <div key={s.title} className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        <div key={s.title} className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             {s.title}
           </h3>
-          <p className="text-sm text-gray-600">{s.body}</p>
+          <p className="text-sm text-[var(--color-brand-text-secondary)]">{s.body}</p>
         </div>
       ))}
     </div>

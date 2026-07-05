@@ -24,10 +24,10 @@ export default async function TeamDashboard() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
-      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {team?.name ?? "Equipo"}
       </h1>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-[var(--color-brand-text-secondary)]">
         Entra a cada día para descargar el universo, subir tu tarifa y tu portafolio, y ver tus resultados una vez
         publicados por el evaluador.
       </p>
@@ -37,12 +37,12 @@ export default async function TeamDashboard() {
           <Link
             key={d.n}
             href={`/day/${d.n}`}
-            className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-4 hover:shadow-sm"
+            className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-4 hover:shadow-sm"
           >
-            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               {d.label}
             </p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[var(--color-brand-text-secondary)]">
               {completeByDay.get(d.n) ? "Tarifa cargada" : "Tarifa pendiente"}
             </p>
           </Link>
