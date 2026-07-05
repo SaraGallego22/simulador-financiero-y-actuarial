@@ -32,9 +32,16 @@ export default async function TeamDashboard() {
         </form>
       </div>
       <p className="text-sm text-gray-600">
-        Sube tu tarifa del Día 1. Tus resultados objetivos y la calificación subjetiva aparecerán aquí una vez que el
-        evaluador corra la simulación y los publique.
+        Descarga el universo de pólizas, define tu tarifa por póliza y sube el resultado. Tus resultados objetivos y
+        la calificación subjetiva aparecerán aquí una vez que el evaluador corra la simulación y los publique.
       </p>
+
+      <a
+        href="/api/universe/public-csv"
+        className="w-fit rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+      >
+        Descargar CSV público del universo
+      </a>
 
       <TariffUpload day={DAY} initialComplete={submission?.meanPremium != null} initialMeanPremium={submission?.meanPremium ?? null} />
     </main>

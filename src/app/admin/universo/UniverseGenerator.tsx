@@ -38,12 +38,14 @@ function DatasetCard({
   latest,
   onGenerate,
   loading,
+  downloadHref,
 }: {
   title: string;
   description: string;
   latest: UniverseRunSummary | null;
   onGenerate: () => void;
   loading: boolean;
+  downloadHref?: string;
 }) {
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-5">
@@ -60,13 +62,23 @@ function DatasetCard({
           {latest.status === "FAILED" && latest.error ? ` — ${latest.error}` : ""}
         </p>
       )}
-      <button
-        onClick={onGenerate}
-        disabled={loading}
-        className="rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)] disabled:opacity-50"
-      >
-        {loading ? "Generando…" : latest ? "Regenerar" : "Generar"}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={onGenerate}
+          disabled={loading}
+          className="rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)] disabled:opacity-50"
+        >
+          {loading ? "Generando…" : latest ? "Regenerar" : "Generar"}
+        </button>
+        {downloadHref && latest?.status === "DONE" && (
+          <a
+            href={downloadHref}
+            className="rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+          >
+            Descargar CSV
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -128,6 +140,7 @@ export function UniverseGenerator({
         latest={initialColombia}
         onGenerate={() => generate("colombia")}
         loading={loadingKind === "colombia"}
+        downloadHref="/api/universe/public-csv"
       />
       <DatasetCard
         title="Dataset Chile"
