@@ -177,6 +177,47 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
         </div>
       )}
 
+      {day >= 3 && finBenchByTeamId.size > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+          <div className="p-4 pb-0">
+            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+              Balance y proyección Año 3
+            </h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-2">Equipo</th>
+                <th className="px-4 py-2">Activos (fin A1)</th>
+                <th className="px-4 py-2">Activos (fin A2)</th>
+                <th className="px-4 py-2">Patrimonio (fin A2)</th>
+                <th className="px-4 py-2">Utilidad neta A3 (proy.)</th>
+                <th className="px-4 py-2">Dividendo sugerido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teams.map((team) => {
+                const bench = finBenchByTeamId.get(team.id);
+                if (!bench) return null;
+                return (
+                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="px-4 py-2">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </td>
+                    <td className="px-4 py-2">${Math.round(bench.bal1.activos).toLocaleString("es-CO")}</td>
+                    <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.activos).toLocaleString("es-CO")}` : "—"}</td>
+                    <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.patrimonio).toLocaleString("es-CO")}` : "—"}</td>
+                    <td className="px-4 py-2">{bench.p3 ? `$${Math.round(bench.p3.uneta).toLocaleString("es-CO")}` : "—"}</td>
+                    <td className="px-4 py-2">${Math.round(bench.div).toLocaleString("es-CO")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {latestRun && latestRun.status === "DONE" && (
         <form action={publishAllAction.bind(null, latestRun.id, day)}>
           <button

@@ -2,9 +2,12 @@ import { prisma } from "./prisma";
 import { toInt32View } from "./binary";
 import { generateColombia } from "@/domain/generation/generateColombia";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
+import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
 import { ANIO_BASE_A1 } from "@/domain/generation/constants";
 import { computeLiabilitySchedules } from "@/domain/reserving/liability";
 import type { ClaimForLiability, LiabilitySchedule } from "@/domain/reserving/liability";
+import { computeDevelopment } from "@/domain/reserving/development";
+import type { TeamDevelopment } from "@/domain/reserving/development";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -138,4 +141,90 @@ export async function getPreviousAssignmentNumeric(
   }
 
   return result;
+}
+
+/**
+ * Same idea as getTeamBookForDay(), but for Year-2 claims (day=2's
+ * SimulationRun + a freshly-generated Year2Claims, not the universe's own
+ * Year-1 fields) — needed to feed computeDevelopment() a real Year1->Year2
+ * runoff instead of the simplified ratio fallback finBench() uses when no
+ * development schedule is supplied.
+ */
+export async function getYear2ClaimsByTeamId(
+  cohortId: string
+): Promise<Map<string, Omit<ClaimForLiability, "teamId">[]> | null> {
+  const run = await prisma.simulationRun.findFirst({
+    where: { cohortId, day: 2, status: "DONE" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!run) return null;
+
+  const universeRun = await prisma.universeRun.findFirst({
+    where: { cohortId, kind: "colombia", status: "DONE" },
+    orderBy: { createdAt: "desc" },
+    select: { seed: true },
+  });
+  if (!universeRun) return null;
+  const universe = generateColombia(universeRun.seed);
+  const year2Claims = generateYear2Claims(universe, universeRun.seed);
+
+  const claimsByTeamId = new Map<string, Omit<ClaimForLiability, "teamId">[]>();
+  const addClaim = (teamId: string, k: number) => {
+    if (!year2Claims.siniestro[k] || year2Claims.fechaAvisoEpochDay[k] < 0) return;
+    if (!claimsByTeamId.has(teamId)) claimsByTeamId.set(teamId, []);
+    claimsByTeamId.get(teamId)!.push({
+      noticeMonth: epochDayToMonthIndex(year2Claims.fechaAvisoEpochDay[k]),
+      severity: year2Claims.sev[k],
+    });
+  };
+
+  const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
+  if (run.resultData && params?.teamIdByNumericId) {
+    const assignment = toInt32View(run.resultData, universe.n);
+    const teamIdByNumericId = params.teamIdByNumericId;
+    for (let k = 0; k < universe.n; k++) {
+      const teamId = teamIdByNumericId[assignment[k]];
+      if (teamId) addClaim(teamId, k);
+    }
+  } else {
+    const teamResults = await prisma.teamSimResult.findMany({ where: { simulationRunId: run.id } });
+    if (teamResults.length !== 1) return null;
+    const teamId = teamResults[0].teamId;
+    for (let k = 0; k < universe.n; k++) addClaim(teamId, k);
+  }
+
+  return claimsByTeamId;
+}
+
+/**
+ * Runs computeDevelopment() (calendar-year Year1->Year2 runoff) per team,
+ * handling the same string-id <-> numeric-id remap as computeReservesForTeams.
+ * Only teams present in *both* maps get a development schedule — a team with
+ * no Year-2 business has nothing to develop.
+ */
+export function computeDevelopmentForTeams(
+  year1ClaimsByTeamId: Map<string, Omit<ClaimForLiability, "teamId">[]>,
+  year2ClaimsByTeamId: Map<string, Omit<ClaimForLiability, "teamId">[]>
+): Map<string, TeamDevelopment> {
+  const teamIds = [...new Set([...year1ClaimsByTeamId.keys(), ...year2ClaimsByTeamId.keys()])];
+  const numericIdByTeamId = new Map(teamIds.map((id, i) => [id, i + 1]));
+
+  const year1Claims = [];
+  for (const [teamId, claims] of year1ClaimsByTeamId) {
+    const numericId = numericIdByTeamId.get(teamId)!;
+    for (const c of claims) year1Claims.push({ teamId: numericId, noticeMonth: c.noticeMonth, ultimate: c.severity });
+  }
+  const year2Claims = [];
+  for (const [teamId, claims] of year2ClaimsByTeamId) {
+    const numericId = numericIdByTeamId.get(teamId)!;
+    for (const c of claims) year2Claims.push({ teamId: numericId, noticeMonth: c.noticeMonth, ultimate: c.severity });
+  }
+
+  const { byTeam } = computeDevelopment(year1Claims, year2Claims, [...numericIdByTeamId.values()]);
+  const byTeamId = new Map<string, TeamDevelopment>();
+  for (const [teamId, numericId] of numericIdByTeamId) {
+    const dev = byTeam.get(numericId);
+    if (dev) byTeamId.set(teamId, dev);
+  }
+  return byTeamId;
 }
