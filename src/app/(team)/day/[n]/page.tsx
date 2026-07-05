@@ -38,7 +38,11 @@ export default async function TeamDayPage({
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
+  // Only the serializable fields — Concepto.get is a function and can't
+  // cross the Server->Client Component boundary (see DeliverablesForm).
+  const reportConcepts = conceptosDia(`d${day}` as Dia)
+    .filter((c) => c.tipo === "reporte")
+    .map((c) => ({ id: c.id, label: c.label, unit: c.unit }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
   const topRows =

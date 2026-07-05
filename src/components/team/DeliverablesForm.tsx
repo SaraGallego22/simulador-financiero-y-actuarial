@@ -2,7 +2,18 @@
 
 import { useActionState } from "react";
 import { submitDeliverablesAction, type SubmitDeliverablesState } from "@/lib/teamActions";
-import type { Concepto } from "@/domain/grading/concepts";
+
+/**
+ * Deliberately not the full `Concepto` type — that includes a `get`
+ * function (used server-side to score against finBench), and Client
+ * Components can't receive function props from a Server Component. Only
+ * the serializable fields this form actually renders.
+ */
+export interface ConceptoSummary {
+  id: string;
+  label: string;
+  unit: "COP" | "score" | "x";
+}
 
 export function DeliverablesForm({
   day,
@@ -10,7 +21,7 @@ export function DeliverablesForm({
   initialValues,
 }: {
   day: number;
-  concepts: Concepto[];
+  concepts: ConceptoSummary[];
   initialValues: Record<string, number>;
 }) {
   const [state, formAction, pending] = useActionState<SubmitDeliverablesState, FormData>(
