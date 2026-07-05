@@ -2,8 +2,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TariffUpload } from "@/components/team/TariffUpload";
 import { PortfolioUpload } from "@/components/team/PortfolioUpload";
+import { DeliverablesForm } from "@/components/team/DeliverablesForm";
+import { AnalyticsForm } from "@/components/team/AnalyticsForm";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
+import { conceptosDia } from "@/domain/grading/concepts";
+import type { Dia } from "@/domain/grading/concepts";
+import type { Recommendation } from "@/domain/grading/analytics";
 
 const DAY_TITLES: Record<number, string> = {
   1: "Tarificación Año 1 y portafolio",
@@ -27,7 +32,10 @@ export default async function TeamDayPage({
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const [submission, publishedResult, allocation] = await Promise.all([
+  const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
+  const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
+
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true } })
       : null,
@@ -38,7 +46,13 @@ export default async function TeamDayPage({
         })
       : null,
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
+    teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
+    teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
   ]);
+  const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
+  const analyticsByKey = Object.fromEntries(
+    analyticsRecs.map((r) => [r.segmentKey, r.recommendation as Recommendation])
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -66,10 +80,16 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          <PortfolioUpload day={day} hasAllocation={!!allocation} />
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
-            Entregables financieros/analíticos adicionales se agregan próximamente.
-          </div>
+          {includeSim && <PortfolioUpload day={day} hasAllocation={!!allocation} />}
+          {reportConcepts.length > 0 && (
+            <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
+          )}
+          {hasAnalitica && <AnalyticsForm day={day} initialRecommendations={analyticsByKey} />}
+          {!includeSim && reportConcepts.length === 0 && !hasAnalitica && (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
+              No hay entregables para este día.
+            </div>
+          )}
         </div>
       )}
 

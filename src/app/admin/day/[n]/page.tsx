@@ -1,10 +1,14 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction } from "@/lib/adminActions";
-import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import type { Allocation } from "@/domain/finance/instruments";
+import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
+import type { Dia } from "@/domain/grading/concepts";
+import { scoreAnalitica } from "@/domain/grading/analytics";
+import type { Recommendation } from "@/domain/grading/analytics";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
@@ -69,6 +73,38 @@ export default async function AdminDayPage({
   // finBench (P&L/balance/solvency) needs Year 1 to exist — meaningful from
   // Day 2 onward, once Year 1's simulation is DONE.
   const finBenchByTeamId = day >= 2 ? await computeFinBenchForCohort(cohort.id) : new Map();
+
+  // Deliverables: teams self-report numeric concepts, graded against
+  // finBench's computed benchmark within a tolerance band.
+  const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
+  const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
+  const [deliverables, rubric, segmentDataByTeamId, analyticsRecs] = await Promise.all([
+    reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { day, team: { cohortId: cohort.id } } }) : [],
+    prisma.rubricConfig.findUnique({ where: { cohortId: cohort.id } }),
+    hasAnalitica ? getSegmentDataForTeams(cohort.id) : null,
+    hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { day, team: { cohortId: cohort.id } } }) : [],
+  ]);
+  const tolerance = {
+    tolerancePerfect: rubric?.tolerancePerfect ?? 0.05,
+    toleranceZero: rubric?.toleranceZero ?? 0.4,
+  };
+  const deliverablesByTeamId = new Map<string, Record<string, number>>();
+  for (const d of deliverables) {
+    if (!deliverablesByTeamId.has(d.teamId)) deliverablesByTeamId.set(d.teamId, {});
+    deliverablesByTeamId.get(d.teamId)![d.conceptId] = d.value;
+  }
+  const analyticsRecByTeamId = new Map<string, Record<string, Recommendation>>();
+  for (const r of analyticsRecs) {
+    if (!analyticsRecByTeamId.has(r.teamId)) analyticsRecByTeamId.set(r.teamId, {});
+    analyticsRecByTeamId.get(r.teamId)![r.segmentKey] = r.recommendation as Recommendation;
+  }
+  const analiticaScoreByTeamId = new Map<string, number | null>();
+  if (hasAnalitica && segmentDataByTeamId) {
+    for (const [teamId, segData] of segmentDataByTeamId) {
+      const recs = analyticsRecByTeamId.get(teamId) ?? {};
+      analiticaScoreByTeamId.set(teamId, scoreAnalitica(recs, segData));
+    }
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -163,40 +199,117 @@ export default async function AdminDayPage({
       )}
 
       {activeTab === "entreg" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-            Portafolios de inversión — Día {day}
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="py-1 pr-4">Equipo</th>
-                  <th className="py-1 pr-4">Portafolio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((team) => (
-                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                    <td className="py-1 pr-4">
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name}
-                    </td>
-                    <td className="py-1 pr-4">
-                      {team.portfolioAllocations[0] ? (
-                        <span className="text-green-700">Cargado</span>
-                      ) : (
-                        <span className="text-gray-400">Pendiente</span>
-                      )}
-                    </td>
+        <div className="flex flex-col gap-4">
+          {includeSim && (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                Portafolios de inversión — Día {day}
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                      <th className="py-1 pr-4">Equipo</th>
+                      <th className="py-1 pr-4">Portafolio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teams.map((team) => (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="py-1 pr-4">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="py-1 pr-4">
+                          {team.portfolioAllocations[0] ? (
+                            <span className="text-green-700">Cargado</span>
+                          ) : (
+                            <span className="text-gray-400">Pendiente</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {reportConcepts.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+              <div className="p-4 pb-0">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                  Reportes numéricos — Día {day}
+                </h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2">Equipo</th>
+                    <th className="px-4 py-2">Concepto</th>
+                    <th className="px-4 py-2">Reportado</th>
+                    <th className="px-4 py-2">Motor</th>
+                    <th className="px-4 py-2">Nota</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">
-            Entregables financieros/analíticos adicionales (Días 3-4) se agregan próximamente.
-          </p>
+                </thead>
+                <tbody>
+                  {teams.flatMap((team) => {
+                    const values = deliverablesByTeamId.get(team.id) ?? {};
+                    const bench = finBenchByTeamId.get(team.id) ?? null;
+                    return reportConcepts.map((c) => {
+                      const result = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance);
+                      const fmt = (v: number | null) =>
+                        v == null ? "—" : c.unit === "COP" ? `$${Math.round(v).toLocaleString("es-CO")}` : c.unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
+                      return (
+                        <tr key={`${team.id}-${c.id}`} className="border-t border-[var(--color-brand-gray-light)]">
+                          <td className="px-4 py-2">
+                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                            {team.name}
+                          </td>
+                          <td className="px-4 py-2">{c.label}</td>
+                          <td className="px-4 py-2">{fmt(result?.val ?? null)}</td>
+                          <td className="px-4 py-2">{fmt(result?.bench ?? null)}</td>
+                          <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {hasAnalitica && (
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
+              <div className="p-4 pb-0">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+                  Analítica sectorial — Día {day}
+                </h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2">Equipo</th>
+                    <th className="px-4 py-2">Nota analítica</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team) => {
+                    const score = analiticaScoreByTeamId.get(team.id);
+                    return (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="px-4 py-2">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="px-4 py-2">{score != null ? score.toFixed(0) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
