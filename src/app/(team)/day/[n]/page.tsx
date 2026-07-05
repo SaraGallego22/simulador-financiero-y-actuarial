@@ -13,10 +13,19 @@ import type { Recommendation } from "@/domain/grading/analytics";
 import { isPortfolioDecision } from "@/domain/finance/instruments";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
-import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
+import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
+
+function TabNote({ children }: { children: string }) {
+  return (
+    <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+      <span className="font-semibold text-[var(--color-brand-blue)]">Indicación — </span>
+      {children}
+    </p>
+  );
+}
 
 export default async function TeamDayPage({
   params,
@@ -95,6 +104,7 @@ export default async function TeamDayPage({
 
       {activeTab === "sim" && includeSim && (
         <div className="flex flex-col gap-4">
+          {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
           <a
             href="/api/universe/public-csv"
             className="w-fit rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
@@ -113,12 +123,23 @@ export default async function TeamDayPage({
         <div className="flex flex-col gap-4">
           {includeSim && <InstrumentsPanel />}
           {includeSim && (
-            <PortfolioForm day={day} initialDecision={isPortfolioDecision(allocation?.allocation) ? allocation.allocation : null} />
+            <>
+              {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
+              <PortfolioForm day={day} initialDecision={isPortfolioDecision(allocation?.allocation) ? allocation.allocation : null} />
+            </>
           )}
           {reportConcepts.length > 0 && (
-            <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
+            <>
+              {TAB_NOTES[day]?.deliverables && <TabNote>{TAB_NOTES[day].deliverables}</TabNote>}
+              <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
+            </>
           )}
-          {hasAnalitica && <AnalyticsForm day={day} initialRecommendations={analyticsByKey} />}
+          {hasAnalitica && (
+            <>
+              {TAB_NOTES[day]?.analytics && <TabNote>{TAB_NOTES[day].analytics}</TabNote>}
+              <AnalyticsForm day={day} initialRecommendations={analyticsByKey} />
+            </>
+          )}
           {!includeSim && reportConcepts.length === 0 && !hasAnalitica && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5 text-sm text-gray-500">
               No hay entregables para este día.
