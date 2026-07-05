@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOutAction } from "@/lib/actions";
 
 const SECTIONS = [
   {
@@ -29,8 +28,8 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col justify-between border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white">
-      <div className="flex flex-col gap-6 overflow-y-auto px-4 py-6">
+    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white">
+      <div className="flex flex-col gap-6 px-4 py-6">
         {SECTIONS.map((section) => (
           <div key={section.label}>
             <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-white/50">{section.label}</div>
@@ -53,11 +52,6 @@ export function AdminNav() {
           </div>
         ))}
       </div>
-      <form action={signOutAction} className="border-t border-white/10 px-4 py-4">
-        <button type="submit" className="text-xs text-white/70 underline hover:text-white">
-          Cerrar sesión
-        </button>
-      </form>
     </aside>
   );
 }

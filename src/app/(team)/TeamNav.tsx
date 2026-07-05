@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOutAction } from "@/lib/actions";
 
 const LINKS = [
   { href: "/dashboard", label: "Resumen" },
@@ -18,8 +17,8 @@ export function TeamNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col justify-between border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white">
-      <div className="flex flex-col gap-0.5 overflow-y-auto px-4 py-6">
+    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white">
+      <div className="flex flex-col gap-0.5 px-4 py-6">
         {LINKS.map((link) => {
           const active = pathname === link.href;
           return (
@@ -35,11 +34,6 @@ export function TeamNav() {
           );
         })}
       </div>
-      <form action={signOutAction} className="border-t border-white/10 px-4 py-4">
-        <button type="submit" className="text-xs text-white/70 underline hover:text-white">
-          Cerrar sesión
-        </button>
-      </form>
     </aside>
   );
 }
