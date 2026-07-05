@@ -21,7 +21,7 @@ That file is the **domain source of truth** (formulas, CSV schemas, copy, pedago
 | Layer | Choice | Why |
 |---|---|---|
 | Framework | **Next.js (App Router)**, full-stack | One repo/deploy for UI + API; native role-based routing; deploys free on Vercel Hobby |
-| Database | **Neon Postgres (free plan)** + **Prisma** | End-to-end typing, versioned migrations, generous free tier (0.5 GB) for aggregated data; native Vercel integration |
+| Database | **Neon Postgres (free plan)** + **Prisma**, via `@prisma/adapter-neon` | End-to-end typing, versioned migrations, generous free tier (0.5 GB); the Neon serverless driver adapter (not a plain `pg` connection) is required — Neon's free compute suspends after inactivity, and the adapter's WebSocket-based driver handles the wake-up far more gracefully than a raw TCP connection, which can fail outright on the first query after idle (see `src/lib/prisma.ts`) |
 | Auth | **NextAuth**, Credentials provider | Team accounts are username+password, created by the admin (no self-signup, **no email** — avoids depending on a paid transactional email service) |
 | Bulk data | **`bytea` in the same Postgres** (not Vercel Blob) | A 1M-row `Float32` array is ~4 MB; with ~12 teams × 2 years this fits comfortably in Neon's free 0.5 GB. Avoids adding a second service (Vercel Blob) with its own separate free-tier limit — one free provider is simpler to operate and monitor |
 | Deployment | **Vercel (Hobby plan, free)** | Direct Next.js integration, automatic deploys from GitHub, free `*.vercel.app` domain (no custom domain needed) |
@@ -179,3 +179,4 @@ Vercel **Hobby plan (free)** + Neon Postgres **free plan**. No custom domain (us
 - Do not expose results or scores to a team session without respecting the `published` flag.
 - Do not store individual policy-level rows (hundreds of thousands/millions) as Postgres records — aggregates per team only; bulk arrays go in `Bytes` columns of the same Postgres.
 - Do not introduce a separate queue/worker service for heavy compute — it must run synchronously inside the Route Handler (see §4.1).
+- Do not upgrade `@prisma/adapter-neon` independently of `@prisma/client`/`prisma` — their major versions must match (installing "latest" once pulled in a v7 adapter against a v6 client, which is incompatible; pin the adapter to the exact same version as `@prisma/client`).
