@@ -5,7 +5,7 @@ const SECTIONS = [
   },
   {
     title: "Día 1 — Tarificación Año 1 y portafolio",
-    body: "Cada equipo sube una tarifa (prima por póliza) para las 1,000,000 exposiciones. Al cierre se corre un mercado de elección discreta (modelo logit): cada asegurado elige la aseguradora que maximiza su utilidad (precio + ruido Gumbel escalado por inercia de marca), sujeto a un tope de cuota de mercado por equipo; el exceso de demanda se redistribuye entre los equipos con cupo disponible. Los siniestros y fechas del Año 1 ya están fijados desde la generación del universo — la simulación solo decide qué asegurador se queda con cada póliza. En paralelo, el equipo financiero arma un portafolio de inversión (basado en Chile) que debe calzar la curva de pasivos: ese portafolio gobierna todo el ciclo (fondeo mensual, pago de siniestros avisados, reinversión de vencimientos), no es una decisión de un solo día.",
+    body: "Cada equipo sube una tarifa (prima por póliza) para las 1,000,000 exposiciones. Al cierre se corre un mercado de elección discreta (modelo logit): cada asegurado elige la aseguradora que maximiza su utilidad (precio + ruido Gumbel escalado por inercia de marca), sujeto a un tope de cuota de mercado por equipo; el exceso de demanda se redistribuye entre los equipos con cupo disponible. Los siniestros y fechas del Año 1 ya están fijados desde la generación del universo — la simulación solo decide qué asegurador se queda con cada póliza. En paralelo, el equipo financiero arma su portafolio de inversión (basado en Chile) en dos partes: una asignación inicial para el fondeo del Año 1, y una política de reinversión para cuando esos instrumentos venzan — ninguna de las dos es una decisión de un solo día, gobiernan todo el ciclo (fondeo mensual, pago de siniestros avisados, reinversión de vencimientos).",
   },
   {
     title: "Día 2 — P&G Año 1 y retarifación Año 2",
@@ -25,7 +25,7 @@ const SECTIONS = [
   },
   {
     title: "Portafolio de inversión y ALM",
-    body: "El menú de instrumentos tiene distintos plazos y rendimientos. La nota ALM combina el rendimiento efectivo del portafolio con una penalización por descalce (cuánto la curva de vencimientos se aleja de cuándo realmente hay que pagar siniestros/reservas). Buen calce + buen rendimiento = nota alta; todo en un instrumento muy largo deja sin caja para pagar los primeros siniestros, todo en caja calza perfecto pero rinde poco.",
+    body: "El menú de instrumentos tiene distintos plazos y rendimientos. Cada equipo toma dos decisiones, no una: una asignación inicial (cómo invertir el fondeo del Año 1) y una política de reinversión (qué hacer cada vez que un instrumento madura, una vez termina ese fondeo inicial) — pueden ser distintas, porque el objetivo cambia entre construir la reserva y administrar su corrida. La nota de calce evalúa el match en todo el horizonte simulado (60 meses), no solo el peor mes: penaliza tanto la brecha máxima (riesgo de cola) como la brecha promedio acumulada (descalce crónico). Buen calce + buen rendimiento + buena liquidez de corto plazo = nota alta; una reinversión a plazos muy largos deja sin caja para pagar siniestros en curso, toda en caja calza perfecto pero rinde poco.",
   },
 ];
 
