@@ -9,6 +9,9 @@ const LINKS = [
   { href: "/admin/universo", label: "Universo" },
   { href: "/admin/config", label: "Configuración" },
   { href: "/admin/day/1", label: "Día 1" },
+  { href: "/admin/day/2", label: "Día 2" },
+  { href: "/admin/day/3", label: "Día 3" },
+  { href: "/admin/day/4", label: "Día 4" },
   { href: "/admin/standings", label: "Consolidado" },
 ];
 

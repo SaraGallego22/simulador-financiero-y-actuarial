@@ -3,31 +3,25 @@ import { auth } from "@/lib/auth";
 import { signOutAction } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { INSTRUMENTS } from "@/domain/finance/instruments";
-import { TariffUpload } from "./TariffUpload";
-import { PortfolioUpload } from "./PortfolioUpload";
 
-const DAY = 1;
+const DAYS = [
+  { n: 1, label: "Día 1 — Tarifación Año 1" },
+  { n: 2, label: "Día 2 — P&G Año 1 y retarifación Año 2" },
+  { n: 3, label: "Día 3 — P&G Año 2 y Balance" },
+  { n: 4, label: "Día 4 — Solvencia, dividendos y analítica" },
+];
 
 export default async function TeamDashboard() {
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const [team, submission, publishedResult, allocation] = await Promise.all([
+  const [team, submissions] = await Promise.all([
     teamId ? prisma.team.findUnique({ where: { id: teamId } }) : null,
     teamId
-      ? prisma.tariffSubmission.findUnique({
-          where: { teamId_day: { teamId, day: DAY } },
-          select: { meanPremium: true },
-        })
-      : null,
-    teamId
-      ? prisma.teamSimResult.findFirst({
-          where: { teamId, published: true, simulationRun: { day: DAY } },
-          orderBy: { simulationRun: { createdAt: "desc" } },
-        })
-      : null,
-    teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: DAY } } }) : null,
+      ? prisma.tariffSubmission.findMany({ where: { teamId }, select: { day: true, meanPremium: true } })
+      : [],
   ]);
+  const completeByDay = new Map(submissions.map((s) => [s.day, s.meanPremium != null]));
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -47,18 +41,26 @@ export default async function TeamDashboard() {
         </div>
       </div>
       <p className="text-sm text-gray-600">
-        Descarga el universo de pólizas, define tu tarifa por póliza y sube el resultado. Tus resultados objetivos y
-        la calificación subjetiva aparecerán aquí una vez que el evaluador corra la simulación y los publique.
+        Entra a cada día para descargar el universo, subir tu tarifa y tu portafolio, y ver tus resultados una vez
+        publicados por el evaluador.
       </p>
 
-      <a
-        href="/api/universe/public-csv"
-        className="w-fit rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
-      >
-        Descargar CSV público del universo
-      </a>
-
-      <TariffUpload day={DAY} initialComplete={submission?.meanPremium != null} initialMeanPremium={submission?.meanPremium ?? null} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {DAYS.map((d) => (
+          <Link
+            key={d.n}
+            href={`/day/${d.n}`}
+            className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue)] bg-white p-4 hover:shadow-sm"
+          >
+            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+              {d.label}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {completeByDay.get(d.n) ? "Tarifa cargada" : "Tarifa pendiente"}
+            </p>
+          </Link>
+        ))}
+      </div>
 
       <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
         <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
@@ -86,46 +88,6 @@ export default async function TeamDashboard() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <PortfolioUpload day={DAY} hasAllocation={!!allocation} />
-
-      <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white p-5">
-        <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-          Resultados — Día {DAY}
-        </h3>
-        {publishedResult ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase text-gray-500">Asegurados</p>
-              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
-                {publishedResult.insuredCount.toLocaleString("es-CO")}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-gray-500">Prima total</p>
-              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
-                ${Math.round(publishedResult.totalPremium).toLocaleString("es-CO")}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-gray-500">Siniestros</p>
-              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
-                {publishedResult.claimsCount.toLocaleString("es-CO")}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-gray-500">Loss ratio</p>
-              <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue)]">
-                {publishedResult.totalPremium > 0
-                  ? `${((publishedResult.claimsAmount / publishedResult.totalPremium) * 100).toFixed(1)}%`
-                  : "—"}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">El evaluador aún no ha publicado los resultados de este día.</p>
-        )}
       </div>
     </main>
   );

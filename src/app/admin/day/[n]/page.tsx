@@ -2,6 +2,7 @@ import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import type { Allocation } from "@/domain/finance/instruments";
 import { SimulationTrigger } from "./SimulationTrigger";
@@ -46,6 +47,10 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
       }
     }
   }
+
+  // finBench (P&L/balance/solvency) needs Year 1 to exist — meaningful from
+  // Day 2 onward, once Year 1's simulation is DONE.
+  const finBenchByTeamId = day >= 2 ? await computeFinBenchForCohort(cohort.id) : new Map();
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
@@ -120,6 +125,47 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
           </tbody>
         </table>
       </div>
+
+      {day >= 2 && finBenchByTeamId.size > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white">
+          <div className="p-4 pb-0">
+            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+              Financiero (finBench) — Año 1{day >= 2 ? " / Año 2" : ""}
+            </h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-2">Equipo</th>
+                <th className="px-4 py-2">Reservas A1</th>
+                <th className="px-4 py-2">Utilidad neta A1</th>
+                <th className="px-4 py-2">Utilidad neta A2</th>
+                <th className="px-4 py-2">Capital (RK)</th>
+                <th className="px-4 py-2">Margen solvencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teams.map((team) => {
+                const bench = finBenchByTeamId.get(team.id);
+                if (!bench) return null;
+                return (
+                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="px-4 py-2">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </td>
+                    <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
+                    <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
+                    <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
+                    <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
+                    <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {latestRun && latestRun.status === "DONE" && (
         <form action={publishAllAction.bind(null, latestRun.id, day)}>
