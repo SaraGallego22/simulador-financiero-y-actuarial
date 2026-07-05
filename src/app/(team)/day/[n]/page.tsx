@@ -141,6 +141,16 @@ export default async function TeamDayPage({
                     : "—"}
                 </p>
               </div>
+              {includeSim && (
+                <div className="col-span-2 sm:col-span-4">
+                  <a
+                    href={`/api/teams/report?day=${day}`}
+                    className="inline-block rounded border border-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue-light)]"
+                  >
+                    Descargar reporte de tu cartera (CSV)
+                  </a>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-gray-500">El evaluador aún no ha publicado los resultados de este día.</p>
