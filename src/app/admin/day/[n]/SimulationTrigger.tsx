@@ -9,6 +9,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
   const [beta, setBeta] = useState(1.5);
   const [marcaScale, setMarcaScale] = useState(0.3);
   const [cuotaPercent, setCuotaPercent] = useState(defaultCuotaPercent);
+  const [retentionFactor, setRetentionFactor] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
       const res = await fetch("/api/simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ day, seed, beta, marcaScale, cuotaPct: cuotaPercent / 100 }),
+        body: JSON.stringify({ day, seed, beta, marcaScale, cuotaPct: cuotaPercent / 100, retentionFactor }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -63,10 +64,24 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
+        {day === 2 && (
+          <label className="flex flex-col gap-1 text-xs text-gray-600">
+            Retención de clientes (Año 1→2)
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={retentionFactor}
+              onChange={(e) => setRetentionFactor(Number(e.target.value))}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </label>
+        )}
       </div>
       <p className="mb-3 text-xs text-gray-500">
         Porcentaje máximo del universo (1,000,000 de pólizas) que cada equipo puede quedarse. Con 1 equipo con tarifa
         completa, ese equipo recibe el 100% automáticamente (no hay competencia que simular).
+        {day === 2 && " La retención controla qué tan difícil es para un equipo perder un cliente que ya tenía en el Año 1."}
       </p>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <button

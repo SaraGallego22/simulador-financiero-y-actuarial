@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { toFloat32View } from "@/lib/binary";
 import { runSimulation } from "@/domain/market/runSimulation";
+import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
 import { generateColombia } from "@/domain/generation/generateColombia";
-import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
+import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
+import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import type { TeamInfo } from "@/domain/market/runSimulation";
 import { N_COLOMBIA } from "@/domain/generation/constants";
+import { getPreviousAssignmentNumeric } from "@/lib/teamBook";
 
 // Same reasoning as /api/universe: runs synchronously, no queue — see
 // CLAUDE.md §4.1. Hobby's max duration is 300s.
@@ -20,30 +23,39 @@ interface TeamAggregate {
   claimsAmount: number;
   rejectedCount: number;
   sumLambda: number;
+  retainedCount?: number;
+  newCount?: number;
 }
 
 /**
  * When exactly one team has a complete tariff, there's no "choice" to
  * simulate — a market of one insurer gets the whole universe by definition.
- * runSimulation() deliberately requires >=2 teams (a discrete-choice model
- * needs >=2 alternatives to mean anything), so this monopoly case is handled
- * here instead of relaxing that domain invariant.
+ * runSimulation()/runSimulationYear2() deliberately require >=2 teams (a
+ * discrete-choice model needs >=2 alternatives to mean anything), so this
+ * monopoly case is handled here instead of relaxing that domain invariant.
  */
-function aggregateMonopoly(universe: ColombiaUniverse, tariff: Float32Array, fallbackPremium: number): TeamAggregate {
+function aggregateMonopoly(
+  n: number,
+  lam: Float32Array,
+  siniestro: Uint8Array,
+  sev: Float32Array,
+  tariff: Float32Array,
+  fallbackPremium: number
+): TeamAggregate {
   let totalPremium = 0;
   let claimsCount = 0;
   let claimsAmount = 0;
   let sumLambda = 0;
-  for (let k = 0; k < universe.n; k++) {
+  for (let k = 0; k < n; k++) {
     const premium = tariff[k] || fallbackPremium;
     totalPremium += premium;
-    sumLambda += universe.lam[k];
-    if (universe.siniestro[k]) {
+    sumLambda += lam[k];
+    if (siniestro[k]) {
       claimsCount++;
-      claimsAmount += universe.sev[k];
+      claimsAmount += sev[k];
     }
   }
-  return { insuredCount: universe.n, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda };
+  return { insuredCount: n, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda };
 }
 
 export async function POST(request: Request) {
@@ -58,6 +70,7 @@ export async function POST(request: Request) {
   const beta = Number(body?.beta);
   const marcaScale = Number(body?.marcaScale);
   const cuotaPct = Number(body?.cuotaPct);
+  const retentionFactor = Number(body?.retentionFactor ?? 1);
   if (![day, seed, beta, marcaScale, cuotaPct].every(Number.isFinite)) {
     return NextResponse.json({ error: "Parámetros inválidos" }, { status: 400 });
   }
@@ -89,6 +102,13 @@ export async function POST(request: Request) {
   // tier, regardless of connection method; regeneration takes ~1s).
   const universe = generateColombia(universeRun.seed);
 
+  // Year 2 (day 2) uses its own claim draws and a retention-aware market
+  // model — see CLAUDE.md's domain glossary (generarSiniestrosA2/correrSim2).
+  const year2Claims: Year2Claims | null = day === 2 ? generateYear2Claims(universe, universeRun.seed) : null;
+  const monopolyLam = year2Claims?.lam ?? universe.lam;
+  const monopolySiniestro = year2Claims?.siniestro ?? universe.siniestro;
+  const monopolySev = year2Claims?.sev ?? universe.sev;
+
   const eligibleTeams = await prisma.team.findMany({
     where: { id: { in: eligibleTeamIds } },
     include: { tariffSubmissions: { where: { day } } },
@@ -109,7 +129,7 @@ export async function POST(request: Request) {
       day,
       status: "RUNNING",
       startedAt: new Date(),
-      params: { seed, beta, marcaScale, cuotaPct, teamIdByNumericId },
+      params: { seed, beta, marcaScale, cuotaPct, retentionFactor, teamIdByNumericId },
     },
   });
 
@@ -119,7 +139,17 @@ export async function POST(request: Request) {
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
       const tariff = toFloat32View(t.tariffSubmissions[0].data, N_COLOMBIA);
-      aggregateByTeamId.set(t.id, aggregateMonopoly(universe, tariff, t.tariffSubmissions[0].meanPremium!));
+      aggregateByTeamId.set(
+        t.id,
+        aggregateMonopoly(
+          universe.n,
+          monopolyLam,
+          monopolySiniestro,
+          monopolySev,
+          tariff,
+          t.tariffSubmissions[0].meanPremium!
+        )
+      );
     } else {
       const numericIdByTeamId = new Map<string, number>();
       const teamInfos: TeamInfo[] = eligibleTeams.map((t, i) => {
@@ -132,16 +162,37 @@ export async function POST(request: Request) {
         tariffsByTeam.set(numericIdByTeamId.get(t.id)!, toFloat32View(t.tariffSubmissions[0].data, N_COLOMBIA));
       }
 
-      const result = runSimulation(universe, tariffsByTeam, teamInfos, { seed, beta, marcaScale, cuotaPct });
-      for (const t of eligibleTeams) {
-        const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
-        aggregateByTeamId.set(t.id, agg);
+      if (day === 2 && year2Claims) {
+        const previousAssignment = await getPreviousAssignmentNumeric(cohort.id, 1, numericIdByTeamId, universe.n);
+        if (!previousAssignment) {
+          throw new Error("Corre la simulación del Día 1 primero — el Día 2 necesita saber quién aseguró a quién en el Año 1.");
+        }
+        const result = runSimulationYear2(universe, year2Claims, previousAssignment, tariffsByTeam, teamInfos, {
+          seed,
+          beta,
+          marcaScale,
+          cuotaPct,
+          retentionFactor,
+        });
+        for (const t of eligibleTeams) {
+          const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
+          aggregateByTeamId.set(t.id, agg);
+        }
+        await prisma.simulationRun.update({
+          where: { id: run.id },
+          data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
+        });
+      } else {
+        const result = runSimulation(universe, tariffsByTeam, teamInfos, { seed, beta, marcaScale, cuotaPct });
+        for (const t of eligibleTeams) {
+          const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
+          aggregateByTeamId.set(t.id, agg);
+        }
+        await prisma.simulationRun.update({
+          where: { id: run.id },
+          data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
+        });
       }
-
-      await prisma.simulationRun.update({
-        where: { id: run.id },
-        data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
-      });
     }
 
     await prisma.$transaction([
@@ -156,7 +207,7 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: { sumLambda: agg.sumLambda },
+            extra: { sumLambda: agg.sumLambda, retainedCount: agg.retainedCount, newCount: agg.newCount },
           },
           create: {
             simulationRunId: run.id,
@@ -166,7 +217,7 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: { sumLambda: agg.sumLambda },
+            extra: { sumLambda: agg.sumLambda, retainedCount: agg.retainedCount, newCount: agg.newCount },
           },
         });
       }),
@@ -178,6 +229,6 @@ export async function POST(request: Request) {
       where: { id: run.id },
       data: { status: "FAILED", error: err instanceof Error ? err.message : String(err), finishedAt: new Date() },
     });
-    return NextResponse.json({ error: "La simulación falló" }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "La simulación falló" }, { status: 500 });
   }
 }

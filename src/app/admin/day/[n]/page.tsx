@@ -76,6 +76,9 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota ALM</th>
+              {day === 2 && (
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
+              )}
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -105,6 +108,13 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
                   <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
                   <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
                   <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
+                  {day === 2 && (
+                    <td className="px-4 py-2">
+                      {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
+                        ? `${(result.extra as { retainedCount: number }).retainedCount.toLocaleString("es-CO")} / ${(result.extra as { newCount: number }).newCount.toLocaleString("es-CO")}`
+                        : "—"}
+                    </td>
+                  )}
                   <td className="px-4 py-2 text-right">
                     {result && (
                       <form action={togglePublishedAction.bind(null, result.id, day)}>

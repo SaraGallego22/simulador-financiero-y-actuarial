@@ -98,3 +98,44 @@ export function computeReservesForTeams(
   }
   return schedulesByTeamId;
 }
+
+/**
+ * Reconstructs a prior day's assignment array, remapped into a *new* run's
+ * numeric-id space (each SimulationRun mints its own ephemeral 1..N ids from
+ * whichever teams were eligible that day — the two runs' numbering won't
+ * generally line up). Needed for the Year-2 retention bonus, which checks
+ * "is this exposure's Year-1 team still an option in Year 2". Returns -1 for
+ * an exposure whose previous team isn't part of the current run at all.
+ */
+export async function getPreviousAssignmentNumeric(
+  cohortId: string,
+  previousDay: number,
+  numericIdByTeamId: Map<string, number>,
+  n: number
+): Promise<Int32Array | null> {
+  const run = await prisma.simulationRun.findFirst({
+    where: { cohortId, day: previousDay, status: "DONE" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!run) return null;
+
+  const result = new Int32Array(n).fill(-1);
+  const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
+
+  if (run.resultData && params?.teamIdByNumericId) {
+    const prevAssignment = toInt32View(run.resultData, n);
+    const prevTeamIdByNumericId = params.teamIdByNumericId;
+    for (let k = 0; k < n; k++) {
+      const realTeamId = prevTeamIdByNumericId[prevAssignment[k]];
+      result[k] = realTeamId ? (numericIdByTeamId.get(realTeamId) ?? -1) : -1;
+    }
+  } else {
+    // Monopoly case: the whole universe belonged to a single team.
+    const teamResults = await prisma.teamSimResult.findMany({ where: { simulationRunId: run.id } });
+    if (teamResults.length !== 1) return null;
+    const numericId = numericIdByTeamId.get(teamResults[0].teamId) ?? -1;
+    result.fill(numericId);
+  }
+
+  return result;
+}
