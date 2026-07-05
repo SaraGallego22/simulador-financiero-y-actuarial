@@ -31,9 +31,12 @@ const FIELD_SPECS: { key: keyof ColombiaUniverse; ctor: TypedArrayCtor }[] = [
 /**
  * Packs the Colombia universe's parallel typed arrays into a single Buffer
  * (4-byte row count header, then each field's raw bytes back to back, in a
- * fixed order) for storage in a Postgres `Bytes` column — see CLAUDE.md §4.1:
- * bulk data lives in the same Postgres as `bytea`, never a separate blob
- * service or one row per policy.
+ * fixed order). NOT currently used to persist the live universe — reading
+ * back a ~40MB value this way measured 84-100s on Neon's free tier
+ * regardless of connection method, so the app regenerates from the stored
+ * `seed` instead (generation is deterministic and ~1s; see CLAUDE.md §4.1).
+ * Kept for any future bulk-export/audit use where round-tripping through
+ * Postgres is actually needed; covered by the round-trip tests below.
  */
 export function serializeColombiaUniverse(u: ColombiaUniverse): Buffer {
   const parts: Buffer[] = [Buffer.alloc(4)];

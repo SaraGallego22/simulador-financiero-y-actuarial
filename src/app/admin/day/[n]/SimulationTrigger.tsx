@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function SimulationTrigger({ day, defaultCuotaPct }: { day: number; defaultCuotaPct: number }) {
+export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; defaultCuotaPercent: number }) {
   const router = useRouter();
   const [seed, setSeed] = useState(42);
   const [beta, setBeta] = useState(1.5);
   const [marcaScale, setMarcaScale] = useState(0.3);
-  const [cuotaPct, setCuotaPct] = useState(defaultCuotaPct);
+  const [cuotaPercent, setCuotaPercent] = useState(defaultCuotaPercent);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +19,7 @@ export function SimulationTrigger({ day, defaultCuotaPct }: { day: number; defau
       const res = await fetch("/api/simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ day, seed, beta, marcaScale, cuotaPct }),
+        body: JSON.stringify({ day, seed, beta, marcaScale, cuotaPct: cuotaPercent / 100 }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -52,18 +52,22 @@ export function SimulationTrigger({ day, defaultCuotaPct }: { day: number; defau
           <input type="number" step="0.05" value={marcaScale} onChange={(e) => setMarcaScale(Number(e.target.value))} className="rounded border border-gray-300 px-2 py-1 text-sm" />
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-600">
-          Cuota máx. por equipo
+          Cuota máx. por equipo (%)
           <input
             type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            value={cuotaPct}
-            onChange={(e) => setCuotaPct(Number(e.target.value))}
+            step="5"
+            min="1"
+            max="100"
+            value={cuotaPercent}
+            onChange={(e) => setCuotaPercent(Number(e.target.value))}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
       </div>
+      <p className="mb-3 text-xs text-gray-500">
+        Porcentaje máximo del universo (1,000,000 de pólizas) que cada equipo puede quedarse. Con 1 equipo con tarifa
+        completa, ese equipo recibe el 100% automáticamente (no hay competencia que simular).
+      </p>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <button
         onClick={run}

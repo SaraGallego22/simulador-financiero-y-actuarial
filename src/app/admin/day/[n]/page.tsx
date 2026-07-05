@@ -22,7 +22,7 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
 
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
-  const defaultCuotaPct = Math.min(1, Math.max(0.3, Math.ceil((1 / Math.max(submittedCount, 1)) * 20) / 20));
+  const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
@@ -35,7 +35,7 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
         </p>
       </div>
 
-      <SimulationTrigger day={day} defaultCuotaPct={defaultCuotaPct} />
+      <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
 
       <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-white">
         <table className="w-full text-sm">

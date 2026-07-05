@@ -1,8 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { deserializeColombiaUniverse } from "@/lib/binary";
-import { getExposure } from "@/domain/generation/generateColombia";
+import { generateColombia, getExposure } from "@/domain/generation/generateColombia";
 
 // Streamed response — Vercel's 4.5MB body cap applies to buffered responses,
 // not streamed ones (see CLAUDE.md §4.3), so this can return the full
@@ -20,12 +19,17 @@ export async function GET() {
   const run = await prisma.universeRun.findFirst({
     where: { cohortId: cohort.id, kind: "colombia", status: "DONE" },
     orderBy: { createdAt: "desc" },
+    select: { seed: true },
   });
-  if (!run?.data) {
+  if (!run) {
     return new Response("El universo Colombia aún no se ha generado.", { status: 404 });
   }
 
-  const universe = deserializeColombiaUniverse(Buffer.from(run.data));
+  // Regenerated from the stored seed rather than read back from storage —
+  // generation is deterministic and fast (~1s); fetching it as a stored blob
+  // measured 84-100s on Neon's free tier regardless of connection method,
+  // which is the whole reason this changed. See CLAUDE.md §4.1.
+  const universe = generateColombia(run.seed);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

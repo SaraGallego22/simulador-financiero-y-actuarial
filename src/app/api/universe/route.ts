@@ -5,13 +5,10 @@ import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { generateColombia } from "@/domain/generation/generateColombia";
 import { generateChile } from "@/domain/generation/generateChile";
 import { N_COLOMBIA, N_CHILE } from "@/domain/generation/constants";
-import { serializeChilePolicies, serializeColombiaUniverse } from "@/lib/binary";
 
 // Generation runs synchronously in this Route Handler rather than a
-// background job/queue — see CLAUDE.md §4.1. At the reduced row counts
-// (1M/100k) this completes in a few seconds, well inside the Hobby plan's
-// 60s ceiling.
-export const maxDuration = 60;
+// background job/queue — see CLAUDE.md §4.1. Hobby's max duration is 300s.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -34,16 +31,20 @@ export async function POST(request: Request) {
   });
 
   try {
-    const buffer =
-      kind === "colombia" ? serializeColombiaUniverse(generateColombia(seed)) : serializeChilePolicies(generateChile(seed));
-    // Prisma's Bytes field expects a plain Uint8Array<ArrayBuffer>; Buffer's
-    // generic type param (ArrayBufferLike) doesn't structurally match, so
-    // copy into a fresh Uint8Array rather than fighting the type.
-    const data = new Uint8Array(buffer);
+    // Generation is deterministic given `seed` (measured ~1s for Colombia at
+    // 1M rows), so we only need to persist the seed, not the generated data
+    // itself — reading it back is a fresh regeneration, not a blob fetch.
+    // This isn't just an optimization: reading back a ~40MB `bytea` value
+    // from Neon's free-tier compute measured 84-100s regardless of whether
+    // the connection went through the Neon serverless adapter or plain
+    // TCP/pg, which blew past this route's (and the simulation route's)
+    // maxDuration in production. See CLAUDE.md §4.1.
+    if (kind === "colombia") generateColombia(seed);
+    else generateChile(seed);
 
     await prisma.universeRun.update({
       where: { id: run.id },
-      data: { status: "DONE", data, finishedAt: new Date() },
+      data: { status: "DONE", finishedAt: new Date() },
     });
 
     return NextResponse.json({ id: run.id, status: "DONE" });
