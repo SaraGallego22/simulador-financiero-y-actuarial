@@ -75,13 +75,27 @@ export function deserializeColombiaUniverse(buf: Buffer): ColombiaUniverse {
  * wrapped directly in a `Float32Array`. Copies only when actually needed.
  */
 export function toFloat32View(data: Uint8Array, length: number): Float32Array {
-  const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
-  if (data.byteOffset % 4 === 0 && data.buffer.byteLength >= data.byteOffset + byteLength) {
-    return new Float32Array(data.buffer, data.byteOffset, length);
+  return toTypedArrayView(data, length, Float32Array, Float32Array.BYTES_PER_ELEMENT);
+}
+
+/** Same alignment-safety guarantee as toFloat32View, for Int32Array (e.g. SimulationRun.resultData). */
+export function toInt32View(data: Uint8Array, length: number): Int32Array {
+  return toTypedArrayView(data, length, Int32Array, Int32Array.BYTES_PER_ELEMENT);
+}
+
+function toTypedArrayView<T extends Float32Array | Int32Array>(
+  data: Uint8Array,
+  length: number,
+  Ctor: new (buffer: ArrayBufferLike, byteOffset: number, length: number) => T,
+  bytesPerElement: number
+): T {
+  const byteLength = length * bytesPerElement;
+  if (data.byteOffset % bytesPerElement === 0 && data.buffer.byteLength >= data.byteOffset + byteLength) {
+    return new Ctor(data.buffer, data.byteOffset, length);
   }
   const aligned = new Uint8Array(byteLength);
   aligned.set(data.subarray(0, byteLength));
-  return new Float32Array(aligned.buffer);
+  return new Ctor(aligned.buffer, 0, length);
 }
 
 /** Chile is a heterogeneous array of policy objects (not parallel typed arrays), so a single JSON blob is simplest — still one Bytes value per run, not one row per policy. */

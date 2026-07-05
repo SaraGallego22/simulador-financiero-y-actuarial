@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateColombia } from "@/domain/generation/generateColombia";
-import { deserializeColombiaUniverse, serializeColombiaUniverse, toFloat32View } from "./binary";
+import { deserializeColombiaUniverse, serializeColombiaUniverse, toFloat32View, toInt32View } from "./binary";
 
 describe("Colombia universe binary (de)serialization", () => {
   it("round-trips every field exactly", () => {
@@ -60,5 +60,22 @@ describe("toFloat32View", () => {
     const misaligned = padded.subarray(1); // byteOffset = 1, not a multiple of 4
     expect(misaligned.byteOffset % 4).not.toBe(0);
     expect(Array.from(toFloat32View(misaligned, values.length))).toEqual(Array.from(values));
+  });
+});
+
+describe("toInt32View", () => {
+  const values = Int32Array.from([1, -2, 3, 400000, -5]);
+
+  it("reads back the same values when the source is already aligned", () => {
+    const bytes = new Uint8Array(values.buffer);
+    expect(Array.from(toInt32View(bytes, values.length))).toEqual(Array.from(values));
+  });
+
+  it("reads back the same values when the source is NOT 4-byte aligned", () => {
+    const padded = new Uint8Array(values.byteLength + 1);
+    padded.set(new Uint8Array(values.buffer), 1);
+    const misaligned = padded.subarray(1);
+    expect(misaligned.byteOffset % 4).not.toBe(0);
+    expect(Array.from(toInt32View(misaligned, values.length))).toEqual(Array.from(values));
   });
 });

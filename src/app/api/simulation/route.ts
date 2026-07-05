@@ -94,13 +94,22 @@ export async function POST(request: Request) {
     include: { tariffSubmissions: { where: { day } } },
   });
 
+  // Numeric ids (1..N) are ephemeral, scoped to this one run — runSimulation
+  // works in those terms, but persisting resultData without also persisting
+  // which real team.id each number maps to would make it unreadable later
+  // (needed by the reserving pipeline to attribute claims per team).
+  const teamIdByNumericId: Record<number, string> = {};
+  eligibleTeams.forEach((t, i) => {
+    teamIdByNumericId[i + 1] = t.id;
+  });
+
   const run = await prisma.simulationRun.create({
     data: {
       cohortId: cohort.id,
       day,
       status: "RUNNING",
       startedAt: new Date(),
-      params: { seed, beta, marcaScale, cuotaPct },
+      params: { seed, beta, marcaScale, cuotaPct, teamIdByNumericId },
     },
   });
 

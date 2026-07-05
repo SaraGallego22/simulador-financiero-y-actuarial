@@ -2,7 +2,9 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { signOutAction } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
+import { INSTRUMENTS } from "@/domain/finance/instruments";
 import { TariffUpload } from "./TariffUpload";
+import { PortfolioUpload } from "./PortfolioUpload";
 
 const DAY = 1;
 
@@ -10,7 +12,7 @@ export default async function TeamDashboard() {
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const [team, submission, publishedResult] = await Promise.all([
+  const [team, submission, publishedResult, allocation] = await Promise.all([
     teamId ? prisma.team.findUnique({ where: { id: teamId } }) : null,
     teamId
       ? prisma.tariffSubmission.findUnique({
@@ -24,6 +26,7 @@ export default async function TeamDashboard() {
           orderBy: { simulationRun: { createdAt: "desc" } },
         })
       : null,
+    teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: DAY } } }) : null,
   ]);
 
   return (
@@ -56,6 +59,36 @@ export default async function TeamDashboard() {
       </a>
 
       <TariffUpload day={DAY} initialComplete={submission?.meanPremium != null} initialMeanPremium={submission?.meanPremium ?? null} />
+
+      <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-5">
+        <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          Instrumentos disponibles
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="py-1 pr-4">ID</th>
+                <th className="py-1 pr-4">Nombre</th>
+                <th className="py-1 pr-4">Rendimiento EA</th>
+                <th className="py-1 pr-4">Plazo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {INSTRUMENTS.map((ins) => (
+                <tr key={ins.id} className="border-t border-[var(--color-brand-gray-light)]">
+                  <td className="py-1 pr-4 font-mono">{ins.id}</td>
+                  <td className="py-1 pr-4">{ins.nombre}</td>
+                  <td className="py-1 pr-4">{(ins.yield * 100).toFixed(1)}%</td>
+                  <td className="py-1 pr-4">{ins.plazoM >= 999 ? "sin venc." : `${ins.plazoM} meses`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <PortfolioUpload day={DAY} hasAllocation={!!allocation} />
 
       <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-white p-5">
         <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">

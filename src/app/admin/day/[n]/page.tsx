@@ -1,6 +1,9 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction } from "@/lib/adminActions";
+import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { scoreFinanciero } from "@/domain/finance/alm";
+import type { Allocation } from "@/domain/finance/instruments";
 import { SimulationTrigger } from "./SimulationTrigger";
 
 export default async function AdminDayPage({ params }: { params: Promise<{ n: string }> }) {
@@ -10,7 +13,10 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
 
   const teams = await prisma.team.findMany({
     where: { cohortId: cohort.id },
-    include: { tariffSubmissions: { where: { day }, select: { meanPremium: true } } },
+    include: {
+      tariffSubmissions: { where: { day }, select: { meanPremium: true } },
+      portfolioAllocations: { where: { day }, select: { allocation: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -23,6 +29,23 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
   const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
+
+  // ALM score per team: needs each team's book of claims (from the completed
+  // simulation) to compute reserves, plus whatever portfolio they uploaded.
+  const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
+  if (latestRun?.status === "DONE") {
+    const book = await getTeamBookForDay(cohort.id, day);
+    if (book) {
+      const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
+      for (const team of teams) {
+        const allocation = team.portfolioAllocations[0]?.allocation as Allocation | undefined;
+        const reserves = reservesByTeamId.get(team.id);
+        if (allocation && reserves) {
+          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, allocation));
+        }
+      }
+    }
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
@@ -47,6 +70,7 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima total</th>
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
               <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
+              <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota ALM</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -55,6 +79,7 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
               const submitted = team.tariffSubmissions[0]?.meanPremium != null;
               const result = resultByTeamId.get(team.id);
               const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
+              const almScore = almScoreByTeamId.get(team.id);
               return (
                 <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                   <td className="px-4 py-2">
@@ -74,6 +99,7 @@ export default async function AdminDayPage({ params }: { params: Promise<{ n: st
                   </td>
                   <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
                   <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
+                  <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
                   <td className="px-4 py-2 text-right">
                     {result && (
                       <form action={togglePublishedAction.bind(null, result.id, day)}>
