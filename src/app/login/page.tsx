@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,12 +36,16 @@ export default function LoginPage() {
     <main className="flex flex-1 items-center justify-center p-6">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-[var(--color-brand-gray-light)] bg-white p-8 shadow-sm"
+        className="w-full max-w-sm rounded-lg border border-t-4 border-[var(--color-brand-gray-light)] border-t-[var(--color-brand-blue)] bg-white p-8 shadow-md"
       >
-        <h1 className="mb-1 font-[family-name:var(--font-condensed)] text-xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-          Simulador Financiero y Actuarial
+        <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="mb-4 h-8 w-auto" priority />
+
+        <h1 className="mb-1 font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          Pasantía SURA 2026
         </h1>
-        <p className="mb-6 text-sm text-gray-500">Ingresa con el usuario y contraseña de tu equipo.</p>
+        <p className="mb-6 text-sm text-[var(--color-brand-text-secondary)]">
+          Ingresa con el usuario y contraseña de tu equipo.
+        </p>
 
         <label htmlFor="username" className="mb-1 block text-sm font-medium text-gray-700">
           Usuario
@@ -49,7 +55,7 @@ export default function LoginPage() {
           name="username"
           required
           autoComplete="username"
-          className="mb-4 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+          className="mb-4 h-9 w-full rounded border border-gray-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue)] focus-visible:ring-offset-2"
         />
 
         <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
@@ -61,18 +67,16 @@ export default function LoginPage() {
           type="password"
           required
           autoComplete="current-password"
-          className="mb-4 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
+          className="mb-4 h-9 w-full rounded border border-gray-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue)] focus-visible:ring-offset-2"
         />
 
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        <div role="alert" aria-live="assertive" className="mb-4 min-h-[1.25rem] text-sm text-[var(--color-brand-red)]">
+          {error}
+        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)] disabled:opacity-50"
-        >
-          {loading ? "Ingresando..." : "Ingresar"}
-        </button>
+        <Button type="submit" variant="primary" size="lg" loading={loading} loadingText="Ingresando..." className="w-full">
+          Ingresar
+        </Button>
       </form>
     </main>
   );

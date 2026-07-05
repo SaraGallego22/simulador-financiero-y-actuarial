@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { signOutAction } from "@/lib/actions";
+import { Button } from "@/components/ui/button";
 
 /**
  * Matches the legacy prototype's `.topbar` (line ~221): blue bar, SURA logo,
@@ -25,12 +26,9 @@ export function TopBar({ subtitle, badge }: { subtitle: string; badge: string })
           {badge}
         </span>
         <form action={signOutAction}>
-          <button
-            type="submit"
-            className="rounded border border-white/30 px-3 py-1.5 text-xs font-medium text-white/90 transition-colors hover:bg-white/10"
-          >
+          <Button type="submit" variant="ghost" onDark size="sm">
             Cerrar sesión
-          </button>
+          </Button>
         </form>
       </div>
     </header>
