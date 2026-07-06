@@ -10,7 +10,10 @@ import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import type { Recommendation } from "@/domain/grading/analytics";
-import { isPortfolioDecision } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
+import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
+import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { AlmScoreTiles, AlmLadderTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES } from "@/lib/days";
@@ -91,6 +94,23 @@ export default async function TeamDayPage({
     analyticsRecs.map((r) => [r.segmentKey, r.recommendation as Recommendation])
   );
 
+  // ALM detail (team-scoped): only computed once the day's simulation is
+  // published, same gate as the underwriting results above.
+  let almScore: ReturnType<typeof scoreFinanciero> = null;
+  let almLadderRows: ReturnType<typeof almLadder> = null;
+  if (activeTab === "obj" && includeSim && publishedResult && teamId) {
+    const decision = isPortfolioDecisionV2(allocation?.allocation) ? allocation.allocation : null;
+    if (decision) {
+      const cohort = await getOrCreateActiveCohort();
+      const book = await getTeamBookForDay(cohort.id, day);
+      const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
+      if (reserves) {
+        almScore = scoreFinanciero(reserves, decision);
+        almLadderRows = almLadder(reserves, decision);
+      }
+    }
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
       <div>
@@ -125,7 +145,7 @@ export default async function TeamDayPage({
           {includeSim && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
-              <PortfolioForm day={day} initialDecision={isPortfolioDecision(allocation?.allocation) ? allocation.allocation : null} />
+              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV2(allocation?.allocation) ? allocation.allocation : null} />
             </>
           )}
           {reportConcepts.length > 0 && (
@@ -149,6 +169,7 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "obj" && (
+        <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
           <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             Resultados objetivos — Día {day}
@@ -201,6 +222,27 @@ export default async function TeamDayPage({
           ) : (
             <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados de este día.</p>
           )}
+        </div>
+
+        {includeSim && (
+          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              ALM — tu portafolio vs. tus reservas
+            </h3>
+            {almScore ? (
+              <div className="flex flex-col gap-3">
+                <AlmScoreTiles score={almScore} />
+                {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                {publishedResult
+                  ? "Aún no tienes un portafolio guardado o no hay reservas calculadas para este día."
+                  : "El evaluador aún no ha publicado los resultados de este día."}
+              </p>
+            )}
+          </div>
+        )}
         </div>
       )}
 

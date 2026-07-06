@@ -1,8 +1,8 @@
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getYear2ClaimsByTeamId, computeDevelopmentForTeams } from "./teamBook";
 import { scoreFinanciero } from "@/domain/finance/alm";
-import { isPortfolioDecision } from "@/domain/finance/instruments";
-import type { PortfolioDecision } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
+import type { PortfolioDecisionV2 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
 import type { FinBenchResult } from "@/domain/finance/finBench";
 
@@ -42,7 +42,7 @@ export async function computeFinBenchForCohort(cohortId: string): Promise<Map<st
 
   const year1ByTeamId = new Map(year1Results.map((r) => [r.teamId, r]));
   const year2ByTeamId = new Map(year2Results.map((r) => [r.teamId, r]));
-  const toDecision = (allocation: unknown): PortfolioDecision | null => (isPortfolioDecision(allocation) ? allocation : null);
+  const toDecision = (allocation: unknown): PortfolioDecisionV2 | null => (isPortfolioDecisionV2(allocation) ? allocation : null);
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
   const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));
 
@@ -51,11 +51,11 @@ export async function computeFinBenchForCohort(cohortId: string): Promise<Map<st
     if (!liabilityYear1) continue;
 
     const alloc1 = alloc1ByTeamId.get(teamId);
-    const almYear1 = alloc1 ? scoreFinanciero(liabilityYear1, alloc1.initial, alloc1.reinvest) : null;
+    const almYear1 = alloc1 ? scoreFinanciero(liabilityYear1, alloc1) : null;
 
     const year2 = year2ByTeamId.get(teamId);
     const alloc2 = alloc2ByTeamId.get(teamId);
-    const almYear2 = alloc2 ? scoreFinanciero(liabilityYear1, alloc2.initial, alloc2.reinvest) : undefined;
+    const almYear2 = alloc2 ? scoreFinanciero(liabilityYear1, alloc2) : undefined;
 
     const bench = finBench({
       year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount },

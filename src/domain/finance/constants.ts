@@ -23,3 +23,8 @@ export const CORR_MOD = [
   [0.75, 1, 1],
   [1, 1, 1],
 ];
+
+/** Total expense ratio (adquisición + comisión + administración), reused at
+ * monthly granularity in the ALM ladder — same ratios finBench's pyg() uses
+ * annually on the full-year premium. */
+export const GASTOS_TOTAL_PCT = FZ.gAdq + FZ.gCom + FZ.gAdmin;

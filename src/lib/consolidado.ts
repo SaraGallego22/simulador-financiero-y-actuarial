@@ -3,7 +3,7 @@ import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } fr
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
-import { isPortfolioDecision } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -82,8 +82,8 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
     const allocations1 = await prisma.portfolioAllocation.findMany({ where: { day: 1, team: { cohortId: cohort.id } } });
     for (const a of allocations1) {
       const reserves = reserves1.get(a.teamId);
-      if (reserves && isPortfolioDecision(a.allocation)) {
-        const s = scoreFinanciero(reserves, a.allocation.initial, a.allocation.reinvest);
+      if (reserves && isPortfolioDecisionV2(a.allocation)) {
+        const s = scoreFinanciero(reserves, a.allocation);
         if (s) almScoreByTeamId.set(a.teamId, s.nota);
       }
     }
