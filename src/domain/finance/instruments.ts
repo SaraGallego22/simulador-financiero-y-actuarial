@@ -2,26 +2,48 @@ export interface Instrument {
   id: string;
   nombre: string;
   yield: number;
+  /** Annualized return volatility (stdev, dimensionless — 0.05 = 5%). Feeds the risk-adjusted "Rendimiento" ALM sub-score and the Día 4 solvency financial-risk charge — see RENDIMIENTO_AJUSTADO in alm.ts and finBench()'s rFin. */
+  volAnual: number;
   plazoM: number;
   nota: string;
 }
 
 /**
  * Investment menu offered to teams for their portfolio allocation. Ported
- * verbatim from INSTRUMENTOS in the legacy prototype, line ~1482.
+ * verbatim from INSTRUMENTOS in the legacy prototype, line ~1482, plus
+ * volAnual (not in the legacy prototype — added so a team's instrument
+ * choice carries a genuine risk/return trade-off, not just return).
+ *
+ * Calibration intent: TESUVR8 is deliberately the best risk-adjusted
+ * choice of the whole menu (see VOL_PENALTY_LAMBDA in constants.ts) — its
+ * volatility is set lower than its 8-year nominal duration alone would
+ * suggest, modeling the simplification that being UVR-indexed (inflation-
+ * linked) shields it from unexpected-inflation risk that a nominal bond of
+ * the same duration would carry. ACC's volatility is set high enough that
+ * its raw 14% yield is NOT worth the risk on a risk-adjusted basis —
+ * "castigar a los equipos que elijan los activos más volátiles" is a
+ * deliberate design goal, not an incidental side effect.
  */
 export const INSTRUMENTS: readonly Instrument[] = [
-  { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.08, plazoM: 0, nota: "Liquidez total, rendimiento bajo" },
-  { id: "CDT90", nombre: "CDT 90 días", yield: 0.095, plazoM: 3, nota: "Corto plazo, baja liquidez intermedia" },
-  { id: "TES1", nombre: "TES tasa fija 1 año", yield: 0.105, plazoM: 12, nota: "Cubre pasivos del primer año" },
-  { id: "TES3", nombre: "TES tasa fija 3 años", yield: 0.115, plazoM: 36, nota: "Cubre cola del desarrollo" },
-  { id: "TESUVR8", nombre: "TES UVR 8 años", yield: 0.12, plazoM: 96, nota: "Alto rendimiento, muy largo plazo" },
+  { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.08, volAnual: 0.01, plazoM: 0, nota: "Liquidez total, rendimiento bajo, riesgo mínimo" },
+  { id: "CDT90", nombre: "CDT 90 días", yield: 0.095, volAnual: 0.02, plazoM: 3, nota: "Corto plazo, baja liquidez intermedia, riesgo bajo" },
+  { id: "TES1", nombre: "TES tasa fija 1 año", yield: 0.105, volAnual: 0.04, plazoM: 12, nota: "Cubre pasivos del primer año, riesgo de tasa moderado" },
+  { id: "TES3", nombre: "TES tasa fija 3 años", yield: 0.115, volAnual: 0.07, plazoM: 36, nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración" },
+  {
+    id: "TESUVR8",
+    nombre: "TES UVR 8 años",
+    yield: 0.12,
+    volAnual: 0.06,
+    plazoM: 96,
+    nota: "Alto rendimiento, indexado a inflación (menor riesgo real que un nominal del mismo plazo) — el mejor balance rentabilidad/riesgo del menú",
+  },
   {
     id: "ACC",
     nombre: "Renta variable (acciones)",
     yield: 0.14,
+    volAnual: 0.2,
     plazoM: 999,
-    nota: "Mayor retorno esperado, sin flujo definido / volátil",
+    nota: "Mayor retorno esperado, sin flujo definido — muy volátil, penalizado en la nota y en el capital de solvencia",
   },
 ];
 
@@ -31,6 +53,10 @@ export const INSTRUMENT_BY_ID: Record<string, Instrument> = Object.fromEntries(
 
 export const YIELD_MIN = Math.min(...INSTRUMENTS.map((x) => x.yield));
 export const YIELD_MAX = Math.max(...INSTRUMENTS.map((x) => x.yield));
+export const VOL_MIN = Math.min(...INSTRUMENTS.map((x) => x.volAnual));
+export const VOL_MAX = Math.max(...INSTRUMENTS.map((x) => x.volAnual));
+/** Simple (unweighted) average volatility across the menu — the "neutral" baseline a flat-rate financial risk charge implicitly assumed before per-team volatility was tracked. Used by finBench() to scale the Día 4 financial risk charge relative to a team's actual choice. */
+export const VOL_MENU_AVG = INSTRUMENTS.reduce((s, x) => s + x.volAnual, 0) / INSTRUMENTS.length;
 
 /** A team's target allocation: instrument id -> weight (not necessarily normalized to 1). */
 export type Allocation = Record<string, number>;

@@ -5,7 +5,7 @@ import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } fr
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
-import { AlmScoreTiles, AlmLadderTable, PortfolioTreeView } from "@/components/AlmLadderTable";
+import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -385,6 +385,11 @@ export default async function AdminDayPage({
                         </div>
 
                         {ladder && <AlmLadderTable rows={ladder.rows} />}
+                        {ladder && (
+                          <div className="mt-3">
+                            <AlmPortfolioTable rows={ladder.rows} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </details>
@@ -407,6 +412,7 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Reservas A1</th>
                     <th className="px-4 py-2">Utilidad neta A1</th>
                     <th className="px-4 py-2">Utilidad neta A2</th>
+                    <th className="px-4 py-2">Riesgo Fin. (volatilidad)</th>
                     <th className="px-4 py-2">Capital (RK)</th>
                     <th className="px-4 py-2">Margen solvencia</th>
                   </tr>
@@ -424,6 +430,9 @@ export default async function AdminDayPage({
                         <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">
+                          ${Math.round(bench.solRFin).toLocaleString("es-CO")} ({bench.solVolRatio.toFixed(2)}× el promedio del menú)
+                        </td>
                         <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
                       </tr>

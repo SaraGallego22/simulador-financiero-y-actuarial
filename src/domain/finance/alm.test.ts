@@ -136,6 +136,45 @@ describe("almSim / scoreFinanciero", () => {
     // mes=-6, the 7th row, index 6).
     expect(sim!.rows[6].vencimientosCaja).toBeGreaterThan(0);
   });
+
+  it("portfolio-value invariant: saldoFinalPortafolio == saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta every month", () => {
+    const sim = almSim(
+      lib,
+      decision([
+        tranche("LIQ", 20, { action: "cash" }, 6),
+        tranche("CDT90", 20, { action: "cash" }),
+        tranche("TES1", 30, { action: "cash" }),
+        tranche("TES3", 20, { action: "cash" }),
+        tranche("ACC", 10, { action: "cash" }, 24),
+      ])
+    );
+    expect(sim).not.toBeNull();
+    for (const row of sim!.rows) {
+      const expected = row.saldoInicialPortafolio + row.rendimientoPortafolio - row.vencimientosCaja - row.inversionNeta;
+      expect(row.saldoFinalPortafolio).toBeCloseTo(expected, 4);
+    }
+  });
+
+  it("an all-ACC portfolio has higher realized volatility and a worse risk-adjusted Rendimiento than an all-TESUVR8 portfolio, despite ACC's higher raw yield", () => {
+    const acc = scoreFinanciero(lib, decision([tranche("ACC", 100, { action: "repeat" }, 24)]));
+    const uvr8 = scoreFinanciero(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
+    expect(acc).not.toBeNull();
+    expect(uvr8).not.toBeNull();
+    expect(acc!.avgVol).toBeGreaterThan(uvr8!.avgVol);
+    expect(acc!.effYield).toBeGreaterThan(uvr8!.effYield);
+    expect(acc!.rendimiento).toBeLessThan(uvr8!.rendimiento);
+  });
+
+  it("adding a meaningful TESUVR8 weight to an otherwise-safe portfolio raises the risk-adjusted Rendimiento sub-score", () => {
+    const safe = scoreFinanciero(lib, decision([tranche("LIQ", 50, { action: "repeat" }, 6), tranche("CDT90", 50, { action: "repeat" })]));
+    const withUvr = scoreFinanciero(
+      lib,
+      decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })])
+    );
+    expect(safe).not.toBeNull();
+    expect(withUvr).not.toBeNull();
+    expect(withUvr!.rendimiento).toBeGreaterThan(safe!.rendimiento);
+  });
 });
 
 describe("almObjetivo", () => {

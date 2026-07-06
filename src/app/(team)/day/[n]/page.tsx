@@ -13,7 +13,7 @@ import type { Recommendation } from "@/domain/grading/analytics";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
-import { AlmScoreTiles, AlmLadderTable } from "@/components/AlmLadderTable";
+import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES } from "@/lib/days";
@@ -233,6 +233,7 @@ export default async function TeamDayPage({
               <div className="flex flex-col gap-3">
                 <AlmScoreTiles score={almScore} />
                 {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
+                {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
               </div>
             ) : (
               <p className="text-sm text-[var(--color-brand-text-secondary)]">

@@ -1,12 +1,22 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, YIELD_MIN, YIELD_MAX, isBondLike, trancheDurationM } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike, trancheDurationM } from "./instruments";
 import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
-import { FZ, GASTOS_TOTAL_PCT } from "./constants";
+import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA } from "./constants";
 
 export const W_CUMPL_CAJA = 0.45;
 export const W_REND = 0.45;
 export const W_LIQ = 0.1;
+
+/**
+ * Risk-adjusted yield per instrument (yield - λ·volAnual, see
+ * VOL_PENALTY_LAMBDA), used to normalize the "Rendimiento" ALM sub-score
+ * the same way YIELD_MIN/YIELD_MAX normalize the raw yield — this is the
+ * achievable range across the whole menu, now on a risk-adjusted basis.
+ */
+const RISK_ADJUSTED_YIELDS = INSTRUMENTS.map((i) => i.yield - VOL_PENALTY_LAMBDA * i.volAnual);
+export const RISK_ADJUSTED_YIELD_MIN = Math.min(...RISK_ADJUSTED_YIELDS);
+export const RISK_ADJUSTED_YIELD_MAX = Math.max(...RISK_ADJUSTED_YIELDS);
 
 /** cumplimientoCaja blends the single worst month (tail risk) with the average shortfall across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_BRECHA_PEAK = 0.5;
@@ -31,6 +41,12 @@ export interface AlmSimRow {
   /** > 0 only when a positive inversionNeta couldn't be fully covered by available liqCash. */
   brechaCaja: number;
   fase: "a1" | "post";
+  /** Book value of every open investment position at the START of this month (= previous month's saldoFinalPortafolio, or 0 at the first month) — separate from the cash-statement columns above, this tracks the *portfolio's* value, not the cash floor. */
+  saldoInicialPortafolio: number;
+  /** Yield/growth accrued this month across all open positions (step 1 of the simulation) — the only way saldoFinalPortafolio can grow without fresh Inversión Neta. */
+  rendimientoPortafolio: number;
+  /** saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta (an identity — see alm.test.ts): money leaves the portfolio via "mantener en caja" or a draw to cover a brecha, and enters via fresh Inversión Neta. */
+  saldoFinalPortafolio: number;
 }
 
 export interface AlmSimResult {
@@ -50,6 +66,8 @@ export interface AlmSimResult {
   liab6: number;
   /** Diagnostic only (not used in scoring) — the largest number of simultaneously open positions, a sanity check that a team's tree isn't spawning a pathological number of live branches. */
   peakOpenPositions: number;
+  /** Book-value-weighted average annualized volatility of everything actually held over the whole horizon (not just the initial allocation) — feeds the risk-adjusted "Rendimiento" sub-score and the Día 4 financial risk charge (see finBench()'s rFin). */
+  avgVol: number;
 }
 
 interface Position {
@@ -173,6 +191,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
   let totIncome = 0;
   let incomeY1 = 0;
   let sumPV = 0;
+  let sumVolWeighted = 0;
   let liq6 = 0;
   let liab6 = 0;
   let cumLiabReserva = 0;
@@ -180,6 +199,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
 
   for (let t = 0; t < TOTAL; t++) {
     const buildPhase = t < BUILD_MONTHS;
+    const saldoInicialPortafolio = positions.reduce((s, p) => s + p.book, 0);
 
     // 1. Accrue yield on every still-open position — unconditional per
     //    position, guarded by matM > t (a position doesn't earn interest in
@@ -246,7 +266,9 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     }
     cajaFloat = cajaFinal;
 
-    sumPV += positions.reduce((s, p) => s + p.book, 0);
+    const saldoFinalPortafolio = positions.reduce((s, p) => s + p.book, 0);
+    sumPV += saldoFinalPortafolio;
+    sumVolWeighted += positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual, 0);
     peakOpenPositions = Math.max(peakOpenPositions, positions.length);
 
     if (t === BUILD_MONTHS) {
@@ -268,12 +290,16 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
       cajaFinal,
       brechaCaja,
       fase: buildPhase ? "a1" : "post",
+      saldoInicialPortafolio,
+      rendimientoPortafolio: devengo,
+      saldoFinalPortafolio,
     });
   }
 
   const avgPV = sumPV / TOTAL;
   const rMonthly = avgPV > 0 ? totIncome / (avgPV * TOTAL) : Math.pow(1 + INSTRUMENT_BY_ID.LIQ.yield, 1 / 12) - 1;
   const effYield = Math.pow(1 + rMonthly, 12) - 1;
+  const avgVol = sumPV > 0 ? sumVolWeighted / sumPV : 0;
 
   return {
     rows,
@@ -289,6 +315,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     liq6,
     liab6,
     peakOpenPositions,
+    avgVol,
   };
 }
 
@@ -310,10 +337,14 @@ export interface FinancialScore {
   avgPV: number;
   totIncome: number;
   tranches: Tranche[];
+  /** Book-value-weighted average volatility actually held over the horizon — see AlmSimResult.avgVol. */
+  avgVol: number;
+  /** effYield - VOL_PENALTY_LAMBDA*avgVol — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile portfolio scores worse than a similar yield achieved safely. */
+  riskAdjustedYield: number;
 }
 
 /**
- * Composite ALM score: 45% Caja Mínima compliance, 45% effective
+ * Composite ALM score: 45% Caja Mínima compliance, 45% risk-adjusted
  * reinvestment yield, 10% short-term liquidity coverage.
  *
  * cumplimientoCaja blends two things, not just the worst month: the peak
@@ -322,11 +353,19 @@ export interface FinancialScore {
  * typical month's Caja Mínima requirement (not the old multi-year reserve —
  * a monthly floor needs a monthly-scale denominator or every gap looks
  * artificially tiny), blended 50/50 (W_BRECHA_PEAK/W_BRECHA_AVG).
+ *
+ * rendimiento is risk-adjusted, not raw yield: it normalizes
+ * riskAdjustedYield (effYield discounted by realized volatility, see
+ * RISK_ADJUSTED_YIELD_MIN/MAX and VOL_PENALTY_LAMBDA in constants.ts)
+ * instead of effYield directly — an "efficient frontier" trade-off where
+ * chasing ACC's raw yield without regard for its volatility scores worse
+ * than a portfolio that also leans on TESUVR8, the menu's best
+ * risk-adjusted instrument by design.
  */
 export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3): FinancialScore | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
-  const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6 } = sim;
+  const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6, avgVol } = sim;
   const TOTAL = BUILD_MONTHS + HORIZON;
 
   const avgCajaMinima = sumCajaMinima / TOTAL;
@@ -335,7 +374,11 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const cumplimientoCaja = Math.max(0, 100 * (1 - W_BRECHA_PEAK * peakBrechaCajaRatio - W_BRECHA_AVG * avgBrechaCajaRatio));
 
   const effYield = sim.effYield;
-  const rendimiento = Math.max(0, Math.min(100, (100 * (effYield - YIELD_MIN)) / (YIELD_MAX - YIELD_MIN)));
+  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol;
+  const rendimiento = Math.max(
+    0,
+    Math.min(100, (100 * (riskAdjustedYield - RISK_ADJUSTED_YIELD_MIN)) / (RISK_ADJUSTED_YIELD_MAX - RISK_ADJUSTED_YIELD_MIN))
+  );
 
   const totalTopW = decision.tranches.reduce(
     (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
@@ -373,6 +416,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     avgPV: sim.avgPV,
     totIncome: sim.totIncome,
     tranches: decision.tranches,
+    avgVol,
+    riskAdjustedYield,
   };
 }
 
@@ -472,7 +517,9 @@ export interface AlmNavResult {
 
 /**
  * NAV (assets - liabilities at market value) under base/up/down rate
- * scenarios, feeding the interest-rate-risk component of solvency capital.
+ * scenarios — a diagnostic of interest-rate sensitivity, informational
+ * only (not currently read by finBench()'s solvency capital, which instead
+ * charges financial risk off realized portfolio *volatility*, see rFin).
  * Uses a single allocation (the balance-sheet snapshot at the valuation
  * date). Ported from almNAV(), line ~1837.
  */
