@@ -1,11 +1,13 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike, trancheDurationM } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM } from "./instruments";
 import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
 import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA } from "./constants";
 
-export const W_CUMPL_CAJA = 0.45;
-export const W_REND = 0.45;
+export const W_CUMPL_CAJA = 0.35;
+export const W_REND = 0.35;
+/** Weight of the "no me tocó vender el portafolio para cuadrar caja" sub-score — see scoreFinanciero()'s ventaForzada. */
+export const W_VENTA_FORZADA = 0.2;
 export const W_LIQ = 0.1;
 
 /**
@@ -35,12 +37,14 @@ export interface AlmSimRow {
   gastos: number;
   /** Proceeds this month from instruments that matured with a "mantener en caja" rule — folded into availability before Inversión Neta is computed. */
   vencimientosCaja: number;
-  /** Negative = surplus invested this month; positive = drawn from liqCash to cover a Caja Mínima shortfall. */
+  /** Negative = surplus invested this month; positive = drawn from LIQ and/or forced portfolio sales to cover a Caja Mínima shortfall (see ventaForzadaPortafolio for the forced-sale portion specifically). */
   inversionNeta: number;
   cajaFinal: number;
-  /** > 0 only when a positive inversionNeta couldn't be fully covered by available liqCash. */
+  /** > 0 only when a shortfall remained even after draining LIQ AND force-selling every other open position — genuine insolvency, not just "ran out of cash on hand." */
   brechaCaja: number;
   fase: "a1" | "post";
+  /** The portion of this month's inversionNeta that came from force-selling a non-LIQ position early (before its own maturity) to cover a shortfall LIQ alone couldn't — 0 whenever LIQ was enough. See scoreFinanciero()'s ventaForzada sub-score. */
+  ventaForzadaPortafolio: number;
   /** Book value of every open investment position at the START of this month (= previous month's saldoFinalPortafolio, or 0 at the first month) — separate from the cash-statement columns above, this tracks the *portfolio's* value, not the cash floor. */
   saldoInicialPortafolio: number;
   /** Yield/growth accrued this month across all open positions (step 1 of the simulation) — the only way saldoFinalPortafolio can grow without fresh Inversión Neta. */
@@ -68,6 +72,12 @@ export interface AlmSimResult {
   peakOpenPositions: number;
   /** Book-value-weighted average annualized volatility of everything actually held over the whole horizon (not just the initial allocation) — feeds the risk-adjusted "Rendimiento" sub-score and the Día 4 financial risk charge (see finBench()'s rFin). */
   avgVol: number;
+  /** Sum of every month's forced-sale amount across the horizon — see ventaForzadaPortafolio on AlmSimRow. */
+  totalVentaForzada: number;
+  /** Σ (forced-sale amount × that instrument's volAnual) across the horizon — the raw severity accumulator behind scoreFinanciero()'s ventaForzada sub-score: selling the same dollar amount of ACC contributes far more here than selling CDT90. */
+  ventaForzadaVolWeighted: number;
+  /** Diagnostic only — months where LIQ alone wasn't enough and a non-LIQ position had to be sold early. */
+  mesesConVentaForzada: number;
 }
 
 interface Position {
@@ -123,6 +133,41 @@ function drawFromLiq(neededNeta: number, positions: Position[]): number {
     remaining -= take;
   }
   return neededNeta - remaining;
+}
+
+/**
+ * Forced liquidation: when LIQ alone can't cover a Caja Mínima shortfall,
+ * the team must sell *something else* early — the engine can't just leave
+ * the gap unmet while sitting on an untouched bond/equity portfolio. Sells
+ * non-LIQ positions in ascending volAnual order (safest/least-volatile
+ * first, ACC only as a last resort), so a team that kept some low-vol
+ * ladder around gets tapped there before anything touches its equities.
+ * Selling reduces a position's book value exactly like a natural maturity
+ * payout would (no artificial haircut on the cash side — the consequence
+ * lives entirely in the ventaForzada score, not in fabricated losses), and
+ * does NOT trigger that position's onMaturity decision (it's an early,
+ * forced exit, not a real maturity event).
+ * Returns { sold, volWeighted }: total $ liquidated and the volatility-
+ * weighted amount (Σ sold_i × volAnual_i) used to size the score penalty.
+ */
+function forceLiquidatePortfolio(neededNeta: number, positions: Position[]): { sold: number; volWeighted: number } {
+  let remaining = neededNeta;
+  let sold = 0;
+  let volWeighted = 0;
+  if (remaining <= 0) return { sold, volWeighted };
+  const sellable = positions
+    .filter((p) => p.tranche.instrumentId !== "LIQ" && p.book > 0)
+    .sort((a, b) => INSTRUMENT_BY_ID[a.tranche.instrumentId].volAnual - INSTRUMENT_BY_ID[b.tranche.instrumentId].volAnual);
+  for (const p of sellable) {
+    if (remaining <= 0) break;
+    const vol = INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual;
+    const take = Math.min(p.book, remaining);
+    p.book -= take;
+    remaining -= take;
+    sold += take;
+    volWeighted += take * vol;
+  }
+  return { sold, volWeighted };
 }
 
 /**
@@ -196,6 +241,9 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
   let liab6 = 0;
   let cumLiabReserva = 0;
   let peakOpenPositions = 0;
+  let totalVentaForzada = 0;
+  let ventaForzadaVolWeighted = 0;
+  let mesesConVentaForzada = 0;
 
   for (let t = 0; t < TOTAL; t++) {
     const buildPhase = t < BUILD_MONTHS;
@@ -250,19 +298,29 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     let inversionNeta: number;
     let brechaCaja = 0;
     let cajaFinal: number;
+    let ventaForzada = 0;
     if (neededNeta <= 0) {
       const surplus = -neededNeta;
       fundTranches(decision.tranches, surplus, t, positions);
       inversionNeta = neededNeta;
       cajaFinal = cajaMinima;
     } else {
-      const drawn = drawFromLiq(neededNeta, positions);
+      const liqDrawn = drawFromLiq(neededNeta, positions);
+      const stillNeeded = neededNeta - liqDrawn;
+      const { sold, volWeighted } = forceLiquidatePortfolio(stillNeeded, positions);
+      ventaForzada = sold;
+      const drawn = liqDrawn + sold;
       inversionNeta = drawn;
       brechaCaja = neededNeta - drawn;
       cajaFinal = cajaMinima - brechaCaja;
       if (brechaCaja > peakBrechaCaja) peakBrechaCaja = brechaCaja;
       totalBrechaCaja += brechaCaja;
-      mesesEnBrecha++;
+      if (brechaCaja > 0) mesesEnBrecha++;
+      if (ventaForzada > 0) {
+        totalVentaForzada += ventaForzada;
+        ventaForzadaVolWeighted += volWeighted;
+        mesesConVentaForzada++;
+      }
     }
     cajaFloat = cajaFinal;
 
@@ -293,6 +351,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
       saldoInicialPortafolio,
       rendimientoPortafolio: devengo,
       saldoFinalPortafolio,
+      ventaForzadaPortafolio: ventaForzada,
     });
   }
 
@@ -316,12 +375,16 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     liab6,
     peakOpenPositions,
     avgVol,
+    totalVentaForzada,
+    ventaForzadaVolWeighted,
+    mesesConVentaForzada,
   };
 }
 
 export interface FinancialScore {
   cumplimientoCaja: number;
   rendimiento: number;
+  ventaForzada: number;
   liquidez: number;
   nota: number;
   portYield: number;
@@ -341,18 +404,27 @@ export interface FinancialScore {
   avgVol: number;
   /** effYield - VOL_PENALTY_LAMBDA*avgVol — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile portfolio scores worse than a similar yield achieved safely. */
   riskAdjustedYield: number;
+  /** Raw $ forced-liquidated across the horizon (see AlmSimResult.totalVentaForzada) — 0 for a team that never needed to sell early. */
+  totalVentaForzada: number;
+  /** ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX), clipped to [0,1] — the severity ratio the ventaForzada sub-score is built from; exposed separately so evaluators can see "how bad," not just the 0-100 score. */
+  ventaForzadaSeveridad: number;
 }
 
 /**
- * Composite ALM score: 45% Caja Mínima compliance, 45% risk-adjusted
- * reinvestment yield, 10% short-term liquidity coverage.
+ * Composite ALM score: 35% Caja Mínima compliance, 35% risk-adjusted
+ * reinvestment yield, 20% forced-liquidation penalty, 10% short-term
+ * liquidity coverage.
  *
  * cumplimientoCaja blends two things, not just the worst month: the peak
  * single-month shortfall (tail risk) *and* the average shortfall across the
  * entire horizon (chronic mismatch), each expressed as a fraction of a
  * typical month's Caja Mínima requirement (not the old multi-year reserve —
  * a monthly floor needs a monthly-scale denominator or every gap looks
- * artificially tiny), blended 50/50 (W_BRECHA_PEAK/W_BRECHA_AVG).
+ * artificially tiny), blended 50/50 (W_BRECHA_PEAK/W_BRECHA_AVG). Note this
+ * is now a genuine insolvency measure, not a liquidity-management one: a
+ * shortfall only shows up here if it survived draining LIQ *and*
+ * force-selling the entire rest of the portfolio (see almSim's step 4) —
+ * the liquidity-management failure itself is what ventaForzada grades.
  *
  * rendimiento is risk-adjusted, not raw yield: it normalizes
  * riskAdjustedYield (effYield discounted by realized volatility, see
@@ -361,11 +433,20 @@ export interface FinancialScore {
  * chasing ACC's raw yield without regard for its volatility scores worse
  * than a portfolio that also leans on TESUVR8, the menu's best
  * risk-adjusted instrument by design.
+ *
+ * ventaForzada penalizes being forced to sell portfolio holdings early to
+ * cover a Caja Mínima shortfall LIQ alone couldn't meet — and does so with
+ * a hierarchy, not a flat penalty: the severity is the forced-sale amount
+ * weighted by *what* got sold (ventaForzadaVolWeighted), so a team forced
+ * to dump ACC under duress is graded far worse than one that only had to
+ * tap a CDT90 early, even for the same dollar amount — being forced to
+ * liquidate LIQ doesn't count against this at all, since drawing LIQ down
+ * is exactly what it's there for (see drawFromLiq/forceLiquidatePortfolio).
  */
 export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3): FinancialScore | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
-  const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6, avgVol } = sim;
+  const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6, avgVol, totalVentaForzada, ventaForzadaVolWeighted } = sim;
   const TOTAL = BUILD_MONTHS + HORIZON;
 
   const avgCajaMinima = sumCajaMinima / TOTAL;
@@ -380,6 +461,9 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     Math.min(100, (100 * (riskAdjustedYield - RISK_ADJUSTED_YIELD_MIN)) / (RISK_ADJUSTED_YIELD_MAX - RISK_ADJUSTED_YIELD_MIN))
   );
 
+  const ventaForzadaSeveridad = sumCajaMinima > 0 ? Math.min(1, ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX)) : 0;
+  const ventaForzada = 100 * (1 - ventaForzadaSeveridad);
+
   const totalTopW = decision.tranches.reduce(
     (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
     0
@@ -392,7 +476,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
         }, 0)
       : 0;
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
-  const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_LIQ * liquidez;
+  const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_VENTA_FORZADA * ventaForzada + W_LIQ * liquidez;
 
   const penalty = peakBrechaCaja * 0.18;
   const invInc = reserva * portYield - penalty;
@@ -401,6 +485,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   return {
     cumplimientoCaja,
     rendimiento,
+    ventaForzada,
     liquidez,
     nota,
     portYield,
@@ -418,6 +503,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     tranches: decision.tranches,
     avgVol,
     riskAdjustedYield,
+    totalVentaForzada,
+    ventaForzadaSeveridad,
   };
 }
 
@@ -464,7 +551,9 @@ export function almLadder(
 ): { rows: AlmSimRow[]; peakBrechaCaja: number; totalBrechaCaja: number; reserva: number } | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
-  const rows = sim.rows.filter((r) => r.mes < 0 || r.pagoSiniestros > 0 || r.mes === 0 || r.brechaCaja > 0);
+  const rows = sim.rows.filter(
+    (r) => r.mes < 0 || r.pagoSiniestros > 0 || r.mes === 0 || r.brechaCaja > 0 || r.ventaForzadaPortafolio > 0
+  );
   return { rows, peakBrechaCaja: sim.peakBrechaCaja, totalBrechaCaja: sim.totalBrechaCaja, reserva: sim.reserva };
 }
 
