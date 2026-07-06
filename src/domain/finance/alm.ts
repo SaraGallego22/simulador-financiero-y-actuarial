@@ -23,6 +23,8 @@ export interface AlmSimRow {
   primaCobrada: number;
   pagoSiniestros: number;
   gastos: number;
+  /** Proceeds this month from instruments that matured with a "mantener en caja" rule — folded into availability before Inversión Neta is computed. */
+  vencimientosCaja: number;
   /** Negative = surplus invested this month; positive = drawn from liqCash to cover a Caja Mínima shortfall. */
   inversionNeta: number;
   cajaFinal: number;
@@ -191,9 +193,6 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
     sumCajaMinima += cajaMinima;
 
     const cajaInicial = cajaFloat;
-    // vencCash (proceeds from a "mantener en caja" maturity this month) is
-    // folded into availability here, not displayed as its own column — see
-    // alm.ts's module doc / the plan's §2 for why.
     const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
     const neededNeta = cajaMinima - cajaDisponible;
 
@@ -234,6 +233,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
       primaCobrada,
       pagoSiniestros,
       gastos,
+      vencimientosCaja: vencCash,
       inversionNeta,
       cajaFinal,
       brechaCaja,

@@ -86,7 +86,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
   return (
     <>
       <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-        Caja mes a mes — Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Inversión Neta, Caja Final
+        Caja mes a mes — Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Vencimientos en caja, Inversión Neta, Caja Final
       </p>
       <div className="max-h-64 overflow-y-auto overflow-x-auto">
         <table className="w-full text-xs">
@@ -97,6 +97,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
               <th className="px-2 py-1">Prima Cobrada</th>
               <th className="px-2 py-1">Pago Siniestros</th>
               <th className="px-2 py-1">Gastos</th>
+              <th className="px-2 py-1">Vencimientos en caja</th>
               <th className="px-2 py-1">Inversión Neta</th>
               <th className="px-2 py-1">Caja Final</th>
               <th className="px-2 py-1">Brecha</th>
@@ -110,6 +111,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
                 <td className="px-2 py-1">${Math.round(r.primaCobrada).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.pagoSiniestros).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.gastos).toLocaleString("es-CO")}</td>
+                <td className="px-2 py-1">{r.vencimientosCaja > 0 ? `$${Math.round(r.vencimientosCaja).toLocaleString("es-CO")}` : "—"}</td>
                 <td className="px-2 py-1">${Math.round(r.inversionNeta).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.cajaFinal).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">{r.brechaCaja > 0 ? `$${Math.round(r.brechaCaja).toLocaleString("es-CO")}` : "—"}</td>
