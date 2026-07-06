@@ -4,8 +4,8 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
-import { AlmScoreTiles, AlmLadderTable, describeMaturityChain } from "@/components/AlmLadderTable";
+import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { AlmScoreTiles, AlmLadderTable, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -82,7 +82,7 @@ export default async function AdminDayPage({
       for (const team of teams) {
         const rawAllocation = team.portfolioAllocations[0]?.allocation;
         const reserves = reservesByTeamId.get(team.id);
-        if (reserves && isPortfolioDecisionV2(rawAllocation)) {
+        if (reserves && isPortfolioDecisionV3(rawAllocation)) {
           almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
           if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
         }
@@ -355,8 +355,7 @@ export default async function AdminDayPage({
                 const almScore = almScoreByTeamId.get(team.id);
                 const ladder = almLadderByTeamId.get(team.id);
                 const rawAllocation = team.portfolioAllocations[0]?.allocation;
-                const decision = isPortfolioDecisionV2(rawAllocation) ? rawAllocation : undefined;
-                const maturitySourceIds = decision ? Object.keys(decision.maturityRules) : [];
+                const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
                 return (
                   <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                     <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
@@ -374,29 +373,15 @@ export default async function AdminDayPage({
                           <AlmScoreTiles score={almScore} />
                         </div>
 
-                        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div>
-                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Asignación (nueva liquidez)
-                            </p>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                              {decision
-                                ? Object.entries(decision.allocation)
-                                    .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
-                                    .join(" · ")
-                                : "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Reglas de vencimiento
-                            </p>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                              {decision && maturitySourceIds.length > 0
-                                ? maturitySourceIds.map((id) => describeMaturityChain(id, decision.maturityRules)).join(" · ")
-                                : "—"}
-                            </p>
-                          </div>
+                        <div className="mb-3">
+                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                            Árbol de decisión de inversión
+                          </p>
+                          {decision ? (
+                            <PortfolioTreeView tranches={decision.tranches} />
+                          ) : (
+                            <p className="text-xs text-[var(--color-brand-text-secondary)]">—</p>
+                          )}
                         </div>
 
                         {ladder && <AlmLadderTable rows={ladder.rows} />}

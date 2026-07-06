@@ -36,60 +36,118 @@ export const YIELD_MAX = Math.max(...INSTRUMENTS.map((x) => x.yield));
 export type Allocation = Record<string, number>;
 
 /**
- * What happens to the proceeds when a specific instrument matures: either
- * held as cash (available to cover a Caja Mínima shortfall, or sit idle),
- * or reinvested into another instrument — which itself, on its own future
- * maturity, is governed by whatever rule is keyed under *its* id, forming a
- * chain. A rule can point back at its own instrument id ("CDT90 matures ->
- * reinvest in CDT90") to model an indefinitely rolling ladder without any
- * special-casing in the engine.
+ * Only bond-like instruments (a real, fixed numeric term) mature on their
+ * own — LIQ (plazoM===0, cash-equivalent) and ACC (plazoM>=400, the "no
+ * defined maturity" sentinel for equities) have no fixed term, so a
+ * Tranche using either must instead carry a team-chosen `durationM`.
  */
-export type MaturityAction = { action: "cash" } | { action: "reinvest"; instrumentId: string };
-
-/** Per-instrument maturity rules, keyed by instrument id. */
-export type MaturityRules = Record<string, MaturityAction>;
+export function isBondLike(ins: Instrument): boolean {
+  return ins.plazoM > 0 && ins.plazoM < 400;
+}
 
 /**
- * A team's full portfolio decision for a day: `allocation` is where fresh
- * surplus cash gets invested every month (any month a team has money to
- * put to work with no more specific rule overriding it), and
- * `maturityRules` says what happens when a *specific* instrument matures —
- * see almSim()'s doc comment for the full rationale. An instrument with no
- * entry in `maturityRules` falls back to `allocation` when it matures,
- * so a team can set Day 1's allocation and never touch anything else.
+ * A slice of a portfolio: how much (relative weight among siblings — not
+ * required to sum to 100, normalized when funded), in what instrument, and
+ * what happens when it reaches its own maturity/decision month.
  */
-export interface PortfolioDecisionV2 {
-  allocation: Allocation;
-  maturityRules: MaturityRules;
+export interface Tranche {
+  instrumentId: string;
+  weight: number;
+  /**
+   * Team-chosen holding period in months — required iff the instrument has
+   * no fixed term (LIQ, ACC — !isBondLike) and forbidden (must be omitted)
+   * for bond-like instruments, which always use their own ins.plazoM
+   * instead. See trancheDurationM().
+   */
+  durationM?: number;
+  onMaturity: MaturityDecision;
+}
+
+/**
+ * What happens to a tranche's proceeds at its maturity/decision month:
+ * - "cash": becomes non-reinvested cash (folds into that month's
+ *   Vencimientos en caja).
+ * - "repeat": immediately re-funds a new tranche with the SAME
+ *   instrumentId and SAME durationM — a self-sustaining rolling position,
+ *   the explicit "keep doing this forever" escape hatch, needs no further
+ *   decisions.
+ * - "reallocate": splits the proceeds across 1+ new child tranches, each
+ *   of which recursively has its own onMaturity.
+ */
+export type MaturityDecision =
+  | { action: "cash" }
+  | { action: "repeat" }
+  | { action: "reallocate"; tranches: Tranche[] };
+
+/** A team's full portfolio decision for a day: a tree of tranches, decided once, up front. */
+export interface PortfolioDecisionV3 {
+  tranches: Tranche[];
+}
+
+/** Defensive ceilings for isPortfolioDecisionV3 — a security boundary against a tampered client payload, independent of whatever horizon-based pruning the wizard does client-side. */
+export const MAX_TRANCHE_DEPTH = 10;
+export const MAX_TRANCHE_SIBLINGS = 20;
+
+/**
+ * A tranche's own holding period in months before its onMaturity decision
+ * applies: bond-like instruments always use their fixed contractual term
+ * (ins.plazoM); LIQ and ACC use the team's chosen durationM instead.
+ */
+export function trancheDurationM(tranche: Pick<Tranche, "instrumentId" | "durationM">): number {
+  const ins = INSTRUMENT_BY_ID[tranche.instrumentId];
+  return isBondLike(ins) ? ins.plazoM : (tranche.durationM ?? 0);
+}
+
+function isValidTranche(value: unknown, depth: number): value is Tranche {
+  if (depth > MAX_TRANCHE_DEPTH) return false;
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  const ins = typeof v.instrumentId === "string" ? INSTRUMENT_BY_ID[v.instrumentId] : undefined;
+  if (!ins) return false;
+  if (typeof v.weight !== "number" || !Number.isFinite(v.weight) || v.weight <= 0) return false;
+
+  if (!isBondLike(ins)) {
+    if (typeof v.durationM !== "number" || !Number.isInteger(v.durationM) || v.durationM < 1) return false;
+  } else if (v.durationM !== undefined) {
+    return false; // bond-like instruments must NOT carry a durationM — they always use their own plazoM
+  }
+
+  return isValidMaturityDecision(v.onMaturity, depth + 1);
+}
+
+function isValidMaturityDecision(value: unknown, depth: number): value is MaturityDecision {
+  if (depth > MAX_TRANCHE_DEPTH) return false;
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.action === "cash" || v.action === "repeat") return true;
+  if (v.action === "reallocate") {
+    return (
+      Array.isArray(v.tranches) &&
+      v.tranches.length > 0 &&
+      v.tranches.length <= MAX_TRANCHE_SIBLINGS &&
+      v.tranches.every((t) => isValidTranche(t, depth + 1))
+    );
+  }
+  return false;
 }
 
 /**
  * Guards against a stored PortfolioAllocation.allocation predating this
- * shape (e.g. the old {initial, reinvest} split, or an even older flat
- * {instrumentId: weight} object) — reads should treat any of those as "no
- * decision submitted yet" rather than crash.
+ * shape (the old {allocation, maturityRules} model, or anything older) —
+ * none of those have a `tranches` key, so they're rejected automatically
+ * and treated as "no decision submitted yet," the same graceful-
+ * degradation pattern the previous version already used for ITS
+ * predecessors. This is also the real security boundary for client-
+ * submitted JSON (see submitPortfolioAction) — strict and recursive, not
+ * just a shallow shape check.
  */
-export function isPortfolioDecisionV2(value: unknown): value is PortfolioDecisionV2 {
+export function isPortfolioDecisionV3(value: unknown): value is PortfolioDecisionV3 {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  if (typeof v.allocation !== "object" || v.allocation === null) return false;
-  if (typeof v.maturityRules !== "object" || v.maturityRules === null) return false;
-  for (const rule of Object.values(v.maturityRules as Record<string, unknown>)) {
-    if (typeof rule !== "object" || rule === null) return false;
-    const r = rule as Record<string, unknown>;
-    if (r.action === "cash") continue;
-    if (r.action === "reinvest" && typeof r.instrumentId === "string") continue;
-    return false;
-  }
-  return true;
-}
-
-/**
- * Only bond-like instruments (a real numeric maturity) ever mature in
- * almSim()'s bucket logic — LIQ (plazoM===0, cash-equivalent) and ACC
- * (plazoM>=400, the "no defined maturity" sentinel for equities) never
- * trigger a maturity event, so they never need/use a maturity rule.
- */
-export function isBondLike(ins: Instrument): boolean {
-  return ins.plazoM > 0 && ins.plazoM < 400;
+  return (
+    Array.isArray(v.tranches) &&
+    v.tranches.length > 0 &&
+    v.tranches.length <= MAX_TRANCHE_SIBLINGS &&
+    v.tranches.every((t) => isValidTranche(t, 0))
+  );
 }

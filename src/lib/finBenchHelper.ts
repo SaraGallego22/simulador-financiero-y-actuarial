@@ -1,8 +1,8 @@
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getYear2ClaimsByTeamId, computeDevelopmentForTeams } from "./teamBook";
 import { scoreFinanciero } from "@/domain/finance/alm";
-import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
-import type { PortfolioDecisionV2 } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import type { PortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
 import type { FinBenchResult } from "@/domain/finance/finBench";
 
@@ -42,7 +42,7 @@ export async function computeFinBenchForCohort(cohortId: string): Promise<Map<st
 
   const year1ByTeamId = new Map(year1Results.map((r) => [r.teamId, r]));
   const year2ByTeamId = new Map(year2Results.map((r) => [r.teamId, r]));
-  const toDecision = (allocation: unknown): PortfolioDecisionV2 | null => (isPortfolioDecisionV2(allocation) ? allocation : null);
+  const toDecision = (allocation: unknown): PortfolioDecisionV3 | null => (isPortfolioDecisionV3(allocation) ? allocation : null);
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
   const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));
 
