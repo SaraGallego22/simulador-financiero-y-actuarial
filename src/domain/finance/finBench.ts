@@ -1,4 +1,5 @@
 import { FZ, CORR_MOD } from "./constants";
+import { VOL_MENU_AVG } from "./instruments";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
 import type { FinancialScore } from "./alm";
@@ -51,6 +52,8 @@ export interface FinBenchResult {
   solRReservas: number;
   solRSusc: number;
   solRFin: number;
+  /** solRFin's realized-volatility-vs-menu-average ratio (1 = same as the menu's average instrument, >1 = a more volatile portfolio than average) — see rFin. */
+  solVolRatio: number;
   solROp: number;
   solRk: number;
   solFp: number;
@@ -179,7 +182,16 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const rPrimas = pygN.prima * FZ.primeVol;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
-  const rFin = FZ.finRiskPct * balN.inversiones;
+  // Financial risk scales with the team's *own* realized portfolio
+  // volatility relative to the instrument menu's average (VOL_MENU_AVG) —
+  // a team that leaned on ACC pays a materially higher capital charge here
+  // than one that stuck to the menu's safer end, even at identical
+  // inversiones; a team with no ALM decision at all falls back to the
+  // pre-volatility flat charge (ratio 1). This is the Día 4 solvency
+  // connection to the Día 1 portfolio choice.
+  const almN = almYear2 ?? almYear1;
+  const volRatio = almN ? almN.avgVol / VOL_MENU_AVG : 1;
+  const rFin = FZ.finRiskPct * balN.inversiones * volRatio;
   const rOp = FZ.opPct * pygN.prima;
   const R = [rSusc, rFin, rOp];
   let rk2 = 0;
@@ -204,6 +216,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     solRReservas: rReservas,
     solRSusc: rSusc,
     solRFin: rFin,
+    solVolRatio: volRatio,
     solROp: rOp,
     solRk: rk,
     solFp: fondosPropios,

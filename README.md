@@ -79,7 +79,7 @@ Cada póliza tiene 13 variables (edad, zona, tipo de vehículo, antigüedad, kil
 
 - **Frecuencia (λ)** — `calcLambda()` — un modelo GLM multiplicativo: se parte de una frecuencia base y se multiplica por factores de riesgo relativo por cada variable (ej. zona urbana ×1.45, historial de 2+ siniestros ×1.85–3.20, uso comercial ×1.70), más algunas **interacciones** (joven + deportivo, urbano + comercial) y un par de variables "trampa" deliberadamente débiles para que la señal real no sea trivial de encontrar. El resultado es la probabilidad de que esa póliza tenga al menos un siniestro en el año.
 - **Severidad media** — `calcMediaSev()` — proporcional al valor asegurado del vehículo, con factores por tipo de vehículo, zona y antigüedad. El siniestro individual se muestrea de una **Gamma** con esa media (forma fija), lo que da una cola derecha realista (muchos siniestros pequeños, pocos grandes).
-- **Fecha de ocurrencia y aviso** — el mes de ocurrencia sigue un patrón estacional (más siniestros en diciembre/enero), y el rezago aviso→pago sigue una **lognormal** (mediana ~20 días, cola hasta 730 días) — este rezago es la fuente de IBNR (ver §3).
+- **Fecha de ocurrencia y aviso** — el mes de ocurrencia sigue un patrón estacional (más siniestros en diciembre/enero, `sampleClaimDate()`). El aviso **no es inmediato**: el rezago ocurrencia→aviso sigue una **lognormal** (`sampleReportingLag()`, μ=3.0/σ=1.2 en días, mediana ~20 días, cola topada en 730 días — hasta 2 años en casos extremos) — este rezago es la fuente real de IBNR (ver §3).
 
 Todo esto se fija en el momento de `generateColombia(seed)`: la misma semilla siempre produce el mismo universo, byte a byte.
 
@@ -102,44 +102,75 @@ Al cierre del Año 1, no todos los siniestros ya ocurridos han sido *avisados* �
 
 Al cierre del Año 2, `computeDevelopment()` compara lo **realmente emergido** (siniestros del Año 1 avisados tarde, ya en el Año 2) contra lo que el IBNR había estimado — esa diferencia es la ganancia/pérdida de desarrollo que entra al P&G del Año 2 (ver §4). Esto es deliberado: un equipo puede tarifar bien pero reservar mal (o viceversa), y ambas cosas se califican por separado.
 
+**Cuándo se paga un siniestro, en detalle** — el pago de un siniestro puntual sigue tres tramos consecutivos, no uno solo (una fuente común de confusión al leer la tabla de caja del ALM, ver §5):
+
+1. **Ocurrencia → aviso**: el rezago lognormal de §1 (mediana ~20 días, cola hasta 730 días/~24 meses).
+2. **Aviso → primer pago**: un rezago **fijo** de 3 meses (`LAG_AVISO_PAGO`).
+3. **Desarrollo del pago**: se reparte en 3 años (36 meses) desde ese primer pago, según `DEV_FRAC = [0.55, 0.30, 0.15]` (`buildKernel()` en `src/domain/reserving/constants.ts`) — 55% del monto en el año 1 de desarrollo, 30% en el año 2, 15% en el año 3.
+
+En el peor caso estos tramos se **suman**: un siniestro ocurrido cerca del cierre del Año 1, con un aviso especialmente tardío (cola de la lognormal), puede seguir generando pagos hasta cerca del límite de la ventana simulada. Por eso `HORIZON=48` meses desde la valoración (4 años, no 3): se dejó holgura deliberada frente a los 3 años de desarrollo puro, justamente para no cortar la cola de los siniestros avisados tarde dentro del Año 1. Lo que aun así exceda esa ventana de 48 meses se trunca — no se paga ni se refleja en la reserva —, una simplificación aceptada del modelo, no un error.
+
 ### 4 · P&G, Balance y Solvencia (`finBench()`)
 
 El resultado técnico de cada año es `prima − siniestros − gastos`, donde los gastos son porcentajes fijos de la prima (adquisición 10%, comisión 4%, administración 6% — `FZ` en `src/domain/finance/constants.ts`). A esto se suma el **resultado de inversiones** (rendimiento del portafolio menos penalización por descalce, ver §5) para llegar a la utilidad antes de impuesto, y de ahí a la utilidad neta (tasa de renta 30%).
 
 El balance es una aproximación simple: patrimonio acumulado (capital inicial + utilidades retenidas), caja/CxC/CxP como porcentajes de la prima, e inversiones como el residual que cuadra el balance.
 
-La **solvencia** combina tres riesgos — suscripción (con volatilidad de primas y reservas), financiero (sobre las inversiones, alimentado por el riesgo de tasa de `almNAV()`, ver §5) y operacional (sobre primas) — agregados con una **matriz de correlación** (similar en espíritu a un enfoque tipo Solvencia II, sin pretender ser una implementación regulatoria completa). El margen de solvencia es `fondos propios / capital requerido`; el dividendo sugerido es el excedente de fondos propios sobre un margen objetivo.
+La **solvencia** combina tres riesgos — suscripción (con volatilidad de primas y reservas), financiero (sobre las inversiones, escalado por la **volatilidad realizada del portafolio del equipo**, ver §5) y operacional (sobre primas) — agregados con una **matriz de correlación** (similar en espíritu a un enfoque tipo Solvencia II, sin pretender ser una implementación regulatoria completa). El margen de solvencia es `fondos propios / capital requerido`; el dividendo sugerido es el excedente de fondos propios sobre un margen objetivo. Esta es la conexión directa entre la decisión de portafolio del Día 1 y la solvencia del Día 4: un equipo que concentró su portafolio en instrumentos volátiles paga un capital requerido mayor (`rFin` más alto → RK más alto → margen y dividendo más bajos), sin importar qué tan bien le fue en rendimiento nominal.
 
 El **Año 3 no se simula** — se proyecta aplicando una tasa de crecimiento fija al resultado del Año 2, solo para dar visibilidad de tendencia.
 
 ### 5 · Portafolio de inversión y ALM (asset-liability matching)
 
-Cada equipo toma **dos decisiones**, no una:
+Cada equipo construye su portafolio como un **árbol de decisiones**, no una asignación estática en dos momentos. Parte de una base (cómo repartir 100 entre los instrumentos del menú) y, para **cada tramo** de esa base, decide qué pasa cuando llegue a su propio vencimiento:
 
-- **Asignación inicial**: cómo invertir los aportes mensuales que fondean la reserva durante el Año 1.
-- **Política de reinversión**: qué hacer cada vez que un instrumento originalmente elegido vence, una vez termina ese fondeo inicial — puede (y en general debería) ser distinta de la inicial, porque el objetivo cambia: en el Año 1 se está *construyendo* la reserva, después solo se está *administrando* su corrida hasta que se pagan todos los siniestros.
+```ts
+interface Tranche {
+  instrumentId: string;
+  weight: number;
+  durationM?: number; // obligatorio solo para LIQ/ACC — ninguno tiene plazo contractual propio
+  onMaturity:
+    | { action: "cash" }                            // pasa a caja disponible
+    | { action: "repeat" }                           // se refondea igual, indefinidamente
+    | { action: "reallocate"; tranches: Tranche[] }; // se reparte entre nuevos tramos, cada uno con su propia decisión
+}
+```
+
+LIQ y acciones (ACC) no tienen un plazo fijo como un bono, así que el equipo les asigna un **vencimiento personalizado** (`durationM`): el momento en que se le vuelve a preguntar qué hacer con esa porción. La interfaz de equipo lo recoge como un asistente paso a paso — una decisión a la vez, incluyendo las que se generan en cascada cuando la respuesta es "reasignar" — no un formulario con todo el árbol a la vez.
+
+**El menú de instrumentos tiene un verdadero trade-off riesgo/retorno**, no solo distintos rendimientos — cada instrumento también tiene una **volatilidad anualizada** (`volAnual` en `src/domain/finance/instruments.ts`):
+
+| Instrumento | Rendimiento | Volatilidad | Rendimiento ajustado por riesgo* |
+|---|---|---|---|
+| LIQ (caja) | 8.0% | 1.0% | 7.65% |
+| CDT 90 días | 9.5% | 2.0% | 8.80% |
+| TES 1 año | 10.5% | 4.0% | 9.10% |
+| TES 3 años | 11.5% | 7.0% | 9.05% |
+| **TES UVR 8 años** | **12.0%** | **6.0%** | **9.90% (el mejor del menú)** |
+| Acciones (ACC) | 14.0% | 20.0% | 7.00% (el peor del menú — peor que dejar todo en caja) |
+
+*Rendimiento − 0.35 × Volatilidad (`VOL_PENALTY_LAMBDA` en `src/domain/finance/constants.ts`). El TES UVR está calibrado deliberadamente como el mejor balance del menú: su volatilidad es menor de lo que su plazo nominal de 8 años sugeriría, modelando que al estar indexado a inflación queda protegido de la inflación inesperada que sí penaliza a un bono nominal del mismo plazo — una simplificación explícita del modelo, no un dato de mercado real. Las acciones, en cambio, quedan claramente castigadas: su 14% nominal no compensa su volatilidad, ni en la nota (abajo) ni en el capital de solvencia (§4).
 
 ```mermaid
 flowchart LR
-    subgraph Fase1["Meses 0-11 · Fondeo Año 1"]
-        Inicial["Asignación inicial"]
-    end
-    subgraph Fase2["Meses 12-59 · Corrida de la reserva"]
-        Reinv["Política de reinversión"]
-    end
-    Inicial -->|"vencimientos"| Reinv
-    Reinv -->|"vencimientos"| Reinv
-    Fase1 --> Pago1["Pagos Año 1"]
-    Fase2 --> Pago2["Pagos reserva Año 1"]
+    Base["Árbol base\n(100% repartido en instrumentos)"] -->|"al vencer un tramo"| D{"Decisión\nde ese tramo"}
+    D -->|"mantener en caja"| Caja["Vencimientos en caja\n(única vía de vuelta a caja)"]
+    D -->|"repetir"| Base
+    D -->|"reasignar"| Base
 ```
 
-`almSim()` simula mes a mes (60 meses: 12 de fondeo + 48 de corrida) el saldo de caja contra el pago de pasivos requerido ese mes, reinvirtiendo cualquier excedente según la política que aplique en esa fase. De ahí salen tres notas (`scoreFinanciero()`):
+`almSim()` simula mes a mes (60 meses: 12 de fondeo + 48 de corrida) dos vistas separadas del mismo portafolio:
 
-- **Calce (45%)** — qué tan bien el portafolio cubrió los pagos requeridos, en *todo* el horizonte: se penaliza tanto la **brecha máxima** (el peor mes — riesgo de cola, un solo mes muy malo puede significar insolvencia real) como la **brecha promedio acumulada** en los 60 meses (descalce crónico — un portafolio que queda corto casi todos los meses es peor que uno que queda corto una sola vez, aunque ese mes sea más grande). Ambas se combinan 50/50.
-- **Rendimiento (45%)** — el rendimiento efectivo simulado (no el nominal ponderado) frente al rango de rendimientos del menú de instrumentos.
-- **Liquidez (10%)** — cobertura de los pagos de los siguientes 6 meses con activos líquidos/próximos a vencer en ese momento.
+- **Un estado de caja** con seis columnas — **Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Vencimientos en caja, Inversión Neta, Caja Final** — contra una **Caja Mínima** obligatoria cada mes (15% de Prima+Siniestros, `FZ.cajaPct`). *Vencimientos en caja* es la **única** vía por la que el dinero de una inversión regresa a la fila de caja: si la decisión de un tramo es "repetir" o "reasignar", esos recursos van directo a una posición nueva sin tocar caja — nunca ayudan a cubrir la Caja Mínima ese mes ni ningún mes futuro mientras sigan en ese ciclo, aunque sí siguen devengando rendimiento. La única excepción es **LIQ**: sin importar en qué punto esté su propio ciclo de vencimiento, siempre se puede retirar para cubrir una brecha de caja — su vencimiento personalizado solo decide cuándo se le vuelve a preguntar al equipo, nunca si el dinero está disponible. **ACC**, en cambio, queda genuinamente ilíquido hasta su propio vencimiento, igual que un bono — es la primera vez que una posición en acciones puede convertirse en caja utilizable, en el momento que el equipo elija.
+- **Una evolución del valor del portafolio** — Saldo Inicial, Rendimiento devengado, Saldo Final — separada del estado de caja anterior, porque responde una pregunta distinta: no "¿hay caja suficiente?" sino "¿cuánto vale lo que llevamos invertido?". `Saldo Final = Saldo Inicial + Rendimiento − Vencimientos en caja − Inversión Neta` (un mes con superávit invertido tiene Inversión Neta negativa, así que ese término *suma* al saldo; un mes con retiro de LIQ para cubrir una brecha la *resta*) — es una identidad exacta, verificada en `alm.test.ts`.
 
-Por separado, `almNAV()` valora el portafolio y la reserva a valor de mercado bajo escenarios de tasa (base/alza/baja) — la sensibilidad del NAV neto a esos choques es el **riesgo de tasa** que alimenta el componente financiero de la solvencia (§4). Esto es intencional: el calce (§ALM) mide *timing* de flujos; el riesgo de tasa mide *sensibilidad de valor* — son dos dimensiones distintas del mismo portafolio.
+De esa simulación salen tres notas (`scoreFinanciero()`):
+
+- **Cumplimiento de Caja Mínima (45%)** — se penaliza tanto la **brecha máxima** (el peor mes — riesgo de cola, un solo mes muy malo puede significar insolvencia real) como la **brecha promedio acumulada** en los 60 meses (descalce crónico — un portafolio que queda corto casi todos los meses es peor que uno que queda corto una sola vez, aunque ese mes sea más grande). Ambas se combinan 50/50.
+- **Rendimiento ajustado por riesgo (45%)** — no es el rendimiento efectivo simulado a secas: es `rendimiento efectivo − 0.35 × volatilidad promedio realizada` (la misma fórmula y λ de la tabla de arriba, pero aplicada a lo que el equipo *realmente* mantuvo invertido mes a mes, no solo a su asignación inicial — un tramo que pasó la mayoría del horizonte en ACC pesa más en este promedio que uno que solo estuvo ahí un mes antes de reasignarse). Es la implementación directa de la "frontera eficiente": perseguir el rendimiento nominal más alto sin cuidar la volatilidad (todo en ACC) da una nota peor que un portafolio que también usa TES UVR, el instrumento con mejor balance riesgo/retorno del menú por diseño.
+- **Liquidez (10%)** — cobertura de los pagos de los siguientes 6 meses con lo que sigue líquido en ese momento (LIQ, más cualquier tramo que venza dentro de esa ventana).
+
+Por separado, `almNAV()` valora el portafolio y la reserva a valor de mercado bajo escenarios de tasa (base/alza/baja) — un diagnóstico de sensibilidad a tasa, informativo (no alimenta la solvencia, ver §4, que usa la volatilidad realizada en su lugar). Usa la asignación inicial como foto del balance en la fecha de valoración, no el árbol completo de reinversión.
 
 ### 6 · Analítica sectorial (Día 4)
 

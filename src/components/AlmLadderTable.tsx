@@ -48,7 +48,7 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         </p>
       </div>
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento (45%)</p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento ajustado por riesgo (45%)</p>
         <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
           {score.rendimiento.toFixed(1)}
         </p>
@@ -64,6 +64,16 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         <p className="text-sm font-semibold">${Math.round(score.reserva).toLocaleString("es-CO")}</p>
       </div>
       <div>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Volatilidad promedio del portafolio</p>
+        <p className="text-sm font-semibold">{(score.avgVol * 100).toFixed(2)}%</p>
+      </div>
+      <div>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento efectivo − penalización por riesgo</p>
+        <p className="text-sm font-semibold">
+          {(score.effYield * 100).toFixed(2)}% → {(score.riskAdjustedYield * 100).toFixed(2)}%
+        </p>
+      </div>
+      <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha máxima (peor mes)</p>
         <p className="text-sm font-semibold">
           ${Math.round(score.peakBrechaCaja).toLocaleString("es-CO")} ({(score.peakBrechaCajaRatio * 100).toFixed(1)}% de la caja mínima típica)
@@ -76,10 +86,6 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
       <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento portafolio (nominal, ponderado)</p>
         <p className="text-sm font-semibold">{(score.portYield * 100).toFixed(2)}%</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento efectivo simulado</p>
-        <p className="text-sm font-semibold">{(score.effYield * 100).toFixed(2)}%</p>
       </div>
       <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Cobertura liquidez (6 meses)</p>
@@ -129,6 +135,49 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
                 <td className="px-2 py-1">${Math.round(r.inversionNeta).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.cajaFinal).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">{r.brechaCaja > 0 ? `$${Math.round(r.brechaCaja).toLocaleString("es-CO")}` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Portfolio *value* evolution, separate from the cash-flow statement above:
+ * how much was actually invested (Saldo Inicial), how much it grew this
+ * month purely from yield (Rendimiento), and where that leaves it (Saldo
+ * Final) — Saldo Final also reflects that month's Inversión Neta and any
+ * "mantener en caja" withdrawal (both already visible in the cash table
+ * above, sharing the same Mes column) but doesn't repeat those figures here
+ * to keep the two tables focused on different questions: "is there enough
+ * cash" vs. "how much is the portfolio worth."
+ */
+export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+        Valor del portafolio mes a mes — Saldo Inicial, Rendimiento devengado, Saldo Final
+      </p>
+      <div className="max-h-64 overflow-y-auto overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
+            <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+              <th className="px-2 py-1">Mes</th>
+              <th className="px-2 py-1">Saldo Inicial</th>
+              <th className="px-2 py-1">Rendimiento</th>
+              <th className="px-2 py-1">Saldo Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
+                <td className="px-2 py-1">{r.mes}</td>
+                <td className="px-2 py-1">${Math.round(r.saldoInicialPortafolio).toLocaleString("es-CO")}</td>
+                <td className="px-2 py-1">${Math.round(r.rendimientoPortafolio).toLocaleString("es-CO")}</td>
+                <td className="px-2 py-1">${Math.round(r.saldoFinalPortafolio).toLocaleString("es-CO")}</td>
               </tr>
             ))}
           </tbody>

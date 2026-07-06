@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { isPortfolioDecisionV3, MAX_TRANCHE_SIBLINGS } from "./instruments";
+import { isPortfolioDecisionV3, MAX_TRANCHE_SIBLINGS, INSTRUMENTS } from "./instruments";
 import type { Tranche } from "./instruments";
+import { VOL_PENALTY_LAMBDA } from "./constants";
+
+describe("instrument risk/return calibration", () => {
+  it("every instrument has a positive volatility", () => {
+    for (const ins of INSTRUMENTS) expect(ins.volAnual).toBeGreaterThan(0);
+  });
+
+  it("TESUVR8 has the single best risk-adjusted yield of the whole menu, and ACC the worst", () => {
+    const riskAdjusted = (id: string) => {
+      const ins = INSTRUMENTS.find((i) => i.id === id)!;
+      return ins.yield - VOL_PENALTY_LAMBDA * ins.volAnual;
+    };
+    const uvr8 = riskAdjusted("TESUVR8");
+    const acc = riskAdjusted("ACC");
+    for (const ins of INSTRUMENTS) {
+      if (ins.id === "TESUVR8") continue;
+      expect(uvr8).toBeGreaterThan(riskAdjusted(ins.id));
+    }
+    for (const ins of INSTRUMENTS) {
+      if (ins.id === "ACC") continue;
+      expect(acc).toBeLessThan(riskAdjusted(ins.id));
+    }
+  });
+});
 
 describe("isPortfolioDecisionV3", () => {
   it("accepts a minimal valid tree", () => {

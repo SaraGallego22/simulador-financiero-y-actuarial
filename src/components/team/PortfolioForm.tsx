@@ -63,7 +63,10 @@ function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id:
         {INSTRUMENTS.map((ins) => (
           <div key={ins.id} className="flex flex-col gap-1">
             <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-              {ins.id}
+              {ins.id}{" "}
+              <span className="font-normal">
+                (rendimiento {(ins.yield * 100).toFixed(1)}% · volatilidad {(ins.volAnual * 100).toFixed(1)}%)
+              </span>
               <input
                 type="number"
                 min="0"
@@ -163,7 +166,9 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
         Arma tu portafolio y decide, para cada instrumento, qué pasa cuando venza — mantenerlo en caja, repetirlo
         indefinidamente, o reasignarlo entre nuevos instrumentos (que a su vez tendrán su propia decisión). LIQ y
         acciones también necesitan un vencimiento personalizado: por cuántos meses los dejas ahí antes de decidir de
-        nuevo.
+        nuevo. La nota de rendimiento está ajustada por riesgo: un instrumento con mayor volatilidad exige un
+        rendimiento más alto para que valga la pena — perseguir el rendimiento nominal más alto (acciones) sin
+        cuidar la volatilidad puede darte una nota peor que un portafolio más balanceado.
       </p>
 
       {phase === "base" && (
