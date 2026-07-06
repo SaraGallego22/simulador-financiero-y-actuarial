@@ -1,41 +1,92 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import { submitPortfolioAction, type SubmitPortfolioState } from "@/lib/teamActions";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike } from "@/domain/finance/instruments";
-import type { PortfolioDecisionV2 } from "@/domain/finance/instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike, trancheDurationM } from "@/domain/finance/instruments";
+import type { PortfolioDecisionV3, Tranche, MaturityDecision } from "@/domain/finance/instruments";
+import { BUILD_MONTHS, HORIZON } from "@/domain/reserving/constants";
+import { PortfolioTreeView } from "@/components/AlmLadderTable";
+import { Button } from "@/components/ui/button";
 
-type MaturityChoice = { mode: "cash" | "reinvest"; target: string };
+const TOTAL_MONTHS = BUILD_MONTHS + HORIZON;
 
-function AllocationGrid({
-  values,
-  onChange,
-}: {
-  values: Record<string, number>;
-  onChange: (id: string, value: number) => void;
-}) {
-  const total = Object.values(values).reduce((a, b) => a + (Number(b) || 0), 0);
+type GridRow = { weight: number; durationM?: number };
+type GridRows = Record<string, GridRow>;
+
+/** Indices into the tree: [] at the top level, or nested into a "reallocate" node's own tranches array — e.g. [1, 0] means decision.tranches[1].onMaturity.tranches[0]. */
+type Path = number[];
+
+interface PendingDecision {
+  path: Path;
+  instrumentId: string;
+  weight: number;
+  durationM?: number;
+  maturityMonth: number;
+}
+
+type WizardPhase = "base" | "decision" | "review";
+
+function emptyGridRows(): GridRows {
+  const rows: GridRows = {};
+  for (const ins of INSTRUMENTS) rows[ins.id] = { weight: 0 };
+  return rows;
+}
+
+function rowsToTranches(rows: GridRows): Tranche[] {
+  const tranches: Tranche[] = [];
+  for (const ins of INSTRUMENTS) {
+    const row = rows[ins.id];
+    if (!row || row.weight <= 0) continue;
+    const t: Tranche = { instrumentId: ins.id, weight: row.weight, onMaturity: { action: "cash" } };
+    if (!isBondLike(ins)) t.durationM = Math.max(1, row.durationM || 1);
+    tranches.push(t);
+  }
+  return tranches;
+}
+
+/** Immutable update: returns a new tranches array with the tranche at `path` given a new onMaturity — never mutates the input. */
+function setOnMaturityAtPath(tranches: Tranche[], path: Path, action: MaturityDecision): Tranche[] {
+  const [index, ...rest] = path;
+  return tranches.map((t, i) => {
+    if (i !== index) return t;
+    if (rest.length === 0) return { ...t, onMaturity: action };
+    if (t.onMaturity.action !== "reallocate") return t;
+    return { ...t, onMaturity: { action: "reallocate", tranches: setOnMaturityAtPath(t.onMaturity.tranches, rest, action) } };
+  });
+}
+
+function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id: string, patch: Partial<GridRow>) => void }) {
+  const total = Object.values(rows).reduce((a, r) => a + (r?.weight || 0), 0);
   return (
     <div>
-      <p className="mb-1 text-sm font-semibold text-[var(--color-foreground)]">Asignación (nueva liquidez)</p>
-      <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
-        Cómo inviertes cualquier plata nueva que tengas que poner a trabajar — el fondeo mensual, y cualquier
-        vencimiento que no tenga una regla propia más abajo.
-      </p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {INSTRUMENTS.map((ins) => (
-          <label key={ins.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-            {ins.id}
-            <input
-              type="number"
-              min="0"
-              step="1"
-              name={`alloc_${ins.id}`}
-              value={values[ins.id] || ""}
-              onChange={(e) => onChange(ins.id, Number(e.target.value))}
-              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
-            />
-          </label>
+          <div key={ins.id} className="flex flex-col gap-1">
+            <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
+              {ins.id}
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={rows[ins.id]?.weight || ""}
+                onChange={(e) => onChange(ins.id, { weight: Number(e.target.value) })}
+                className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+              />
+            </label>
+            {!isBondLike(ins) && (rows[ins.id]?.weight ?? 0) > 0 && (
+              <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
+                Vencimiento personalizado (meses)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={rows[ins.id]?.durationM || ""}
+                  onChange={(e) => onChange(ins.id, { durationM: Number(e.target.value) })}
+                  className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+                />
+              </label>
+            )}
+          </div>
         ))}
       </div>
       <p className={`mt-1 text-xs ${Math.round(total) === 100 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
@@ -45,102 +96,60 @@ function AllocationGrid({
   );
 }
 
-function MaturityRuleRow({
-  instrumentId,
-  choice,
-  onChange,
-}: {
-  instrumentId: string;
-  choice: MaturityChoice;
-  onChange: (id: string, next: MaturityChoice) => void;
-}) {
-  const ins = INSTRUMENT_BY_ID[instrumentId];
-  return (
-    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-      <p className="mb-1 text-xs font-semibold text-[var(--color-foreground)]">
-        {ins.nombre} <span className="text-[var(--color-brand-text-secondary)]">— vence a {ins.plazoM} meses</span>
-      </p>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--color-brand-text-secondary)]">
-        <label className="flex items-center gap-1">
-          <input
-            type="radio"
-            checked={choice.mode === "cash"}
-            onChange={() => onChange(instrumentId, { mode: "cash", target: instrumentId })}
-          />
-          Mantener en caja
-        </label>
-        <label className="flex items-center gap-1">
-          <input
-            type="radio"
-            checked={choice.mode === "reinvest"}
-            onChange={() => onChange(instrumentId, { mode: "reinvest", target: choice.mode === "reinvest" ? choice.target : instrumentId })}
-          />
-          Reinvertir en:
-          <select
-            value={choice.mode === "reinvest" ? choice.target : instrumentId}
-            onChange={(e) => onChange(instrumentId, { mode: "reinvest", target: e.target.value })}
-            disabled={choice.mode !== "reinvest"}
-            className="rounded border border-[var(--color-brand-gray-light)] px-1 py-0.5 text-xs disabled:opacity-50"
-          >
-            {INSTRUMENTS.map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.id}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <input type="hidden" name={`maturity_${instrumentId}`} value={choice.mode === "cash" ? "cash" : choice.target} />
-    </div>
-  );
-}
-
-export function PortfolioForm({ day, initialDecision }: { day: number; initialDecision: PortfolioDecisionV2 | null }) {
+export function PortfolioForm({ day, initialDecision }: { day: number; initialDecision: PortfolioDecisionV3 | null }) {
   const [state, formAction, pending] = useActionState<SubmitPortfolioState, FormData>(submitPortfolioAction.bind(null, day), {});
 
-  const [allocation, setAllocation] = useState<Record<string, number>>(() => {
-    const v: Record<string, number> = {};
-    for (const ins of INSTRUMENTS) v[ins.id] = initialDecision?.allocation[ins.id] ?? 0;
-    return v;
-  });
+  const [tree, setTree] = useState<PortfolioDecisionV3 | null>(initialDecision);
+  const [phase, setPhase] = useState<WizardPhase>(initialDecision ? "review" : "base");
+  const [queue, setQueue] = useState<PendingDecision[]>([]);
+  const [baseRows, setBaseRows] = useState<GridRows>(emptyGridRows);
+  const [reallocateRows, setReallocateRows] = useState<GridRows>(emptyGridRows);
+  const [showReallocateGrid, setShowReallocateGrid] = useState(false);
 
-  const [maturity, setMaturity] = useState<Record<string, MaturityChoice>>(() => {
-    const v: Record<string, MaturityChoice> = {};
-    for (const ins of INSTRUMENTS) {
-      if (!isBondLike(ins)) continue;
-      const rule = initialDecision?.maturityRules[ins.id];
-      if (rule?.action === "cash") v[ins.id] = { mode: "cash", target: ins.id };
-      else if (rule?.action === "reinvest") v[ins.id] = { mode: "reinvest", target: rule.instrumentId };
-      else v[ins.id] = { mode: "cash", target: ins.id };
-    }
-    return v;
-  });
+  function startWizard() {
+    const tranches = rowsToTranches(baseRows);
+    if (tranches.length === 0) return;
+    setTree({ tranches });
+    const initial: PendingDecision[] = tranches
+      .map((t, i) => ({ path: [i], instrumentId: t.instrumentId, weight: t.weight, durationM: t.durationM, maturityMonth: trancheDurationM(t) }))
+      .filter((p) => p.maturityMonth < TOTAL_MONTHS);
+    setQueue(initial);
+    setPhase(initial.length > 0 ? "decision" : "review");
+  }
 
-  // Which instruments actually need a maturity rule shown: anything held in
-  // the allocation with a real maturity, plus anything reachable by
-  // following "reinvertir en X" chains from there. Grows monotonically and
-  // is bounded by INSTRUMENTS.length, so a self-referential rule (e.g.
-  // "CDT90 -> reinvertir en CDT90", a rolling ladder) can't loop forever —
-  // it just stops adding names once everything reachable is already in.
-  const reachable = useMemo(() => {
-    const set = new Set<string>();
-    for (const ins of INSTRUMENTS) {
-      if (isBondLike(ins) && (allocation[ins.id] ?? 0) > 0) set.add(ins.id);
-    }
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const [sourceId, choice] of Object.entries(maturity)) {
-        if (!set.has(sourceId) || choice.mode !== "reinvest") continue;
-        const targetIns = INSTRUMENT_BY_ID[choice.target];
-        if (targetIns && isBondLike(targetIns) && !set.has(choice.target)) {
-          set.add(choice.target);
-          changed = true;
-        }
-      }
-    }
-    return set;
-  }, [allocation, maturity]);
+  function answerCurrent(action: MaturityDecision, spawnedChildren: Tranche[] = []) {
+    const [current, ...rest] = queue;
+    setTree((prev) => (prev ? { tranches: setOnMaturityAtPath(prev.tranches, current.path, action) } : prev));
+    const spawned: PendingDecision[] = spawnedChildren
+      .map((child, i) => ({
+        path: [...current.path, i],
+        instrumentId: child.instrumentId,
+        weight: child.weight,
+        durationM: child.durationM,
+        maturityMonth: current.maturityMonth + trancheDurationM(child),
+      }))
+      .filter((p) => p.maturityMonth < TOTAL_MONTHS);
+    const next = [...rest, ...spawned];
+    setQueue(next);
+    setShowReallocateGrid(false);
+    setReallocateRows(emptyGridRows());
+    if (next.length === 0) setPhase("review");
+  }
+
+  function confirmReallocate() {
+    const children = rowsToTranches(reallocateRows);
+    if (children.length === 0) return;
+    answerCurrent({ action: "reallocate", tranches: children }, children);
+  }
+
+  function restart() {
+    setTree(null);
+    setBaseRows(emptyGridRows());
+    setQueue([]);
+    setPhase("base");
+  }
+
+  const current = queue[0];
 
   return (
     <form
@@ -151,47 +160,73 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
         Portafolio de inversión — Día {day}
       </h3>
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
-        Define dos cosas: cómo inviertes la plata nueva de cada mes, y qué le pasa a cada instrumento cuando vence —
-        mantenerlo en caja, o reinvertirlo (y si reinviertes en otro instrumento con vencimiento propio, también
-        eliges su regla). El cumplimiento de la caja mínima se califica en todo el horizonte, no solo en el momento
-        inicial.
+        Arma tu portafolio y decide, para cada instrumento, qué pasa cuando venza — mantenerlo en caja, repetirlo
+        indefinidamente, o reasignarlo entre nuevos instrumentos (que a su vez tendrán su propia decisión). LIQ y
+        acciones también necesitan un vencimiento personalizado: por cuántos meses los dejas ahí antes de decidir de
+        nuevo.
       </p>
 
-      <div className="flex flex-col gap-5">
-        <AllocationGrid values={allocation} onChange={(id, value) => setAllocation((v) => ({ ...v, [id]: value }))} />
+      {phase === "base" && (
+        <div className="flex flex-col gap-4">
+          <AllocationStepGrid rows={baseRows} onChange={(id, patch) => setBaseRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }))} />
+          <Button type="button" variant="primary" onClick={startWizard} className="w-fit">
+            Siguiente
+          </Button>
+        </div>
+      )}
 
-        <div>
-          <p className="mb-1 text-sm font-semibold text-[var(--color-foreground)]">Reglas de vencimiento</p>
-          <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
-            Se aplican en cada vencimiento futuro de ese instrumento hasta que las cambies.
+      {phase === "decision" && current && (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-[var(--color-foreground)]">
+            Invertiste <strong>{current.weight.toFixed(1)}%</strong> en{" "}
+            <strong>{INSTRUMENT_BY_ID[current.instrumentId]?.nombre}</strong>
+            {current.durationM ? ` por ${current.durationM} meses` : ""} — vence en el mes {current.maturityMonth}. ¿Qué
+            haces?
           </p>
-          <div className="flex flex-col gap-2">
-            {INSTRUMENTS.filter((ins) => reachable.has(ins.id)).map((ins) => (
-              <MaturityRuleRow
-                key={ins.id}
-                instrumentId={ins.id}
-                choice={maturity[ins.id] ?? { mode: "cash", target: ins.id }}
-                onChange={(id, next) => setMaturity((m) => ({ ...m, [id]: next }))}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => answerCurrent({ action: "cash" })}>
+              Mantener en caja
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => answerCurrent({ action: "repeat" })}>
+              Repetir siempre
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setShowReallocateGrid(true)}>
+              Reasignar
+            </Button>
+          </div>
+          {showReallocateGrid && (
+            <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+              <AllocationStepGrid
+                rows={reallocateRows}
+                onChange={(id, patch) => setReallocateRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }))}
               />
-            ))}
-            {INSTRUMENTS.filter((ins) => reachable.has(ins.id)).length === 0 && (
-              <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                Asigna peso a un instrumento con vencimiento (no LIQ ni acciones) para definir su regla.
-              </p>
-            )}
+              <Button type="button" variant="primary" size="sm" onClick={confirmReallocate} className="mt-2">
+                Confirmar reasignación
+              </Button>
+            </div>
+          )}
+          <p className="text-xs text-[var(--color-brand-text-secondary)]">{queue.length} decisión(es) pendiente(s).</p>
+        </div>
+      )}
+
+      {phase === "review" && tree && (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-[var(--color-foreground)]">Árbol de decisión de tu portafolio</p>
+          <PortfolioTreeView tranches={tree.tranches} />
+          <input type="hidden" name="decisionTree" value={JSON.stringify(tree)} />
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary" loading={pending} loadingText="Guardando…">
+              Guardar portafolio
+            </Button>
+            <Button type="button" variant="secondary" onClick={restart}>
+              Rehacer desde cero
+            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
       {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Portafolio guardado.</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="mt-4 rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)] disabled:opacity-50"
-      >
-        {pending ? "Guardando…" : "Guardar portafolio"}
-      </button>
     </form>
   );
 }

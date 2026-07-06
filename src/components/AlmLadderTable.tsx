@@ -1,27 +1,41 @@
-import { INSTRUMENTS } from "@/domain/finance/instruments";
-import type { MaturityRules } from "@/domain/finance/instruments";
+import { INSTRUMENT_BY_ID, MAX_TRANCHE_DEPTH, trancheDurationM } from "@/domain/finance/instruments";
+import type { Tranche, MaturityDecision } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow } from "@/domain/finance/alm";
 
+function maturityLabel(action: MaturityDecision): string {
+  if (action.action === "cash") return "mantener en caja";
+  if (action.action === "repeat") return "repetir indefinidamente";
+  return "reasignar a:";
+}
+
 /**
- * Reconstructs a readable chain from a maturity-rules map, e.g.
- * "CDT90 → reinvertir en TES1 → TES1 → mantener en caja". Bounded to
- * INSTRUMENTS.length steps so a self-referential rule (a rolling ladder,
- * e.g. "CDT90 matures -> reinvest in CDT90") prints "(ciclo)" instead of
- * looping — that's a legitimate rule, not an error, just not worth walking
- * forever in a display string.
+ * Recursively renders a decision tree (Tranche[]) as an indented list —
+ * instrument + weight + maturity/duration + what happens at maturity,
+ * recursing into a "reallocate" node's children. Bounded by
+ * MAX_TRANCHE_DEPTH (a legitimate tree from the wizard never nests this
+ * deep — the horizon-based pruning caps realistic depth around 5-6 — this
+ * is just a display-side safety net, matching the same cap the server-side
+ * validator uses).
  */
-export function describeMaturityChain(sourceId: string, rules: MaturityRules): string {
-  const path = [sourceId];
-  let current = sourceId;
-  for (let i = 0; i < INSTRUMENTS.length; i++) {
-    const rule = rules[current];
-    if (!rule) return `${path.join(" → ")} → política general`;
-    if (rule.action === "cash") return `${path.join(" → ")} → mantener en caja`;
-    if (path.includes(rule.instrumentId)) return `${path.join(" → ")} → reinvertir en ${rule.instrumentId} (ciclo)`;
-    path.push(rule.instrumentId);
-    current = rule.instrumentId;
-  }
-  return path.join(" → ");
+export function PortfolioTreeView({ tranches, depth = 0 }: { tranches: Tranche[]; depth?: number }) {
+  if (depth > MAX_TRANCHE_DEPTH) return <li className="text-xs text-[var(--color-brand-text-secondary)]">…</li>;
+  return (
+    <ul className={depth === 0 ? "flex flex-col gap-1" : "ml-4 flex flex-col gap-1 border-l border-[var(--color-brand-gray-light)] pl-3"}>
+      {tranches.map((t, i) => {
+        const ins = INSTRUMENT_BY_ID[t.instrumentId];
+        const dur = trancheDurationM(t);
+        return (
+          <li key={i} className="text-xs text-[var(--color-brand-text-secondary)]">
+            <span className="font-semibold text-[var(--color-foreground)]">
+              {ins?.nombre ?? t.instrumentId} ({t.weight.toFixed(1)}%, vence a los {dur} {dur === 1 ? "mes" : "meses"})
+            </span>{" "}
+            → {maturityLabel(t.onMaturity)}
+            {t.onMaturity.action === "reallocate" && <PortfolioTreeView tranches={t.onMaturity.tranches} depth={depth + 1} />}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 export function AlmScoreTiles({ score }: { score: FinancialScore }) {
@@ -86,7 +100,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
   return (
     <>
       <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-        Caja mes a mes — Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Inversión Neta, Caja Final
+        Caja mes a mes — Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Vencimientos en caja, Inversión Neta, Caja Final
       </p>
       <div className="max-h-64 overflow-y-auto overflow-x-auto">
         <table className="w-full text-xs">
@@ -97,6 +111,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
               <th className="px-2 py-1">Prima Cobrada</th>
               <th className="px-2 py-1">Pago Siniestros</th>
               <th className="px-2 py-1">Gastos</th>
+              <th className="px-2 py-1">Vencimientos en caja</th>
               <th className="px-2 py-1">Inversión Neta</th>
               <th className="px-2 py-1">Caja Final</th>
               <th className="px-2 py-1">Brecha</th>
@@ -110,6 +125,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
                 <td className="px-2 py-1">${Math.round(r.primaCobrada).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.pagoSiniestros).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.gastos).toLocaleString("es-CO")}</td>
+                <td className="px-2 py-1">{r.vencimientosCaja > 0 ? `$${Math.round(r.vencimientosCaja).toLocaleString("es-CO")}` : "—"}</td>
                 <td className="px-2 py-1">${Math.round(r.inversionNeta).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.cajaFinal).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">{r.brechaCaja > 0 ? `$${Math.round(r.brechaCaja).toLocaleString("es-CO")}` : "—"}</td>

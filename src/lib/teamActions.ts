@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike } from "@/domain/finance/instruments";
-import type { Allocation, PortfolioDecisionV2, MaturityRules } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { SEGMENTS } from "@/domain/grading/analytics";
@@ -22,53 +21,35 @@ export interface SubmitPortfolioState {
   success?: boolean;
 }
 
-function readAllocation(formData: FormData, prefix: string): Allocation {
-  const alloc: Allocation = {};
-  for (const ins of INSTRUMENTS) {
-    const raw = formData.get(`${prefix}_${ins.id}`);
-    const value = raw == null || raw === "" ? 0 : Number(raw);
-    if (Number.isFinite(value) && value > 0) alloc[ins.id] = value;
-  }
-  return alloc;
-}
-
-function readMaturityRules(formData: FormData): { rules: MaturityRules; error?: string } {
-  const rules: MaturityRules = {};
-  for (const ins of INSTRUMENTS) {
-    if (!isBondLike(ins)) continue;
-    const raw = formData.get(`maturity_${ins.id}`);
-    if (raw == null || raw === "") continue;
-    const value = String(raw);
-    if (value === "cash") {
-      rules[ins.id] = { action: "cash" };
-      continue;
-    }
-    if (!INSTRUMENT_BY_ID[value]) return { rules, error: `Regla de vencimiento inválida para ${ins.id}.` };
-    rules[ins.id] = { action: "reinvest", instrumentId: value };
-  }
-  return { rules };
-}
-
 /**
- * A team's portfolio decision has two parts: `allocation` (where fresh
- * surplus cash gets invested every month) and `maturityRules` (a per-
- * instrument rule for what happens when that specific holding matures —
- * hold as cash, or reinvest into another instrument, chaining further) —
- * see almSim()'s doc comment in src/domain/finance/alm.ts for the full
- * rationale. An instrument with no maturity rule falls back to
- * `allocation` when it matures, so a team can set one allocation and never
- * touch anything else.
+ * A team's portfolio decision is a tree of tranches (see PortfolioDecisionV3
+ * in src/domain/finance/instruments.ts) decided once, up front, via the
+ * PortfolioForm wizard — each tranche says how much goes into which
+ * instrument, and what happens when it reaches its own maturity/decision
+ * month (hold as cash, repeat indefinitely, or reallocate into new child
+ * tranches). Arbitrary tree depth doesn't flatten cleanly into named
+ * FormData fields, so the wizard submits the whole tree as one JSON blob
+ * (see PortfolioForm.tsx's review screen) — never trust that payload's
+ * shape without re-validating server-side, since a client can submit
+ * anything.
  */
 export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioState, formData: FormData): Promise<SubmitPortfolioState> {
   const teamId = await requireTeam();
 
-  const allocation = readAllocation(formData, "alloc");
-  if (Object.keys(allocation).length === 0) return { error: "Define al menos un instrumento en tu asignación." };
-  const { rules: maturityRules, error } = readMaturityRules(formData);
-  if (error) return { error };
+  const raw = formData.get("decisionTree");
+  if (raw == null || raw === "") return { error: "No se recibió ningún portafolio." };
 
-  const decision: PortfolioDecisionV2 = { allocation, maturityRules };
-  const decisionJson = decision as unknown as Prisma.InputJsonValue;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch {
+    return { error: "El portafolio enviado no es JSON válido." };
+  }
+  if (!isPortfolioDecisionV3(parsed)) {
+    return { error: "El portafolio enviado tiene un formato inválido. Vuelve a completar el asistente." };
+  }
+
+  const decisionJson = parsed as unknown as Prisma.InputJsonValue;
 
   await prisma.portfolioAllocation.upsert({
     where: { teamId_day: { teamId, day } },

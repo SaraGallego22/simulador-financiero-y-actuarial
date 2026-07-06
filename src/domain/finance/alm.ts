@@ -1,7 +1,7 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, YIELD_MIN, YIELD_MAX, isBondLike } from "./instruments";
-import type { Allocation, PortfolioDecisionV2, MaturityRules } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, YIELD_MIN, YIELD_MAX, isBondLike, trancheDurationM } from "./instruments";
+import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
 import { FZ, GASTOS_TOTAL_PCT } from "./constants";
 
 export const W_CUMPL_CAJA = 0.45;
@@ -23,6 +23,8 @@ export interface AlmSimRow {
   primaCobrada: number;
   pagoSiniestros: number;
   gastos: number;
+  /** Proceeds this month from instruments that matured with a "mantener en caja" rule — folded into availability before Inversión Neta is computed. */
+  vencimientosCaja: number;
   /** Negative = surplus invested this month; positive = drawn from liqCash to cover a Caja Mínima shortfall. */
   inversionNeta: number;
   cajaFinal: number;
@@ -46,90 +48,122 @@ export interface AlmSimResult {
   incomeY1: number;
   liq6: number;
   liab6: number;
+  /** Diagnostic only (not used in scoring) — the largest number of simultaneously open positions, a sanity check that a team's tree isn't spawning a pathological number of live branches. */
+  peakOpenPositions: number;
 }
 
-function normalizeWeights(alloc: Allocation): { ids: string[]; w: Record<string, number> } | null {
-  const ids = Object.keys(alloc).filter((id) => INSTRUMENT_BY_ID[id]);
-  const sumW = ids.reduce((s, id) => s + (Number(alloc[id]) || 0), 0);
-  if (sumW <= 0) return null;
-  const w: Record<string, number> = {};
-  for (const id of ids) w[id] = (Number(alloc[id]) || 0) / sumW;
-  return { ids, w };
+interface Position {
+  /** Reference to the exact tranche that produced this position — its onMaturity is read fresh when this position matures. */
+  tranche: Tranche;
+  book: number;
+  yM: number;
+  matM: number;
+}
+
+/**
+ * Splits `monto` across `tranches` by weight and appends one new Position
+ * per non-degenerate share into `positions`. Used to (a) fund the top-level
+ * decision.tranches template with fresh money every month (the base
+ * allocation isn't a one-time lump — it's a reusable policy applied
+ * whenever there's surplus to invest, exactly like the previous
+ * `allocation` field), (b) fund a "reallocate" node's children, and (c)
+ * re-fund a "repeat" tranche (called with a singleton `[tranche]` list).
+ * Purely iterative — never calls itself or almSim — so "repeat"/"reallocate"
+ * cycling across many months never grows the call stack; see the module
+ * doc comment above almSim.
+ */
+function fundTranches(tranches: Tranche[], monto: number, atMonth: number, positions: Position[]): void {
+  if (monto <= 0) return;
+  const valid = tranches.filter((tr) => INSTRUMENT_BY_ID[tr.instrumentId] && tr.weight > 0);
+  const totalW = valid.reduce((s, tr) => s + tr.weight, 0);
+  if (totalW <= 0) return;
+  for (const tranche of valid) {
+    const parte = (tranche.weight / totalW) * monto;
+    if (parte <= 0) continue;
+    const ins = INSTRUMENT_BY_ID[tranche.instrumentId];
+    const yM = Math.pow(1 + ins.yield, 1 / 12) - 1;
+    const dur = Math.max(1, trancheDurationM(tranche));
+    positions.push({ tranche, book: parte, yM, matM: atMonth + dur });
+  }
+}
+
+/**
+ * Draws up to `neededNeta` out of whatever LIQ positions currently have
+ * money, mutating their book values in place — a LIQ position stays part
+ * of the always-drawable pool regardless of where it is in its own
+ * maturity countdown (LIQ's custom duration is a decision-cadence device,
+ * not a liquidity lock; see the module doc comment). Returns the amount
+ * actually drawn.
+ */
+function drawFromLiq(neededNeta: number, positions: Position[]): number {
+  let remaining = neededNeta;
+  for (const p of positions) {
+    if (remaining <= 0) break;
+    if (p.tranche.instrumentId !== "LIQ") continue;
+    const take = Math.min(p.book, remaining);
+    p.book -= take;
+    remaining -= take;
+  }
+  return neededNeta - remaining;
 }
 
 /**
  * Month-by-month portfolio cashflow simulation, structured as a cashflow
  * statement (Caja Inicial / Prima Cobrada / Pago Siniestros / Gastos /
- * Inversión Neta / Caja Final) and checked against a mandatory minimum-cash
- * floor (Caja Mínima) each month, rather than against the old flat
- * reserve-relative funding gap.
+ * Vencimientos en caja / Inversión Neta / Caja Final) and checked against a
+ * mandatory minimum-cash floor (Caja Mínima) each month.
  *
- * `decision.allocation` governs where fresh surplus cash goes every month
- * (any month with money to invest and no more specific rule); Prima Cobrada
- * is still the funding-neutral monthly notional contribution (sized off the
- * liability, not the team's actual premium, exactly as before — see the
- * historical note below) and Pago Siniestros is still the real liability
- * payment schedule — neither changed, only Gastos and Caja Mínima are new.
+ * `decision.tranches` is a tree, not a flat allocation: each tranche is a
+ * slice of money in one instrument, and its `onMaturity` says what happens
+ * when it reaches its own maturity/decision month — held as cash, repeated
+ * (refunds the same instrument+duration indefinitely, no further
+ * decisions), or reallocated into 1+ new child tranches (each with its own
+ * onMaturity). The whole tree is also the *template* applied to fresh
+ * surplus every month (Prima Cobrada during the build phase, or any
+ * month's leftover after Caja Mínima is met) — a team decides this whole
+ * tree once, up front, in a single sitting; there is no live/staged
+ * simulation, `almSim` still runs the full horizon in one deterministic
+ * pass, exactly as before.
  *
- * `decision.maturityRules` governs what happens to a *specific* instrument's
- * proceeds when it matures: held as cash (a source of liquidity for that
- * month's Caja Mínima shortfall, if any) or reinvested into another
- * instrument, which is itself governed by whatever rule is keyed under its
- * own id when it later matures — forming a chain (including a
- * self-referential "keep laddering the same instrument" rule). An
- * instrument with no rule falls back to `allocation`, same as fresh
- * surplus, so a team can set one allocation and never touch anything else.
+ * Every instrument now has a maturity: bond-like instruments (CDT90/TES1/
+ * TES3/TESUVR8) use their own fixed ins.plazoM; LIQ and ACC use a
+ * team-chosen `durationM` per tranche instead. LIQ and ACC generalize
+ * differently, though, because they play different roles:
+ * - LIQ positions still count toward the instantly-drawable pool for
+ *   covering a Caja Mínima shortfall (drawFromLiq) REGARDLESS of their own
+ *   maturity countdown — locking LIQ up would defeat its entire purpose as
+ *   the always-liquid choice. Its durationM only controls when its
+ *   onMaturity decision fires, not whether the money is usable before then.
+ * - ACC positions are genuinely illiquid until their own maturity, exactly
+ *   like a bond — this is what finally lets a team exit an equity position
+ *   at a chosen time; before this, equities never converted back to cash.
  *
  * The engine never overrides a team's stated maturity rule to cover a
- * shortfall — it only draws on liqCash (uninvested/"mantener en caja"
- * proceeds). A shortfall caused by locking everything into illiquid
- * reinvestment chains is exactly the failure being graded.
+ * shortfall — a positive Inversión Neta can only draw on LIQ. A shortfall
+ * caused by locking everything into illiquid reallocation chains is
+ * exactly the failure being graded.
  *
- * Historical note: extends almSim() from the legacy prototype, line ~1659
- * (see the extensive comment there for the funding-neutrality rationale of
- * the monthly contribution) and this app's earlier `initial`/`reinvest`
- * two-phase split — this version replaces that calendar-phase split with
- * genuine per-instrument maturity rules.
+ * Historical note: extends almSim() from the legacy prototype, line ~1659,
+ * and this app's earlier `initial`/`reinvest` two-phase split, then its
+ * later flat per-instrument `maturityRules` — this version replaces both
+ * with a genuine per-tranche decision tree.
  */
-export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): AlmSimResult | null {
+export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): AlmSimResult | null {
   if (!lib.hay) return null;
-  const norm = normalizeWeights(decision.allocation);
-  if (!norm) return null;
-  const { maturityRules } = decision;
+  const totalTopW = decision.tranches.reduce(
+    (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
+    0
+  );
+  if (totalTopW <= 0) return null;
 
   const reserva = lib.reserva;
   const totalPagoY1 = lib.payY1.reduce((s, v) => s + v, 0);
   const notionalFondeo = reserva + totalPagoY1;
-  const cashRate = INSTRUMENT_BY_ID.LIQ.yield;
-  const cashM = Math.pow(1 + cashRate, 1 / 12) - 1;
-  const eqYM = INSTRUMENT_BY_ID.ACC ? Math.pow(1 + INSTRUMENT_BY_ID.ACC.yield, 1 / 12) - 1 : 0;
   const TOTAL = BUILD_MONTHS + HORIZON;
   const aporteMensual = notionalFondeo / BUILD_MONTHS;
 
-  // cajaFloat = the mandatory, non-interest-bearing Caja Mínima buffer.
-  // liqCash = the LIQ investment bucket (still earns cashRate) — kept
-  // separate so the floor can't be satisfied "for free" just by definition.
   let cajaFloat = 0;
-  let liqCash = 0;
-  let eqBook = 0;
-  const bonds: { instrumentId: string; matM: number; book: number; yM: number }[] = [];
-
-  function invertir(monto: number, atMonth: number, ids: string[], w: Record<string, number>) {
-    if (monto <= 0) return;
-    for (const id of ids) {
-      const ins = INSTRUMENT_BY_ID[id];
-      const parte = w[id] * monto;
-      if (parte <= 0) continue;
-      if (ins.plazoM === 0) liqCash += parte;
-      else if (ins.plazoM >= 400) eqBook += parte;
-      else bonds.push({ instrumentId: id, matM: atMonth + ins.plazoM, book: parte, yM: Math.pow(1 + ins.yield, 1 / 12) - 1 });
-    }
-  }
-
-  function investSingle(monto: number, atMonth: number, targetId: string) {
-    if (monto <= 0 || !INSTRUMENT_BY_ID[targetId]) return;
-    invertir(monto, atMonth, [targetId], { [targetId]: 1 });
-  }
+  let positions: Position[] = [];
 
   const rows: AlmSimRow[] = [];
   let peakBrechaCaja = 0;
@@ -142,40 +176,38 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
   let liq6 = 0;
   let liab6 = 0;
   let cumLiabReserva = 0;
+  let peakOpenPositions = 0;
 
   for (let t = 0; t < TOTAL; t++) {
     const buildPhase = t < BUILD_MONTHS;
 
-    // 1. Accrue yield on investment buckets — unconditional, every month.
-    const liqInt = liqCash * cashM;
-    liqCash += liqInt;
-    let bInc = 0;
-    for (const b of bonds) {
-      if (b.matM > t) {
-        const g = b.book * b.yM;
-        b.book += g;
-        bInc += g;
+    // 1. Accrue yield on every still-open position — unconditional per
+    //    position, guarded by matM > t (a position doesn't earn interest in
+    //    its own maturity month, the same convention bonds always used, now
+    //    applied uniformly to LIQ and ACC too).
+    let devengo = 0;
+    for (const p of positions) {
+      if (p.matM > t) {
+        const g = p.book * p.yM;
+        p.book += g;
+        devengo += g;
       }
     }
-    const eInc = eqBook * eqYM;
-    eqBook += eInc;
-    const devengo = liqInt + bInc + eInc;
     totIncome += devengo;
     if (buildPhase) incomeY1 += devengo;
 
-    // 2. Route this month's bond maturities individually per maturityRules.
+    // 2. Route this month's maturities per each position's own onMaturity.
+    const remaining: Position[] = [];
+    const maturingNow: Position[] = [];
+    for (const p of positions) (p.matM === t ? maturingNow : remaining).push(p);
     let vencCash = 0;
-    let reinvestDefaultAmt = 0;
-    for (const b of bonds) {
-      if (b.matM !== t) continue;
-      const rule = maturityRules[b.instrumentId];
-      if (!rule) reinvestDefaultAmt += b.book;
-      else if (rule.action === "cash") vencCash += b.book;
-      else investSingle(b.book, t, rule.instrumentId);
+    for (const p of maturingNow) {
+      const action = p.tranche.onMaturity;
+      if (action.action === "cash") vencCash += p.book;
+      else if (action.action === "repeat") fundTranches([p.tranche], p.book, t, remaining);
+      else fundTranches(action.tranches, p.book, t, remaining);
     }
-    for (let i = bonds.length - 1; i >= 0; i--) {
-      if (bonds[i].matM === t) bonds.splice(i, 1);
-    }
+    positions = remaining;
 
     // 3. Compute the six cashflow-statement values for this month.
     const primaCobrada = buildPhase ? aporteMensual : 0;
@@ -191,9 +223,6 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
     sumCajaMinima += cajaMinima;
 
     const cajaInicial = cajaFloat;
-    // vencCash (proceeds from a "mantener en caja" maturity this month) is
-    // folded into availability here, not displayed as its own column — see
-    // alm.ts's module doc / the plan's §2 for why.
     const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
     const neededNeta = cajaMinima - cajaDisponible;
 
@@ -203,13 +232,11 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
     let cajaFinal: number;
     if (neededNeta <= 0) {
       const surplus = -neededNeta;
-      invertir(surplus + reinvestDefaultAmt, t, norm.ids, norm.w);
+      fundTranches(decision.tranches, surplus, t, positions);
       inversionNeta = neededNeta;
       cajaFinal = cajaMinima;
     } else {
-      invertir(reinvestDefaultAmt, t, norm.ids, norm.w);
-      const drawn = Math.min(neededNeta, liqCash);
-      liqCash -= drawn;
+      const drawn = drawFromLiq(neededNeta, positions);
       inversionNeta = drawn;
       brechaCaja = neededNeta - drawn;
       cajaFinal = cajaMinima - brechaCaja;
@@ -219,13 +246,15 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
     }
     cajaFloat = cajaFinal;
 
-    let bondBook = 0;
-    for (const b of bonds) if (b.matM > t) bondBook += b.book;
-    sumPV += liqCash + bondBook + eqBook;
+    sumPV += positions.reduce((s, p) => s + p.book, 0);
+    peakOpenPositions = Math.max(peakOpenPositions, positions.length);
 
     if (t === BUILD_MONTHS) {
-      liq6 = liqCash;
-      for (const b of bonds) if (b.matM > t && b.matM <= t + 6) liq6 += b.book;
+      liq6 = positions.reduce((s, p) => {
+        if (p.tranche.instrumentId === "LIQ") return s + p.book;
+        if (p.matM > t && p.matM <= t + 6) return s + p.book;
+        return s;
+      }, 0);
     }
 
     rows.push({
@@ -234,6 +263,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
       primaCobrada,
       pagoSiniestros,
       gastos,
+      vencimientosCaja: vencCash,
       inversionNeta,
       cajaFinal,
       brechaCaja,
@@ -242,10 +272,24 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV2): A
   }
 
   const avgPV = sumPV / TOTAL;
-  const rMonthly = avgPV > 0 ? totIncome / (avgPV * TOTAL) : cashM;
+  const rMonthly = avgPV > 0 ? totIncome / (avgPV * TOTAL) : Math.pow(1 + INSTRUMENT_BY_ID.LIQ.yield, 1 / 12) - 1;
   const effYield = Math.pow(1 + rMonthly, 12) - 1;
 
-  return { rows, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, mesesEnBrecha, reserva, effYield, avgPV, totIncome, incomeY1, liq6, liab6 };
+  return {
+    rows,
+    peakBrechaCaja,
+    totalBrechaCaja,
+    sumCajaMinima,
+    mesesEnBrecha,
+    reserva,
+    effYield,
+    avgPV,
+    totIncome,
+    incomeY1,
+    liq6,
+    liab6,
+    peakOpenPositions,
+  };
 }
 
 export interface FinancialScore {
@@ -265,7 +309,7 @@ export interface FinancialScore {
   cobertura: number;
   avgPV: number;
   totIncome: number;
-  allocation: Allocation;
+  tranches: Tranche[];
 }
 
 /**
@@ -279,10 +323,7 @@ export interface FinancialScore {
  * a monthly floor needs a monthly-scale denominator or every gap looks
  * artificially tiny), blended 50/50 (W_BRECHA_PEAK/W_BRECHA_AVG).
  */
-export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV2): FinancialScore | null {
-  const norm = normalizeWeights(decision.allocation);
-  if (!norm) return null;
-
+export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3): FinancialScore | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
   const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6 } = sim;
@@ -295,7 +336,18 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
 
   const effYield = sim.effYield;
   const rendimiento = Math.max(0, Math.min(100, (100 * (effYield - YIELD_MIN)) / (YIELD_MAX - YIELD_MIN)));
-  const portYield = norm.ids.reduce((s, id) => s + norm.w[id] * INSTRUMENT_BY_ID[id].yield, 0);
+
+  const totalTopW = decision.tranches.reduce(
+    (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
+    0
+  );
+  const portYield =
+    totalTopW > 0
+      ? decision.tranches.reduce((s, t) => {
+          const ins = INSTRUMENT_BY_ID[t.instrumentId];
+          return ins ? s + (Math.max(0, t.weight) / totalTopW) * ins.yield : s;
+        }, 0)
+      : 0;
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
   const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_LIQ * liquidez;
 
@@ -320,7 +372,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     cobertura,
     avgPV: sim.avgPV,
     totIncome: sim.totIncome,
-    allocation: decision.allocation,
+    tranches: decision.tranches,
   };
 }
 
@@ -346,19 +398,24 @@ export function almObjetivo(lib: LiabilitySchedule): FinancialScore | null {
     acc[best.id] = (acc[best.id] || 0) + v;
   }
   if (tot <= 0) return null;
-  const alloc: Allocation = {};
-  for (const id of Object.keys(acc)) alloc[id] = (100 * acc[id]) / tot;
-  const maturityRules: MaturityRules = {};
-  for (const id of Object.keys(alloc)) {
-    if (isBondLike(INSTRUMENT_BY_ID[id])) maturityRules[id] = { action: "reinvest", instrumentId: id };
-  }
-  return scoreFinanciero(lib, { allocation: alloc, maturityRules });
+
+  const tranches: Tranche[] = Object.keys(acc).map((id) => {
+    const ins = INSTRUMENT_BY_ID[id];
+    const t: Tranche = { instrumentId: id, weight: (100 * acc[id]) / tot, onMaturity: { action: "repeat" } };
+    // LIQ can legitimately be `best` for liabilities due in months 0-2
+    // (plazoM=0 qualifies for any t>=0, no bond qualifies until t>=3). Its
+    // durationM is immaterial to cash availability (LIQ stays pooled
+    // regardless — see almSim's doc comment); 1 is the simplest valid value.
+    if (!isBondLike(ins)) t.durationM = 1;
+    return t;
+  });
+  return scoreFinanciero(lib, { tranches });
 }
 
-/** Monthly ladder view (Caja Inicial/Prima/Siniestros/Gastos/Inversión Neta/Caja Final), ported from almLadder(), line ~1809. */
+/** Monthly ladder view (Caja Inicial/Prima/Siniestros/Gastos/Vencimientos en caja/Inversión Neta/Caja Final), ported from almLadder(), line ~1809. */
 export function almLadder(
   lib: LiabilitySchedule,
-  decision: PortfolioDecisionV2
+  decision: PortfolioDecisionV3
 ): { rows: AlmSimRow[]; peakBrechaCaja: number; totalBrechaCaja: number; reserva: number } | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;

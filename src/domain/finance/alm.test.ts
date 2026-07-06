@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
 import { almNAV, almObjetivo, almSim, scoreFinanciero } from "./alm";
 import { FZ } from "./constants";
-import type { PortfolioDecisionV2 } from "./instruments";
+import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
 
 // A handful of claims spread across the Year-1 window, notified early enough
 // that meaningful amounts land in both payY1 and the post-valuation reserve.
@@ -13,18 +13,30 @@ const claims = [
 ];
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
-function decision(allocation: Record<string, number>, maturityRules: PortfolioDecisionV2["maturityRules"] = {}): PortfolioDecisionV2 {
-  return { allocation, maturityRules };
+function tranche(instrumentId: string, weight: number, onMaturity: MaturityDecision, durationM?: number): Tranche {
+  return durationM != null ? { instrumentId, weight, durationM, onMaturity } : { instrumentId, weight, onMaturity };
+}
+function decision(tranches: Tranche[]): PortfolioDecisionV3 {
+  return { tranches };
 }
 
 describe("almSim / scoreFinanciero", () => {
-  it("returns null when the allocation has no recognized instruments", () => {
-    expect(almSim(lib, decision({ NOPE: 100 }))).toBeNull();
-    expect(scoreFinanciero(lib, decision({}))).toBeNull();
+  it("returns null when there are no recognized instruments", () => {
+    expect(almSim(lib, decision([tranche("NOPE", 100, { action: "cash" })]))).toBeNull();
+    expect(scoreFinanciero(lib, decision([]))).toBeNull();
   });
 
   it("produces a composite score within [0, 100] for a diversified allocation", () => {
-    const score = scoreFinanciero(lib, decision({ LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 }));
+    const score = scoreFinanciero(
+      lib,
+      decision([
+        tranche("LIQ", 20, { action: "cash" }, 6),
+        tranche("CDT90", 20, { action: "cash" }),
+        tranche("TES1", 30, { action: "cash" }),
+        tranche("TES3", 20, { action: "cash" }),
+        tranche("ACC", 10, { action: "cash" }, 24),
+      ])
+    );
     expect(score).not.toBeNull();
     expect(score!.nota).toBeGreaterThanOrEqual(0);
     expect(score!.nota).toBeLessThanOrEqual(100);
@@ -37,14 +49,12 @@ describe("almSim / scoreFinanciero", () => {
     // to the flat monthly notional contribution, so *some* shortfall is
     // realistic even for the most liquid choice — the model doesn't promise
     // zero brecha, only that liquidity choices matter. All-LIQ can draw on
-    // whatever liqCash has accumulated; all-TESUVR8 locks every peso away
-    // for 8 years with nothing held liquid at all, so it has nothing to
-    // draw on and should fare unambiguously worse — compared here on the
-    // raw peakBrechaCaja/totalBrechaCaja (not the [0,100] score, which both
-    // saturate at 0 for this deliberately severe fixture and would hide the
-    // real difference between them).
-    const liq = almSim(lib, decision({ LIQ: 100 }));
-    const uvr8 = almSim(lib, decision({ TESUVR8: 100 }));
+    // whatever's accumulated; all-TESUVR8 locks every peso away for 8 years
+    // with nothing liquid at all. Compared on raw peakBrechaCaja/
+    // totalBrechaCaja (not the [0,100] score, which both saturate at 0 for
+    // this deliberately severe fixture and would hide the real difference).
+    const liq = almSim(lib, decision([tranche("LIQ", 100, { action: "repeat" }, 6)]));
+    const uvr8 = almSim(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
     expect(liq).not.toBeNull();
     expect(uvr8).not.toBeNull();
     expect(liq!.peakBrechaCaja).toBeLessThan(uvr8!.peakBrechaCaja);
@@ -52,7 +62,16 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("cash-conservation invariant: cajaFinal + brechaCaja == FZ.cajaPct * (primaCobrada + pagoSiniestros) every month", () => {
-    const sim = almSim(lib, decision({ LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 }));
+    const sim = almSim(
+      lib,
+      decision([
+        tranche("LIQ", 20, { action: "cash" }, 6),
+        tranche("CDT90", 20, { action: "cash" }),
+        tranche("TES1", 30, { action: "cash" }),
+        tranche("TES3", 20, { action: "cash" }),
+        tranche("ACC", 10, { action: "cash" }, 24),
+      ])
+    );
     expect(sim).not.toBeNull();
     for (const row of sim!.rows) {
       const expectedCajaMinima = FZ.cajaPct * (row.primaCobrada + row.pagoSiniestros);
@@ -60,27 +79,62 @@ describe("almSim / scoreFinanciero", () => {
     }
   });
 
-  it("a maturity chain (TES1 -> reinvertir en TES3) locks proceeds away until TES3 matures, unlike a 'mantener en caja' rule on the same instrument", () => {
-    // Same allocation for fresh surplus in both runs (half LIQ so there's
-    // always some baseline liquidity), differing only in what happens when
-    // TES1 matures: held as cash (folds back into that month's available
-    // cash, eventually reinvested via `allocation`, i.e. back into LIQ/TES1)
-    // vs. chained into TES3 (locked away for another 36 months). The chained
-    // run should show a *higher* peak shortfall than the cash-on-maturity
-    // run, since money that would have been available mid-horizon is
-    // instead tied up in TES3.
-    const alloc = { LIQ: 50, TES1: 50 };
-    const cashOnMaturity = scoreFinanciero(lib, decision(alloc, { TES1: { action: "cash" } }));
-    const chained = scoreFinanciero(lib, decision(alloc, { TES1: { action: "reinvest", instrumentId: "TES3" } }));
+  it("a maturity chain (TES1 -> reallocate into TES3) locks proceeds away until TES3 matures, unlike 'mantener en caja' on the same instrument", () => {
+    const alloc = [tranche("LIQ", 50, { action: "repeat" }, 3)];
+    const cashOnMaturity = scoreFinanciero(lib, decision([...alloc, tranche("TES1", 50, { action: "cash" })]));
+    const chained = scoreFinanciero(
+      lib,
+      decision([...alloc, tranche("TES1", 50, { action: "reallocate", tranches: [tranche("TES3", 100, { action: "cash" })] })])
+    );
     expect(cashOnMaturity).not.toBeNull();
     expect(chained).not.toBeNull();
     expect(chained!.peakBrechaCaja).toBeGreaterThanOrEqual(cashOnMaturity!.peakBrechaCaja);
   });
 
-  it("a self-referential maturity rule (rolling ladder) doesn't crash or loop forever", () => {
-    const score = scoreFinanciero(lib, decision({ CDT90: 100 }, { CDT90: { action: "reinvest", instrumentId: "CDT90" } }));
+  it("splitting a maturity's proceeds across reallocate children funds both branches independently", () => {
+    const allIntoTes1 = almSim(
+      lib,
+      decision([tranche("CDT90", 100, { action: "reallocate", tranches: [tranche("TES1", 100, { action: "cash" })] })])
+    );
+    const splitWithLiq = almSim(
+      lib,
+      decision([
+        tranche("CDT90", 100, {
+          action: "reallocate",
+          tranches: [tranche("TES1", 60, { action: "cash" }), tranche("LIQ", 40, { action: "repeat" }, 3)],
+        }),
+      ])
+    );
+    expect(allIntoTes1).not.toBeNull();
+    expect(splitWithLiq).not.toBeNull();
+    // Keeping 40% perpetually liquid (vs. locking 100% into TES1) should
+    // reduce the *cumulative* shortfall across the horizon — a single
+    // month's peak can go either way depending on exactly when TES1's
+    // (smaller, in the split case) maturity lands relative to a payment
+    // spike, so total (not peak) is the robust comparison here.
+    expect(splitWithLiq!.totalBrechaCaja).toBeLessThanOrEqual(allIntoTes1!.totalBrechaCaja);
+  });
+
+  it("a repeating 3-month tranche cycles ~20 times over the horizon without excessive recursion or slowdown", () => {
+    const start = performance.now();
+    const score = scoreFinanciero(lib, decision([tranche("CDT90", 100, { action: "repeat" })]));
+    const elapsedMs = performance.now() - start;
     expect(score).not.toBeNull();
     expect(Number.isFinite(score!.nota)).toBe(true);
+    // Tripwire, not a real budget — "repeat"/"reallocate" are resolved
+    // inside almSim's flat monthly loop, never via recursive re-funding
+    // calls, so call-stack depth is O(1) regardless of repeat count. This
+    // just catches a future regression that reintroduces recursion.
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it("an ACC tranche with a custom duration converts back to usable cash at maturity (equities are no longer a permanent trap)", () => {
+    const sim = almSim(lib, decision([tranche("LIQ", 50, { action: "repeat" }, 6), tranche("ACC", 50, { action: "cash" }, 6)]));
+    expect(sim).not.toBeNull();
+    // Funded at month 0 (build phase), durationM=6 -> matures at absolute
+    // month 6 -> row index 6 (mes = t - BUILD_MONTHS, so absolute t=6 is
+    // mes=-6, the 7th row, index 6).
+    expect(sim!.rows[6].vencimientosCaja).toBeGreaterThan(0);
   });
 });
 
@@ -88,7 +142,7 @@ describe("almObjetivo", () => {
   it("produces a target allocation that sums to ~100%", () => {
     const objective = almObjetivo(lib);
     expect(objective).not.toBeNull();
-    const total = Object.values(objective!.allocation).reduce((s, v) => s + v, 0);
+    const total = objective!.tranches.reduce((s, t) => s + t.weight, 0);
     expect(total).toBeCloseTo(100, 4);
   });
 });

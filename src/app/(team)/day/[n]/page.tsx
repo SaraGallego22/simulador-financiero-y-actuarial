@@ -10,7 +10,7 @@ import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import type { Recommendation } from "@/domain/grading/analytics";
-import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
 import { AlmScoreTiles, AlmLadderTable } from "@/components/AlmLadderTable";
@@ -99,7 +99,7 @@ export default async function TeamDayPage({
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
   if (activeTab === "obj" && includeSim && publishedResult && teamId) {
-    const decision = isPortfolioDecisionV2(allocation?.allocation) ? allocation.allocation : null;
+    const decision = isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null;
     if (decision) {
       const cohort = await getOrCreateActiveCohort();
       const book = await getTeamBookForDay(cohort.id, day);
@@ -145,7 +145,7 @@ export default async function TeamDayPage({
           {includeSim && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
-              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV2(allocation?.allocation) ? allocation.allocation : null} />
+              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null} />
             </>
           )}
           {reportConcepts.length > 0 && (
