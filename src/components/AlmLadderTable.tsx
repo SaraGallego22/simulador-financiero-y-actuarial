@@ -42,15 +42,23 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Cumplimiento de caja mínima (45%)</p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Cumplimiento de caja mínima (35%)</p>
         <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
           {score.cumplimientoCaja.toFixed(1)}
         </p>
       </div>
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento ajustado por riesgo (45%)</p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento ajustado por riesgo (35%)</p>
         <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
           {score.rendimiento.toFixed(1)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Venta forzada de portafolio (20%)</p>
+        <p
+          className={`font-[family-name:var(--font-condensed)] text-lg font-bold ${score.ventaForzada < 80 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
+        >
+          {score.ventaForzada.toFixed(1)}
         </p>
       </div>
       <div>
@@ -62,6 +70,12 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
       <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Reserva</p>
         <p className="text-sm font-semibold">${Math.round(score.reserva).toLocaleString("es-CO")}</p>
+      </div>
+      <div>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Total vendido bajo presión (todo el horizonte)</p>
+        <p className="text-sm font-semibold">
+          ${Math.round(score.totalVentaForzada).toLocaleString("es-CO")} ({(score.ventaForzadaSeveridad * 100).toFixed(1)}% de severidad)
+        </p>
       </div>
       <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Volatilidad promedio del portafolio</p>
@@ -108,6 +122,14 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
       <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
         Caja mes a mes — Caja Inicial, Prima Cobrada, Pago Siniestros, Gastos, Vencimientos en caja, Inversión Neta, Caja Final
       </p>
+      <p className="mb-1 text-xs text-[var(--color-brand-text-secondary)]">
+        <span className="mr-3 inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-yellow)]" /> Venta forzada de portafolio
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-red)]" /> Brecha genuina (ni LIQ ni el resto del portafolio alcanzaron)
+        </span>
+      </p>
       <div className="max-h-64 overflow-y-auto overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
@@ -120,12 +142,18 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
               <th className="px-2 py-1">Vencimientos en caja</th>
               <th className="px-2 py-1">Inversión Neta</th>
               <th className="px-2 py-1">Caja Final</th>
+              <th className="px-2 py-1">Venta forzada</th>
               <th className="px-2 py-1">Brecha</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brechaCaja > 0 ? "bg-[var(--color-brand-red)]/10" : ""}`}>
+              <tr
+                key={i}
+                className={`border-t border-[var(--color-brand-gray-light)] ${
+                  r.brechaCaja > 0 ? "bg-[var(--color-brand-red)]/10" : r.ventaForzadaPortafolio > 0 ? "bg-[var(--color-brand-yellow)]/10" : ""
+                }`}
+              >
                 <td className="px-2 py-1">{r.mes}</td>
                 <td className="px-2 py-1">${Math.round(r.cajaInicial).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.primaCobrada).toLocaleString("es-CO")}</td>
@@ -134,6 +162,9 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
                 <td className="px-2 py-1">{r.vencimientosCaja > 0 ? `$${Math.round(r.vencimientosCaja).toLocaleString("es-CO")}` : "—"}</td>
                 <td className="px-2 py-1">${Math.round(r.inversionNeta).toLocaleString("es-CO")}</td>
                 <td className="px-2 py-1">${Math.round(r.cajaFinal).toLocaleString("es-CO")}</td>
+                <td className="px-2 py-1">
+                  {r.ventaForzadaPortafolio > 0 ? `$${Math.round(r.ventaForzadaPortafolio).toLocaleString("es-CO")}` : "—"}
+                </td>
                 <td className="px-2 py-1">{r.brechaCaja > 0 ? `$${Math.round(r.brechaCaja).toLocaleString("es-CO")}` : "—"}</td>
               </tr>
             ))}

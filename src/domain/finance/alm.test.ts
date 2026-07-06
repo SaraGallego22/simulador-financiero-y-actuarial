@@ -44,21 +44,19 @@ describe("almSim / scoreFinanciero", () => {
     expect(score!.cumplimientoCaja).toBeLessThanOrEqual(100);
   });
 
-  it("holding everything liquid (LIQ) produces a much smaller shortfall than committing everything to a single very-long-dated instrument", () => {
-    // Caja Inicial starts at 0 and this fixture's claims are lumpy relative
-    // to the flat monthly notional contribution, so *some* shortfall is
-    // realistic even for the most liquid choice — the model doesn't promise
-    // zero brecha, only that liquidity choices matter. All-LIQ can draw on
-    // whatever's accumulated; all-TESUVR8 locks every peso away for 8 years
-    // with nothing liquid at all. Compared on raw peakBrechaCaja/
-    // totalBrechaCaja (not the [0,100] score, which both saturate at 0 for
-    // this deliberately severe fixture and would hide the real difference).
+  it("holding everything liquid (LIQ) never triggers a forced sale, unlike committing everything to a single very-long-dated instrument", () => {
+    // LIQ can always be drawn for free to cover a Caja Mínima shortfall; an
+    // all-TESUVR8 portfolio has nothing else to draw on, so any shortfall
+    // forces an early sale of TESUVR8 itself — genuine brechaCaja (money
+    // unmet even after selling *everything*) is now rare by design (see
+    // forceLiquidatePortfolio), so totalVentaForzada is the metric that
+    // actually distinguishes these two allocations.
     const liq = almSim(lib, decision([tranche("LIQ", 100, { action: "repeat" }, 6)]));
     const uvr8 = almSim(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
     expect(liq).not.toBeNull();
     expect(uvr8).not.toBeNull();
-    expect(liq!.peakBrechaCaja).toBeLessThan(uvr8!.peakBrechaCaja);
-    expect(liq!.totalBrechaCaja).toBeLessThan(uvr8!.totalBrechaCaja);
+    expect(liq!.totalVentaForzada).toBe(0);
+    expect(uvr8!.totalVentaForzada).toBeGreaterThan(0);
   });
 
   it("cash-conservation invariant: cajaFinal + brechaCaja == FZ.cajaPct * (primaCobrada + pagoSiniestros) every month", () => {
@@ -79,19 +77,23 @@ describe("almSim / scoreFinanciero", () => {
     }
   });
 
-  it("a maturity chain (TES1 -> reallocate into TES3) locks proceeds away until TES3 matures, unlike 'mantener en caja' on the same instrument", () => {
+  it("a maturity chain (TES1 -> reallocate into TES3) risks a costlier forced liquidation than 'mantener en caja' on the same instrument", () => {
     const alloc = [tranche("LIQ", 50, { action: "repeat" }, 3)];
-    const cashOnMaturity = scoreFinanciero(lib, decision([...alloc, tranche("TES1", 50, { action: "cash" })]));
-    const chained = scoreFinanciero(
+    const cashOnMaturity = almSim(lib, decision([...alloc, tranche("TES1", 50, { action: "cash" })]));
+    const chained = almSim(
       lib,
       decision([...alloc, tranche("TES1", 50, { action: "reallocate", tranches: [tranche("TES3", 100, { action: "cash" })] })])
     );
     expect(cashOnMaturity).not.toBeNull();
     expect(chained).not.toBeNull();
-    expect(chained!.peakBrechaCaja).toBeGreaterThanOrEqual(cashOnMaturity!.peakBrechaCaja);
+    // Both scenarios share the same 50% LIQ leg; the other 50% either comes
+    // back as cash every ~12 months (TES1) or stays locked for ~48 months
+    // via TES3 — a shortfall the shared LIQ can't cover is more likely to
+    // force-sell the still-locked TES3 leg than the more-often-liquid TES1.
+    expect(chained!.ventaForzadaVolWeighted).toBeGreaterThanOrEqual(cashOnMaturity!.ventaForzadaVolWeighted);
   });
 
-  it("splitting a maturity's proceeds across reallocate children funds both branches independently", () => {
+  it("splitting a maturity's proceeds across reallocate children funds both branches independently, and keeping some LIQ reduces forced-liquidation severity", () => {
     const allIntoTes1 = almSim(
       lib,
       decision([tranche("CDT90", 100, { action: "reallocate", tranches: [tranche("TES1", 100, { action: "cash" })] })])
@@ -107,12 +109,10 @@ describe("almSim / scoreFinanciero", () => {
     );
     expect(allIntoTes1).not.toBeNull();
     expect(splitWithLiq).not.toBeNull();
-    // Keeping 40% perpetually liquid (vs. locking 100% into TES1) should
-    // reduce the *cumulative* shortfall across the horizon — a single
-    // month's peak can go either way depending on exactly when TES1's
-    // (smaller, in the split case) maturity lands relative to a payment
-    // spike, so total (not peak) is the robust comparison here.
-    expect(splitWithLiq!.totalBrechaCaja).toBeLessThanOrEqual(allIntoTes1!.totalBrechaCaja);
+    // Keeping 40% perpetually liquid (vs. locking 100% into TES1) means more
+    // shortfalls get covered by a free LIQ draw instead of a forced sale of
+    // TES1 — the forced-liquidation severity should never be higher.
+    expect(splitWithLiq!.ventaForzadaVolWeighted).toBeLessThanOrEqual(allIntoTes1!.ventaForzadaVolWeighted);
   });
 
   it("a repeating 3-month tranche cycles ~20 times over the horizon without excessive recursion or slowdown", () => {
@@ -174,6 +174,38 @@ describe("almSim / scoreFinanciero", () => {
     expect(safe).not.toBeNull();
     expect(withUvr).not.toBeNull();
     expect(withUvr!.rendimiento).toBeGreaterThan(safe!.rendimiento);
+  });
+
+  it("regression: a shortfall with no LIQ available force-sells the portfolio instead of leaving inversionNeta stuck at 0 with cajaFinal deeply negative", () => {
+    const sim = almSim(lib, decision([tranche("TES1", 100, { action: "repeat" })]));
+    expect(sim).not.toBeNull();
+    expect(sim!.totalVentaForzada).toBeGreaterThan(0);
+    for (const row of sim!.rows) {
+      if (row.brechaCaja > 0) {
+        // A residual brecha now only survives once the entire portfolio's
+        // *ending* balance that month has genuinely been drained — not
+        // just because LIQ (which this decision never even holds) ran dry.
+        expect(row.saldoFinalPortafolio).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("forced-selling ACC under duress is penalized more than forced-selling TES1 for an equivalent shortfall — a real hierarchy, not a flat penalty", () => {
+    const acc = scoreFinanciero(lib, decision([tranche("ACC", 100, { action: "repeat" }, 24)]));
+    const tes1 = scoreFinanciero(lib, decision([tranche("TES1", 100, { action: "repeat" })]));
+    expect(acc).not.toBeNull();
+    expect(tes1).not.toBeNull();
+    expect(acc!.totalVentaForzada).toBeGreaterThan(0);
+    expect(tes1!.totalVentaForzada).toBeGreaterThan(0);
+    expect(acc!.ventaForzadaSeveridad).toBeGreaterThan(tes1!.ventaForzadaSeveridad);
+    expect(acc!.ventaForzada).toBeLessThan(tes1!.ventaForzada);
+  });
+
+  it("a forced sale of LIQ itself (drawFromLiq) never counts toward the forced-liquidation penalty — that's exactly what LIQ is for", () => {
+    const sim = almSim(lib, decision([tranche("LIQ", 100, { action: "repeat" }, 3)]));
+    expect(sim).not.toBeNull();
+    expect(sim!.totalVentaForzada).toBe(0);
+    expect(sim!.ventaForzadaVolWeighted).toBe(0);
   });
 });
 
