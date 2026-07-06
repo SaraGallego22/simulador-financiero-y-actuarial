@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import { INSTRUMENTS } from "@/domain/finance/instruments";
-import type { Allocation, PortfolioDecision } from "@/domain/finance/instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike } from "@/domain/finance/instruments";
+import type { Allocation, PortfolioDecisionV2, MaturityRules } from "@/domain/finance/instruments";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { SEGMENTS } from "@/domain/grading/analytics";
@@ -32,24 +32,42 @@ function readAllocation(formData: FormData, prefix: string): Allocation {
   return alloc;
 }
 
+function readMaturityRules(formData: FormData): { rules: MaturityRules; error?: string } {
+  const rules: MaturityRules = {};
+  for (const ins of INSTRUMENTS) {
+    if (!isBondLike(ins)) continue;
+    const raw = formData.get(`maturity_${ins.id}`);
+    if (raw == null || raw === "") continue;
+    const value = String(raw);
+    if (value === "cash") {
+      rules[ins.id] = { action: "cash" };
+      continue;
+    }
+    if (!INSTRUMENT_BY_ID[value]) return { rules, error: `Regla de vencimiento inválida para ${ins.id}.` };
+    rules[ins.id] = { action: "reinvest", instrumentId: value };
+  }
+  return { rules };
+}
+
 /**
- * A team's portfolio decision has two parts, not one: `initial` (how the
- * Year-1 premium build-up is invested) and `reinvest` (the ongoing policy
- * applied every time an initially-picked instrument matures, once the
- * build-up phase ends) — see almSim()'s doc comment in
- * src/domain/finance/alm.ts for the full rationale. Both are required: a
- * team that only plans the initial pick and has no reinvestment policy
- * shouldn't score as if they'd planned the whole horizon.
+ * A team's portfolio decision has two parts: `allocation` (where fresh
+ * surplus cash gets invested every month) and `maturityRules` (a per-
+ * instrument rule for what happens when that specific holding matures —
+ * hold as cash, or reinvest into another instrument, chaining further) —
+ * see almSim()'s doc comment in src/domain/finance/alm.ts for the full
+ * rationale. An instrument with no maturity rule falls back to
+ * `allocation` when it matures, so a team can set one allocation and never
+ * touch anything else.
  */
 export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioState, formData: FormData): Promise<SubmitPortfolioState> {
   const teamId = await requireTeam();
 
-  const initial = readAllocation(formData, "initial");
-  const reinvest = readAllocation(formData, "reinvest");
-  if (Object.keys(initial).length === 0) return { error: "Define al menos un instrumento en la asignación inicial." };
-  if (Object.keys(reinvest).length === 0) return { error: "Define al menos un instrumento en la política de reinversión." };
+  const allocation = readAllocation(formData, "alloc");
+  if (Object.keys(allocation).length === 0) return { error: "Define al menos un instrumento en tu asignación." };
+  const { rules: maturityRules, error } = readMaturityRules(formData);
+  if (error) return { error };
 
-  const decision: PortfolioDecision = { initial, reinvest };
+  const decision: PortfolioDecisionV2 = { allocation, maturityRules };
   const decisionJson = decision as unknown as Prisma.InputJsonValue;
 
   await prisma.portfolioAllocation.upsert({

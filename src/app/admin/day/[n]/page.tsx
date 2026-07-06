@@ -4,7 +4,8 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { isPortfolioDecision } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV2 } from "@/domain/finance/instruments";
+import { AlmScoreTiles, AlmLadderTable, describeMaturityChain } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -81,9 +82,9 @@ export default async function AdminDayPage({
       for (const team of teams) {
         const rawAllocation = team.portfolioAllocations[0]?.allocation;
         const reserves = reservesByTeamId.get(team.id);
-        if (reserves && isPortfolioDecision(rawAllocation)) {
-          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation.initial, rawAllocation.reinvest));
-          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation.initial, rawAllocation.reinvest));
+        if (reserves && isPortfolioDecisionV2(rawAllocation)) {
+          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
+          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
         }
       }
     }
@@ -354,7 +355,8 @@ export default async function AdminDayPage({
                 const almScore = almScoreByTeamId.get(team.id);
                 const ladder = almLadderByTeamId.get(team.id);
                 const rawAllocation = team.portfolioAllocations[0]?.allocation;
-                const decision = isPortfolioDecision(rawAllocation) ? rawAllocation : undefined;
+                const decision = isPortfolioDecisionV2(rawAllocation) ? rawAllocation : undefined;
+                const maturitySourceIds = decision ? Object.keys(decision.maturityRules) : [];
                 return (
                   <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                     <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
@@ -368,69 +370,18 @@ export default async function AdminDayPage({
                     </summary>
                     {almScore && (
                       <div className="border-t border-[var(--color-brand-gray-light)] p-3">
-                        <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Calce (45%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                              {almScore.calce.toFixed(1)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento (45%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                              {almScore.rendimiento.toFixed(1)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Liquidez (10%)</p>
-                            <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                              {almScore.liquidez.toFixed(1)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Reserva</p>
-                            <p className="text-sm font-semibold">${Math.round(almScore.reserva).toLocaleString("es-CO")}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha máxima (peor mes)</p>
-                            <p className="text-sm font-semibold">
-                              ${Math.round(almScore.peakGap).toLocaleString("es-CO")} ({(almScore.peakShortfallRatio * 100).toFixed(1)}% de la reserva)
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha promedio (todo el horizonte)</p>
-                            <p className="text-sm font-semibold">
-                              {(almScore.avgShortfallRatio * 100).toFixed(1)}% de la reserva acumulada en déficit
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento portafolio (nominal, ponderado)</p>
-                            <p className="text-sm font-semibold">{(almScore.portYield * 100).toFixed(2)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento efectivo simulado</p>
-                            <p className="text-sm font-semibold">{(almScore.effYield * 100).toFixed(2)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Cobertura liquidez (6 meses)</p>
-                            <p className="text-sm font-semibold">
-                              ${Math.round(almScore.liq6).toLocaleString("es-CO")} / ${Math.round(almScore.liab6).toLocaleString("es-CO")} ({(almScore.cobertura * 100).toFixed(0)}%)
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">Ingreso total simulado</p>
-                            <p className="text-sm font-semibold">${Math.round(almScore.totIncome).toLocaleString("es-CO")}</p>
-                          </div>
+                        <div className="mb-3">
+                          <AlmScoreTiles score={almScore} />
                         </div>
 
                         <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
                             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Asignación inicial (fondeo Año 1)
+                              Asignación (nueva liquidez)
                             </p>
                             <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                              {decision?.initial
-                                ? Object.entries(decision.initial)
+                              {decision
+                                ? Object.entries(decision.allocation)
                                     .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
                                     .join(" · ")
                                 : "—"}
@@ -438,53 +389,17 @@ export default async function AdminDayPage({
                           </div>
                           <div>
                             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Política de reinversión (post Año 1)
+                              Reglas de vencimiento
                             </p>
                             <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                              {decision?.reinvest
-                                ? Object.entries(decision.reinvest)
-                                    .map(([id, w]) => `${id}: ${Number(w).toFixed(1)}`)
-                                    .join(" · ")
+                              {decision && maturitySourceIds.length > 0
+                                ? maturitySourceIds.map((id) => describeMaturityChain(id, decision.maturityRules)).join(" · ")
                                 : "—"}
                             </p>
                           </div>
                         </div>
 
-                        {ladder && ladder.rows.length > 0 && (
-                          <>
-                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Flujo esperado (pasivo) vs. lo que aportó el portafolio, mes a mes
-                            </p>
-                            <div className="max-h-64 overflow-y-auto overflow-x-auto">
-                              <table className="w-full text-xs">
-                                <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
-                                  <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                                    <th className="px-2 py-1">Mes</th>
-                                    <th className="px-2 py-1">Política</th>
-                                    <th className="px-2 py-1">Pago requerido</th>
-                                    <th className="px-2 py-1">Aporte</th>
-                                    <th className="px-2 py-1">Ingresos (aporte+venc.+rend.)</th>
-                                    <th className="px-2 py-1">Saldo caja</th>
-                                    <th className="px-2 py-1">Brecha (déficit)</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {ladder.rows.map((r, i) => (
-                                    <tr key={i} className={`border-t border-[var(--color-brand-gray-light)] ${r.brecha > 0 ? "bg-[var(--color-brand-red)]/10" : ""}`}>
-                                      <td className="px-2 py-1">{r.mes}</td>
-                                      <td className="px-2 py-1">{r.fase === "a1" ? "Inicial" : "Reinversión"}</td>
-                                      <td className="px-2 py-1">${Math.round(r.pago).toLocaleString("es-CO")}</td>
-                                      <td className="px-2 py-1">${Math.round(r.aporte).toLocaleString("es-CO")}</td>
-                                      <td className="px-2 py-1">${Math.round(r.ingresos).toLocaleString("es-CO")}</td>
-                                      <td className="px-2 py-1">${Math.round(r.saldo).toLocaleString("es-CO")}</td>
-                                      <td className="px-2 py-1">{r.brecha > 0 ? `$${Math.round(r.brecha).toLocaleString("es-CO")}` : "—"}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </>
-                        )}
+                        {ladder && <AlmLadderTable rows={ladder.rows} />}
                       </div>
                     )}
                   </details>
