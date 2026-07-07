@@ -1,6 +1,7 @@
 import { INSTRUMENT_BY_ID, MAX_TRANCHE_DEPTH, trancheDurationM } from "@/domain/finance/instruments";
 import type { Tranche, MaturityDecision } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow } from "@/domain/finance/alm";
+import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
 
 function maturityLabel(action: MaturityDecision): string {
   if (action.action === "cash") return "mantener en caja";
@@ -38,82 +39,121 @@ export function PortfolioTreeView({ tranches, depth = 0 }: { tranches: Tranche[]
   );
 }
 
+function ScoreTile({ label, weight, value, formula }: { label: string; weight: string; value: number; formula: string }) {
+  return (
+    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+      <p className="text-xs text-[var(--color-brand-text-secondary)]">
+        {label} <span className="font-semibold">({weight})</span>
+      </p>
+      <p
+        className={`font-[family-name:var(--font-condensed)] text-xl font-bold ${value < 80 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
+      >
+        {value.toFixed(1)}
+      </p>
+      <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+    </div>
+  );
+}
+
+function InfoTile({ label, value, formula, danger }: { label: string; value: string; formula?: string; danger?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-[var(--color-brand-text-secondary)]">{label}</p>
+      <p className={`text-sm font-semibold ${danger ? "text-[var(--color-brand-red)]" : ""}`}>{value}</p>
+      {formula && <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>}
+    </div>
+  );
+}
+
+function money(n: number): string {
+  return `$${Math.round(n).toLocaleString("es-CO")}`;
+}
+function pct(n: number, digits = 1): string {
+  return `${(n * 100).toFixed(digits)}%`;
+}
+
+/**
+ * Organized top-to-bottom by "what matters most": the final grade, then the
+ * 4 weighted components that make it up, then the raw inputs each of those
+ * 4 is actually computed from (with a one-line formula each, so nothing is
+ * a mystery number), and finally pure diagnostics that don't feed the grade
+ * at all — see scoreFinanciero()'s doc comment in alm.ts for the full
+ * derivation of every figure here.
+ */
 export function AlmScoreTiles({ score }: { score: FinancialScore }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Cumplimiento de caja mínima (35%)</p>
-        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-          {score.cumplimientoCaja.toFixed(1)}
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+        <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
+        <p className="font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue-accent)]">{score.nota.toFixed(1)}</p>
+        <p className="text-xs italic text-[var(--color-brand-text-secondary)]">
+          = 35% × Cumplimiento de Caja + 35% × Rendimiento ajustado + 20% × Venta forzada + 10% × Liquidez
         </p>
       </div>
+
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento ajustado por riesgo (35%)</p>
-        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-          {score.rendimiento.toFixed(1)}
-        </p>
+        <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Los 4 componentes de la nota</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <ScoreTile
+            label="Cumplimiento de Caja Mínima"
+            weight="35%"
+            value={score.cumplimientoCaja}
+            formula="100 × (1 − 0.5×peor mes − 0.5×acumulado, como % del Capital Social — ver abajo)"
+          />
+          <ScoreTile
+            label="Rendimiento ajustado por riesgo"
+            weight="35%"
+            value={score.rendimiento}
+            formula="normalizado de (rendimiento efectivo − 0.35×volatilidad) — ver abajo"
+          />
+          <ScoreTile
+            label="Venta forzada de portafolio"
+            weight="20%"
+            value={score.ventaForzada}
+            formula="100 × (1 − severidad de lo vendido bajo presión) — ver abajo"
+          />
+          <ScoreTile label="Liquidez" weight="10%" value={score.liquidez} formula="100 × min(1, líquido / pagos de 6 meses) — ver abajo" />
+        </div>
       </div>
+
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Venta forzada de portafolio (20%)</p>
-        <p
-          className={`font-[family-name:var(--font-condensed)] text-lg font-bold ${score.ventaForzada < 80 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
-        >
-          {score.ventaForzada.toFixed(1)}
-        </p>
+        <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">De dónde sale cada componente</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <InfoTile label="Peor mes: capital comprometido" value={pct(score.peakCapitalComprometidoRatio, 2)} formula="pico mensual ÷ Capital Social" />
+          <InfoTile
+            label="Acumulado (60 meses): capital comprometido"
+            value={pct(score.avgCapitalComprometidoRatio, 2)}
+            formula="suma de todos los meses ÷ Capital Social"
+          />
+          <InfoTile label="Rendimiento efectivo simulado" value={pct(score.effYield, 2)} formula="ingreso total ÷ (valor promedio invertido × 60 meses), anualizado" />
+          <InfoTile label="Volatilidad promedio realizada" value={pct(score.avgVol, 2)} formula="volatilidad de cada instrumento, ponderada por cuánto se mantuvo invertido" />
+          <InfoTile
+            label="Rendimiento ajustado por riesgo"
+            value={pct(score.riskAdjustedYield, 2)}
+            formula={`${pct(score.effYield, 2)} − 0.35 × ${pct(score.avgVol, 2)}`}
+          />
+          <InfoTile
+            label="Total vendido bajo presión (60 meses)"
+            value={`${money(score.totalVentaForzada)} (${pct(score.ventaForzadaSeveridad)} de severidad)`}
+            formula="monto vendido antes de tiempo, ponderado por la volatilidad de lo vendido"
+          />
+          <InfoTile label="Cobertura de liquidez (6 meses)" value={`${money(score.liq6)} / ${money(score.liab6)} (${(score.cobertura * 100).toFixed(0)}%)`} formula="líquido disponible ÷ pagos esperados en 6 meses" />
+        </div>
       </div>
+
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Liquidez (10%)</p>
-        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-          {score.liquidez.toFixed(1)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Reserva</p>
-        <p className="text-sm font-semibold">${Math.round(score.reserva).toLocaleString("es-CO")}</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Total vendido bajo presión (todo el horizonte)</p>
-        <p className="text-sm font-semibold">
-          ${Math.round(score.totalVentaForzada).toLocaleString("es-CO")} ({(score.ventaForzadaSeveridad * 100).toFixed(1)}% de severidad)
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Volatilidad promedio del portafolio</p>
-        <p className="text-sm font-semibold">{(score.avgVol * 100).toFixed(2)}%</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento efectivo − penalización por riesgo</p>
-        <p className="text-sm font-semibold">
-          {(score.effYield * 100).toFixed(2)}% → {(score.riskAdjustedYield * 100).toFixed(2)}%
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Peor mes: % de Capital Social comprometido</p>
-        <p className="text-sm font-semibold">{(score.peakCapitalComprometidoRatio * 100).toFixed(2)}%</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Acumulado (todo el horizonte): % de Capital Social</p>
-        <p className="text-sm font-semibold">{(score.avgCapitalComprometidoRatio * 100).toFixed(2)}%</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Patrimonio disponible al final del horizonte</p>
-        <p className={`text-sm font-semibold ${score.patrimonioDisponible < 0 ? "text-[var(--color-brand-red)]" : ""}`}>
-          ${Math.round(score.patrimonioDisponible).toLocaleString("es-CO")}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento portafolio (nominal, ponderado)</p>
-        <p className="text-sm font-semibold">{(score.portYield * 100).toFixed(2)}%</p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Cobertura liquidez (6 meses)</p>
-        <p className="text-sm font-semibold">
-          ${Math.round(score.liq6).toLocaleString("es-CO")} / ${Math.round(score.liab6).toLocaleString("es-CO")} ({(score.cobertura * 100).toFixed(0)}%)
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Ingreso total simulado</p>
-        <p className="text-sm font-semibold">${Math.round(score.totIncome).toLocaleString("es-CO")}</p>
+        <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Otros datos de referencia (no califican)</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <InfoTile label="Reserva" value={money(score.reserva)} />
+          <InfoTile label="Rendimiento portafolio (nominal)" value={pct(score.portYield, 2)} formula="promedio ponderado de los rendimientos elegidos, sin simular" />
+          <InfoTile label="Ingreso total simulado (60 meses)" value={money(score.totIncome)} />
+          <InfoTile
+            label="Patrimonio disponible al final"
+            value={money(score.patrimonioDisponible)}
+            formula="Capital Social − todo lo comprometido en 60 meses"
+            danger={score.patrimonioDisponible < 0}
+          />
+        </div>
       </div>
     </div>
   );
@@ -225,5 +265,87 @@ export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
         </table>
       </div>
     </>
+  );
+}
+
+/**
+ * Bridges the fictitious ALM (what's graded — Prima Cobrada = reserva/12,
+ * see README §5.3) to the real P&G's "Resultado de inversiones" line: shows
+ * the exact reference formula finBench() uses for that year, plugged in
+ * with numbers from both runs side by side. Reserva and Rendimiento del
+ * portafolio (portYield) never change between the two — both depend only
+ * on the real liability and the team's own decision tree, never on which
+ * premium funded the simulation — so whatever differs is entirely down to
+ * cash-flow timing (peor mes de capital comprometido), which genuinely
+ * does depend on the team's real premium.
+ */
+export function AlmPnlBreakdown({
+  scoreFicticio,
+  scoreReal,
+  year,
+}: {
+  scoreFicticio: FinancialScore;
+  scoreReal: FinancialScore;
+  year: 1 | 2;
+}) {
+  const peakFict = scoreFicticio.peakCapitalComprometidoRatio * CAPITAL_SOCIAL;
+  const peakReal = scoreReal.peakCapitalComprometidoRatio * CAPITAL_SOCIAL;
+
+  return (
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-4">
+      <h4 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+        Cómo llegar al Resultado de Inversiones del P&G — Año {year}
+      </h4>
+      {year === 1 ? (
+        <>
+          <p className="mb-2 text-sm text-[var(--color-foreground)]">
+            La fórmula de referencia (la que usa el sistema para calificar tu entregable) es:
+            <br />
+            <span className="font-mono text-xs">Reserva × Rendimiento del portafolio − 18% × peor mes de capital comprometido</span>
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM ficticio (el que se califica)</p>
+              <p className="text-xs">
+                {money(scoreFicticio.reserva)} × {pct(scoreFicticio.portYield, 2)} − 18% × {money(peakFict)} = <strong>{money(scoreFicticio.invInc)}</strong>
+              </p>
+            </div>
+            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM real (informativo)</p>
+              <p className="text-xs">
+                {money(scoreReal.reserva)} × {pct(scoreReal.portYield, 2)} − 18% × {money(peakReal)} = <strong>{money(scoreReal.invInc)}</strong>
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
+            La Reserva y el Rendimiento del portafolio son los mismos en ambos casos — no dependen de tu prima. Lo único que cambia entre el ALM ficticio
+            y el real es el peor mes de capital comprometido, porque depende de cuándo realmente entra tu caja.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-[var(--color-foreground)]">
+            La fórmula de referencia de este año es más simple — no incluye penalización por capital comprometido:
+            <br />
+            <span className="font-mono text-xs">Reserva de desarrollo (de tu propio cálculo del Día 2/3) × Rendimiento del portafolio</span>
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM ficticio</p>
+              <p className="text-xs">Rendimiento del portafolio: {pct(scoreFicticio.portYield, 2)}</p>
+            </div>
+            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM real</p>
+              <p className="text-xs">Rendimiento del portafolio: {pct(scoreReal.portYield, 2)}</p>
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
+            El Rendimiento del portafolio no cambia entre el ficticio y el real — depende solo de tu árbol de decisión, nunca de tu prima. La Reserva de
+            desarrollo (distinta de la Reserva del ALM) sale de tu propio cálculo de reservas del Año 2, no de esta pantalla: multiplícala por el
+            rendimiento de arriba para obtener tu Resultado de inversiones.
+          </p>
+        </>
+      )}
+    </div>
   );
 }

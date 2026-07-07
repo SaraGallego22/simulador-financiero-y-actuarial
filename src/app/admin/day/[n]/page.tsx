@@ -4,8 +4,9 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
 import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
+import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
-import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, PortfolioTreeView } from "@/components/AlmLadderTable";
+import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
@@ -73,8 +74,15 @@ export default async function AdminDayPage({
 
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
+  // Alongside the fictitious ALM (what's graded), also run the exact same
+  // decision tree funded by the team's real premium for this day/year
+  // (resultByTeamId, already day-scoped) — informational, so evaluators can
+  // see where a team's real P&G investment-result figure should come from
+  // (see AlmPnlBreakdown and README §5.3).
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
+  const almScoreRealByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
+  const almLadderRealByTeamId = new Map<string, ReturnType<typeof almLadder>>();
   if (latestRun?.status === "DONE") {
     const book = await getTeamBookForDay(cohort.id, day);
     if (book) {
@@ -84,7 +92,15 @@ export default async function AdminDayPage({
         const reserves = reservesByTeamId.get(team.id);
         if (reserves && isPortfolioDecisionV3(rawAllocation)) {
           almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
+          if (activeTab === "obj") {
+            almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
+            const realPremium = resultByTeamId.get(team.id)?.totalPremium;
+            if (realPremium != null) {
+              const aporteMensualReal = realPremium / BUILD_MONTHS;
+              almScoreRealByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation, aporteMensualReal));
+              almLadderRealByTeamId.set(team.id, almLadder(reserves, rawAllocation, aporteMensualReal));
+            }
+          }
         }
       }
     }
@@ -354,6 +370,8 @@ export default async function AdminDayPage({
               {teams.map((team) => {
                 const almScore = almScoreByTeamId.get(team.id);
                 const ladder = almLadderByTeamId.get(team.id);
+                const almScoreReal = almScoreRealByTeamId.get(team.id);
+                const ladderReal = almLadderRealByTeamId.get(team.id);
                 const rawAllocation = team.portfolioAllocations[0]?.allocation;
                 const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
                 return (
@@ -388,6 +406,19 @@ export default async function AdminDayPage({
                         {ladder && (
                           <div className="mt-3">
                             <AlmPortfolioTable rows={ladder.rows} />
+                          </div>
+                        )}
+
+                        {almScoreReal && (
+                          <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
+                            <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                              ALM real — con la prima real de este equipo (informativo, no se califica)
+                            </p>
+                            <div className="flex flex-col gap-3">
+                              <AlmPnlBreakdown scoreFicticio={almScore} scoreReal={almScoreReal} year={day === 1 ? 1 : 2} />
+                              {ladderReal && <AlmLadderTable rows={ladderReal.rows} />}
+                              {ladderReal && <AlmPortfolioTable rows={ladderReal.rows} />}
+                            </div>
                           </div>
                         )}
                       </div>

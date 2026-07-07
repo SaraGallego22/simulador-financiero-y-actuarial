@@ -217,7 +217,7 @@ function forceLiquidatePortfolio(neededNeta: number, positions: Position[]): { s
  * later flat per-instrument `maturityRules` — this version replaces both
  * with a genuine per-tranche decision tree.
  */
-export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): AlmSimResult | null {
+export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, aporteMensualReal?: number): AlmSimResult | null {
   if (!lib.hay) return null;
   const totalTopW = decision.tranches.reduce(
     (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
@@ -229,7 +229,15 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
   const totalPagoY1 = lib.payY1.reduce((s, v) => s + v, 0);
   const notionalFondeo = reserva + totalPagoY1;
   const TOTAL = BUILD_MONTHS + HORIZON;
-  const aporteMensual = notionalFondeo / BUILD_MONTHS;
+  // The fictitious ALM funds itself off the notional (reserva+payY1)/12 —
+  // sized to exactly match the liability, an intentional simplification
+  // (see the module doc comment). Passing aporteMensualReal (a team's real
+  // annual premium / BUILD_MONTHS) instead re-runs the exact same
+  // simulation — same claims schedule, same decision tree, same Caja
+  // Mínima rule — funded by what the team actually collected, so a team
+  // can see its *real* ALM (informational; the fictitious run is still
+  // what's graded, see README §5.3) side by side with the fictitious one.
+  const aporteMensual = aporteMensualReal ?? notionalFondeo / BUILD_MONTHS;
 
   let cajaFloat = 0;
   let positions: Position[] = [];
@@ -476,8 +484,8 @@ export interface FinancialScore {
  * liquidate LIQ doesn't count against this at all, since drawing LIQ down
  * is exactly what it's there for (see drawFromLiq/forceLiquidatePortfolio).
  */
-export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3): FinancialScore | null {
-  const sim = almSim(lib, decision);
+export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3, aporteMensualReal?: number): FinancialScore | null {
+  const sim = almSim(lib, decision, aporteMensualReal);
   if (!sim) return null;
   const {
     reserva,
@@ -596,12 +604,19 @@ export function almObjetivo(lib: LiabilitySchedule): FinancialScore | null {
 /** Monthly ladder view (Caja Inicial/Prima/Siniestros/Gastos/Vencimientos en caja/Inversión Neta/Caja Final), ported from almLadder(), line ~1809. */
 export function almLadder(
   lib: LiabilitySchedule,
-  decision: PortfolioDecisionV3
+  decision: PortfolioDecisionV3,
+  aporteMensualReal?: number
 ): { rows: AlmSimRow[]; peakCapitalComprometido: number; totalCapitalComprometido: number; reserva: number } | null {
-  const sim = almSim(lib, decision);
+  const sim = almSim(lib, decision, aporteMensualReal);
   if (!sim) return null;
   const rows = sim.rows.filter(
-    (r) => r.mes < 0 || r.pagoSiniestros > 0 || r.mes === 0 || r.ventaForzadaPortafolio > 0 || r.capitalComprometidoPortafolio > 0
+    (r) =>
+      r.mes < 0 ||
+      r.pagoSiniestros > 0 ||
+      r.mes === 0 ||
+      r.ventaForzadaPortafolio > 0 ||
+      r.capitalComprometidoPortafolio > 0 ||
+      r.mes === HORIZON - 1 // always show the last month of the horizon, even if nothing else about it would otherwise qualify — the table should visibly reach the end, not appear to cut off early
   );
   return { rows, peakCapitalComprometido: sim.peakCapitalComprometido, totalCapitalComprometido: sim.totalCapitalComprometido, reserva: sim.reserva };
 }
