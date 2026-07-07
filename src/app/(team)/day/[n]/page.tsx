@@ -12,9 +12,8 @@ import type { Dia } from "@/domain/grading/concepts";
 import type { Recommendation } from "@/domain/grading/analytics";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
-import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown } from "@/components/AlmLadderTable";
+import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES } from "@/lib/days";
@@ -96,16 +95,13 @@ export default async function TeamDayPage({
   );
 
   // ALM detail (team-scoped): only computed once the day's simulation is
-  // published, same gate as the underwriting results above. Alongside the
-  // fictitious ALM (what's graded — Prima Cobrada = reserva/12), also run
-  // the exact same decision tree funded by the team's *real* premium
-  // (publishedResult.totalPremium/12) — informational only, so the team
-  // can see where the numbers for next day's P&G deliverable come from
-  // (see AlmPnlBreakdown and README §5.3).
+  // published, same gate as the underwriting results above. Teams only
+  // ever see the fictitious ALM (what's graded) — the real-premium
+  // companion run exists for evaluators only, on the admin day page, so
+  // teams work out their own real P&G figure instead of reading it off an
+  // auto-computed number (see README §5.3).
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
-  let almScoreReal: ReturnType<typeof scoreFinanciero> = null;
-  let almLadderRowsReal: ReturnType<typeof almLadder> = null;
   if (activeTab === "obj" && includeSim && publishedResult && teamId) {
     const decision = isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null;
     if (decision) {
@@ -115,9 +111,6 @@ export default async function TeamDayPage({
       if (reserves) {
         almScore = scoreFinanciero(reserves, decision);
         almLadderRows = almLadder(reserves, decision);
-        const aporteMensualReal = publishedResult.totalPremium / BUILD_MONTHS;
-        almScoreReal = scoreFinanciero(reserves, decision, aporteMensualReal);
-        almLadderRowsReal = almLadder(reserves, decision, aporteMensualReal);
       }
     }
   }
@@ -253,24 +246,6 @@ export default async function TeamDayPage({
                   : "El evaluador aún no ha publicado los resultados de este día."}
               </p>
             )}
-          </div>
-        )}
-
-        {includeSim && almScoreReal && almScore && (
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
-            <h3 className="mb-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              ALM real — con tu prima real (informativo, no se califica)
-            </h3>
-            <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-              Mismo árbol de decisión, misma reserva y mismos siniestros que el ALM ficticio de arriba — la única diferencia es que este corre con tu prima
-              real (${Math.round(publishedResult!.totalPremium).toLocaleString("es-CO")}) en vez del supuesto de que la prima siempre alcanza exactamente
-              para fondear la reserva. Úsalo para entender de dónde salen las cifras de tu P&G real.
-            </p>
-            <div className="flex flex-col gap-3">
-              <AlmPnlBreakdown scoreFicticio={almScore} scoreReal={almScoreReal} year={day === 1 ? 1 : 2} />
-              {almLadderRowsReal && <AlmLadderTable rows={almLadderRowsReal.rows} />}
-              {almLadderRowsReal && <AlmPortfolioTable rows={almLadderRowsReal.rows} />}
-            </div>
           </div>
         )}
         </div>
