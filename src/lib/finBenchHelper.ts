@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getYear2ClaimsByTeamId, computeDevelopmentForTeams } from "./teamBook";
 import { scoreFinanciero } from "@/domain/finance/alm";
+import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import type { PortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
@@ -14,6 +15,15 @@ import type { FinBenchResult } from "@/domain/finance/finBench";
  * (computeDevelopmentForTeams), not finBench's simplified ratio fallback for
  * whenever that isn't available. See CLAUDE.md's domain glossary — finBench
  * itself is pure and framework-agnostic, this is the app-specific plumbing.
+ *
+ * Crucially, almYear1/almYear2 here are computed with each team's *real*
+ * premium (year1.totalPremium/BUILD_MONTHS, not the fictitious reserva/12
+ * notional almSim() otherwise assumes) — finBench()'s job is to benchmark
+ * the *real* P&G/Balance/Solvencia deliverables (see README §5.3), so its
+ * inputs have to be the real ALM, not the fictitious one the team's Día 1
+ * nota is graded on. Getting this backwards would benchmark a real
+ * deliverable against a hypothetical scenario the team was never actually
+ * in — a bug caught in review, not a design choice.
  */
 export async function computeFinBenchForCohort(cohortId: string): Promise<Map<string, FinBenchResult>> {
   const results = new Map<string, FinBenchResult>();
@@ -51,11 +61,12 @@ export async function computeFinBenchForCohort(cohortId: string): Promise<Map<st
     if (!liabilityYear1) continue;
 
     const alloc1 = alloc1ByTeamId.get(teamId);
-    const almYear1 = alloc1 ? scoreFinanciero(liabilityYear1, alloc1) : null;
+    const almYear1 = alloc1 ? scoreFinanciero(liabilityYear1, alloc1, year1.totalPremium / BUILD_MONTHS) : null;
 
     const year2 = year2ByTeamId.get(teamId);
     const alloc2 = alloc2ByTeamId.get(teamId);
-    const almYear2 = alloc2 ? scoreFinanciero(liabilityYear1, alloc2) : undefined;
+    const almYear2 =
+      alloc2 && year2 ? scoreFinanciero(liabilityYear1, alloc2, year2.totalPremium / BUILD_MONTHS) : undefined;
 
     const bench = finBench({
       year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount },

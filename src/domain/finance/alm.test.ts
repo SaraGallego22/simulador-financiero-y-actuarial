@@ -264,6 +264,35 @@ describe("almLadder", () => {
   });
 });
 
+describe("almSim's incomeY1/incomeY2 (what finBench() uses for the P&G's 'Resultado de inversiones', not a formula proxy)", () => {
+  const mix = decision([
+    tranche("LIQ", 30, { action: "repeat" }, 6),
+    tranche("CDT90", 30, { action: "repeat" }),
+    tranche("TESUVR8", 40, { action: "repeat" }),
+  ]);
+
+  it("incomeY1 is exactly the sum of rendimientoPortafolio across Year 1's 12 build months (mes -12..-1)", () => {
+    const sim = almSim(lib, mix);
+    expect(sim).not.toBeNull();
+    const buildPhaseIncome = sim!.rows.filter((r) => r.mes < 0).reduce((s, r) => s + r.rendimientoPortafolio, 0);
+    expect(sim!.incomeY1).toBeCloseTo(buildPhaseIncome, 4);
+  });
+
+  it("incomeY2 is exactly the sum of rendimientoPortafolio across the 12 months right after Year 1 closes (mes 0..11)", () => {
+    const sim = almSim(lib, mix);
+    expect(sim).not.toBeNull();
+    const year2Income = sim!.rows.filter((r) => r.mes >= 0 && r.mes < 12).reduce((s, r) => s + r.rendimientoPortafolio, 0);
+    expect(sim!.incomeY2).toBeCloseTo(year2Income, 4);
+  });
+
+  it("incomeY1 and incomeY2 are both strictly less than totIncome (the full 60-month sum) for a portfolio that keeps earning past month 24", () => {
+    const sim = almSim(lib, mix);
+    expect(sim).not.toBeNull();
+    expect(sim!.incomeY1).toBeLessThan(sim!.totIncome);
+    expect(sim!.incomeY2).toBeLessThan(sim!.totIncome);
+  });
+});
+
 describe("almSim's real-premium override (the 'ALM real' companion to the graded fictitious run)", () => {
   const mix = decision([
     tranche("LIQ", 30, { action: "repeat" }, 6),

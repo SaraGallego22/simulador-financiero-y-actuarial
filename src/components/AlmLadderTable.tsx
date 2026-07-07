@@ -1,7 +1,6 @@
 import { INSTRUMENT_BY_ID, MAX_TRANCHE_DEPTH, trancheDurationM } from "@/domain/finance/instruments";
 import type { Tranche, MaturityDecision } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow } from "@/domain/finance/alm";
-import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
 
 function maturityLabel(action: MaturityDecision): string {
   if (action.action === "cash") return "mantener en caja";
@@ -146,6 +145,8 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <InfoTile label="Reserva" value={money(score.reserva)} />
           <InfoTile label="Rendimiento portafolio (nominal)" value={pct(score.portYield, 2)} formula="promedio ponderado de los rendimientos elegidos, sin simular" />
+          <InfoTile label="Ingreso de inversión — Año 1" value={money(score.incomeY1)} formula="suma de Rendimiento (meses 1-12) — esto es lo que va al P&G" />
+          <InfoTile label="Ingreso de inversión — Año 2" value={money(score.incomeY2)} formula="suma de Rendimiento (meses 13-24) — esto es lo que va al P&G" />
           <InfoTile label="Ingreso total simulado (60 meses)" value={money(score.totIncome)} />
           <InfoTile
             label="Patrimonio disponible al final"
@@ -269,15 +270,31 @@ export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
 }
 
 /**
- * Bridges the fictitious ALM (what's graded — Prima Cobrada = reserva/12,
- * see README §5.3) to the real P&G's "Resultado de inversiones" line: shows
- * the exact reference formula finBench() uses for that year, plugged in
- * with numbers from both runs side by side. Reserva and Rendimiento del
- * portafolio (portYield) never change between the two — both depend only
- * on the real liability and the team's own decision tree, never on which
- * premium funded the simulation — so whatever differs is entirely down to
- * cash-flow timing (peor mes de capital comprometido), which genuinely
- * does depend on the team's real premium.
+ * Explains where finBench()'s "Resultado de inversiones" benchmark
+ * (p1.rinv/p2.rinv — the "Motor" figure the team's real P&G deliverable
+ * gets graded against, see concepts.ts's p1_rinv) actually comes from —
+ * admin-only, teams never see this (see README §5.3): the whole point is
+ * that a team reasons about its own real P&G from the fictitious ALM it
+ * *can* see, not that it reads the answer off a screen.
+ *
+ * Two different ALM runs matter here, for two different things:
+ * - The FICTITIOUS run (Prima Cobrada = reserva/12) is what the team's own
+ *   Día 1/2 ALM nota is graded on — a teaching device, never seen with real
+ *   premium.
+ * - The REAL run (funded by the team's actual premium) is what
+ *   finBenchHelper.ts feeds into finBench() to benchmark the *real* P&G/
+ *   Balance/Solvencia deliverables — benchmarking a real deliverable
+ *   against the hypothetical fictitious scenario would be wrong, since the
+ *   team was never actually in it.
+ *
+ * The figure itself is direct, not a proxy: real investment income (Σ
+ * AlmSimRow.rendimientoPortafolio, i.e. AlmSimResult.incomeY1/incomeY2)
+ * actually accrued during that specific calendar year — never
+ * reserva×portYield (ignores real cash-flow timing) and never a naive
+ * ending-minus-starting portfolio value (dominated by how much fresh money
+ * flowed in/out, not by investment performance). Capital comprometido does
+ * NOT factor in — it already reduces patrimonio directly in finBench()'s
+ * balance(), so folding it in here too would double-count the same event.
  */
 export function AlmPnlBreakdown({
   scoreFicticio,
@@ -288,64 +305,39 @@ export function AlmPnlBreakdown({
   scoreReal: FinancialScore;
   year: 1 | 2;
 }) {
-  const peakFict = scoreFicticio.peakCapitalComprometidoRatio * CAPITAL_SOCIAL;
-  const peakReal = scoreReal.peakCapitalComprometidoRatio * CAPITAL_SOCIAL;
+  const incomeFict = year === 1 ? scoreFicticio.incomeY1 : scoreFicticio.incomeY2;
+  const incomeReal = year === 1 ? scoreReal.incomeY1 : scoreReal.incomeY2;
 
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-4">
       <h4 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        Cómo llegar al Resultado de Inversiones del P&G — Año {year}
+        De dónde sale el Resultado de Inversiones del P&G real — Año {year}
       </h4>
-      {year === 1 ? (
-        <>
-          <p className="mb-2 text-sm text-[var(--color-foreground)]">
-            La fórmula de referencia (la que usa el sistema para calificar tu entregable) es:
-            <br />
-            <span className="font-mono text-xs">Reserva × Rendimiento del portafolio − 18% × peor mes de capital comprometido</span>
+      <p className="mb-2 text-sm text-[var(--color-foreground)]">
+        El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo, no una fórmula aproximada: el ingreso de inversión que el
+        portafolio realmente generó, mes a mes, durante{" "}
+        {year === 1 ? "los 12 meses del Año 1" : "los 12 meses del Año 2 (meses 13 a 24 de la simulación)"}, corrido con la prima real de este equipo — la
+        misma columna &ldquo;Rendimiento&rdquo; de la tabla de Valor del portafolio, sumada. No incluye el capital comprometido (eso ya se resta aparte,
+        directamente del patrimonio — ver §5.1).
+      </p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+          <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con el ALM real (esto es el benchmark real)</p>
+          <p className="text-xs">
+            <strong>{money(incomeReal)}</strong>
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM ficticio (el que se califica)</p>
-              <p className="text-xs">
-                {money(scoreFicticio.reserva)} × {pct(scoreFicticio.portYield, 2)} − 18% × {money(peakFict)} = <strong>{money(scoreFicticio.invInc)}</strong>
-              </p>
-            </div>
-            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM real (informativo)</p>
-              <p className="text-xs">
-                {money(scoreReal.reserva)} × {pct(scoreReal.portYield, 2)} − 18% × {money(peakReal)} = <strong>{money(scoreReal.invInc)}</strong>
-              </p>
-            </div>
-          </div>
-          <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
-            La Reserva y el Rendimiento del portafolio son los mismos en ambos casos — no dependen de tu prima. Lo único que cambia entre el ALM ficticio
-            y el real es el peor mes de capital comprometido, porque depende de cuándo realmente entra tu caja.
+        </div>
+        <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+          <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con el ALM ficticio (solo la nota de ALM del Día 1/2 usa este)</p>
+          <p className="text-xs">
+            <strong>{money(incomeFict)}</strong>
           </p>
-        </>
-      ) : (
-        <>
-          <p className="mb-2 text-sm text-[var(--color-foreground)]">
-            La fórmula de referencia de este año es más simple — no incluye penalización por capital comprometido:
-            <br />
-            <span className="font-mono text-xs">Reserva de desarrollo (de tu propio cálculo del Día 2/3) × Rendimiento del portafolio</span>
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM ficticio</p>
-              <p className="text-xs">Rendimiento del portafolio: {pct(scoreFicticio.portYield, 2)}</p>
-            </div>
-            <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-              <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con tu ALM real</p>
-              <p className="text-xs">Rendimiento del portafolio: {pct(scoreReal.portYield, 2)}</p>
-            </div>
-          </div>
-          <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
-            El Rendimiento del portafolio no cambia entre el ficticio y el real — depende solo de tu árbol de decisión, nunca de tu prima. La Reserva de
-            desarrollo (distinta de la Reserva del ALM) sale de tu propio cálculo de reservas del Año 2, no de esta pantalla: multiplícala por el
-            rendimiento de arriba para obtener tu Resultado de inversiones.
-          </p>
-        </>
-      )}
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
+        La Reserva y el Rendimiento nominal del portafolio (portYield) son los mismos en ambos casos — no dependen de la prima. Lo que sí puede cambiar es
+        este ingreso de inversión, porque depende de cuándo entra realmente la caja mes a mes.
+      </p>
     </div>
   );
 }

@@ -125,8 +125,16 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     rsa1 = reservas1 - ibnr1;
   }
 
+  // rinv1/rinv2 are the *real* investment income the ALM simulation accrued
+  // during that specific calendar year (AlmSimResult.incomeY1/incomeY2),
+  // not a formula proxy — reserva×portYield would double-count what's
+  // already a direct cash-timing effect (capitalComprometido, subtracted
+  // straight from patrimonio below) and, worse, doesn't reflect what the
+  // portfolio actually earned, only what its *nominal* yield would suggest.
+  // Falls back to the old reserva×yield estimate only when there's no ALM
+  // decision at all to simulate from.
   const portYield = almYear1 ? almYear1.portYield : 0.08;
-  const rinv1 = almYear1 ? almYear1.invInc : reservas1 * 0.08;
+  const rinv1 = almYear1 ? almYear1.incomeY1 : reservas1 * 0.08;
   const p1 = pyg(year1.totalPremium, year1.claimsAmount, reservas1, rinv1);
 
   let p2: PnL | null = null;
@@ -136,7 +144,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const portYield2 = alm2 ? alm2.portYield : portYield;
     reservas2 = development.reservaFinY2;
     const costoCal = development.ultY2 + development.development;
-    const rinv2 = reservas2 * portYield2;
+    const rinv2 = alm2 ? alm2.incomeY2 : reservas2 * portYield2;
     const gadq = FZ.gAdq * year2.totalPremium;
     const gcom = FZ.gCom * year2.totalPremium;
     const gadm = FZ.gAdmin * year2.totalPremium;
@@ -165,7 +173,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const portYield2 = alm2 ? alm2.portYield : portYield;
     const ratio = year1.claimsAmount > 0 ? reservas1 / year1.claimsAmount : 0.4;
     reservas2 = year2.claimsAmount * ratio;
-    p2 = pyg(year2.totalPremium, year2.claimsAmount, reservas2, reservas2 * portYield2);
+    const rinv2 = alm2 ? alm2.incomeY2 : reservas2 * portYield2;
+    p2 = pyg(year2.totalPremium, year2.claimsAmount, reservas2, rinv2);
     p2.desarrollo = 0;
     p2.pagos = null;
     p2.ultAcc = year2.claimsAmount;

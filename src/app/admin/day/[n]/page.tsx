@@ -412,7 +412,8 @@ export default async function AdminDayPage({
                         {almScoreReal && (
                           <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
                             <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              ALM real — con la prima real de este equipo (informativo, no se califica)
+                              ALM real — con la prima real de este equipo (esto es lo que finBench usa para el Resultado de Inversiones/Balance/Solvencia
+                              reales; el ALM ficticio de arriba solo califica la nota de ALM del Día 1/2)
                             </p>
                             <div className="flex flex-col gap-3">
                               <AlmPnlBreakdown scoreFicticio={almScore} scoreReal={almScoreReal} year={day === 1 ? 1 : 2} />

@@ -10,7 +10,13 @@ const liabilityYear1: LiabilitySchedule = {
   hay: true,
 };
 
-function fakeAlmScore(avgVol: number, capitalComprometidoY1 = 0, capitalComprometidoY2 = 0): FinancialScore {
+function fakeAlmScore(
+  avgVol: number,
+  capitalComprometidoY1 = 0,
+  capitalComprometidoY2 = 0,
+  incomeY1 = 2_000_000,
+  incomeY2 = 2_200_000
+): FinancialScore {
   return {
     cumplimientoCaja: 100,
     rendimiento: 50,
@@ -22,7 +28,8 @@ function fakeAlmScore(avgVol: number, capitalComprometidoY1 = 0, capitalComprome
     reserva: 20_000_000,
     peakCapitalComprometidoRatio: 0,
     avgCapitalComprometidoRatio: 0,
-    invInc: 20_000_000 * 0.1,
+    incomeY1,
+    incomeY2,
     liq6: 0,
     liab6: 0,
     cobertura: 1,
@@ -135,5 +142,37 @@ describe("finBench", () => {
     // Same starting equity before retained earnings diverge it — patrimonio
     // - uneta isolates capital0 itself.
     expect(smallPremium.bal1.patrimonio - smallPremium.p1.uneta).toBeCloseTo(bigPremium.bal1.patrimonio - bigPremium.p1.uneta, 4);
+  });
+
+  it("rinv1/rinv2 (P&G 'Resultado de inversiones') are the ALM's real simulated income for that year, not reserva×portYield", () => {
+    const bench = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmScore(0.05, 0, 0, 3_141_592, 2_718_281),
+    });
+    expect(bench.p1.rinv).toBe(3_141_592);
+    // Deliberately not reserva*portYield (20_000_000*0.1=2_000_000) — if it
+    // were, this would fail, which is exactly the point.
+    expect(bench.p1.rinv).not.toBeCloseTo(20_000_000 * 0.1, 0);
+    expect(bench.p2!.rinv).toBe(2_718_281);
+  });
+
+  it("capital comprometido never affects rinv/uai — it only reduces patrimonio directly, so it's never double-counted", () => {
+    const noErosion = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmScore(0.05, 0, 0),
+    });
+    const heavilyEroded = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmScore(0.05, 50_000_000_000, 0),
+    });
+    expect(heavilyEroded.p1.rinv).toBe(noErosion.p1.rinv);
+    expect(heavilyEroded.p1.uai).toBe(noErosion.p1.uai);
+    expect(heavilyEroded.p1.uneta).toBe(noErosion.p1.uneta);
+    // The erosion still shows up — just on the balance sheet, not the P&L.
+    expect(heavilyEroded.bal1.patrimonio).toBeLessThan(noErosion.bal1.patrimonio);
   });
 });

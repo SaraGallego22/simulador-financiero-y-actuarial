@@ -62,6 +62,7 @@ export interface AlmSimResult {
   avgPV: number;
   totIncome: number;
   incomeY1: number;
+  incomeY2: number;
   liq6: number;
   liab6: number;
   /** Diagnostic only (not used in scoring) — the largest number of simultaneously open positions, a sanity check that a team's tree isn't spawning a pathological number of live branches. */
@@ -247,6 +248,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
   let sumCajaMinima = 0;
   let totIncome = 0;
   let incomeY1 = 0;
+  let incomeY2 = 0;
   let sumPV = 0;
   let sumVolWeighted = 0;
   let liq6 = 0;
@@ -280,6 +282,15 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
     }
     totIncome += devengo;
     if (buildPhase) incomeY1 += devengo;
+    // Year 2 = the 12 months right after Year 1 closes (t=12..23), same
+    // windowing as capitalComprometidoY2 below — the actual investment
+    // income the portfolio generated during that specific calendar year,
+    // not a formula proxy (see finBench()'s rinv2, and the module doc
+    // comment's note on why this is what "resultado de inversiones"
+    // should mean for a P&G line: real accrued yield/growth on what was
+    // invested, never contaminated by how much fresh money flowed in or
+    // out that year).
+    if (t >= BUILD_MONTHS && t < BUILD_MONTHS + 12) incomeY2 += devengo;
 
     // 2. Route this month's maturities per each position's own onMaturity.
     const remaining: Position[] = [];
@@ -401,6 +412,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
     avgPV,
     totIncome,
     incomeY1,
+    incomeY2,
     liq6,
     liab6,
     peakOpenPositions,
@@ -429,7 +441,10 @@ export interface FinancialScore {
   peakCapitalComprometidoRatio: number;
   /** Fraction of Capital Social committed cumulatively across the whole horizon, clipped to [0,1] — chronic-erosion half of cumplimientoCaja. */
   avgCapitalComprometidoRatio: number;
-  invInc: number;
+  /** Real investment income the portfolio accrued during Year 1's 12 build months (Σ AlmSimRow.rendimientoPortafolio for those months) — this, not a formula, is what finBench() uses for the Año 1 P&G's "Resultado de inversiones" line. Never contaminated by how much fresh money flowed in/out that year, unlike a naive ending-minus-starting-portfolio-value delta would be. */
+  incomeY1: number;
+  /** Same idea as incomeY1, for the 12 months right after Year 1 closes — what finBench() uses for the Año 2/3 P&G's "Resultado de inversiones" line. */
+  incomeY2: number;
   liq6: number;
   liab6: number;
   cobertura: number;
@@ -493,6 +508,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     totalCapitalComprometido,
     capitalComprometidoY1,
     capitalComprometidoY2,
+    incomeY1,
+    incomeY2,
     sumCajaMinima,
     liab6,
     liq6,
@@ -533,8 +550,6 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
   const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_VENTA_FORZADA * ventaForzada + W_LIQ * liquidez;
 
-  const penalty = peakCapitalComprometido * 0.18;
-  const invInc = reserva * portYield - penalty;
   const cobertura = liab6 > 0 ? liq6 / liab6 : 1;
 
   return {
@@ -548,7 +563,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     reserva,
     peakCapitalComprometidoRatio,
     avgCapitalComprometidoRatio,
-    invInc,
+    incomeY1,
+    incomeY2,
     liq6,
     liab6,
     cobertura,
