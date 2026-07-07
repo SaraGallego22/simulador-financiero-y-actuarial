@@ -3,6 +3,7 @@ import { toInt32View, toFloat32View } from "./binary";
 import { generateColombia } from "@/domain/generation/generateColombia";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
+import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import { ANIO_BASE_A1, N_COLOMBIA } from "@/domain/generation/constants";
 import { computeLiabilitySchedules } from "@/domain/reserving/liability";
 import type { ClaimForLiability, LiabilitySchedule } from "@/domain/reserving/liability";
@@ -26,27 +27,61 @@ export interface TeamBook {
 }
 
 /**
- * Reconstructs each team's book of business (their claims, for reserving)
- * from a completed SimulationRun. Needed because the assignment array
- * stored on `SimulationRun.resultData` uses ephemeral numeric ids (1..N,
- * scoped to that one run) — the mapping back to real `team.id` strings is
- * stored in `SimulationRun.params.teamIdByNumericId` (see /api/simulation).
+ * Generates the cohort's active Colombia universe once, for a caller that
+ * needs to pass it into *multiple* other calls this same request (e.g.
+ * admin/day/[n], which calls getTeamBookForDay() for the current day *and*
+ * computeFinBenchBundlesForCohort() — which itself needs Day 1's book —
+ * without this each of those would regenerate its own 1,000,000-row copy).
+ * Returns null if no universe has been generated for this cohort yet.
  */
-export async function getTeamBookForDay(cohortId: string, day: number): Promise<TeamBook | null> {
-  const run = await prisma.simulationRun.findFirst({
-    where: { cohortId, day, status: "DONE" },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!run) return null;
-
+export async function getActiveColombiaUniverse(cohortId: string): Promise<ColombiaUniverse | null> {
   const universeRun = await prisma.universeRun.findFirst({
     where: { cohortId, kind: "colombia", status: "DONE" },
     orderBy: { createdAt: "desc" },
     select: { seed: true },
   });
   if (!universeRun) return null;
-  // Regenerated from the seed, not fetched as a stored blob — see CLAUDE.md §4.1.
-  const universe = generateColombia(universeRun.seed);
+  return generateColombia(universeRun.seed);
+}
+
+/**
+ * Reconstructs each team's book of business (their claims, for reserving)
+ * from a completed SimulationRun. Needed because the assignment array
+ * stored on `SimulationRun.resultData` uses ephemeral numeric ids (1..N,
+ * scoped to that one run) — the mapping back to real `team.id` strings is
+ * stored in `SimulationRun.params.teamIdByNumericId` (see /api/simulation).
+ */
+/**
+ * `universeOverride` lets a caller that already generated (or already has)
+ * the Colombia universe this request — e.g. /api/simulation/route.ts,
+ * which needs it anyway to run the market simulation itself — pass it in
+ * instead of triggering another full generateColombia() call. Regenerating
+ * a 1,000,000-row universe is individually "fast" (~1s, see CLAUDE.md §4.1)
+ * but its several typed arrays (~40MB) add up fast when multiple call
+ * sites each regenerate their own copy within the same request; a
+ * production OOM on the Día 2 simulation trigger (three separate
+ * regenerations in one request, once here, once in
+ * getYear2ClaimsByTeamId(), once in the route itself) is exactly what this
+ * parameter exists to prevent.
+ */
+export async function getTeamBookForDay(cohortId: string, day: number, universeOverride?: ColombiaUniverse): Promise<TeamBook | null> {
+  const run = await prisma.simulationRun.findFirst({
+    where: { cohortId, day, status: "DONE" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!run) return null;
+
+  let universe = universeOverride;
+  if (!universe) {
+    const universeRun = await prisma.universeRun.findFirst({
+      where: { cohortId, kind: "colombia", status: "DONE" },
+      orderBy: { createdAt: "desc" },
+      select: { seed: true },
+    });
+    if (!universeRun) return null;
+    // Regenerated from the seed, not fetched as a stored blob — see CLAUDE.md §4.1.
+    universe = generateColombia(universeRun.seed);
+  }
 
   const claimsByTeamId = new Map<string, Omit<ClaimForLiability, "teamId">[]>();
   const addClaim = (teamId: string, exposureIndex: number) => {
@@ -152,9 +187,16 @@ export async function getPreviousAssignmentNumeric(
  * Year-1 fields) — needed to feed computeDevelopment() a real Year1->Year2
  * runoff instead of the simplified ratio fallback finBench() uses when no
  * development schedule is supplied.
+ *
+ * `universeOverride`/`year2ClaimsOverride` avoid a redundant regeneration
+ * when the caller already has them this request — see getTeamBookForDay()'s
+ * doc comment; this was the other half of a production OOM on the Día 2
+ * simulation trigger.
  */
 export async function getYear2ClaimsByTeamId(
-  cohortId: string
+  cohortId: string,
+  universeOverride?: ColombiaUniverse,
+  year2ClaimsOverride?: Year2Claims
 ): Promise<Map<string, Omit<ClaimForLiability, "teamId">[]> | null> {
   const run = await prisma.simulationRun.findFirst({
     where: { cohortId, day: 2, status: "DONE" },
@@ -162,14 +204,18 @@ export async function getYear2ClaimsByTeamId(
   });
   if (!run) return null;
 
-  const universeRun = await prisma.universeRun.findFirst({
-    where: { cohortId, kind: "colombia", status: "DONE" },
-    orderBy: { createdAt: "desc" },
-    select: { seed: true },
-  });
-  if (!universeRun) return null;
-  const universe = generateColombia(universeRun.seed);
-  const year2Claims = generateYear2Claims(universe, universeRun.seed);
+  let universe = universeOverride;
+  let year2Claims = year2ClaimsOverride;
+  if (!universe || !year2Claims) {
+    const universeRun = await prisma.universeRun.findFirst({
+      where: { cohortId, kind: "colombia", status: "DONE" },
+      orderBy: { createdAt: "desc" },
+      select: { seed: true },
+    });
+    if (!universeRun) return null;
+    universe = universe ?? generateColombia(universeRun.seed);
+    year2Claims = year2Claims ?? generateYear2Claims(universe, universeRun.seed);
+  }
 
   const claimsByTeamId = new Map<string, Omit<ClaimForLiability, "teamId">[]>();
   const addClaim = (teamId: string, k: number) => {

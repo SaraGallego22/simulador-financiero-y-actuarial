@@ -1,7 +1,7 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedForTeamAction } from "@/lib/adminActions";
-import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
@@ -77,10 +77,19 @@ export default async function AdminDayPage({
   // nota) — the real ALM (below, via finBenchBundlesByTeamId) is a
   // completely separate, 12-months-at-a-time computation, not a variant of
   // this one (see README §5.3).
+  // Generated once and reused below for every call that would otherwise
+  // regenerate its own copy this same request (getTeamBookForDay,
+  // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
+  // getActiveColombiaUniverse()'s doc comment; this exact redundancy (three
+  // separate 1,000,000-row regenerations) caused a production OOM on the
+  // Día 2 *simulation trigger* (/api/simulation), and made this page slow
+  // to load for the same reason.
+  const universe = day >= 1 ? await getActiveColombiaUniverse(cohort.id) : null;
+
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
   if (latestRun?.status === "DONE") {
-    const book = await getTeamBookForDay(cohort.id, day);
+    const book = await getTeamBookForDay(cohort.id, day, universe ?? undefined);
     if (book) {
       const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
       for (const team of teams) {
@@ -102,7 +111,7 @@ export default async function AdminDayPage({
   // bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder without
   // a second, separately-computed "real" run that could drift out of sync
   // with what's actually graded (see finBenchHelper.ts's doc comment).
-  const finBenchBundlesByTeamId = day >= 1 ? await computeFinBenchBundlesForCohort(cohort.id) : new Map();
+  const finBenchBundlesByTeamId = day >= 1 ? await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : new Map();
   const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
 
   // Each team's Año 1/Año 2 capital-derived market-share limit (see

@@ -176,7 +176,9 @@ export async function POST(request: Request) {
       const capacityByRealTeamId = await computeCapacityByTeamId(
         cohort.id,
         day,
-        eligibleTeams.map((t) => ({ id: t.id, avgOwnPremium: t.tariffSubmissions[0].meanPremium! }))
+        eligibleTeams.map((t) => ({ id: t.id, avgOwnPremium: t.tariffSubmissions[0].meanPremium! })),
+        universe,
+        year2Claims ?? undefined
       );
       const capacityByTeamId = new Map<number, number>();
       for (const t of eligibleTeams) {
