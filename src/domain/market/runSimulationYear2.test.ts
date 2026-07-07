@@ -11,6 +11,10 @@ function flatTariff(n: number, premium: number): Float32Array {
   return new Float32Array(n).fill(premium);
 }
 
+function unlimited(teams: TeamInfo[]): Map<number, number> {
+  return new Map(teams.map((t) => [t.id, Infinity]));
+}
+
 describe("runSimulationYear2", () => {
   const universe = generateColombia(42, N);
   const year2Claims = generateYear2Claims(universe, 42);
@@ -25,7 +29,13 @@ describe("runSimulationYear2", () => {
     [3, flatTariff(N, 1_100_000)],
   ]);
 
-  const year1 = runSimulation(universe, tariffs, teams, { seed: 42, beta: 1.5, marcaScale: 0.3, cuotaPct: 0.5 });
+  const year1 = runSimulation(universe, tariffs, teams, {
+    seed: 42,
+    beta: 1.5,
+    marcaScale: 0.3,
+    cuotaPct: 0.5,
+    capacityByTeamId: unlimited(teams),
+  });
 
   it("assigns every exposure and tallies insuredCount consistently", () => {
     const result = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, {
@@ -33,6 +43,7 @@ describe("runSimulationYear2", () => {
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.5,
+      capacityByTeamId: unlimited(teams),
       retentionFactor: 1,
     });
     expect(result.assignment.length).toBe(N);
@@ -50,6 +61,7 @@ describe("runSimulationYear2", () => {
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.9, // high cap so capacity limits don't mask the retention effect
+      capacityByTeamId: unlimited(teams),
       retentionFactor: 0,
     });
     const withRetention = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, {
@@ -57,6 +69,7 @@ describe("runSimulationYear2", () => {
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.9,
+      capacityByTeamId: unlimited(teams),
       retentionFactor: 5,
     });
 
@@ -69,21 +82,35 @@ describe("runSimulationYear2", () => {
     expect(retainedWith).toBeGreaterThan(retainedWithout);
   });
 
+  it("a team's own capacityByTeamId binds even when it's below the cuotaPct ceiling", () => {
+    const capacity = new Map<number, number>([
+      [1, 50],
+      [2, Infinity],
+      [3, Infinity],
+    ]);
+    const result = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9,
+      capacityByTeamId: capacity,
+      retentionFactor: 1,
+    });
+    expect(result.aggregates.get(1)!.insuredCount).toBeLessThanOrEqual(50);
+    expect(result.aggregates.get(1)!.capacityLimit).toBe(50);
+  });
+
   it("is deterministic for a given seed", () => {
-    const a = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, {
+    const params = {
       seed: 5,
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.5,
+      capacityByTeamId: unlimited(teams),
       retentionFactor: 2,
-    });
-    const b = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, {
-      seed: 5,
-      beta: 1.5,
-      marcaScale: 0.3,
-      cuotaPct: 0.5,
-      retentionFactor: 2,
-    });
+    };
+    const a = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, params);
+    const b = runSimulationYear2(universe, year2Claims, year1.assignment, tariffs, teams, params);
     expect(Array.from(a.assignment)).toEqual(Array.from(b.assignment));
   });
 });

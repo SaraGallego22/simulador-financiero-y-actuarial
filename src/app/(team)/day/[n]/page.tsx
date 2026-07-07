@@ -76,6 +76,23 @@ export default async function TeamDayPage({
         })
       : [],
   ]);
+
+  // Día 4 retrospective: both years' capital-derived market-share limits
+  // side by side, so a team whose growth was capped can connect it to the
+  // solvency figures it's reporting this same day (see README's market
+  // section) — the team's own view never sees finBench's raw bench figures
+  // (only admin does, see admin/day/[n]/page.tsx), so this reuses what's
+  // already published on TeamSimResult from Día 1/2 instead of computing a
+  // fresh finBench() here.
+  const capacityHistory =
+    day === 4 && teamId
+      ? await prisma.teamSimResult.findMany({
+          where: { teamId, published: true, simulationRun: { day: { in: [1, 2] } } },
+          orderBy: { simulationRun: { day: "asc" } },
+          select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
+        })
+      : [];
+
   // Subjective grading is person-level only — the team's grade per skill is
   // the average across members who have a published score for it.
   const teamAverageBySkill: { skillName: string; average: number }[] = [];
@@ -223,6 +240,34 @@ export default async function TeamDayPage({
                     : "—"}
                 </p>
               </div>
+              <div>
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Pólizas rechazadas</p>
+                <p
+                  className={`font-[family-name:var(--font-condensed)] text-xl font-bold ${publishedResult.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
+                >
+                  {publishedResult.rejectedCount.toLocaleString("es-CO")}
+                </p>
+              </div>
+              {(() => {
+                const extra = publishedResult.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
+                // capacityLimit = min(rawCapacityLimit, techo del admin) — si
+                // son iguales, tu propio capital fue lo que te limitó; si el
+                // límite aplicado es menor que tu capacidad por capital, fue
+                // el techo del admin el que te limitó primero.
+                const cappedByCapital = extra.rawCapacityLimit <= extra.capacityLimit;
+                return (
+                  <div className="col-span-2 sm:col-span-4">
+                    <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                      <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
+                      tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
+                      manteniendo un margen de solvencia de al menos 1.0x. El límite que realmente se aplicó fue{" "}
+                      {extra.capacityLimit.toLocaleString("es-CO")} — {cappedByCapital ? "tu propio capital fue lo que te limitó primero" : "el techo máximo que fijó el admin te limitó antes de llegar a tu propia capacidad"}.
+                      En el Día 4 puedes ver la conexión completa con tu solvencia real.
+                    </p>
+                  </div>
+                );
+              })()}
               {includeSim && (
                 <div className="col-span-2 sm:col-span-4">
                   <a
@@ -238,6 +283,37 @@ export default async function TeamDayPage({
             <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados de este día.</p>
           )}
         </div>
+
+        {day === 4 && capacityHistory.length > 0 && (
+          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              Tu límite de cuota, Año 1 vs. Año 2
+            </h3>
+            <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
+              Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si tu capital se
+              ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás reportando este día.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {capacityHistory.map((r) => {
+                const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                return (
+                  <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
+                    <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Año {r.simulationRun.day}</p>
+                    <p className="mt-1 text-sm">
+                      Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                    </p>
+                    <p className="text-sm">
+                      Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                    </p>
+                    <p className="text-sm">
+                      Pólizas rechazadas: <strong className={r.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : ""}>{r.rejectedCount.toLocaleString("es-CO")}</strong>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {includeSim && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">

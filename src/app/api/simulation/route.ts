@@ -11,6 +11,7 @@ import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import type { TeamInfo } from "@/domain/market/runSimulation";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { getPreviousAssignmentNumeric } from "@/lib/teamBook";
+import { computeCapacityByTeamId } from "@/lib/capacityHelper";
 
 // Same reasoning as /api/universe: runs synchronously, no queue — see
 // CLAUDE.md §4.1. Hobby's max duration is 300s.
@@ -25,6 +26,8 @@ interface TeamAggregate {
   sumLambda: number;
   retainedCount?: number;
   newCount?: number;
+  capacityLimit: number;
+  rawCapacityLimit: number;
 }
 
 /**
@@ -55,7 +58,10 @@ function aggregateMonopoly(
       claimsAmount += sev[k];
     }
   }
-  return { insuredCount: n, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda };
+  // No capacity constraint applies here — a monopoly gets the whole
+  // universe by definition (see this function's doc comment), so its
+  // capacity limit is trivially "everything it got".
+  return { insuredCount: n, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda, capacityLimit: n, rawCapacityLimit: n };
 }
 
 export async function POST(request: Request) {
@@ -162,6 +168,21 @@ export async function POST(request: Request) {
         tariffsByTeam.set(numericIdByTeamId.get(t.id)!, toFloat32View(t.tariffSubmissions[0].data, N_COLOMBIA));
       }
 
+      // Solvency-derived, per-team market-share limit — replaces the old
+      // uniform cuotaPct-only cap as what actually rejects excess demand;
+      // cuotaPct remains an absolute ceiling nobody can exceed regardless
+      // of capital (see CLAUDE.md-adjacent README section on this and
+      // capacityHelper.ts's doc comment for the Año1/Año2 distinction).
+      const capacityByRealTeamId = await computeCapacityByTeamId(
+        cohort.id,
+        day,
+        eligibleTeams.map((t) => ({ id: t.id, avgOwnPremium: t.tariffSubmissions[0].meanPremium! }))
+      );
+      const capacityByTeamId = new Map<number, number>();
+      for (const t of eligibleTeams) {
+        capacityByTeamId.set(numericIdByTeamId.get(t.id)!, capacityByRealTeamId.get(t.id) ?? 0);
+      }
+
       if (day === 2 && year2Claims) {
         const previousAssignment = await getPreviousAssignmentNumeric(cohort.id, 1, numericIdByTeamId, universe.n);
         if (!previousAssignment) {
@@ -172,6 +193,7 @@ export async function POST(request: Request) {
           beta,
           marcaScale,
           cuotaPct,
+          capacityByTeamId,
           retentionFactor,
         });
         for (const t of eligibleTeams) {
@@ -183,7 +205,7 @@ export async function POST(request: Request) {
           data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
         });
       } else {
-        const result = runSimulation(universe, tariffsByTeam, teamInfos, { seed, beta, marcaScale, cuotaPct });
+        const result = runSimulation(universe, tariffsByTeam, teamInfos, { seed, beta, marcaScale, cuotaPct, capacityByTeamId });
         for (const t of eligibleTeams) {
           const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
           aggregateByTeamId.set(t.id, agg);
@@ -207,7 +229,13 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: { sumLambda: agg.sumLambda, retainedCount: agg.retainedCount, newCount: agg.newCount },
+            extra: {
+              sumLambda: agg.sumLambda,
+              retainedCount: agg.retainedCount,
+              newCount: agg.newCount,
+              capacityLimit: agg.capacityLimit,
+              rawCapacityLimit: agg.rawCapacityLimit,
+            },
           },
           create: {
             simulationRunId: run.id,
@@ -217,7 +245,13 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: { sumLambda: agg.sumLambda, retainedCount: agg.retainedCount, newCount: agg.newCount },
+            extra: {
+              sumLambda: agg.sumLambda,
+              retainedCount: agg.retainedCount,
+              newCount: agg.newCount,
+              capacityLimit: agg.capacityLimit,
+              rawCapacityLimit: agg.rawCapacityLimit,
+            },
           },
         });
       }),
