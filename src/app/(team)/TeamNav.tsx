@@ -17,7 +17,7 @@ export function TeamNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white">
+    <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white print:hidden">
       <div className="flex flex-col gap-1 px-3 py-5">
         {LINKS.map((link) => {
           const active = pathname === link.href;
