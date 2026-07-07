@@ -119,11 +119,28 @@ export function runSimulation(
     prefPremium[k] = bestPremium;
   }
 
-  // Phase 2: ration by market-share cap, keeping each team's highest-premium policies
-  const queuesByTeam = new Map<number, { index: number; premium: number }[]>();
-  for (const team of teams) queuesByTeam.set(team.id, []);
+  // Phase 2: ration by market-share cap, keeping each team's highest-premium
+  // policies. Built entirely from typed arrays — no per-exposure JS object
+  // ({index, premium}) allocation. With n=1,000,000 that used to mean a
+  // million small heap objects (tens of MB of V8 object overhead on top of
+  // their actual data), which compounded with everything else in a Día 2
+  // simulation-trigger request badly enough to cause a production OOM.
+  const countByTeam = new Map<number, number>();
+  for (const team of teams) countByTeam.set(team.id, 0);
+  for (let k = 0; k < n; k++) countByTeam.set(prefTeam[k], (countByTeam.get(prefTeam[k]) ?? 0) + 1);
+
+  const indicesByTeam = new Map<number, Int32Array>();
+  const fillPos = new Map<number, number>();
+  for (const team of teams) {
+    indicesByTeam.set(team.id, new Int32Array(countByTeam.get(team.id) ?? 0));
+    fillPos.set(team.id, 0);
+  }
   for (let k = 0; k < n; k++) {
-    queuesByTeam.get(prefTeam[k])!.push({ index: k, premium: prefPremium[k] });
+    const id = prefTeam[k];
+    const indices = indicesByTeam.get(id)!;
+    const pos = fillPos.get(id)!;
+    indices[pos] = k;
+    fillPos.set(id, pos + 1);
   }
 
   const assignment = new Int32Array(n).fill(-1);
@@ -131,13 +148,13 @@ export function runSimulation(
   const remainingCapacity = new Map<number, number>();
   for (const team of teams) {
     const limit = limitByTeam.get(team.id)!;
-    const queue = queuesByTeam.get(team.id)!;
-    queue.sort((a, b) => b.premium - a.premium);
-    for (let idx = 0; idx < Math.min(queue.length, limit); idx++) {
-      assignment[queue[idx].index] = team.id;
+    const indices = indicesByTeam.get(team.id)!;
+    indices.sort((a, b) => prefPremium[b] - prefPremium[a]);
+    for (let idx = 0; idx < Math.min(indices.length, limit); idx++) {
+      assignment[indices[idx]] = team.id;
     }
-    rejectedByTeam.set(team.id, Math.max(0, queue.length - limit));
-    remainingCapacity.set(team.id, limit - Math.min(queue.length, limit));
+    rejectedByTeam.set(team.id, Math.max(0, indices.length - limit));
+    remainingCapacity.set(team.id, limit - Math.min(indices.length, limit));
   }
 
   // Phase 3: redistribute rejected exposures among teams with remaining capacity
