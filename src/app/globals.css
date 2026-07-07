@@ -94,3 +94,25 @@ body {
 .dark {
   color-scheme: dark;
 }
+
+/* Printed pages (the Guía del pasante, etc.) must always render with the
+   light-mode brand palette and actually paint background colors — without
+   this, printing while the site's dark mode is on would produce a dark
+   PDF, and browsers drop background colors from print output by default. */
+@media print {
+  .print-light {
+    --background: #f5f6fa;
+    --foreground: #1a1a2e;
+    --brand-surface: #ffffff;
+    --brand-gray-light: #e8e8e8;
+    --brand-blue-light: #eef2fb;
+    --brand-cyan-light: #e0f6fa;
+    --brand-text-secondary: #555555;
+    --brand-blue-accent: #0033a0;
+    --brand-red: #d0021b;
+    --brand-green: #007a50;
+    color-adjust: exact;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

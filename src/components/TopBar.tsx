@@ -12,7 +12,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
  */
 export function TopBar({ subtitle, badge }: { subtitle: string; badge: string }) {
   return (
-    <header className="flex h-[60px] shrink-0 items-center justify-between bg-[var(--color-brand-blue)] px-8 shadow-[0_2px_12px_rgba(0,51,160,0.3)]">
+    <header className="flex h-[60px] shrink-0 items-center justify-between bg-[var(--color-brand-blue)] px-8 shadow-[0_2px_12px_rgba(0,51,160,0.3)] print:hidden">
       <div className="flex items-center gap-5">
         <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-9 w-auto" priority />
         <div>
