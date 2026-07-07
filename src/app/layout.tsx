@@ -30,6 +30,7 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         {/* Runs before paint to avoid a flash of the wrong theme — reads the
