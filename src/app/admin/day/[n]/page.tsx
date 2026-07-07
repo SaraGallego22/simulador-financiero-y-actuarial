@@ -2,9 +2,8 @@ import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedForTeamAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "@/lib/teamBook";
-import { computeFinBenchForCohort } from "@/lib/finBenchHelper";
+import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
@@ -74,15 +73,12 @@ export default async function AdminDayPage({
 
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
-  // Alongside the fictitious ALM (what's graded), also run the exact same
-  // decision tree funded by the team's real premium for this day/year
-  // (resultByTeamId, already day-scoped) — informational, so evaluators can
-  // see where a team's real P&G investment-result figure should come from
-  // (see AlmPnlBreakdown and README §5.3).
+  // This is the *fictitious* ALM only (what's graded for the Día 1/2 ALM
+  // nota) — the real ALM (below, via finBenchBundlesByTeamId) is a
+  // completely separate, 12-months-at-a-time computation, not a variant of
+  // this one (see README §5.3).
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
-  const almScoreRealByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
-  const almLadderRealByTeamId = new Map<string, ReturnType<typeof almLadder>>();
   if (latestRun?.status === "DONE") {
     const book = await getTeamBookForDay(cohort.id, day);
     if (book) {
@@ -92,15 +88,7 @@ export default async function AdminDayPage({
         const reserves = reservesByTeamId.get(team.id);
         if (reserves && isPortfolioDecisionV3(rawAllocation)) {
           almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-          if (activeTab === "obj") {
-            almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
-            const realPremium = resultByTeamId.get(team.id)?.totalPremium;
-            if (realPremium != null) {
-              const aporteMensualReal = realPremium / BUILD_MONTHS;
-              almScoreRealByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation, aporteMensualReal));
-              almLadderRealByTeamId.set(team.id, almLadder(reserves, rawAllocation, aporteMensualReal));
-            }
-          }
+          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
         }
       }
     }
@@ -109,8 +97,13 @@ export default async function AdminDayPage({
   // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
   // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
   // before any portfolio/Year-2 data exists (it falls back to a default
-  // reinvestment yield when almYear1 is null).
-  const finBenchByTeamId = day >= 1 ? await computeFinBenchForCohort(cohort.id) : new Map();
+  // reinvestment yield when almYear1 is null). finBenchBundlesByTeamId
+  // additionally exposes the exact real-ALM runs (realAlmYear1/2) that fed
+  // bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder without
+  // a second, separately-computed "real" run that could drift out of sync
+  // with what's actually graded (see finBenchHelper.ts's doc comment).
+  const finBenchBundlesByTeamId = day >= 1 ? await computeFinBenchBundlesForCohort(cohort.id) : new Map();
+  const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
 
   // Each team's Año 1/Año 2 capital-derived market-share limit (see
   // capacityHelper.ts) — shown next to finBench's solvency figures below so
@@ -300,46 +293,54 @@ export default async function AdminDayPage({
           )}
 
           {reportConcepts.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
-              <div className="p-4 pb-0">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Reportes numéricos — Día {day}
-                </h3>
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Reportes numéricos — Día {day}
+              </h3>
+              <div className="flex flex-col gap-3">
+                {teams.map((team) => {
+                  const values = deliverablesByTeamId.get(team.id) ?? {};
+                  const bench = finBenchByTeamId.get(team.id) ?? null;
+                  const rows = reportConcepts.map((c) => ({ c, result: scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance) }));
+                  const scored = rows.filter((r) => r.result?.score != null);
+                  const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.result!.score!, 0) / scored.length : null;
+                  const fmt = (v: number | null, unit: string) =>
+                    v == null ? "—" : unit === "COP" ? `$${Math.round(v).toLocaleString("es-CO")}` : unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
+                  return (
+                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                      <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+                        <span>
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </span>
+                        <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
+                          {avgScore != null ? `Nota promedio: ${avgScore.toFixed(0)}` : "Sin reportes calificables aún"}
+                        </span>
+                      </summary>
+                      <table className="w-full border-t border-[var(--color-brand-gray-light)] text-sm">
+                        <thead>
+                          <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                            <th className="px-4 py-2">Concepto</th>
+                            <th className="px-4 py-2">Reportado</th>
+                            <th className="px-4 py-2">Motor</th>
+                            <th className="px-4 py-2">Nota</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(({ c, result }) => (
+                            <tr key={c.id} className="border-t border-[var(--color-brand-gray-light)]">
+                              <td className="px-4 py-2">{c.label}</td>
+                              <td className="px-4 py-2">{fmt(result?.val ?? null, c.unit)}</td>
+                              <td className="px-4 py-2">{fmt(result?.bench ?? null, c.unit)}</td>
+                              <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  );
+                })}
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                    <th className="px-4 py-2">Equipo</th>
-                    <th className="px-4 py-2">Concepto</th>
-                    <th className="px-4 py-2">Reportado</th>
-                    <th className="px-4 py-2">Motor</th>
-                    <th className="px-4 py-2">Nota</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teams.flatMap((team) => {
-                    const values = deliverablesByTeamId.get(team.id) ?? {};
-                    const bench = finBenchByTeamId.get(team.id) ?? null;
-                    return reportConcepts.map((c) => {
-                      const result = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance);
-                      const fmt = (v: number | null) =>
-                        v == null ? "—" : c.unit === "COP" ? `$${Math.round(v).toLocaleString("es-CO")}` : c.unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
-                      return (
-                        <tr key={`${team.id}-${c.id}`} className="border-t border-[var(--color-brand-gray-light)]">
-                          <td className="px-4 py-2">
-                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                            {team.name}
-                          </td>
-                          <td className="px-4 py-2">{c.label}</td>
-                          <td className="px-4 py-2">{fmt(result?.val ?? null)}</td>
-                          <td className="px-4 py-2">{fmt(result?.bench ?? null)}</td>
-                          <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
-                        </tr>
-                      );
-                    });
-                  })}
-                </tbody>
-              </table>
             </div>
           )}
 
@@ -387,8 +388,8 @@ export default async function AdminDayPage({
               {teams.map((team) => {
                 const almScore = almScoreByTeamId.get(team.id);
                 const ladder = almLadderByTeamId.get(team.id);
-                const almScoreReal = almScoreRealByTeamId.get(team.id);
-                const ladderReal = almLadderRealByTeamId.get(team.id);
+                const bundle = finBenchBundlesByTeamId.get(team.id);
+                const realAlmYear = day === 1 ? bundle?.realAlmYear1 : bundle?.realAlmYear2;
                 const rawAllocation = team.portfolioAllocations[0]?.allocation;
                 const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
                 return (
@@ -426,16 +427,16 @@ export default async function AdminDayPage({
                           </div>
                         )}
 
-                        {almScoreReal && (
+                        {realAlmYear && (
                           <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
                             <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              ALM real — con la prima real de este equipo (esto es lo que finBench usa para el Resultado de Inversiones/Balance/Solvencia
-                              reales; el ALM ficticio de arriba solo califica la nota de ALM del Día 1/2)
+                              ALM real — con la prima real de este equipo, solo los 12 meses de Año {day === 1 ? 1 : 2} (esto es lo que finBench usa para
+                              el Resultado de Inversiones/Balance/Solvencia reales; el ALM ficticio de arriba solo califica la nota de ALM del Día 1/2)
                             </p>
                             <div className="flex flex-col gap-3">
-                              <AlmPnlBreakdown scoreFicticio={almScore} scoreReal={almScoreReal} year={day === 1 ? 1 : 2} />
-                              {ladderReal && <AlmLadderTable rows={ladderReal.rows} />}
-                              {ladderReal && <AlmPortfolioTable rows={ladderReal.rows} />}
+                              <AlmPnlBreakdown scoreFicticio={almScore} realYear={realAlmYear} year={day === 1 ? 1 : 2} />
+                              <AlmLadderTable rows={realAlmYear.rows} />
+                              <AlmPortfolioTable rows={realAlmYear.rows} />
                             </div>
                           </div>
                         )}

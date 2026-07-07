@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { almLadder, almNAV, almObjetivo, almSim, scoreFinanciero } from "./alm";
+import { almLadder, almNAV, almObjetivo, almSim, almSimRealYear, portfolioNominalYield, scoreFinanciero } from "./alm";
 import { FZ, CAPITAL_SOCIAL } from "./constants";
 import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
 
@@ -340,6 +340,79 @@ describe("almObjetivo", () => {
     expect(objective).not.toBeNull();
     const total = objective!.tranches.reduce((s, t) => s + t.weight, 0);
     expect(total).toBeCloseTo(100, 4);
+  });
+});
+
+describe("almSimRealYear", () => {
+  const treeA = decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })]);
+  const aporte = 200_000_000;
+
+  it("Año 1 runs exactly 12 months, labeled -12..-1, fase a1", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    expect(y1).not.toBeNull();
+    expect(y1!.rows).toHaveLength(12);
+    expect(y1!.rows.map((r) => r.mes)).toEqual([-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1]);
+    expect(y1!.rows.every((r) => r.fase === "a1")).toBe(true);
+  });
+
+  it("Año 1's income is exactly the sum of its 12 months' rendimientoPortafolio", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const expected = y1!.rows.reduce((s, r) => s + r.rendimientoPortafolio, 0);
+    expect(y1!.income).toBeCloseTo(expected, 4);
+  });
+
+  it("portYield is decision-only — identical to portfolioNominalYield(tranches), independent of funding/claims", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    expect(y1!.portYield).toBeCloseTo(portfolioNominalYield(treeA.tranches), 8);
+  });
+
+  it("Año 2 throws without Año 1's finalState — it's a continuation, not a fresh run", () => {
+    expect(() => almSimRealYear(2, new Array(12).fill(0), treeA, aporte)).toThrow();
+  });
+
+  it("Año 2 continues Año 1's open positions and accumulated capital comprometido, not a fresh start", () => {
+    // Force Año 1 itself to draw on Capital Social (a payY1 spike far beyond
+    // what a single month's funding could cover), so Año 1 ends with a
+    // nonzero capitalComprometidoAcumulado and a negative saldoFinalPortafolio
+    // to actually carry forward.
+    const payY1 = new Array(12).fill(0);
+    payY1[0] = 2_000_000_000_000;
+    const extremeLib: LiabilitySchedule = { payY1, L: new Array(48).fill(0), reserva: 0, hay: true };
+    const y1 = almSimRealYear(1, extremeLib.payY1, treeA, aporte);
+    expect(y1).not.toBeNull();
+    expect(y1!.capitalComprometidoAcumulado).toBeGreaterThan(0);
+    expect(y1!.capitalSocialRestante).toBeCloseTo(CAPITAL_SOCIAL - y1!.capitalComprometidoAcumulado, 4);
+
+    const y2 = almSimRealYear(2, new Array(12).fill(0), treeA, aporte, y1!.finalState);
+    expect(y2).not.toBeNull();
+    // With no new claims at all in Año 2, capital comprometido never drops —
+    // it only ever accumulates (see the module's "never repaid" note) — so
+    // Año 2 must start from at least what Año 1 ended with.
+    expect(y2!.capitalComprometidoAcumulado).toBeGreaterThanOrEqual(y1!.capitalComprometidoAcumulado);
+    // Positions genuinely carried over: Año 2's first row picks up exactly
+    // where Año 1's last row left off — the same continuity invariant that
+    // holds month-to-month within a single almSim() run (see the "identity"
+    // test above), now holding *across* the two chained calls.
+    expect(y2!.rows[0].saldoInicialPortafolio).toBeCloseTo(y1!.rows[11].saldoFinalPortafolio, 4);
+  });
+
+  it("Año 2 is labeled 0..11, fase post, and matches almSim()'s own labeling for the same calendar year", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const y2 = almSimRealYear(2, new Array(12).fill(0), treeA, aporte, y1!.finalState);
+    expect(y2!.rows.map((r) => r.mes)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(y2!.rows.every((r) => r.fase === "post")).toBe(true);
+  });
+
+  it("a real ALM with ample LIQ never touches Capital Social across either year, same as the fictitious one", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const y2 = almSimRealYear(2, [lib.L[0] || 0, lib.L[1] || 0, ...new Array(10).fill(0)], treeA, aporte, y1!.finalState);
+    expect(y1!.capitalComprometidoAcumulado).toBe(0);
+    expect(y2!.capitalComprometidoAcumulado).toBe(0);
+    expect(y2!.capitalSocialRestante).toBe(CAPITAL_SOCIAL);
+  });
+
+  it("returns null when the decision has no recognized instruments", () => {
+    expect(almSimRealYear(1, lib.payY1, decision([tranche("NOPE", 100, { action: "cash" })]), aporte)).toBeNull();
   });
 });
 

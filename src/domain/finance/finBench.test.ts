@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { finBench } from "./finBench";
+import type { AlmYearBenchInput } from "./finBench";
 import type { LiabilitySchedule } from "../reserving/liability";
-import type { FinancialScore } from "./alm";
 
 const liabilityYear1: LiabilitySchedule = {
   L: new Array(48).fill(0),
@@ -10,40 +10,8 @@ const liabilityYear1: LiabilitySchedule = {
   hay: true,
 };
 
-function fakeAlmScore(
-  avgVol: number,
-  capitalComprometidoY1 = 0,
-  capitalComprometidoY2 = 0,
-  incomeY1 = 2_000_000,
-  incomeY2 = 2_200_000
-): FinancialScore {
-  return {
-    cumplimientoCaja: 100,
-    rendimiento: 50,
-    ventaForzada: 100,
-    liquidez: 100,
-    nota: 80,
-    portYield: 0.1,
-    effYield: 0.1,
-    reserva: 20_000_000,
-    peakCapitalComprometidoRatio: 0,
-    avgCapitalComprometidoRatio: 0,
-    incomeY1,
-    incomeY2,
-    liq6: 0,
-    liab6: 0,
-    cobertura: 1,
-    avgPV: 20_000_000,
-    totIncome: 0,
-    tranches: [],
-    avgVol,
-    riskAdjustedYield: 0.1,
-    totalVentaForzada: 0,
-    ventaForzadaSeveridad: 0,
-    capitalComprometidoY1,
-    capitalComprometidoY2,
-    patrimonioDisponible: 70_000_000_000 - capitalComprometidoY1 - capitalComprometidoY2,
-  };
+function fakeAlmYear(avgVol: number, capitalComprometido = 0, income = 2_000_000, portYield = 0.1): AlmYearBenchInput {
+  return { portYield, income, capitalComprometido, avgVol };
 }
 
 describe("finBench", () => {
@@ -88,7 +56,7 @@ describe("finBench", () => {
     const input = (avgVol: number) => ({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(avgVol),
+      almYear1: fakeAlmYear(avgVol),
     });
     const safe = finBench(input(0.01)); // near LIQ's own volatility
     const volatile = finBench(input(0.2)); // near ACC's own volatility
@@ -112,13 +80,15 @@ describe("finBench", () => {
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(0.05, 0, 0),
+      almYear1: fakeAlmYear(0.05, 0),
+      almYear2: fakeAlmYear(0.05, 0),
     });
     const eroded = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(0.05, 10_000_000_000, 25_000_000_000),
+      almYear1: fakeAlmYear(0.05, 10_000_000_000),
+      almYear2: fakeAlmYear(0.05, 25_000_000_000),
     });
     expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 4);
     expect(noErosion.bal2!.patrimonio - eroded.bal2!.patrimonio).toBeCloseTo(25_000_000_000, 4);
@@ -149,7 +119,8 @@ describe("finBench", () => {
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(0.05, 0, 0, 3_141_592, 2_718_281),
+      almYear1: fakeAlmYear(0.05, 0, 3_141_592),
+      almYear2: fakeAlmYear(0.05, 0, 2_718_281),
     });
     expect(bench.p1.rinv).toBe(3_141_592);
     // Deliberately not reserva*portYield (20_000_000*0.1=2_000_000) — if it
@@ -162,12 +133,12 @@ describe("finBench", () => {
     const noErosion = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(0.05, 0, 0),
+      almYear1: fakeAlmYear(0.05, 0),
     });
     const heavilyEroded = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmScore(0.05, 50_000_000_000, 0),
+      almYear1: fakeAlmYear(0.05, 50_000_000_000),
     });
     expect(heavilyEroded.p1.rinv).toBe(noErosion.p1.rinv);
     expect(heavilyEroded.p1.uai).toBe(noErosion.p1.uai);
