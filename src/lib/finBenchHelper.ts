@@ -1,5 +1,7 @@
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getYear2ClaimsByTeamId, computeDevelopmentForTeams } from "./teamBook";
+import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
+import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import { almSimRealYear } from "@/domain/finance/alm";
 import type { AlmRealYearResult } from "@/domain/finance/alm";
 import { BUILD_MONTHS } from "@/domain/reserving/constants";
@@ -44,14 +46,27 @@ export interface TeamFinBenchBundle {
  * feed that one year's real P&G/Balance, unlike the fictitious ALM (an
  * independent 60-month run per year, unchanged — see almSim()).
  */
-export async function computeFinBenchBundlesForCohort(cohortId: string): Promise<Map<string, TeamFinBenchBundle>> {
+/**
+ * `universeOverride`/`year2ClaimsOverride` let a caller that already has
+ * the Colombia universe/Year-2 claims this request (e.g.
+ * /api/simulation/route.ts, via capacityHelper.ts) pass them through
+ * instead of triggering their own regeneration inside getTeamBookForDay()/
+ * getYear2ClaimsByTeamId() — see those functions' doc comments; this was
+ * the root cause of a production OOM on the Día 2 simulation trigger
+ * (three separate 1M-row universe regenerations in a single request).
+ */
+export async function computeFinBenchBundlesForCohort(
+  cohortId: string,
+  universeOverride?: ColombiaUniverse,
+  year2ClaimsOverride?: Year2Claims
+): Promise<Map<string, TeamFinBenchBundle>> {
   const results = new Map<string, TeamFinBenchBundle>();
 
-  const book1 = await getTeamBookForDay(cohortId, 1);
+  const book1 = await getTeamBookForDay(cohortId, 1, universeOverride);
   if (!book1) return results;
   const reserves1 = computeReservesForTeams(book1.claimsByTeamId);
 
-  const year2ClaimsByTeamId = await getYear2ClaimsByTeamId(cohortId);
+  const year2ClaimsByTeamId = await getYear2ClaimsByTeamId(cohortId, universeOverride, year2ClaimsOverride);
   const developmentByTeamId = year2ClaimsByTeamId
     ? computeDevelopmentForTeams(book1.claimsByTeamId, year2ClaimsByTeamId)
     : null;
@@ -120,8 +135,12 @@ export async function computeFinBenchBundlesForCohort(cohortId: string): Promise
   return results;
 }
 
-/** Thin wrapper over computeFinBenchBundlesForCohort() for callers that only need the benchmark itself (consolidado.ts, capacityHelper.ts) — see that function's doc comment for the full derivation. */
-export async function computeFinBenchForCohort(cohortId: string): Promise<Map<string, FinBenchResult>> {
-  const bundles = await computeFinBenchBundlesForCohort(cohortId);
+/** Thin wrapper over computeFinBenchBundlesForCohort() for callers that only need the benchmark itself (consolidado.ts, capacityHelper.ts) — see that function's doc comment for the full derivation, and for what universeOverride/year2ClaimsOverride are for. */
+export async function computeFinBenchForCohort(
+  cohortId: string,
+  universeOverride?: ColombiaUniverse,
+  year2ClaimsOverride?: Year2Claims
+): Promise<Map<string, FinBenchResult>> {
+  const bundles = await computeFinBenchBundlesForCohort(cohortId, universeOverride, year2ClaimsOverride);
   return new Map([...bundles].map(([teamId, b]) => [teamId, b.bench]));
 }

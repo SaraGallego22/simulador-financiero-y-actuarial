@@ -3,6 +3,8 @@ import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
 import { maxPoliciesForCapital, nominalPortfolioVolRatio } from "@/domain/finance/capacity";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { computeFinBenchForCohort } from "./finBenchHelper";
+import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
+import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 
 export interface TeamForCapacity {
   id: string;
@@ -29,8 +31,22 @@ export interface TeamForCapacity {
  * finBenchHelper.ts) — so a team that drew heavily on Capital Social to
  * cover a cash shortfall in Año 1 enters Año 2 with materially less room
  * to grow, before it even prices a single policy.
+ *
+ * `universe`/`year2Claims` should be whatever the caller already generated
+ * this request (the simulation route always has both in scope, since it
+ * needs them to run the market itself) — passed through to
+ * computeFinBenchForCohort() so its internal reserving pipeline doesn't
+ * regenerate its own copies. Skipping this was a production OOM: three
+ * separate 1,000,000-row universe regenerations in a single Día 2
+ * simulation-trigger request.
  */
-export async function computeCapacityByTeamId(cohortId: string, day: number, teams: TeamForCapacity[]): Promise<Map<string, number>> {
+export async function computeCapacityByTeamId(
+  cohortId: string,
+  day: number,
+  teams: TeamForCapacity[],
+  universe?: ColombiaUniverse,
+  year2Claims?: Year2Claims
+): Promise<Map<string, number>> {
   const allocations = await prisma.portfolioAllocation.findMany({ where: { day, team: { cohortId } } });
   const allocByTeamId = new Map(allocations.map((a) => [a.teamId, a.allocation]));
 
@@ -42,7 +58,7 @@ export async function computeCapacityByTeamId(cohortId: string, day: number, tea
 
   let patrimonioByTeamId: Map<string, number> | null = null;
   if (day === 2) {
-    const benchByTeamId = await computeFinBenchForCohort(cohortId);
+    const benchByTeamId = await computeFinBenchForCohort(cohortId, universe, year2Claims);
     patrimonioByTeamId = new Map([...benchByTeamId].map(([teamId, bench]) => [teamId, bench.bal1.patrimonio]));
   }
 
