@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { almNAV, almObjetivo, almSim, scoreFinanciero } from "./alm";
+import { almLadder, almNAV, almObjetivo, almSim, scoreFinanciero } from "./alm";
 import { FZ, CAPITAL_SOCIAL } from "./constants";
 import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
 
@@ -252,6 +252,56 @@ describe("almSim / scoreFinanciero", () => {
     expect(sim).not.toBeNull();
     expect(sim!.totalVentaForzada).toBe(0);
     expect(sim!.ventaForzadaVolWeighted).toBe(0);
+  });
+});
+
+describe("almLadder", () => {
+  it("always reaches the last month of the horizon (mes 47), even when nothing else about that month would otherwise qualify for the filtered view", () => {
+    const ladder = almLadder(lib, decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })]));
+    expect(ladder).not.toBeNull();
+    const lastRow = ladder!.rows[ladder!.rows.length - 1];
+    expect(lastRow.mes).toBe(47);
+  });
+});
+
+describe("almSim's real-premium override (the 'ALM real' companion to the graded fictitious run)", () => {
+  const mix = decision([
+    tranche("LIQ", 30, { action: "repeat" }, 6),
+    tranche("CDT90", 30, { action: "repeat" }),
+    tranche("TESUVR8", 40, { action: "repeat" }),
+  ]);
+
+  it("omitting the override reproduces the exact fictitious behavior (regression: existing callers are unaffected)", () => {
+    const withoutOverride = almSim(lib, mix);
+    const explicitUndefined = almSim(lib, mix, undefined);
+    expect(explicitUndefined).toEqual(withoutOverride);
+  });
+
+  it("a much lower real premium than the fictitious notional produces a worse (or equal) cumplimientoCaja under the real run", () => {
+    const fictitious = scoreFinanciero(lib, mix);
+    // The fictitious notional funds exactly reserva+payY1 over 12 months —
+    // a real premium far below that should strain Caja Mínima more, not less.
+    const muchLowerRealPremium = (lib.reserva + lib.payY1.reduce((a, b) => a + b, 0)) * 0.1;
+    const real = scoreFinanciero(lib, mix, muchLowerRealPremium / 12);
+    expect(fictitious).not.toBeNull();
+    expect(real).not.toBeNull();
+    expect(real!.avgCapitalComprometidoRatio).toBeGreaterThanOrEqual(fictitious!.avgCapitalComprometidoRatio);
+  });
+
+  it("portYield never changes between the fictitious and real runs — it depends only on the decision tree, never on funding", () => {
+    const fictitious = scoreFinanciero(lib, mix);
+    const real = scoreFinanciero(lib, mix, 999_999);
+    expect(fictitious).not.toBeNull();
+    expect(real).not.toBeNull();
+    expect(real!.portYield).toBe(fictitious!.portYield);
+  });
+
+  it("reserva never changes between the fictitious and real runs — it's the real liability, unaffected by which premium funds the simulation", () => {
+    const fictitious = scoreFinanciero(lib, mix);
+    const real = scoreFinanciero(lib, mix, 123_456);
+    expect(fictitious).not.toBeNull();
+    expect(real).not.toBeNull();
+    expect(real!.reserva).toBe(fictitious!.reserva);
   });
 });
 
