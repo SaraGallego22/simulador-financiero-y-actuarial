@@ -132,13 +132,74 @@ En el peor caso estos tramos se **suman**: un siniestro ocurrido cerca del cierr
 
 ### 4 · P&G, Balance y Solvencia (`finBench()`)
 
-El resultado técnico de cada año es `prima − siniestros − gastos`, donde los gastos son porcentajes fijos de la prima (adquisición 10%, comisión 4%, administración 6% — `FZ` en `src/domain/finance/constants.ts`). A esto se suma el **resultado de inversiones** para llegar a la utilidad antes de impuesto, y de ahí a la utilidad neta (tasa de renta 30%). Este resultado de inversiones **no es una fórmula aproximada** — es el ingreso de inversión que el ALM (§5) realmente devengó, mes a mes, durante ese año específico (`incomeY1`/`incomeY2` en `AlmSimResult`, la suma de la columna Rendimiento de la tabla mensual): ni `reserva×rendimiento nominal` ni `valor final del portafolio − valor inicial` serían correctos aquí — el primero ignora el calce real de caja, y el segundo se contaminaría con cuánta plata nueva entró o salió ese año, que no es rendimiento de inversión. El capital comprometido (§5.1) nunca entra en esta cuenta — ya se resta directamente del patrimonio en el Balance, no en el P&G, para no penalizar el mismo evento dos veces.
+`finBench()` es el motor de referencia (el "Motor" que se compara contra lo que cada equipo reporta, ver §7) para tres entregables: el P&G de cada año, el Balance, y la Solvencia del Día 4. Esta sección explica, línea por línea, de dónde sale cada cifra — no solo el resultado final.
 
-El balance es una aproximación simple: patrimonio (**Capital Social fijo** + utilidades retenidas − capital comprometido por el ALM, ver §5.1-§5.2), caja/CxC/CxP como porcentajes de la prima, e inversiones como el residual que cuadra el balance.
+#### 4.1 · P&G del Año 1 (`p1`)
 
-La **solvencia** combina tres riesgos — suscripción (con volatilidad de primas y reservas), financiero (sobre las inversiones, escalado por la **volatilidad realizada del portafolio del equipo**, ver §5.4) y operacional (sobre primas) — agregados con una **matriz de correlación** (similar en espíritu a un enfoque tipo Solvencia II, sin pretender ser una implementación regulatoria completa). El margen de solvencia es `fondos propios / capital requerido`; el dividendo sugerido es el excedente de fondos propios sobre un margen objetivo. Esta es la triple conexión directa entre la decisión de portafolio del Día 1/Día 2 y la solvencia del Día 4: (a) un equipo que concentró su portafolio en instrumentos volátiles paga un capital requerido mayor (`rFin` más alto → RK más alto → margen y dividendo más bajos), (b) un equipo que tuvo que comprometer Capital Social para cubrir una brecha de caja ve sus fondos propios directamente reducidos por ese monto, y (c) ese mismo capital comprometido — vía `bal1.patrimonio` — es exactamente lo que determina cuánto podía crecer ese equipo en el mercado del Año 2, *antes* de que el Día 4 llegara a mostrárselo (ver §2.1) — ambos, sin importar qué tan bien le fue en rendimiento nominal.
+Construido por `pyg(prima, siniestros, reservas, rinv)`, con estos insumos:
 
-El **Año 3 no se simula** — se proyecta aplicando una tasa de crecimiento fija al resultado del Año 2, solo para dar visibilidad de tendencia.
+| Línea | De dónde sale |
+|---|---|
+| `prima` | `year1.totalPremium` — la prima real que el equipo efectivamente cobró en el mercado del Año 1 (§2), no la que tarificó: es la suma de las primas de las pólizas que realmente ganó, después del racionamiento por capital/solvencia (§2.1). |
+| `costo` | `year1.claimsAmount` — la severidad real incurrida de las pólizas que ese equipo ganó y tuvieron siniestro, tomada directamente del universo generado (no una estimación). |
+| `gadq` / `gcom` / `gadm` | `10% / 4% / 6% × prima` — porcentajes fijos (`FZ.gAdq/gCom/gAdmin`), iguales para todos los equipos. |
+| `rt` (resultado técnico) | `prima − costo − gadq − gcom − gadm`. |
+| `rinv` (resultado de inversiones) | El ingreso de inversión que el **ALM real** del Año 1 (§5.3) devengó en sus 12 meses — `AlmRealYearResult.income`, no una fórmula. Si el equipo nunca guardó un portafolio, cae a un valor de reserva por defecto (`reservas1 × 8%`, un piso conservador, no una estimación real). |
+| `uai` | `rt + rinv`. |
+| `imp` | `30% × max(0, uai)` (`FZ.tax` — nunca un impuesto negativo). |
+| `uneta` | `uai − imp`. |
+| `reservas` (`resTotal`/`resRsa`/`resIbnr`) | Si ya existe desarrollo Año1→Año2 (Día 3+): `development.bookedReserveEndY1` (avisado + IBNR esperado, medido contra el patrón de desarrollo real del mercado, ver §3). Si no (Día 1/2, antes de tener ese dato): `liabilityYear1.reserva` completa, partida 55/45 en IBNR/avisado como aproximación — no es una medición todavía, es un placeholder hasta que el desarrollo real esté disponible. |
+
+#### 4.2 · P&G del Año 2 (`p2`) y proyección del Año 3 (`p3`)
+
+Con desarrollo Año1→Año2 ya calculado (Día 3+, `computeDevelopment()` — ver §3):
+
+| Línea | De dónde sale |
+|---|---|
+| `prima` | `year2.totalPremium` — prima real cobrada en el mercado del Año 2 (con retención de clientes, §2). |
+| `ultAcc` | `development.ultY2` — siniestros propios del Año 2, último estimado. |
+| `desarrollo` | `development.development` — cuánto más (o menos) de lo esperado como IBNR del Año 1 terminó emergiendo realmente en el Año 2; puede ser negativo. |
+| `costo` (`costoCal`) | `ultAcc + desarrollo` — el costo incurrido en base calendario: lo propio del Año 2 más el ajuste por lo que realmente emergió del Año 1. |
+| `pagos` | `development.pagosY2` — caja efectivamente pagada durante el Año 2 calendario, de ambos orígenes (desarrollo del Año 1 + siniestros propios del Año 2). |
+| `gadq` / `gcom` / `gadm` | Los mismos porcentajes fijos, ahora sobre la prima del Año 2. |
+| `rt` | `prima − costoCal − gadq − gcom − gadm`. |
+| `rinv` | El ingreso de inversión que el **ALM real** del Año 2 devengó en sus 12 meses — pero esta corrida no arranca de cero: continúa exactamente donde terminó el Año 1 real (mismas posiciones abiertas, mismo capital comprometido acumulado), financiada por el desarrollo del Año 1 que emerge en el Año 2 más los siniestros propios del Año 2 en su propio primer año (ver §5.3). Sin ALM, cae a `reservas2 × rendimiento nominal del árbol`. |
+| `reservas` (`reservaFinY2`) | `development.osY1endY2 + development.osY2endY2` — lo que queda pendiente al cierre del Año 2, de ambos orígenes. |
+| `uai` / `imp` / `uneta` | Mismas fórmulas que el Año 1. |
+
+Sin desarrollo calculado aún (fallback, cuando el Año 2 existe pero todavía no hay `TeamDevelopment`): `reservas2` se estima como `siniestros del Año 2 × (reservas1 / siniestros del Año 1)` — un ratio simple, no una medición — y `rinv`/`uai`/`uneta` se calculan igual sobre esa base aproximada.
+
+El **Año 3 no se simula** — se proyecta creciendo la prima y el costo del Año 2 por una tasa fija (`FZ.growth3 = 6%`), con `reservas3 = reservas2 × 1.06` y `rinv3 = reservas3 × portYield` (aquí sí una fórmula, deliberadamente: no hay una simulación real de la que sacar un ingreso devengado para un año que no ocurrió).
+
+#### 4.3 · Balance (`bal1`/`bal2`/`bal3`)
+
+Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese año como insumo:
+
+| Línea | De dónde sale |
+|---|---|
+| `reservasTec` | La `reservas` del P&G de ese año (§4.1/4.2). |
+| `patrimonio` | `CAPITAL_SOCIAL` (fijo, §5.1) `+ utilidades retenidas` (la suma acumulada de `uneta` hasta ese año) `− capital comprometido` acumulado hasta el cierre de ese año, tomado directamente del ALM real de ese año (`AlmRealYearResult.capitalComprometidoAcumulado` — el Año 3 no tiene ALM propio, así que carga el mismo corte del Año 2 hacia adelante). |
+| `caja` / `cxc` / `cxp` | `15% / 7% / 10% × prima` de ese año (`FZ.cajaPct/cxcPct/cxpPct`) — porcentajes fijos, no simulados. |
+| `inversiones` | `reservasTec + cxp + patrimonio − caja − cxc` — el residual que hace cuadrar el balance (activos = pasivos + patrimonio), no un valor de mercado del portafolio. |
+| `activos` | `caja + inversiones + cxc`. |
+
+#### 4.4 · Solvencia (Día 4)
+
+| Línea | De dónde sale |
+|---|---|
+| `solRPrimas` | `prima del año vigente × 14.76%` (`FZ.primeVol`). |
+| `solRReservas` | `reservas del año vigente × 30%` (`FZ.resVol`). |
+| `solRSusc` (riesgo de suscripción) | `√(rPrimas² + rReservas² + 2×0.75×rPrimas×rReservas)` — 0.75 es la correlación prima-reserva (`FZ.corrPR`). |
+| `solRFin` (riesgo financiero) | `inversiones del balance vigente × 6.6% × volRatio` (`FZ.finRiskPct`) — `volRatio` es la volatilidad realizada del portafolio real de ese año dividida entre el promedio del menú (`avgVol/VOL_MENU_AVG`, ver §5.4); sin ALM, `volRatio=1` (el cargo plano). |
+| `solROp` (riesgo operacional) | `prima del año vigente × 3%` (`FZ.opPct`). |
+| `solRk` (capital requerido) | `√(ΣΣ CORR_MOD[i][j] × R[i] × R[j])` sobre `R = [rSusc, rFin, rOp]` — la matriz de correlación (`CORR_MOD`) hace que suscripción-operacional y financiero-operacional estén perfectamente correlacionados (1.0) y suscripción-financiero solo parcialmente (0.75). |
+| `solFp` (fondos propios) | El `patrimonio` del balance vigente (§4.3) — ya neto de todo el capital comprometido acumulado hasta ese punto. |
+| `solMargen` | `solFp / solRk`. |
+| `div` (dividendos sugeridos) | `max(0, solFp − solRk × 1.5)` — 1.5 (`FZ.targetMargin`) es la barra de "sobra capital para repartir", más exigente que la de apenas-solvente (1.0, ver §2.1). |
+
+"Año/balance vigente" es el Año 2 si existe, si no el Año 1 (`p2 || p1`, `bal2 || bal1`) — la solvencia del Día 4 siempre mira el año más reciente disponible.
+
+Esta es la triple conexión directa entre la decisión de portafolio del Día 1/Día 2 y la solvencia del Día 4: (a) un equipo que concentró su portafolio en instrumentos volátiles paga un capital requerido mayor (`rFin` más alto → RK más alto → margen y dividendo más bajos), (b) un equipo que tuvo que comprometer Capital Social para cubrir una brecha de caja ve sus fondos propios directamente reducidos por ese monto, y (c) ese mismo capital comprometido — vía `bal1.patrimonio` — es exactamente lo que determina cuánto podía crecer ese equipo en el mercado del Año 2, *antes* de que el Día 4 llegara a mostrárselo (ver §2.1) — ambos, sin importar qué tan bien le fue en rendimiento nominal.
 
 ### 5 · Portafolio de inversión y ALM (asset-liability matching)
 
@@ -209,16 +270,24 @@ Por separado, `almNAV()` valora el portafolio y la reserva a valor de mercado ba
 
 Todo lo anterior corre sobre una **hipótesis deliberadamente irreal**: que la Prima Cobrada de cada mes es exactamente 1/12 de `reserva + pagos del Año 1` — es decir, que la prima cobrada siempre alcanza exactamente para fondear la reserva, ni más ni menos (ver la nota histórica en `almSim()`'s docstring). En la realidad, la prima de un equipo es la que **el mercado le pagó** por su tarifa (Día 1/§2), y casi nunca coincide con su reserva. Este ALM "ficticio" no es un error del modelo — es **a propósito**, y sigue siendo el único que se califica (§5.2) y el único que ve el equipo.
 
-`almSim()` puede correr con un fondeo distinto (`almSim(lib, decision, primaReal/12)`, el mismo motor con un solo número distinto) para obtener un **segundo ALM, con la prima real del equipo** — pero esto es **exclusivo del panel de admin** (`AlmPnlBreakdown`), como cruce de referencia para el evaluador, no algo que el equipo pueda consultar. La razón es deliberada: el ejercicio es que el equipo **razone** cómo se vería su ALM con su propia prima, no que lea la respuesta de una pantalla — el ALM real automático existe para que el evaluador pueda verificar qué tan cerca estuvo el número que el equipo reportó, no para resolvérselo de antemano.
+El ALM real (`almSimRealYear()` en `alm.ts`) es un motor **genuinamente distinto** del ficticio, no el mismo motor con un número distinto — esta fue una simplificación de una versión anterior que se corrigió. Las diferencias son deliberadas:
+
+- **El ALM real solo corre 12 meses por año, nunca 60.** Su único propósito es alimentar el P&G/Balance real de *ese* año — no tiene sentido simular 48 meses de más cuando nada los va a usar. El ALM ficticio, en cambio, sigue corriendo 60 meses completos por año (12 de fondeo + 48 de corrida) porque eso es lo que su propia nota (§5.2) necesita evaluar — esto **no cambió**.
+- **El Año 2 real es una continuación genuina del Año 1 real, no una corrida independiente desde cero.** El motor recibe el estado exacto con el que terminó el Año 1 (las mismas posiciones abiertas — que siguen devengando rendimiento y venciendo según su propia regla — y el mismo capital comprometido acumulado, que nunca se repone solo) y sigue simulando 12 meses más a partir de ahí, con la prima real del Año 2 y el árbol de decisión del Día 2 (o el del Día 1, si el equipo no subió uno nuevo). El ALM ficticio, en contraste, sigue tratando cada año como una hipótesis independiente ("qué habría pasado si este árbol hubiera corrido desde el mes 0") — eso también **sigue igual**, a propósito.
+- **El siniestro que financia cada año real es distinto al del ficticio.** El Año 1 real se financia contra los siniestros propios del Año 1 (`liabilityYear1.payY1`, los mismos 12 meses que usa el ficticio en su propia fase de fondeo). El Año 2 real se financia contra la **suma de dos cosas**: el desarrollo del Año 1 que emerge en el Año 2 (los primeros 12 meses de `liabilityYear1.L[]` — la misma reserva que el ficticio arrastra indefinidamente, aquí usada solo por 12 meses) *más* los siniestros propios del Año 2 en su propio primer año (una `LiabilitySchedule` nueva, calculada igual que la del Año 1 pero sobre los siniestros de `generateYear2Claims()`). El ALM ficticio nunca mezcló esto — solo usó siempre la reserva del Año 1 para todo su horizonte de 48 meses, y eso sigue siendo cierto para él.
+
+Esto es **exclusivo del panel de admin** (`AlmPnlBreakdown`, dentro de `admin/day/[n]`), como cruce de referencia para el evaluador, no algo que el equipo pueda consultar. La razón es deliberada: el ejercicio es que el equipo **razone** cómo se vería su ALM con su propia prima, no que lea la respuesta de una pantalla — el ALM real automático existe para que el evaluador pueda verificar qué tan cerca estuvo el número que el equipo reportó, no para resolvérselo de antemano.
 
 Comparando ambos runs (el evaluador sí puede hacerlo) queda claro qué depende de la prima y qué no:
 
-- **La Reserva y el Rendimiento nominal del portafolio (`portYield`) nunca cambian** entre el ficticio y el real — ambos dependen solo de la reserva real y del árbol de decisión del equipo, nunca de qué prima fondeó la simulación.
-- **Lo que sí puede cambiar es el ingreso de inversión realmente devengado** (`incomeY1`/`incomeY2`, ver más abajo) y el capital comprometido (§5.1) — ambos dependen de cuándo *realmente* entra la caja, y eso sí depende de la prima real.
+- **La Reserva y el Rendimiento nominal del portafolio (`portYield`) nunca cambian** entre el ficticio y el real — ambos dependen solo del árbol de decisión del equipo, nunca de qué prima fondeó la simulación.
+- **Lo que sí puede cambiar es el ingreso de inversión realmente devengado** y el capital comprometido — ambos dependen de cuándo *realmente* entra la caja, y eso sí depende de la prima real.
 
-**La fórmula de referencia para el resultado de inversiones del P&G es directa, no una aproximación**: es el ingreso de inversión que el ALM simuló mes a mes durante ese año específico — `incomeY1` (Año 1, Día 2) o `incomeY2` (Año 2, Día 3), la suma de la columna Rendimiento de la tabla "Valor del portafolio" durante esos 12 meses. No es `reserva × portYield` (ignora el calce real de caja) ni una resta de saldos de portafolio a inicio/fin de año (se contaminaría con cuánta plata nueva entró o salió, que no es rendimiento). El capital comprometido **no** entra en esta cuenta — ya se resta directamente del patrimonio en el Balance (§5.1/§4); incluirlo también aquí sería castigar el mismo evento dos veces, un error que este mismo diseño tuvo en una versión anterior y que se corrigió.
+**La fórmula de referencia para el resultado de inversiones del P&G es directa, no una aproximación**: es el ingreso de inversión que el ALM real simuló mes a mes durante los 12 meses de ese año específico (`AlmRealYearResult.income`, la suma de la columna Rendimiento de la tabla "Valor del portafolio" en esa corrida de 12 meses). No es `reserva × portYield` (ignora el calce real de caja) ni una resta de saldos de portafolio a inicio/fin de año (se contaminaría con cuánta plata nueva entró o salió, que no es rendimiento). El capital comprometido **no** entra en esta cuenta — ya se resta directamente del patrimonio en el Balance (§5.1/§4); incluirlo también aquí sería castigar el mismo evento dos veces.
 
-**Importante para no confundir qué ALM alimenta qué**: la nota de ALM del Día 1/2 (§5.2, lo que ve el equipo) se califica con el ALM **ficticio**. Pero `finBenchHelper.ts` — la plomería que alimenta a `finBench()` (§4) — corre un ALM **aparte, con la prima real de cada equipo** (`scoreFinanciero(liabilityYear1, alloc, primaReal/12)`) específicamente para eso: benchmarquear un entregable real (Resultado de Inversiones, Balance, Solvencia) contra el ALM ficticio sería comparar contra un escenario hipotético en el que el equipo nunca estuvo. Son dos corridas del mismo motor, para dos propósitos distintos — ninguna alimenta a la otra.
+**Cuánto queda del Capital Social al final de cada ALM real** se muestra siempre de forma explícita en `AlmPnlBreakdown` — `AlmRealYearResult.capitalSocialRestante = CAPITAL_SOCIAL − capitalComprometidoAcumulado`, acumulado desde el Año 1 para el corte del Año 2 (nunca se repone solo, ver §5.1). Es exactamente el mismo número que `finBench()` resta del patrimonio en el Balance real de ese año — no un cálculo paralelo.
+
+**Importante para no confundir qué ALM alimenta qué**: la nota de ALM del Día 1/2 (§5.2, lo que ve el equipo) se califica con el ALM **ficticio** (`almSim()`/`scoreFinanciero()`, 60 meses, independiente por año). Pero `finBenchHelper.ts` — la plomería que alimenta a `finBench()` (§4) — corre el ALM **real** (`almSimRealYear()`, 12 meses, Año 2 continuando el Año 1) específicamente para eso: benchmarquear un entregable real (Resultado de Inversiones, Balance, Solvencia) contra el ALM ficticio sería comparar contra un escenario hipotético en el que el equipo nunca estuvo. Son dos motores distintos, para dos propósitos distintos — ninguno alimenta al otro.
 
 #### 5.4 · Qué es un portafolio óptimo, y por qué
 

@@ -2,7 +2,24 @@ import { FZ, CORR_MOD, CAPITAL_SOCIAL } from "./constants";
 import { VOL_MENU_AVG } from "./instruments";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
-import type { FinancialScore } from "./alm";
+
+/**
+ * What finBench() actually needs from a real, one-year ALM run — not the
+ * fictitious ALM's own FinancialScore (which carries Y1/Y2 checkpoints
+ * inside a single 60-month run, plus a whole composite nota that has
+ * nothing to do with the real P&G/Balance). Built from almSimRealYear()'s
+ * result in finBenchHelper.ts — see README §5.3.
+ */
+export interface AlmYearBenchInput {
+  /** Decision-only nominal yield (see portfolioNominalYield() in alm.ts) — identical between the fictitious and real ALM for the same tree. */
+  portYield: number;
+  /** Real investment income this specific year's ALM accrued — what feeds this year's P&G "Resultado de inversiones" line. */
+  income: number;
+  /** Cumulative Capital Social committed through the end of this year — subtracted directly from patrimonio in balance(), never folded into rinv (see that function's doc comment). */
+  capitalComprometido: number;
+  /** This year's book-value-weighted average realized volatility — feeds rFin's volRatio. */
+  avgVol: number;
+}
 
 export interface YearResult {
   totalPremium: number;
@@ -66,8 +83,8 @@ export interface FinBenchInput {
   year2?: YearResult;
   liabilityYear1: LiabilitySchedule;
   development?: TeamDevelopment;
-  almYear1: FinancialScore | null;
-  almYear2?: FinancialScore | null;
+  almYear1: AlmYearBenchInput | null;
+  almYear2?: AlmYearBenchInput | null;
 }
 
 function pyg(prima: number, sin: number, reservas: number, rinv: number): PnL {
@@ -125,8 +142,10 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     rsa1 = reservas1 - ibnr1;
   }
 
-  // rinv1/rinv2 are the *real* investment income the ALM simulation accrued
-  // during that specific calendar year (AlmSimResult.incomeY1/incomeY2),
+  // rinv1/rinv2 are the *real* investment income the real ALM simulation
+  // accrued during that specific calendar year alone (almYear1/almYear2.income,
+  // see almSimRealYear() in alm.ts — a genuine 12-month continuation, Año 2
+  // picking up where Año 1 left off, not a fresh 60-month hypothetical),
   // not a formula proxy — reserva×portYield would double-count what's
   // already a direct cash-timing effect (capitalComprometido, subtracted
   // straight from patrimonio below) and, worse, doesn't reflect what the
@@ -134,7 +153,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // Falls back to the old reserva×yield estimate only when there's no ALM
   // decision at all to simulate from.
   const portYield = almYear1 ? almYear1.portYield : 0.08;
-  const rinv1 = almYear1 ? almYear1.incomeY1 : reservas1 * 0.08;
+  const rinv1 = almYear1 ? almYear1.income : reservas1 * 0.08;
   const p1 = pyg(year1.totalPremium, year1.claimsAmount, reservas1, rinv1);
 
   let p2: PnL | null = null;
@@ -144,7 +163,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const portYield2 = alm2 ? alm2.portYield : portYield;
     reservas2 = development.reservaFinY2;
     const costoCal = development.ultY2 + development.development;
-    const rinv2 = alm2 ? alm2.incomeY2 : reservas2 * portYield2;
+    const rinv2 = alm2 ? alm2.income : reservas2 * portYield2;
     const gadq = FZ.gAdq * year2.totalPremium;
     const gcom = FZ.gCom * year2.totalPremium;
     const gadm = FZ.gAdmin * year2.totalPremium;
@@ -173,7 +192,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const portYield2 = alm2 ? alm2.portYield : portYield;
     const ratio = year1.claimsAmount > 0 ? reservas1 / year1.claimsAmount : 0.4;
     reservas2 = year2.claimsAmount * ratio;
-    const rinv2 = alm2 ? alm2.incomeY2 : reservas2 * portYield2;
+    const rinv2 = alm2 ? alm2.income : reservas2 * portYield2;
     p2 = pyg(year2.totalPremium, year2.claimsAmount, reservas2, rinv2);
     p2.desarrollo = 0;
     p2.pagos = null;
@@ -194,9 +213,9 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // choice would indirectly change how much capital cushion its ALM gets,
   // which has nothing to do with the risk it's actually carrying.
   const capital0 = CAPITAL_SOCIAL;
-  const capitalComprometidoY1 = almYear1?.capitalComprometidoY1 ?? 0;
+  const capitalComprometidoY1 = almYear1?.capitalComprometido ?? 0;
   const almY2 = almYear2 ?? almYear1;
-  const capitalComprometidoY2 = almY2?.capitalComprometidoY2 ?? 0;
+  const capitalComprometidoY2 = almY2?.capitalComprometido ?? 0;
   const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1)!;
   const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2) : null;
   // Year 3 is a projection, not an independently ALM-simulated year (see

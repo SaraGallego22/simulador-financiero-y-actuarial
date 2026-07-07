@@ -96,6 +96,168 @@ interface Position {
 }
 
 /**
+ * Everything a month-by-month simulation needs to carry from one month to
+ * the next — mutated in place by stepMonth(). Exposed (opaquely, to
+ * callers outside this module) so almSimRealYear() can hand Año 1's
+ * ending state to Año 2's call as a genuine continuation (same open
+ * positions, same accumulated capital comprometido) instead of starting
+ * over from zero — see almSimRealYear()'s doc comment.
+ */
+export interface AlmYearState {
+  positions: Position[];
+  capitalComprometidoAcumulado: number;
+  cajaFloat: number;
+}
+
+interface MonthAccumulators {
+  totalVentaForzada: number;
+  ventaForzadaVolWeighted: number;
+  mesesConVentaForzada: number;
+  peakCapitalComprometido: number;
+  totalCapitalComprometido: number;
+  mesesConCapitalComprometido: number;
+  peakOpenPositions: number;
+}
+
+function freshAccumulators(): MonthAccumulators {
+  return {
+    totalVentaForzada: 0,
+    ventaForzadaVolWeighted: 0,
+    mesesConVentaForzada: 0,
+    peakCapitalComprometido: 0,
+    totalCapitalComprometido: 0,
+    mesesConCapitalComprometido: 0,
+    peakOpenPositions: 0,
+  };
+}
+
+interface StepResult {
+  row: AlmSimRow;
+  devengo: number;
+  /** Undiminished book value of everything held after this month's execution — feeds avgPV/avgVol, deliberately never netted against capitalComprometidoAcumulado (see the module doc comment on realBookSum in the original inline version of this logic). */
+  realBookSum: number;
+  volWeightedBookSum: number;
+}
+
+/**
+ * Runs exactly one month of the cashflow-statement simulation (the four
+ * steps described in almSim()'s doc comment), mutating `state` in place
+ * and accumulating totals into `acc`. Factored out of almSim() so the
+ * exact same mechanics can run either as one continuous 60-month pass
+ * (the fictitious ALM, almSim — always starts state fresh at month 0) or
+ * as two chained 12-month passes that hand state from one to the next
+ * (the real ALM, almSimRealYear). `t` is the *absolute* month index (must
+ * keep increasing across chained calls — see almSimRealYear — since every
+ * open position's own `matM` is stamped in this same absolute frame);
+ * `mesLabel` is only cosmetic, what ends up in the returned row's `mes`
+ * field.
+ */
+function stepMonth(
+  t: number,
+  mesLabel: number,
+  fase: "a1" | "post",
+  primaCobrada: number,
+  pagoSiniestros: number,
+  decision: PortfolioDecisionV3,
+  state: AlmYearState,
+  acc: MonthAccumulators
+): StepResult {
+  const saldoInicialPortafolio = state.positions.reduce((s, p) => s + p.book, 0) - state.capitalComprometidoAcumulado;
+
+  // 1. Accrue yield on every still-open position.
+  let devengo = 0;
+  for (const p of state.positions) {
+    if (p.matM > t) {
+      const g = p.book * p.yM;
+      p.book += g;
+      devengo += g;
+    }
+  }
+
+  // 2. Route this month's maturities per each position's own onMaturity.
+  const remaining: Position[] = [];
+  const maturingNow: Position[] = [];
+  for (const p of state.positions) (p.matM === t ? maturingNow : remaining).push(p);
+  let vencCash = 0;
+  for (const p of maturingNow) {
+    const action = p.tranche.onMaturity;
+    if (action.action === "cash") vencCash += p.book;
+    else if (action.action === "repeat") fundTranches([p.tranche], p.book, t, remaining);
+    else fundTranches(action.tranches, p.book, t, remaining);
+  }
+  state.positions = remaining;
+
+  // 3. Compute the six cashflow-statement values for this month.
+  const gastos = GASTOS_TOTAL_PCT * primaCobrada;
+  const cajaMinima = FZ.cajaPct * (primaCobrada + pagoSiniestros);
+  const cajaInicial = state.cajaFloat;
+  const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
+  const neededNeta = cajaMinima - cajaDisponible;
+
+  // 4. Execute. Caja Mínima is always met from here on.
+  let inversionNeta: number;
+  let cajaFinal: number;
+  let ventaForzada = 0;
+  let capitalComprometido = 0;
+  if (neededNeta <= 0) {
+    const surplus = -neededNeta;
+    fundTranches(decision.tranches, surplus, t, state.positions);
+    inversionNeta = neededNeta;
+    cajaFinal = cajaMinima;
+  } else {
+    const liqDrawn = drawFromLiq(neededNeta, state.positions);
+    const afterLiq = neededNeta - liqDrawn;
+    const { sold, volWeighted } = forceLiquidatePortfolio(afterLiq, state.positions);
+    ventaForzada = sold;
+    capitalComprometido = afterLiq - sold;
+    inversionNeta = liqDrawn + sold + capitalComprometido;
+    cajaFinal = cajaMinima;
+    if (ventaForzada > 0) {
+      acc.totalVentaForzada += ventaForzada;
+      acc.ventaForzadaVolWeighted += volWeighted;
+      acc.mesesConVentaForzada++;
+    }
+    if (capitalComprometido > 0) {
+      state.capitalComprometidoAcumulado += capitalComprometido;
+      acc.totalCapitalComprometido += capitalComprometido;
+      if (capitalComprometido > acc.peakCapitalComprometido) acc.peakCapitalComprometido = capitalComprometido;
+      acc.mesesConCapitalComprometido++;
+    }
+  }
+  state.cajaFloat = cajaFinal;
+
+  // realBookSum feeds avgPV/effYield/avgVol — those describe the actual
+  // invested pool's size/composition/performance and must stay
+  // uncorrupted by capitalComprometidoAcumulado, which is an emergency
+  // equity injection, not part of what's earning yield. Only the
+  // *displayed* saldoFinalPortafolio nets it out (that's the whole point
+  // of letting the portfolio show negative).
+  const realBookSum = state.positions.reduce((s, p) => s + p.book, 0);
+  const saldoFinalPortafolio = realBookSum - state.capitalComprometidoAcumulado;
+  const volWeightedBookSum = state.positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual, 0);
+  acc.peakOpenPositions = Math.max(acc.peakOpenPositions, state.positions.length);
+
+  const row: AlmSimRow = {
+    mes: mesLabel,
+    cajaInicial,
+    primaCobrada,
+    pagoSiniestros,
+    gastos,
+    vencimientosCaja: vencCash,
+    inversionNeta,
+    cajaFinal,
+    fase,
+    saldoInicialPortafolio,
+    rendimientoPortafolio: devengo,
+    saldoFinalPortafolio,
+    ventaForzadaPortafolio: ventaForzada,
+    capitalComprometidoPortafolio: capitalComprometido,
+  };
+
+  return { row, devengo, realBookSum, volWeightedBookSum };
+}
+
+/**
  * Splits `monto` across `tranches` by weight and appends one new Position
  * per non-degenerate share into `positions`. Used to (a) fund the top-level
  * decision.tranches template with fresh money every month (the base
@@ -240,9 +402,8 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
   // what's graded, see README §5.3) side by side with the fictitious one.
   const aporteMensual = aporteMensualReal ?? notionalFondeo / BUILD_MONTHS;
 
-  let cajaFloat = 0;
-  let positions: Position[] = [];
-  let capitalComprometidoAcumulado = 0;
+  const state: AlmYearState = { positions: [], capitalComprometidoAcumulado: 0, cajaFloat: 0 };
+  const acc = freshAccumulators();
 
   const rows: AlmSimRow[] = [];
   let sumCajaMinima = 0;
@@ -254,32 +415,33 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
   let liq6 = 0;
   let liab6 = 0;
   let cumLiabReserva = 0;
-  let peakOpenPositions = 0;
-  let totalVentaForzada = 0;
-  let ventaForzadaVolWeighted = 0;
-  let mesesConVentaForzada = 0;
-  let peakCapitalComprometido = 0;
-  let totalCapitalComprometido = 0;
   let capitalComprometidoY1 = 0;
   let capitalComprometidoY2 = 0;
-  let mesesConCapitalComprometido = 0;
 
   for (let t = 0; t < TOTAL; t++) {
     const buildPhase = t < BUILD_MONTHS;
-    const saldoInicialPortafolio = positions.reduce((s, p) => s + p.book, 0) - capitalComprometidoAcumulado;
-
-    // 1. Accrue yield on every still-open position — unconditional per
-    //    position, guarded by matM > t (a position doesn't earn interest in
-    //    its own maturity month, the same convention bonds always used, now
-    //    applied uniformly to LIQ and ACC too).
-    let devengo = 0;
-    for (const p of positions) {
-      if (p.matM > t) {
-        const g = p.book * p.yM;
-        p.book += g;
-        devengo += g;
-      }
+    const primaCobrada = buildPhase ? aporteMensual : 0;
+    const pagoY1 = buildPhase ? lib.payY1[t] || 0 : 0;
+    const pagoReserva = t >= BUILD_MONTHS ? lib.L[t - BUILD_MONTHS] || 0 : 0;
+    const pagoSiniestros = pagoY1 + pagoReserva;
+    if (t >= BUILD_MONTHS) {
+      cumLiabReserva += pagoReserva;
+      if (t - BUILD_MONTHS <= 6) liab6 = cumLiabReserva;
     }
+    sumCajaMinima += FZ.cajaPct * (primaCobrada + pagoSiniestros);
+
+    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(
+      t,
+      t - BUILD_MONTHS,
+      buildPhase ? "a1" : "post",
+      primaCobrada,
+      pagoSiniestros,
+      decision,
+      state,
+      acc
+    );
+    rows.push(row);
+
     totIncome += devengo;
     if (buildPhase) incomeY1 += devengo;
     // Year 2 = the 12 months right after Year 1 closes (t=12..23), same
@@ -291,113 +453,22 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
     // invested, never contaminated by how much fresh money flowed in or
     // out that year).
     if (t >= BUILD_MONTHS && t < BUILD_MONTHS + 12) incomeY2 += devengo;
-
-    // 2. Route this month's maturities per each position's own onMaturity.
-    const remaining: Position[] = [];
-    const maturingNow: Position[] = [];
-    for (const p of positions) (p.matM === t ? maturingNow : remaining).push(p);
-    let vencCash = 0;
-    for (const p of maturingNow) {
-      const action = p.tranche.onMaturity;
-      if (action.action === "cash") vencCash += p.book;
-      else if (action.action === "repeat") fundTranches([p.tranche], p.book, t, remaining);
-      else fundTranches(action.tranches, p.book, t, remaining);
-    }
-    positions = remaining;
-
-    // 3. Compute the six cashflow-statement values for this month.
-    const primaCobrada = buildPhase ? aporteMensual : 0;
-    const pagoY1 = buildPhase ? lib.payY1[t] || 0 : 0;
-    const pagoReserva = t >= BUILD_MONTHS ? lib.L[t - BUILD_MONTHS] || 0 : 0;
-    const pagoSiniestros = pagoY1 + pagoReserva;
-    if (t >= BUILD_MONTHS) {
-      cumLiabReserva += pagoReserva;
-      if (t - BUILD_MONTHS <= 6) liab6 = cumLiabReserva;
-    }
-    const gastos = GASTOS_TOTAL_PCT * primaCobrada;
-    const cajaMinima = FZ.cajaPct * (primaCobrada + pagoSiniestros);
-    sumCajaMinima += cajaMinima;
-
-    const cajaInicial = cajaFloat;
-    const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
-    const neededNeta = cajaMinima - cajaDisponible;
-
-    // 4. Execute. Caja Mínima is always met from here on — a shortfall LIQ
-    //    can't cover forces a portfolio sale, and one even that can't cover
-    //    draws on Capital Social itself (see the module doc comment); there
-    //    is no more "unmet" state.
-    let inversionNeta: number;
-    let cajaFinal: number;
-    let ventaForzada = 0;
-    let capitalComprometido = 0;
-    if (neededNeta <= 0) {
-      const surplus = -neededNeta;
-      fundTranches(decision.tranches, surplus, t, positions);
-      inversionNeta = neededNeta;
-      cajaFinal = cajaMinima;
-    } else {
-      const liqDrawn = drawFromLiq(neededNeta, positions);
-      const afterLiq = neededNeta - liqDrawn;
-      const { sold, volWeighted } = forceLiquidatePortfolio(afterLiq, positions);
-      ventaForzada = sold;
-      capitalComprometido = afterLiq - sold;
-      const drawn = liqDrawn + sold + capitalComprometido;
-      inversionNeta = drawn;
-      cajaFinal = cajaMinima;
-      if (ventaForzada > 0) {
-        totalVentaForzada += ventaForzada;
-        ventaForzadaVolWeighted += volWeighted;
-        mesesConVentaForzada++;
-      }
-      if (capitalComprometido > 0) {
-        capitalComprometidoAcumulado += capitalComprometido;
-        totalCapitalComprometido += capitalComprometido;
-        if (capitalComprometido > peakCapitalComprometido) peakCapitalComprometido = capitalComprometido;
-        mesesConCapitalComprometido++;
-      }
-    }
-    cajaFloat = cajaFinal;
-
-    // realBookSum feeds avgPV/effYield/avgVol — those describe the actual
-    // invested pool's size/composition/performance and must stay
-    // uncorrupted by capitalComprometidoAcumulado, which is an emergency
-    // equity injection, not part of what's earning totIncome. Only the
-    // *displayed* saldoFinalPortafolio nets it out (that's the whole point
-    // of letting the portfolio show negative).
-    const realBookSum = positions.reduce((s, p) => s + p.book, 0);
-    const saldoFinalPortafolio = realBookSum - capitalComprometidoAcumulado;
     sumPV += realBookSum;
-    sumVolWeighted += positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual, 0);
-    peakOpenPositions = Math.max(peakOpenPositions, positions.length);
+    sumVolWeighted += volWeightedBookSum;
 
-    if (t === BUILD_MONTHS - 1) capitalComprometidoY1 = capitalComprometidoAcumulado;
-    if (t === BUILD_MONTHS + 11) capitalComprometidoY2 = capitalComprometidoAcumulado;
+    if (t === BUILD_MONTHS - 1) capitalComprometidoY1 = state.capitalComprometidoAcumulado;
+    if (t === BUILD_MONTHS + 11) capitalComprometidoY2 = state.capitalComprometidoAcumulado;
 
     if (t === BUILD_MONTHS) {
-      liq6 = positions.reduce((s, p) => {
+      liq6 = state.positions.reduce((s, p) => {
         if (p.tranche.instrumentId === "LIQ") return s + p.book;
         if (p.matM > t && p.matM <= t + 6) return s + p.book;
         return s;
       }, 0);
     }
-
-    rows.push({
-      mes: t - BUILD_MONTHS,
-      cajaInicial,
-      primaCobrada,
-      pagoSiniestros,
-      gastos,
-      vencimientosCaja: vencCash,
-      inversionNeta,
-      cajaFinal,
-      fase: buildPhase ? "a1" : "post",
-      saldoInicialPortafolio,
-      rendimientoPortafolio: devengo,
-      saldoFinalPortafolio,
-      ventaForzadaPortafolio: ventaForzada,
-      capitalComprometidoPortafolio: capitalComprometido,
-    });
   }
+
+  const { totalVentaForzada, ventaForzadaVolWeighted, mesesConVentaForzada, peakCapitalComprometido, totalCapitalComprometido, mesesConCapitalComprometido, peakOpenPositions } = acc;
 
   const avgPV = sumPV / TOTAL;
   const rMonthly = avgPV > 0 ? totIncome / (avgPV * TOTAL) : Math.pow(1 + INSTRUMENT_BY_ID.LIQ.yield, 1 / 12) - 1;
@@ -465,6 +536,123 @@ export interface FinancialScore {
   capitalComprometidoY2: number;
   /** CAPITAL_SOCIAL minus everything committed across the full 60-month horizon — the team's ending equity position under this ALM decision alone, informational (finBench applies the Y1/Y2 checkpoints above, not this end-of-horizon figure, to the real Balance). Negative means the decision would have fully wiped out Capital Social by month 60. */
   patrimonioDisponible: number;
+}
+
+/**
+ * Decision-only (no simulation) weighted-average nominal yield of a
+ * portfolio's top-level tranches — the same shape nominalPortfolioVolRatio()
+ * in capacity.ts uses for volatility, just for yield instead. Never depends
+ * on funding size or claims, so it's identical between the fictitious and
+ * real ALM for the same decision tree.
+ */
+export function portfolioNominalYield(tranches: Tranche[]): number {
+  const totalTopW = tranches.reduce((s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s), 0);
+  if (totalTopW <= 0) return 0;
+  return tranches.reduce((s, t) => {
+    const ins = INSTRUMENT_BY_ID[t.instrumentId];
+    return ins ? s + (Math.max(0, t.weight) / totalTopW) * ins.yield : s;
+  }, 0);
+}
+
+export interface AlmRealYearResult {
+  rows: AlmSimRow[];
+  /** Decision-only, see portfolioNominalYield() — unrelated to this year's actual simulated performance. */
+  portYield: number;
+  /** Real investment income this specific 12-month year accrued (Σ rendimientoPortafolio) — what finBench() uses for that year's P&G "Resultado de inversiones" line. */
+  income: number;
+  /** Book-value-weighted average volatility actually held during just this year — feeds finBench()'s rFin volRatio for that year. */
+  avgVol: number;
+  /** Cumulative Capital Social committed through the end of this year (continues accumulating from whatever initialState carried in, if any). */
+  capitalComprometidoAcumulado: number;
+  /** CAPITAL_SOCIAL minus capitalComprometidoAcumulado — how much Capital Social this team has left after this year's real ALM. See README §5.3. */
+  capitalSocialRestante: number;
+  totalVentaForzada: number;
+  mesesConVentaForzada: number;
+  peakCapitalComprometido: number;
+  /** Pass this into Año 2's call (as almSimRealYear(2, ..., initialState)) to continue from exactly where Año 1 left off — same open positions, same accumulated capital comprometido. */
+  finalState: AlmYearState;
+}
+
+/**
+ * The *real* ALM — funded by what the team actually collected, run for
+ * exactly the 12 months of one calendar year, because that's all the real
+ * P&G/Balance for that year ever needs (see README §5.3): unlike the
+ * fictitious ALM (almSim, always an independent 60-month run per year,
+ * under the reserva/12 funding hypothesis — that's a teaching device for
+ * the ALM's own Día 1/2 nota, and stays exactly as it was), the real ALM
+ * has no reason to project 48 months past a year nobody is grading a real
+ * deliverable against.
+ *
+ * year===1 starts fresh (state defaults to zero positions/caja/capital
+ * comprometido) funded against that team's own Year-1-within-Year-1 claims
+ * schedule (typically lib.payY1). year===2 must receive `initialState` —
+ * Año 1's `finalState` — and continues the *same* simulation for another
+ * 12 months (same open positions still earning yield/maturing on their
+ * own original schedule, same capitalComprometidoAcumulado carried
+ * forward), now funded by Año 2's real premium against Año 2's own claims
+ * schedule (typically Año 1's development landing in Año 2 — lib.L.slice(0,12)
+ * — plus Año 2's own new claims' first-year payments, added together by
+ * the caller — see finBenchHelper.ts). This is a genuine continuation, not
+ * "what if this tree had run from month 0" — that hypothetical is exactly
+ * what the fictitious ALM already answers.
+ *
+ * `mes` in the returned rows matches almSim()'s own labeling for the
+ * corresponding calendar year (Año 1: -12..-1, Año 2: 0..11), so a real
+ * and fictitious ladder for the same year line up month-for-month when
+ * shown side by side.
+ */
+export function almSimRealYear(
+  year: 1 | 2,
+  claimsSchedule12: number[],
+  decision: PortfolioDecisionV3,
+  aporteMensual: number,
+  initialState?: AlmYearState
+): AlmRealYearResult | null {
+  if (year === 2 && !initialState) {
+    throw new Error("almSimRealYear(2, ...) requires Año 1's finalState — Año 2 is a continuation, not a fresh run.");
+  }
+  const totalTopW = decision.tranches.reduce((s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s), 0);
+  if (totalTopW <= 0) return null;
+
+  const state: AlmYearState = initialState
+    ? {
+        positions: initialState.positions.map((p) => ({ ...p })),
+        capitalComprometidoAcumulado: initialState.capitalComprometidoAcumulado,
+        cajaFloat: initialState.cajaFloat,
+      }
+    : { positions: [], capitalComprometidoAcumulado: 0, cajaFloat: 0 };
+  const acc = freshAccumulators();
+
+  const startMonth = year === 1 ? 0 : BUILD_MONTHS;
+  const fase: "a1" | "post" = year === 1 ? "a1" : "post";
+  const rows: AlmSimRow[] = [];
+  let income = 0;
+  let sumPV = 0;
+  let sumVolWeighted = 0;
+
+  for (let i = 0; i < 12; i++) {
+    const t = startMonth + i;
+    const mesLabel = year === 1 ? i - BUILD_MONTHS : i;
+    const pagoSiniestros = claimsSchedule12[i] || 0;
+    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(t, mesLabel, fase, aporteMensual, pagoSiniestros, decision, state, acc);
+    rows.push(row);
+    income += devengo;
+    sumPV += realBookSum;
+    sumVolWeighted += volWeightedBookSum;
+  }
+
+  return {
+    rows,
+    portYield: portfolioNominalYield(decision.tranches),
+    income,
+    avgVol: sumPV > 0 ? sumVolWeighted / sumPV : 0,
+    capitalComprometidoAcumulado: state.capitalComprometidoAcumulado,
+    capitalSocialRestante: CAPITAL_SOCIAL - state.capitalComprometidoAcumulado,
+    totalVentaForzada: acc.totalVentaForzada,
+    mesesConVentaForzada: acc.mesesConVentaForzada,
+    peakCapitalComprometido: acc.peakCapitalComprometido,
+    finalState: state,
+  };
 }
 
 /**
@@ -536,17 +724,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const ventaForzadaSeveridad = sumCajaMinima > 0 ? Math.min(1, ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX)) : 0;
   const ventaForzada = 100 * (1 - ventaForzadaSeveridad);
 
-  const totalTopW = decision.tranches.reduce(
-    (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
-    0
-  );
-  const portYield =
-    totalTopW > 0
-      ? decision.tranches.reduce((s, t) => {
-          const ins = INSTRUMENT_BY_ID[t.instrumentId];
-          return ins ? s + (Math.max(0, t.weight) / totalTopW) * ins.yield : s;
-        }, 0)
-      : 0;
+  const portYield = portfolioNominalYield(decision.tranches);
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
   const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_VENTA_FORZADA * ventaForzada + W_LIQ * liquidez;
 
