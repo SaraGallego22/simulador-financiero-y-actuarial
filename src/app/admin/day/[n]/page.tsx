@@ -76,7 +76,7 @@ export default async function AdminDayPage({
   const latestRun = await prisma.simulationRun.findFirst({
     where: { cohortId: cohort.id, day },
     orderBy: { createdAt: "desc" },
-    include: { teamResults: true },
+    select: { id: true, status: true, teamResults: true },
   });
   dbg(`after latestRun (status=${latestRun?.status ?? "none"})`);
 
@@ -142,7 +142,7 @@ export default async function AdminDayPage({
       ? await prisma.simulationRun.findMany({
           where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
           orderBy: { createdAt: "desc" },
-          include: { teamResults: true },
+          select: { day: true, teamResults: { select: { teamId: true, rejectedCount: true, extra: true } } },
         })
       : [];
   const capacityByTeamIdByYear = new Map<1 | 2, Map<string, { rejectedCount: number; extra: unknown }>>();
