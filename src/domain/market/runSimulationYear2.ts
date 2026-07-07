@@ -17,6 +17,10 @@ export interface Year2TeamAggregate {
   sumLambda: number;
   retainedCount: number;
   newCount: number;
+  /** The actual Phase 2/3 policy-count limit enforced for this team this run — min(rawCapacityLimit, floor(n*cuotaPct)). */
+  capacityLimit: number;
+  /** This team's capital-derived limit *before* the cuotaPct ceiling clamp. */
+  rawCapacityLimit: number;
 }
 
 export interface SimulationYear2Result {
@@ -50,7 +54,15 @@ export function runSimulationYear2(
   }
 
   const n = universe.n;
-  const limit = Math.floor(n * params.cuotaPct);
+  const ceiling = Math.floor(n * params.cuotaPct);
+  const rawCapacityByTeam = new Map<number, number>();
+  const limitByTeam = new Map<number, number>();
+  for (const team of teams) {
+    const raw = params.capacityByTeamId.get(team.id);
+    if (raw == null) throw new Error(`runSimulationYear2: missing capacityByTeamId entry for team ${team.id}`);
+    rawCapacityByTeam.set(team.id, raw);
+    limitByTeam.set(team.id, Math.min(raw, ceiling));
+  }
   const teamsById = new Map(teams.map((t) => [t.id, t]));
 
   const r1 = seedRand(params.seed + 8888);
@@ -92,6 +104,7 @@ export function runSimulationYear2(
   const rejectedByTeam = new Map<number, number>();
   const remainingCapacity = new Map<number, number>();
   for (const team of teams) {
+    const limit = limitByTeam.get(team.id)!;
     const queue = queuesByTeam.get(team.id)!;
     queue.sort((a, b) => b.premium - a.premium);
     for (let idx = 0; idx < Math.min(queue.length, limit); idx++) {
@@ -101,7 +114,11 @@ export function runSimulationYear2(
     remainingCapacity.set(team.id, limit - Math.min(queue.length, limit));
   }
 
-  // Phase 3: redistribute rejected exposures among teams with remaining capacity
+  // Phase 3: redistribute rejected exposures among teams with remaining
+  // capacity. Sum of every team's (capacity-derived, ceiling-clamped) limit
+  // can be < 100% of the universe — no team has room. Fall back to
+  // whichever team has the most remaining (least negative) capacity,
+  // mirroring the legacy's behavior in this edge case.
   for (let k = 0; k < n; k++) {
     if (assignment[k] !== -1) continue;
 
@@ -142,6 +159,8 @@ export function runSimulationYear2(
       sumLambda: 0,
       retainedCount: 0,
       newCount: 0,
+      capacityLimit: limitByTeam.get(team.id)!,
+      rawCapacityLimit: rawCapacityByTeam.get(team.id)!,
     });
   }
   for (let k = 0; k < n; k++) {

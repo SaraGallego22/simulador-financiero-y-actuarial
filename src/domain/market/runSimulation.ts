@@ -13,8 +13,19 @@ export interface RunSimulationParams {
   beta: number;
   /** Scale of the Gumbel brand-inertia noise term. */
   marcaScale: number;
-  /** Max market-share fraction per team, in (0, 1]. */
+  /** Absolute ceiling on market-share fraction per team, in (0, 1] — nobody can exceed this regardless of capital. See capacityByTeamId for what actually binds first for most teams. */
   cuotaPct: number;
+  /**
+   * Per-team, capital-derived maximum policy count (see
+   * maxPoliciesForCapital() in domain/finance/capacity.ts) — computed by
+   * the caller from each team's available capital, portfolio volatility,
+   * and own average premium, *before* the ceiling clamp. Each team's
+   * actual Phase 2 limit is min(this, floor(n*cuotaPct)) — a team with
+   * ample capital still can't exceed the admin's ceiling, but a
+   * capital-constrained team gets capped well below it. Required for
+   * every team passed in `teams`.
+   */
+  capacityByTeamId: Map<number, number>;
 }
 
 export interface TeamSimAggregate {
@@ -25,6 +36,10 @@ export interface TeamSimAggregate {
   claimsAmount: number;
   sumLambda: number;
   rejectedCount: number;
+  /** The actual Phase 2/3 policy-count limit enforced for this team this run — min(rawCapacityLimit, floor(n*cuotaPct)). */
+  capacityLimit: number;
+  /** This team's capital-derived limit *before* the cuotaPct ceiling clamp — lets Día 4 distinguish "capital was your binding constraint" from "the admin ceiling was". */
+  rawCapacityLimit: number;
 }
 
 export interface SimulationResult {
@@ -47,7 +62,9 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
  *    brand-inertia noise).
  * 2. Each team rejects excess demand above its market-share cap, keeping the
  *    highest-premium policies it was offered (a team would rather retain the
- *    exposures it prices highest).
+ *    exposures it prices highest). The cap is per-team now — see
+ *    capacityByTeamId on RunSimulationParams — not a single number shared
+ *    by everyone.
  * 3. Exposures rejected in phase 2 are redistributed among teams with
  *    remaining capacity, using a second independent Gumbel draw.
  *
@@ -66,7 +83,15 @@ export function runSimulation(
   }
 
   const n = universe.n;
-  const limit = Math.floor(n * params.cuotaPct);
+  const ceiling = Math.floor(n * params.cuotaPct);
+  const rawCapacityByTeam = new Map<number, number>();
+  const limitByTeam = new Map<number, number>();
+  for (const team of teams) {
+    const raw = params.capacityByTeamId.get(team.id);
+    if (raw == null) throw new Error(`runSimulation: missing capacityByTeamId entry for team ${team.id}`);
+    rawCapacityByTeam.set(team.id, raw);
+    limitByTeam.set(team.id, Math.min(raw, ceiling));
+  }
   const teamsById = new Map(teams.map((t) => [t.id, t]));
 
   const r1 = seedRand(params.seed + 7777);
@@ -105,6 +130,7 @@ export function runSimulation(
   const rejectedByTeam = new Map<number, number>();
   const remainingCapacity = new Map<number, number>();
   for (const team of teams) {
+    const limit = limitByTeam.get(team.id)!;
     const queue = queuesByTeam.get(team.id)!;
     queue.sort((a, b) => b.premium - a.premium);
     for (let idx = 0; idx < Math.min(queue.length, limit); idx++) {
@@ -120,9 +146,10 @@ export function runSimulation(
 
     const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0);
     if (!available.length) {
-      // cuotaPct * teams.length < 100% — no team has room. Fall back to
-      // whichever team has the most remaining (least negative) capacity,
-      // mirroring the legacy's behavior in this edge case.
+      // Sum of every team's (capacity-derived, ceiling-clamped) limit <
+      // 100% of the universe — no team has room. Fall back to whichever
+      // team has the most remaining (least negative) capacity, mirroring
+      // the legacy's behavior in this edge case.
       let fallback = teams[0];
       for (const t of teams) {
         if ((remainingCapacity.get(t.id) ?? 0) > (remainingCapacity.get(fallback.id) ?? 0)) fallback = t;
@@ -157,6 +184,8 @@ export function runSimulation(
       claimsAmount: 0,
       sumLambda: 0,
       rejectedCount: rejectedByTeam.get(team.id) ?? 0,
+      capacityLimit: limitByTeam.get(team.id)!,
+      rawCapacityLimit: rawCapacityByTeam.get(team.id)!,
     });
   }
   for (let k = 0; k < n; k++) {

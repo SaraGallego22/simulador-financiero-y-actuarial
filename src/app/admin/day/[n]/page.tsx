@@ -112,6 +112,23 @@ export default async function AdminDayPage({
   // reinvestment yield when almYear1 is null).
   const finBenchByTeamId = day >= 1 ? await computeFinBenchForCohort(cohort.id) : new Map();
 
+  // Each team's Año 1/Año 2 capital-derived market-share limit (see
+  // capacityHelper.ts) — shown next to finBench's solvency figures below so
+  // an evaluator can point a capped team straight at the same numbers.
+  const capacityRuns =
+    day >= 2
+      ? await prisma.simulationRun.findMany({
+          where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
+          orderBy: { createdAt: "desc" },
+          include: { teamResults: true },
+        })
+      : [];
+  const capacityByTeamIdByYear = new Map<1 | 2, Map<string, { rejectedCount: number; extra: unknown }>>();
+  for (const yr of [1, 2] as const) {
+    const run = capacityRuns.find((r) => r.day === yr);
+    capacityByTeamIdByYear.set(yr, new Map((run?.teamResults ?? []).map((r) => [r.teamId, { rejectedCount: r.rejectedCount, extra: r.extra }])));
+  }
+
   // Deliverables: teams self-report numeric concepts, graded against
   // finBench's computed benchmark within a tolerance band.
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
@@ -447,12 +464,18 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Riesgo Fin. (volatilidad)</th>
                     <th className="px-4 py-2">Capital (RK)</th>
                     <th className="px-4 py-2">Margen solvencia</th>
+                    <th className="px-4 py-2">Límite de cuota A1</th>
+                    <th className="px-4 py-2">Límite de cuota A2</th>
                   </tr>
                 </thead>
                 <tbody>
                   {teams.map((team) => {
                     const bench = finBenchByTeamId.get(team.id);
                     if (!bench) return null;
+                    const cap1 = capacityByTeamIdByYear.get(1)?.get(team.id);
+                    const cap2 = capacityByTeamIdByYear.get(2)?.get(team.id);
+                    const cap1Extra = cap1?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                    const cap2Extra = cap2?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
                     return (
                       <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                         <td className="px-4 py-2">
@@ -467,11 +490,35 @@ export default async function AdminDayPage({
                         </td>
                         <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
+                        <td className="px-4 py-2">
+                          {cap1Extra?.capacityLimit != null ? (
+                            <>
+                              {cap1Extra.capacityLimit.toLocaleString("es-CO")}
+                              {cap1 && cap1.rejectedCount > 0 && <span className="text-[var(--color-brand-red)]"> ({cap1.rejectedCount.toLocaleString("es-CO")} rechazadas)</span>}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {cap2Extra?.capacityLimit != null ? (
+                            <>
+                              {cap2Extra.capacityLimit.toLocaleString("es-CO")}
+                              {cap2 && cap2.rejectedCount > 0 && <span className="text-[var(--color-brand-red)]"> ({cap2.rejectedCount.toLocaleString("es-CO")} rechazadas)</span>}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                El límite de cuota A2 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
+                Año 1 — un equipo con Margen de solvencia bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en A2.
+              </p>
             </div>
           )}
 

@@ -53,7 +53,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
           <input type="number" step="0.05" value={marcaScale} onChange={(e) => setMarcaScale(Number(e.target.value))} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
         </label>
         <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-          Cuota máx. por equipo (%)
+          Techo absoluto por equipo (%)
           <input
             type="number"
             step="5"
@@ -79,8 +79,9 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
         )}
       </div>
       <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-        Porcentaje máximo del universo (1,000,000 de pólizas) que cada equipo puede quedarse. Con 1 equipo con tarifa
-        completa, ese equipo recibe el 100% automáticamente (no hay competencia que simular).
+        Este ya no es el límite que normalmente rechaza pólizas — es solo el techo absoluto que ningún equipo puede superar sin importar su capital. Lo que
+        realmente limita a cada equipo es su propio capital disponible y el riesgo de su portafolio (calculado con el mismo modelo de solvencia del Día 4 —
+        ver README). Con 1 equipo con tarifa completa, ese equipo recibe el 100% automáticamente (no hay competencia que simular).
         {day === 2 && " La retención controla qué tan difícil es para un equipo perder un cliente que ya tenía en el Año 1."}
       </p>
       {error && <p className="mb-3 text-sm text-[var(--color-brand-red)]">{error}</p>}

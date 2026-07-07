@@ -9,6 +9,10 @@ function flatTariff(n: number, premium: number): Float32Array {
   return new Float32Array(n).fill(premium);
 }
 
+function unlimited(teams: TeamInfo[]): Map<number, number> {
+  return new Map(teams.map((t) => [t.id, Infinity]));
+}
+
 describe("runSimulation", () => {
   const universe = generateColombia(42, N);
   const teams: TeamInfo[] = [
@@ -28,6 +32,7 @@ describe("runSimulation", () => {
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.5,
+      capacityByTeamId: unlimited(teams),
     });
     expect(assignment.length).toBe(N);
     for (let k = 0; k < N; k++) {
@@ -35,13 +40,14 @@ describe("runSimulation", () => {
     }
   });
 
-  it("respects the market-share cap per team (up to the redistribution fallback)", () => {
+  it("respects the cuotaPct ceiling per team when capacity is unlimited (up to the redistribution fallback)", () => {
     const cuotaPct = 0.4;
     const { assignment } = runSimulation(universe, tariffs, teams, {
       seed: 42,
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct,
+      capacityByTeamId: unlimited(teams),
     });
     const limit = Math.floor(N * cuotaPct);
     const counts = new Map<number, number>();
@@ -53,12 +59,66 @@ describe("runSimulation", () => {
     }
   });
 
+  it("a team's own capacityByTeamId binds even when it's below the cuotaPct ceiling", () => {
+    const capacity = new Map<number, number>([
+      [1, 50],
+      [2, Infinity],
+      [3, Infinity],
+    ]);
+    const { assignment, aggregates } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9, // generous ceiling — team 1's own 50-policy cap is what should bind
+      capacityByTeamId: capacity,
+    });
+    let team1Count = 0;
+    for (let k = 0; k < N; k++) if (assignment[k] === 1) team1Count++;
+    expect(team1Count).toBeLessThanOrEqual(50);
+    expect(aggregates.get(1)!.capacityLimit).toBe(50);
+    expect(aggregates.get(1)!.rawCapacityLimit).toBe(50);
+  });
+
+  it("clamps a team's capacity to the cuotaPct ceiling even when its own capacityByTeamId is higher", () => {
+    const cuotaPct = 0.1;
+    const capacity = new Map<number, number>([
+      [1, N], // this team's capital could support the whole universe...
+      [2, N],
+      [3, N],
+    ]);
+    const { aggregates } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct, // ...but the admin ceiling is much tighter
+      capacityByTeamId: capacity,
+    });
+    const ceiling = Math.floor(N * cuotaPct);
+    for (const team of teams) {
+      expect(aggregates.get(team.id)!.capacityLimit).toBe(ceiling);
+      expect(aggregates.get(team.id)!.rawCapacityLimit).toBe(N);
+    }
+  });
+
+  it("throws when a team is missing from capacityByTeamId", () => {
+    expect(() =>
+      runSimulation(universe, tariffs, teams, {
+        seed: 42,
+        beta: 1.5,
+        marcaScale: 0.3,
+        cuotaPct: 0.5,
+        capacityByTeamId: new Map([[1, 100]]), // teams 2 and 3 missing
+      })
+    ).toThrow();
+  });
+
   it("aggregates sum to the total exposure count and are internally consistent", () => {
     const { assignment, aggregates } = runSimulation(universe, tariffs, teams, {
       seed: 42,
       beta: 1.5,
       marcaScale: 0.3,
       cuotaPct: 0.5,
+      capacityByTeamId: unlimited(teams),
     });
     let totalInsured = 0;
     for (const agg of aggregates.values()) totalInsured += agg.insuredCount;
@@ -74,14 +134,21 @@ describe("runSimulation", () => {
   });
 
   it("is deterministic for a given seed", () => {
-    const runA = runSimulation(universe, tariffs, teams, { seed: 7, beta: 1.5, marcaScale: 0.3, cuotaPct: 0.5 });
-    const runB = runSimulation(universe, tariffs, teams, { seed: 7, beta: 1.5, marcaScale: 0.3, cuotaPct: 0.5 });
+    const params = { seed: 7, beta: 1.5, marcaScale: 0.3, cuotaPct: 0.5, capacityByTeamId: unlimited(teams) };
+    const runA = runSimulation(universe, tariffs, teams, params);
+    const runB = runSimulation(universe, tariffs, teams, params);
     expect(Array.from(runA.assignment)).toEqual(Array.from(runB.assignment));
   });
 
   it("throws with fewer than 2 teams", () => {
     expect(() =>
-      runSimulation(universe, tariffs, [teams[0]], { seed: 1, beta: 1, marcaScale: 0.3, cuotaPct: 0.5 })
+      runSimulation(universe, tariffs, [teams[0]], {
+        seed: 1,
+        beta: 1,
+        marcaScale: 0.3,
+        cuotaPct: 0.5,
+        capacityByTeamId: unlimited(teams),
+      })
     ).toThrow();
   });
 });
