@@ -2,10 +2,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { toInt32View, toFloat32View } from "@/lib/binary";
-import { generateColombia, getExposure } from "@/domain/generation/generateColombia";
-import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
+import { getExposure } from "@/domain/generation/generateColombia";
 import { ANIO_BASE_A1 } from "@/domain/generation/constants";
 import { N_COLOMBIA } from "@/domain/generation/constants";
+import { getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
 
 // Streamed — bypasses Vercel's 4.5MB response cap (see CLAUDE.md §4.3), needed
 // since one team's book can be up to the full 1,000,000-row universe.
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   });
   if (!universeRun) return new Response("El universo Colombia aún no se ha generado.", { status: 404 });
 
-  const universe = generateColombia(universeRun.seed);
+  const universe = getUniverseForSeed(universeRun.seed);
 
   const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
   let myAssignment: Int32Array;
@@ -149,7 +149,7 @@ export async function GET(request: Request) {
     wasMineYear1 = new Uint8Array(universe.n);
   }
 
-  const year2Claims = generateYear2Claims(universe, universeRun.seed);
+  const year2Claims = getYear2ClaimsForSeed(universeRun.seed, universe);
 
   const stream = new ReadableStream({
     start(controller) {

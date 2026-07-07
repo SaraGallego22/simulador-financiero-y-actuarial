@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { generateColombia } from "@/domain/generation/generateColombia";
 import { generateChile } from "@/domain/generation/generateChile";
 import { N_COLOMBIA, N_CHILE } from "@/domain/generation/constants";
+import { getUniverseForSeed } from "@/lib/teamBook";
 
 // Generation runs synchronously in this Route Handler rather than a
 // background job/queue — see CLAUDE.md §4.1. Hobby's max duration is 300s.
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     // the connection went through the Neon serverless adapter or plain
     // TCP/pg, which blew past this route's (and the simulation route's)
     // maxDuration in production. See CLAUDE.md §4.1.
-    if (kind === "colombia") generateColombia(seed);
+    if (kind === "colombia") getUniverseForSeed(seed);
     else generateChile(seed);
 
     await prisma.universeRun.update({
