@@ -1,4 +1,4 @@
-import { FZ, CORR_MOD } from "./constants";
+import { FZ, CORR_MOD, CAPITAL_SOCIAL } from "./constants";
 import { VOL_MENU_AVG } from "./instruments";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
@@ -80,10 +80,19 @@ function pyg(prima: number, sin: number, reservas: number, rinv: number): PnL {
   return { prima, costo: sin, gadq, gcom, gadm, rt, rinv, uai, imp, uneta: uai - imp, reservas };
 }
 
-function balance(pygY: PnL | null, capital0: number, retenido: number): BalanceSheet | null {
+/**
+ * capitalComprometido subtracts directly from patrimonio — it's the real
+ * consequence of the fictitious Día 1/Día 2 ALM having had to draw on
+ * Capital Social to meet a cash-flow shortfall neither LIQ nor the rest of
+ * the portfolio could cover (see almSim's step 4 in alm.ts). This is a
+ * lasting equity hit, not something the year's ordinary P&L (retenido)
+ * already captures — the P&L reflects accrual-basis annual profitability,
+ * this reflects a within-year cash-timing failure.
+ */
+function balance(pygY: PnL | null, capital0: number, retenido: number, capitalComprometido: number): BalanceSheet | null {
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
-  const patrimonio = capital0 + retenido;
+  const patrimonio = capital0 + retenido - capitalComprometido;
   const caja = FZ.cajaPct * pygY.prima;
   const cxc = FZ.cxcPct * pygY.prima;
   const cxp = FZ.cxpPct * pygY.prima;
@@ -171,10 +180,20 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     p3 = pyg(p2.prima * g, p2.costo * g, reservas3, reservas3 * portYield);
   }
 
-  const capital0 = FZ.cap0Pct * year1.totalPremium;
-  const bal1 = balance(p1, capital0, p1.uneta)!;
-  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta) : null;
-  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta) : null;
+  // Every team starts from the same fixed Capital Social (see constants.ts)
+  // instead of a premium-based capital0 — otherwise a team's own pricing
+  // choice would indirectly change how much capital cushion its ALM gets,
+  // which has nothing to do with the risk it's actually carrying.
+  const capital0 = CAPITAL_SOCIAL;
+  const capitalComprometidoY1 = almYear1?.capitalComprometidoY1 ?? 0;
+  const almY2 = almYear2 ?? almYear1;
+  const capitalComprometidoY2 = almY2?.capitalComprometidoY2 ?? 0;
+  const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1)!;
+  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2) : null;
+  // Year 3 is a projection, not an independently ALM-simulated year (see
+  // README §5) — it carries Year 2's already-committed capital forward
+  // rather than assuming any new erosion.
+  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY2) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;

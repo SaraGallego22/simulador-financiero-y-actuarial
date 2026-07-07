@@ -88,14 +88,18 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         </p>
       </div>
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha máxima (peor mes)</p>
-        <p className="text-sm font-semibold">
-          ${Math.round(score.peakBrechaCaja).toLocaleString("es-CO")} ({(score.peakBrechaCajaRatio * 100).toFixed(1)}% de la caja mínima típica)
-        </p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Peor mes: % de Capital Social comprometido</p>
+        <p className="text-sm font-semibold">{(score.peakCapitalComprometidoRatio * 100).toFixed(2)}%</p>
       </div>
       <div>
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Brecha promedio (todo el horizonte)</p>
-        <p className="text-sm font-semibold">{(score.avgBrechaCajaRatio * 100).toFixed(1)}% de la caja mínima acumulada</p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Acumulado (todo el horizonte): % de Capital Social</p>
+        <p className="text-sm font-semibold">{(score.avgCapitalComprometidoRatio * 100).toFixed(2)}%</p>
+      </div>
+      <div>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Patrimonio disponible al final del horizonte</p>
+        <p className={`text-sm font-semibold ${score.patrimonioDisponible < 0 ? "text-[var(--color-brand-red)]" : ""}`}>
+          ${Math.round(score.patrimonioDisponible).toLocaleString("es-CO")}
+        </p>
       </div>
       <div>
         <p className="text-xs text-[var(--color-brand-text-secondary)]">Rendimiento portafolio (nominal, ponderado)</p>
@@ -127,7 +131,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-yellow)]" /> Venta forzada de portafolio
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-red)]" /> Brecha genuina (ni LIQ ni el resto del portafolio alcanzaron)
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-red)]" /> Capital Social comprometido (ni LIQ ni el resto del portafolio alcanzaron)
         </span>
       </p>
       <div className="max-h-64 overflow-y-auto overflow-x-auto">
@@ -143,7 +147,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
               <th className="px-2 py-1">Inversión Neta</th>
               <th className="px-2 py-1">Caja Final</th>
               <th className="px-2 py-1">Venta forzada</th>
-              <th className="px-2 py-1">Brecha</th>
+              <th className="px-2 py-1">Capital comprometido</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +155,11 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
               <tr
                 key={i}
                 className={`border-t border-[var(--color-brand-gray-light)] ${
-                  r.brechaCaja > 0 ? "bg-[var(--color-brand-red)]/10" : r.ventaForzadaPortafolio > 0 ? "bg-[var(--color-brand-yellow)]/10" : ""
+                  r.capitalComprometidoPortafolio > 0
+                    ? "bg-[var(--color-brand-red)]/10"
+                    : r.ventaForzadaPortafolio > 0
+                      ? "bg-[var(--color-brand-yellow)]/10"
+                      : ""
                 }`}
               >
                 <td className="px-2 py-1">{r.mes}</td>
@@ -165,7 +173,9 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
                 <td className="px-2 py-1">
                   {r.ventaForzadaPortafolio > 0 ? `$${Math.round(r.ventaForzadaPortafolio).toLocaleString("es-CO")}` : "—"}
                 </td>
-                <td className="px-2 py-1">{r.brechaCaja > 0 ? `$${Math.round(r.brechaCaja).toLocaleString("es-CO")}` : "—"}</td>
+                <td className="px-2 py-1">
+                  {r.capitalComprometidoPortafolio > 0 ? `$${Math.round(r.capitalComprometidoPortafolio).toLocaleString("es-CO")}` : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

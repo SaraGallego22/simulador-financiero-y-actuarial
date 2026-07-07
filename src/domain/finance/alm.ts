@@ -2,7 +2,7 @@ import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM } from "./instruments";
 import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
-import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA } from "./constants";
+import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CAPITAL_SOCIAL } from "./constants";
 
 export const W_CUMPL_CAJA = 0.35;
 export const W_REND = 0.35;
@@ -20,9 +20,9 @@ const RISK_ADJUSTED_YIELDS = INSTRUMENTS.map((i) => i.yield - VOL_PENALTY_LAMBDA
 export const RISK_ADJUSTED_YIELD_MIN = Math.min(...RISK_ADJUSTED_YIELDS);
 export const RISK_ADJUSTED_YIELD_MAX = Math.max(...RISK_ADJUSTED_YIELDS);
 
-/** cumplimientoCaja blends the single worst month (tail risk) with the average shortfall across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
-export const W_BRECHA_PEAK = 0.5;
-export const W_BRECHA_AVG = 0.5;
+/** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
+export const W_CAP_PEAK = 0.5;
+export const W_CAP_AVG = 0.5;
 
 /** Rate shocks (+20%/-15% relative to base), ported from ALM_TASA_* line ~1804. */
 export const ALM_TASA_BASE = 0.1;
@@ -37,30 +37,26 @@ export interface AlmSimRow {
   gastos: number;
   /** Proceeds this month from instruments that matured with a "mantener en caja" rule — folded into availability before Inversión Neta is computed. */
   vencimientosCaja: number;
-  /** Negative = surplus invested this month; positive = drawn from LIQ and/or forced portfolio sales to cover a Caja Mínima shortfall (see ventaForzadaPortafolio for the forced-sale portion specifically). */
+  /** Negative = surplus invested this month; positive = drawn from LIQ, forced portfolio sales, and/or committed capital to cover a Caja Mínima shortfall — always exactly covers the shortfall now (see the module doc comment: Caja Mínima is never left unmet). */
   inversionNeta: number;
   cajaFinal: number;
-  /** > 0 only when a shortfall remained even after draining LIQ AND force-selling every other open position — genuine insolvency, not just "ran out of cash on hand." */
-  brechaCaja: number;
   fase: "a1" | "post";
   /** The portion of this month's inversionNeta that came from force-selling a non-LIQ position early (before its own maturity) to cover a shortfall LIQ alone couldn't — 0 whenever LIQ was enough. See scoreFinanciero()'s ventaForzada sub-score. */
   ventaForzadaPortafolio: number;
-  /** Book value of every open investment position at the START of this month (= previous month's saldoFinalPortafolio, or 0 at the first month) — separate from the cash-statement columns above, this tracks the *portfolio's* value, not the cash floor. */
+  /** The portion of this month's inversionNeta that came from Capital Social itself — only nonzero once LIQ *and* the entire rest of the portfolio were already exhausted this month. Once committed, this never gets "repaid" by a later month's surplus (see the module doc comment) — it's a lasting mark against the team's equity, not a temporary overdraft. */
+  capitalComprometidoPortafolio: number;
+  /** Book value of every open investment position at the START of this month, net of any Capital Social committed so far (= previous month's saldoFinalPortafolio, or 0 at the first month) — separate from the cash-statement columns above, this tracks the *portfolio's* value, not the cash floor. Can be negative once cumulative capital committed exceeds what's actually invested. */
   saldoInicialPortafolio: number;
   /** Yield/growth accrued this month across all open positions (step 1 of the simulation) — the only way saldoFinalPortafolio can grow without fresh Inversión Neta. */
   rendimientoPortafolio: number;
-  /** saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta (an identity — see alm.test.ts): money leaves the portfolio via "mantener en caja" or a draw to cover a brecha, and enters via fresh Inversión Neta. */
+  /** saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta (an identity — see alm.test.ts): money leaves the portfolio via "mantener en caja" or a draw to cover a shortfall, and enters via fresh Inversión Neta. Can be negative — see capitalComprometidoPortafolio. */
   saldoFinalPortafolio: number;
 }
 
 export interface AlmSimResult {
   rows: AlmSimRow[];
-  peakBrechaCaja: number;
-  /** Sum of every month's Caja Mínima shortfall across the whole horizon — captures chronic mismatch, not just the single worst month. */
-  totalBrechaCaja: number;
   /** Sum of every month's Caja Mínima requirement — the normalizing scale for the score ratios below. */
   sumCajaMinima: number;
-  mesesEnBrecha: number;
   reserva: number;
   effYield: number;
   avgPV: number;
@@ -78,6 +74,16 @@ export interface AlmSimResult {
   ventaForzadaVolWeighted: number;
   /** Diagnostic only — months where LIQ alone wasn't enough and a non-LIQ position had to be sold early. */
   mesesConVentaForzada: number;
+  /** Worst single month's draw on Capital Social — tail-risk half of cumplimientoCaja's new formula. */
+  peakCapitalComprometido: number;
+  /** Cumulative Capital Social committed across the whole 60-month horizon — chronic-erosion half of cumplimientoCaja's new formula. */
+  totalCapitalComprometido: number;
+  /** Cumulative Capital Social committed through the end of calendar Year 1 (absolute month 11) — what finBench() subtracts from bal1's patrimonio. */
+  capitalComprometidoY1: number;
+  /** Cumulative Capital Social committed through the end of calendar Year 2 (absolute month 23) — what finBench() subtracts from bal2's patrimonio. */
+  capitalComprometidoY2: number;
+  /** Diagnostic only — months where LIQ and the entire rest of the portfolio were both exhausted and Capital Social itself had to be tapped. */
+  mesesConCapitalComprometido: number;
 }
 
 interface Position {
@@ -227,12 +233,10 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
 
   let cajaFloat = 0;
   let positions: Position[] = [];
+  let capitalComprometidoAcumulado = 0;
 
   const rows: AlmSimRow[] = [];
-  let peakBrechaCaja = 0;
-  let totalBrechaCaja = 0;
   let sumCajaMinima = 0;
-  let mesesEnBrecha = 0;
   let totIncome = 0;
   let incomeY1 = 0;
   let sumPV = 0;
@@ -244,10 +248,15 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
   let totalVentaForzada = 0;
   let ventaForzadaVolWeighted = 0;
   let mesesConVentaForzada = 0;
+  let peakCapitalComprometido = 0;
+  let totalCapitalComprometido = 0;
+  let capitalComprometidoY1 = 0;
+  let capitalComprometidoY2 = 0;
+  let mesesConCapitalComprometido = 0;
 
   for (let t = 0; t < TOTAL; t++) {
     const buildPhase = t < BUILD_MONTHS;
-    const saldoInicialPortafolio = positions.reduce((s, p) => s + p.book, 0);
+    const saldoInicialPortafolio = positions.reduce((s, p) => s + p.book, 0) - capitalComprometidoAcumulado;
 
     // 1. Accrue yield on every still-open position — unconditional per
     //    position, guarded by matM > t (a position doesn't earn interest in
@@ -294,11 +303,14 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
     const neededNeta = cajaMinima - cajaDisponible;
 
-    // 4. Execute.
+    // 4. Execute. Caja Mínima is always met from here on — a shortfall LIQ
+    //    can't cover forces a portfolio sale, and one even that can't cover
+    //    draws on Capital Social itself (see the module doc comment); there
+    //    is no more "unmet" state.
     let inversionNeta: number;
-    let brechaCaja = 0;
     let cajaFinal: number;
     let ventaForzada = 0;
+    let capitalComprometido = 0;
     if (neededNeta <= 0) {
       const surplus = -neededNeta;
       fundTranches(decision.tranches, surplus, t, positions);
@@ -306,28 +318,41 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
       cajaFinal = cajaMinima;
     } else {
       const liqDrawn = drawFromLiq(neededNeta, positions);
-      const stillNeeded = neededNeta - liqDrawn;
-      const { sold, volWeighted } = forceLiquidatePortfolio(stillNeeded, positions);
+      const afterLiq = neededNeta - liqDrawn;
+      const { sold, volWeighted } = forceLiquidatePortfolio(afterLiq, positions);
       ventaForzada = sold;
-      const drawn = liqDrawn + sold;
+      capitalComprometido = afterLiq - sold;
+      const drawn = liqDrawn + sold + capitalComprometido;
       inversionNeta = drawn;
-      brechaCaja = neededNeta - drawn;
-      cajaFinal = cajaMinima - brechaCaja;
-      if (brechaCaja > peakBrechaCaja) peakBrechaCaja = brechaCaja;
-      totalBrechaCaja += brechaCaja;
-      if (brechaCaja > 0) mesesEnBrecha++;
+      cajaFinal = cajaMinima;
       if (ventaForzada > 0) {
         totalVentaForzada += ventaForzada;
         ventaForzadaVolWeighted += volWeighted;
         mesesConVentaForzada++;
       }
+      if (capitalComprometido > 0) {
+        capitalComprometidoAcumulado += capitalComprometido;
+        totalCapitalComprometido += capitalComprometido;
+        if (capitalComprometido > peakCapitalComprometido) peakCapitalComprometido = capitalComprometido;
+        mesesConCapitalComprometido++;
+      }
     }
     cajaFloat = cajaFinal;
 
-    const saldoFinalPortafolio = positions.reduce((s, p) => s + p.book, 0);
-    sumPV += saldoFinalPortafolio;
+    // realBookSum feeds avgPV/effYield/avgVol — those describe the actual
+    // invested pool's size/composition/performance and must stay
+    // uncorrupted by capitalComprometidoAcumulado, which is an emergency
+    // equity injection, not part of what's earning totIncome. Only the
+    // *displayed* saldoFinalPortafolio nets it out (that's the whole point
+    // of letting the portfolio show negative).
+    const realBookSum = positions.reduce((s, p) => s + p.book, 0);
+    const saldoFinalPortafolio = realBookSum - capitalComprometidoAcumulado;
+    sumPV += realBookSum;
     sumVolWeighted += positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual, 0);
     peakOpenPositions = Math.max(peakOpenPositions, positions.length);
+
+    if (t === BUILD_MONTHS - 1) capitalComprometidoY1 = capitalComprometidoAcumulado;
+    if (t === BUILD_MONTHS + 11) capitalComprometidoY2 = capitalComprometidoAcumulado;
 
     if (t === BUILD_MONTHS) {
       liq6 = positions.reduce((s, p) => {
@@ -346,12 +371,12 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
       vencimientosCaja: vencCash,
       inversionNeta,
       cajaFinal,
-      brechaCaja,
       fase: buildPhase ? "a1" : "post",
       saldoInicialPortafolio,
       rendimientoPortafolio: devengo,
       saldoFinalPortafolio,
       ventaForzadaPortafolio: ventaForzada,
+      capitalComprometidoPortafolio: capitalComprometido,
     });
   }
 
@@ -362,10 +387,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
 
   return {
     rows,
-    peakBrechaCaja,
-    totalBrechaCaja,
     sumCajaMinima,
-    mesesEnBrecha,
     reserva,
     effYield,
     avgPV,
@@ -378,6 +400,11 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3): A
     totalVentaForzada,
     ventaForzadaVolWeighted,
     mesesConVentaForzada,
+    peakCapitalComprometido,
+    totalCapitalComprometido,
+    capitalComprometidoY1,
+    capitalComprometidoY2,
+    mesesConCapitalComprometido,
   };
 }
 
@@ -390,9 +417,10 @@ export interface FinancialScore {
   portYield: number;
   effYield: number;
   reserva: number;
-  peakBrechaCaja: number;
-  peakBrechaCajaRatio: number;
-  avgBrechaCajaRatio: number;
+  /** Fraction of Capital Social committed in the single worst month, clipped to [0,1] — tail-risk half of cumplimientoCaja. */
+  peakCapitalComprometidoRatio: number;
+  /** Fraction of Capital Social committed cumulatively across the whole horizon, clipped to [0,1] — chronic-erosion half of cumplimientoCaja. */
+  avgCapitalComprometidoRatio: number;
   invInc: number;
   liq6: number;
   liab6: number;
@@ -408,6 +436,12 @@ export interface FinancialScore {
   totalVentaForzada: number;
   /** ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX), clipped to [0,1] — the severity ratio the ventaForzada sub-score is built from; exposed separately so evaluators can see "how bad," not just the 0-100 score. */
   ventaForzadaSeveridad: number;
+  /** Cumulative Capital Social committed through the end of calendar Year 1 — see finBench()'s bal1. */
+  capitalComprometidoY1: number;
+  /** Cumulative Capital Social committed through the end of calendar Year 2 — see finBench()'s bal2. */
+  capitalComprometidoY2: number;
+  /** CAPITAL_SOCIAL minus everything committed across the full 60-month horizon — the team's ending equity position under this ALM decision alone, informational (finBench applies the Y1/Y2 checkpoints above, not this end-of-horizon figure, to the real Balance). Negative means the decision would have fully wiped out Capital Social by month 60. */
+  patrimonioDisponible: number;
 }
 
 /**
@@ -415,16 +449,15 @@ export interface FinancialScore {
  * reinvestment yield, 20% forced-liquidation penalty, 10% short-term
  * liquidity coverage.
  *
- * cumplimientoCaja blends two things, not just the worst month: the peak
- * single-month shortfall (tail risk) *and* the average shortfall across the
- * entire horizon (chronic mismatch), each expressed as a fraction of a
- * typical month's Caja Mínima requirement (not the old multi-year reserve —
- * a monthly floor needs a monthly-scale denominator or every gap looks
- * artificially tiny), blended 50/50 (W_BRECHA_PEAK/W_BRECHA_AVG). Note this
- * is now a genuine insolvency measure, not a liquidity-management one: a
- * shortfall only shows up here if it survived draining LIQ *and*
- * force-selling the entire rest of the portfolio (see almSim's step 4) —
- * the liquidity-management failure itself is what ventaForzada grades.
+ * cumplimientoCaja no longer measures "was there an unmet shortfall" — Caja
+ * Mínima is always met now, however deep the model has to reach to do it
+ * (see almSim's step 4). Instead it measures how much of the team's fixed
+ * Capital Social had to be committed to get there: the worst single
+ * month's draw (tail risk) blended 50/50 with the cumulative draw across
+ * the whole horizon (chronic erosion), both expressed as a fraction of
+ * CAPITAL_SOCIAL (W_CAP_PEAK/W_CAP_AVG) — a team that never had to touch
+ * its own capital scores 100 here regardless of how it got there; one that
+ * ends the horizon with negative patrimonioDisponible scores 0.
  *
  * rendimiento is risk-adjusted, not raw yield: it normalizes
  * riskAdjustedYield (effYield discounted by realized volatility, see
@@ -446,13 +479,27 @@ export interface FinancialScore {
 export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3): FinancialScore | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
-  const { reserva, peakBrechaCaja, totalBrechaCaja, sumCajaMinima, liab6, liq6, avgVol, totalVentaForzada, ventaForzadaVolWeighted } = sim;
-  const TOTAL = BUILD_MONTHS + HORIZON;
+  const {
+    reserva,
+    peakCapitalComprometido,
+    totalCapitalComprometido,
+    capitalComprometidoY1,
+    capitalComprometidoY2,
+    sumCajaMinima,
+    liab6,
+    liq6,
+    avgVol,
+    totalVentaForzada,
+    ventaForzadaVolWeighted,
+  } = sim;
 
-  const avgCajaMinima = sumCajaMinima / TOTAL;
-  const peakBrechaCajaRatio = avgCajaMinima > 0 ? Math.min(1, peakBrechaCaja / avgCajaMinima) : 0;
-  const avgBrechaCajaRatio = sumCajaMinima > 0 ? Math.min(1, totalBrechaCaja / sumCajaMinima) : 0;
-  const cumplimientoCaja = Math.max(0, 100 * (1 - W_BRECHA_PEAK * peakBrechaCajaRatio - W_BRECHA_AVG * avgBrechaCajaRatio));
+  const peakCapitalComprometidoRatio = Math.min(1, peakCapitalComprometido / CAPITAL_SOCIAL);
+  const avgCapitalComprometidoRatio = Math.min(1, totalCapitalComprometido / CAPITAL_SOCIAL);
+  const cumplimientoCaja = Math.max(
+    0,
+    100 * (1 - W_CAP_PEAK * peakCapitalComprometidoRatio - W_CAP_AVG * avgCapitalComprometidoRatio)
+  );
+  const patrimonioDisponible = CAPITAL_SOCIAL - totalCapitalComprometido;
 
   const effYield = sim.effYield;
   const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol;
@@ -478,7 +525,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
   const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_VENTA_FORZADA * ventaForzada + W_LIQ * liquidez;
 
-  const penalty = peakBrechaCaja * 0.18;
+  const penalty = peakCapitalComprometido * 0.18;
   const invInc = reserva * portYield - penalty;
   const cobertura = liab6 > 0 ? liq6 / liab6 : 1;
 
@@ -491,9 +538,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     portYield,
     effYield,
     reserva,
-    peakBrechaCaja,
-    peakBrechaCajaRatio,
-    avgBrechaCajaRatio,
+    peakCapitalComprometidoRatio,
+    avgCapitalComprometidoRatio,
     invInc,
     liq6,
     liab6,
@@ -505,6 +551,9 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     riskAdjustedYield,
     totalVentaForzada,
     ventaForzadaSeveridad,
+    capitalComprometidoY1,
+    capitalComprometidoY2,
+    patrimonioDisponible,
   };
 }
 
@@ -548,13 +597,13 @@ export function almObjetivo(lib: LiabilitySchedule): FinancialScore | null {
 export function almLadder(
   lib: LiabilitySchedule,
   decision: PortfolioDecisionV3
-): { rows: AlmSimRow[]; peakBrechaCaja: number; totalBrechaCaja: number; reserva: number } | null {
+): { rows: AlmSimRow[]; peakCapitalComprometido: number; totalCapitalComprometido: number; reserva: number } | null {
   const sim = almSim(lib, decision);
   if (!sim) return null;
   const rows = sim.rows.filter(
-    (r) => r.mes < 0 || r.pagoSiniestros > 0 || r.mes === 0 || r.brechaCaja > 0 || r.ventaForzadaPortafolio > 0
+    (r) => r.mes < 0 || r.pagoSiniestros > 0 || r.mes === 0 || r.ventaForzadaPortafolio > 0 || r.capitalComprometidoPortafolio > 0
   );
-  return { rows, peakBrechaCaja: sim.peakBrechaCaja, totalBrechaCaja: sim.totalBrechaCaja, reserva: sim.reserva };
+  return { rows, peakCapitalComprometido: sim.peakCapitalComprometido, totalCapitalComprometido: sim.totalCapitalComprometido, reserva: sim.reserva };
 }
 
 /** PV of a liability cashflow schedule L[t] (months) at a discount rate. Ported from pvReserva(), line ~1817. */
