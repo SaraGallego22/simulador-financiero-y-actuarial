@@ -5,12 +5,10 @@ import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { toFloat32View } from "@/lib/binary";
 import { runSimulation } from "@/domain/market/runSimulation";
 import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
-import { generateColombia } from "@/domain/generation/generateColombia";
-import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import type { TeamInfo } from "@/domain/market/runSimulation";
 import { N_COLOMBIA } from "@/domain/generation/constants";
-import { getPreviousAssignmentNumeric } from "@/lib/teamBook";
+import { getPreviousAssignmentNumeric, getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
 import { computeCapacityByTeamId } from "@/lib/capacityHelper";
 
 // Same reasoning as /api/universe: runs synchronously, no queue — see
@@ -106,11 +104,16 @@ export async function POST(request: Request) {
   // Regenerated from the seed, not fetched as a stored blob — see
   // CLAUDE.md §4.1 (a ~40MB bytea read measured 84-100s on Neon's free
   // tier, regardless of connection method; regeneration takes ~1s).
-  const universe = generateColombia(universeRun.seed);
+  // getUniverseForSeed/getYear2ClaimsForSeed cache at module scope (not just
+  // per-request) — under Fluid Compute, concurrent requests on the same
+  // warm instance share this rather than each allocating their own copy,
+  // which was enough to exceed the function's memory ceiling even for a
+  // 3-team cohort (see teamBook.ts's doc comment on the cache).
+  const universe = getUniverseForSeed(universeRun.seed);
 
   // Year 2 (day 2) uses its own claim draws and a retention-aware market
   // model — see CLAUDE.md's domain glossary (generarSiniestrosA2/correrSim2).
-  const year2Claims: Year2Claims | null = day === 2 ? generateYear2Claims(universe, universeRun.seed) : null;
+  const year2Claims: Year2Claims | null = day === 2 ? getYear2ClaimsForSeed(universeRun.seed, universe) : null;
   const monopolyLam = year2Claims?.lam ?? universe.lam;
   const monopolySiniestro = year2Claims?.siniestro ?? universe.siniestro;
   const monopolySev = year2Claims?.sev ?? universe.sev;

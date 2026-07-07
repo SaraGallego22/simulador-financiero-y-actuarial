@@ -20,6 +20,36 @@ function epochDayToMonthIndex(epochDay: number): number {
   return (date.getFullYear() - ANIO_BASE_A1) * 12 + date.getMonth();
 }
 
+/**
+ * Module-scope (NOT per-request) cache for the Colombia universe and its
+ * Year-2 claims, keyed by seed. Vercel's Fluid Compute can route multiple
+ * concurrent/sequential requests to the same warm instance, sharing its
+ * memory — a request-scoped fix (passing universeOverride through one
+ * request, or React.cache()) doesn't help when the duplication happens
+ * *across* overlapping requests on the same instance. Without this, e.g.
+ * the admin's day/[n] page load and a concurrent /api/simulation POST each
+ * independently allocate their own ~40MB universe (+~17MB Year-2 claims),
+ * and enough overlapping requests was enough to exceed the function's
+ * memory ceiling even for a 3-team cohort. There's only ever one active
+ * seed per cohort in practice, so a single-entry cache (evicted whenever
+ * the seed changes) is sufficient — this never grows unboundedly.
+ */
+let cachedUniverse: { seed: number; universe: ColombiaUniverse } | null = null;
+export function getUniverseForSeed(seed: number): ColombiaUniverse {
+  if (cachedUniverse?.seed !== seed) {
+    cachedUniverse = { seed, universe: generateColombia(seed) };
+  }
+  return cachedUniverse.universe;
+}
+
+let cachedYear2Claims: { seed: number; claims: Year2Claims } | null = null;
+export function getYear2ClaimsForSeed(seed: number, universe: ColombiaUniverse): Year2Claims {
+  if (cachedYear2Claims?.seed !== seed) {
+    cachedYear2Claims = { seed, claims: generateYear2Claims(universe, seed) };
+  }
+  return cachedYear2Claims.claims;
+}
+
 export interface TeamBook {
   universe: ColombiaUniverse;
   /** Notice-month + severity for each team's claims, keyed by real team.id — the shape computeLiabilitySchedules() needs, minus the numeric-id remap it requires (see computeReservesForTeams). */
@@ -41,7 +71,7 @@ export async function getActiveColombiaUniverse(cohortId: string): Promise<Colom
     select: { seed: true },
   });
   if (!universeRun) return null;
-  return generateColombia(universeRun.seed);
+  return getUniverseForSeed(universeRun.seed);
 }
 
 /**
@@ -80,7 +110,7 @@ export async function getTeamBookForDay(cohortId: string, day: number, universeO
     });
     if (!universeRun) return null;
     // Regenerated from the seed, not fetched as a stored blob — see CLAUDE.md §4.1.
-    universe = generateColombia(universeRun.seed);
+    universe = getUniverseForSeed(universeRun.seed);
   }
 
   const claimsByTeamId = new Map<string, Omit<ClaimForLiability, "teamId">[]>();
@@ -213,8 +243,8 @@ export async function getYear2ClaimsByTeamId(
       select: { seed: true },
     });
     if (!universeRun) return null;
-    universe = universe ?? generateColombia(universeRun.seed);
-    year2Claims = year2Claims ?? generateYear2Claims(universe, universeRun.seed);
+    universe = universe ?? getUniverseForSeed(universeRun.seed);
+    year2Claims = year2Claims ?? getYear2ClaimsForSeed(universeRun.seed, universe);
   }
 
   const claimsByTeamId = new Map<string, Omit<ClaimForLiability, "teamId">[]>();
@@ -304,8 +334,8 @@ export async function getSegmentDataForTeams(
     select: { seed: true },
   });
   if (!universeRun) return null;
-  const universe = generateColombia(universeRun.seed);
-  const claims = day === 2 ? generateYear2Claims(universe, universeRun.seed) : universe;
+  const universe = getUniverseForSeed(universeRun.seed);
+  const claims = day === 2 ? getYear2ClaimsForSeed(universeRun.seed, universe) : universe;
 
   const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
   let assignment: Int32Array;
