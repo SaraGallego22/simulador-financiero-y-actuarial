@@ -20,12 +20,6 @@ import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
 
-// TEMP diagnostic instrumentation for the production OOM on this route — see
-// giggly-imagining-llama.md "Ronda 3". Remove once the culprit is found.
-function dbgMemMB() {
-  return Math.round(process.memoryUsage().rss / 1024 / 1024);
-}
-
 export default async function AdminDayPage({
   params,
   searchParams,
@@ -33,38 +27,81 @@ export default async function AdminDayPage({
   params: Promise<{ n: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const dbgId = Math.random().toString(36).slice(2, 8);
-  const dbgStart = Date.now();
-  const dbg = (label: string) => console.log(`DBG[${dbgId}] ${label} t=${Date.now() - dbgStart}ms rss=${dbgMemMB()}MB`);
-  dbg("start");
-  try {
   const { n } = await params;
   const day = Number(n);
   const includeSim = day <= 2;
   const { tab } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
-  dbg("after cohort");
 
-  const teams = await prisma.team.findMany({
-    where: { cohortId: cohort.id },
-    include: {
-      tariffSubmissions: { where: { day }, select: { meanPremium: true } },
-      portfolioAllocations: { where: { day }, select: { allocation: true } },
-      members: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  dbg(`after teams (n=${teams.length})`);
+  const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
+  const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
-  const [skills, memberScores] = await Promise.all([
+  // Everything below is independent of everything else in this batch (none
+  // of these read each other's results) — fired together instead of one
+  // round trip at a time, since each Neon round trip has its own baseline
+  // latency that otherwise just adds up sequentially for no reason.
+  const [
+    teams,
+    skills,
+    memberScores,
+    latestRun,
+    consolidadoRows,
+    universe,
+    capacityRuns,
+    deliverables,
+    rubric,
+    segmentDataByTeamId,
+    analyticsRecs,
+  ] = await Promise.all([
+    prisma.team.findMany({
+      where: { cohortId: cohort.id },
+      include: {
+        tariffSubmissions: { where: { day }, select: { meanPremium: true } },
+        portfolioAllocations: { where: { day }, select: { allocation: true } },
+        members: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } }, orderBy: { name: "asc" } }),
     prisma.memberScore.findMany({
       where: { day, teamMember: { team: { cohortId: cohort.id } } },
       include: { teamMember: { select: { teamId: true } } },
     }),
+    prisma.simulationRun.findFirst({
+      where: { cohortId: cohort.id, day },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, teamResults: true },
+    }),
+    activeTab === "top" ? computeConsolidado(cohort.id) : Promise.resolve(null),
+    // Generated once and reused below for every call that would otherwise
+    // regenerate its own copy this same request (getTeamBookForDay,
+    // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
+    // getActiveColombiaUniverse()'s doc comment; this exact redundancy
+    // (three separate 1,000,000-row regenerations) caused a production OOM
+    // on the Día 2 *simulation trigger* (/api/simulation), and made this
+    // page slow to load for the same reason.
+    day >= 1 ? getActiveColombiaUniverse(cohort.id) : Promise.resolve(null),
+    // Each team's Año 1/Año 2 capital-derived market-share limit (see
+    // capacityHelper.ts) — shown next to finBench's solvency figures below
+    // so an evaluator can point a capped team straight at the same numbers.
+    day >= 2
+      ? prisma.simulationRun.findMany({
+          where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
+          orderBy: { createdAt: "desc" },
+          select: { day: true, teamResults: { select: { teamId: true, rejectedCount: true, extra: true } } },
+        })
+      : Promise.resolve([]),
+    // Deliverables: teams self-report numeric concepts, graded against
+    // finBench's computed benchmark within a tolerance band.
+    reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { day, team: { cohortId: cohort.id } } }) : Promise.resolve([]),
+    prisma.rubricConfig.findUnique({ where: { cohortId: cohort.id } }),
+    hasAnalitica ? getSegmentDataForTeams(cohort.id) : Promise.resolve(null),
+    hasAnalitica
+      ? prisma.analyticsRecommendation.findMany({ where: { day, team: { cohortId: cohort.id } } })
+      : Promise.resolve([]),
   ]);
-  dbg("after skills+memberScores");
+
   const memberScoresByMemberId = new Map<string, Record<string, number | null>>();
   const teamPublishedByTeamId = new Map<string, boolean>();
   for (const s of memberScores) {
@@ -73,19 +110,9 @@ export default async function AdminDayPage({
     if (!teamPublishedByTeamId.has(s.teamMember.teamId)) teamPublishedByTeamId.set(s.teamMember.teamId, s.published);
   }
 
-  const latestRun = await prisma.simulationRun.findFirst({
-    where: { cohortId: cohort.id, day },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, status: true, teamResults: true },
-  });
-  dbg(`after latestRun (status=${latestRun?.status ?? "none"})`);
-
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
   const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
-
-  const consolidadoRows = activeTab === "top" ? await computeConsolidado(cohort.id) : null;
-  dbg(`after consolidadoRows (tab=${activeTab})`);
 
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
@@ -93,76 +120,43 @@ export default async function AdminDayPage({
   // nota) — the real ALM (below, via finBenchBundlesByTeamId) is a
   // completely separate, 12-months-at-a-time computation, not a variant of
   // this one (see README §5.3).
-  // Generated once and reused below for every call that would otherwise
-  // regenerate its own copy this same request (getTeamBookForDay,
-  // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
-  // getActiveColombiaUniverse()'s doc comment; this exact redundancy (three
-  // separate 1,000,000-row regenerations) caused a production OOM on the
-  // Día 2 *simulation trigger* (/api/simulation), and made this page slow
-  // to load for the same reason.
-  const universe = day >= 1 ? await getActiveColombiaUniverse(cohort.id) : null;
-  dbg(`after universe (n=${universe?.n ?? "null"})`);
+  // These two both only depend on `universe` (already resolved above), not
+  // on each other, so they run together instead of one after the other.
+  const [book, finBenchBundlesByTeamId] = await Promise.all([
+    latestRun?.status === "DONE" ? getTeamBookForDay(cohort.id, day, universe ?? undefined) : Promise.resolve(null),
+    // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
+    // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
+    // before any portfolio/Year-2 data exists (it falls back to a default
+    // reinvestment yield when almYear1 is null). finBenchBundlesByTeamId
+    // additionally exposes the exact real-ALM runs (realAlmYear1/2) that
+    // fed bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder
+    // without a second, separately-computed "real" run that could drift
+    // out of sync with what's actually graded (see finBenchHelper.ts's
+    // doc comment).
+    day >= 1 ? computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : Promise.resolve(new Map()),
+  ]);
 
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
-  if (latestRun?.status === "DONE") {
-    const book = await getTeamBookForDay(cohort.id, day, universe ?? undefined);
-    dbg(`after getTeamBookForDay (claimsTeams=${book?.claimsByTeamId.size ?? "null"})`);
-    if (book) {
-      const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
-      for (const team of teams) {
-        const rawAllocation = team.portfolioAllocations[0]?.allocation;
-        const reserves = reservesByTeamId.get(team.id);
-        if (reserves && isPortfolioDecisionV3(rawAllocation)) {
-          almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-          if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
-        }
+  if (book) {
+    const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
+    for (const team of teams) {
+      const rawAllocation = team.portfolioAllocations[0]?.allocation;
+      const reserves = reservesByTeamId.get(team.id);
+      if (reserves && isPortfolioDecisionV3(rawAllocation)) {
+        almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
+        if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
       }
     }
   }
-  dbg("after book+alm block");
-
-  // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
-  // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
-  // before any portfolio/Year-2 data exists (it falls back to a default
-  // reinvestment yield when almYear1 is null). finBenchBundlesByTeamId
-  // additionally exposes the exact real-ALM runs (realAlmYear1/2) that fed
-  // bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder without
-  // a second, separately-computed "real" run that could drift out of sync
-  // with what's actually graded (see finBenchHelper.ts's doc comment).
-  const finBenchBundlesByTeamId = day >= 1 ? await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : new Map();
   const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
-  dbg(`after computeFinBenchBundlesForCohort (n=${finBenchBundlesByTeamId.size})`);
 
-  // Each team's Año 1/Año 2 capital-derived market-share limit (see
-  // capacityHelper.ts) — shown next to finBench's solvency figures below so
-  // an evaluator can point a capped team straight at the same numbers.
-  const capacityRuns =
-    day >= 2
-      ? await prisma.simulationRun.findMany({
-          where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
-          orderBy: { createdAt: "desc" },
-          select: { day: true, teamResults: { select: { teamId: true, rejectedCount: true, extra: true } } },
-        })
-      : [];
   const capacityByTeamIdByYear = new Map<1 | 2, Map<string, { rejectedCount: number; extra: unknown }>>();
   for (const yr of [1, 2] as const) {
     const run = capacityRuns.find((r) => r.day === yr);
     capacityByTeamIdByYear.set(yr, new Map((run?.teamResults ?? []).map((r) => [r.teamId, { rejectedCount: r.rejectedCount, extra: r.extra }])));
   }
-  dbg("after capacityRuns");
 
-  // Deliverables: teams self-report numeric concepts, graded against
-  // finBench's computed benchmark within a tolerance band.
-  const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
-  const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
-  const [deliverables, rubric, segmentDataByTeamId, analyticsRecs] = await Promise.all([
-    reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { day, team: { cohortId: cohort.id } } }) : [],
-    prisma.rubricConfig.findUnique({ where: { cohortId: cohort.id } }),
-    hasAnalitica ? getSegmentDataForTeams(cohort.id) : null,
-    hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { day, team: { cohortId: cohort.id } } }) : [],
-  ]);
-  dbg(`after deliverables+segmentData (hasAnalitica=${hasAnalitica})`);
   const tolerance = {
     tolerancePerfect: rubric?.tolerancePerfect ?? 0.05,
     toleranceZero: rubric?.toleranceZero ?? 0.4,
@@ -184,7 +178,6 @@ export default async function AdminDayPage({
       analiticaScoreByTeamId.set(teamId, scoreAnalitica(recs, segData));
     }
   }
-  dbg("before render");
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -703,12 +696,4 @@ export default async function AdminDayPage({
       )}
     </main>
   );
-  } catch (err) {
-    const e = err as { message?: string; code?: string; meta?: unknown; clientVersion?: string; name?: string; stack?: string };
-    console.error(
-      `DBG[${dbgId}] FAILED t=${Date.now() - dbgStart}ms rss=${dbgMemMB()}MB name=%s message=%s code=%s meta=%o clientVersion=%s\nstack=%s`,
-      e?.name, e?.message, e?.code, e?.meta, e?.clientVersion, e?.stack
-    );
-    throw err;
-  }
 }
