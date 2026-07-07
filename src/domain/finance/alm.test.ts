@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
+import type { LiabilitySchedule } from "../reserving/liability";
 import { almNAV, almObjetivo, almSim, scoreFinanciero } from "./alm";
-import { FZ } from "./constants";
+import { FZ, CAPITAL_SOCIAL } from "./constants";
 import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
 
 // A handful of claims spread across the Year-1 window, notified early enough
@@ -59,7 +60,7 @@ describe("almSim / scoreFinanciero", () => {
     expect(uvr8!.totalVentaForzada).toBeGreaterThan(0);
   });
 
-  it("cash-conservation invariant: cajaFinal + brechaCaja == FZ.cajaPct * (primaCobrada + pagoSiniestros) every month", () => {
+  it("cash-conservation invariant: Caja Mínima is always met exactly, every month, no matter what (cajaFinal == FZ.cajaPct * (primaCobrada + pagoSiniestros))", () => {
     const sim = almSim(
       lib,
       decision([
@@ -73,7 +74,7 @@ describe("almSim / scoreFinanciero", () => {
     expect(sim).not.toBeNull();
     for (const row of sim!.rows) {
       const expectedCajaMinima = FZ.cajaPct * (row.primaCobrada + row.pagoSiniestros);
-      expect(row.cajaFinal + row.brechaCaja).toBeCloseTo(expectedCajaMinima, 4);
+      expect(row.cajaFinal).toBeCloseTo(expectedCajaMinima, 4);
     }
   });
 
@@ -180,14 +181,59 @@ describe("almSim / scoreFinanciero", () => {
     const sim = almSim(lib, decision([tranche("TES1", 100, { action: "repeat" })]));
     expect(sim).not.toBeNull();
     expect(sim!.totalVentaForzada).toBeGreaterThan(0);
+    // Caja Mínima is now always met exactly — see the dedicated invariant
+    // test above — so there's no more "deeply negative cajaFinal" state to
+    // regress into; every row's cajaFinal already equals cajaMinima.
     for (const row of sim!.rows) {
-      if (row.brechaCaja > 0) {
-        // A residual brecha now only survives once the entire portfolio's
-        // *ending* balance that month has genuinely been drained — not
-        // just because LIQ (which this decision never even holds) ran dry.
-        expect(row.saldoFinalPortafolio).toBeLessThan(1);
-      }
+      expect(row.cajaFinal).toBeCloseTo(FZ.cajaPct * (row.primaCobrada + row.pagoSiniestros), 4);
     }
+  });
+
+  it("once LIQ and the entire rest of the portfolio are exhausted, the remaining shortfall draws on Capital Social and the portfolio's reported value goes negative", () => {
+    // A claims spike sized well beyond what a single year's funding-neutral
+    // contribution could ever build up in a 100%-TES1 portfolio — LIQ is
+    // absent entirely, so any shortfall must eventually exhaust the whole
+    // book and spill into Capital Social.
+    const L = new Array(48).fill(0);
+    L[0] = 2_000_000_000_000;
+    const extremeLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L, reserva: 1_000_000_000_000, hay: true };
+    const sim = almSim(extremeLib, decision([tranche("TES1", 100, { action: "cash" })]));
+    expect(sim).not.toBeNull();
+    expect(sim!.totalCapitalComprometido).toBeGreaterThan(0);
+
+    const hit = sim!.rows.find((r) => r.capitalComprometidoPortafolio > 0)!;
+    expect(hit).toBeDefined();
+    // Caja Mínima still gets met exactly, in full, even in this extreme case.
+    expect(hit.cajaFinal).toBeCloseTo(FZ.cajaPct * (hit.primaCobrada + hit.pagoSiniestros), 4);
+    // The portfolio's reported value is genuinely negative once Capital
+    // Social had to cover more than what was left in the book.
+    expect(hit.saldoFinalPortafolio).toBeLessThan(0);
+    // This event lands after Year 1 closes (the spike is the very first
+    // post-valuation month), so it shows up in the Year 2 checkpoint, not Year 1's.
+    expect(sim!.capitalComprometidoY1).toBe(0);
+    expect(sim!.capitalComprometidoY2).toBeCloseTo(sim!.totalCapitalComprometido, 4);
+  });
+
+  it("a team that keeps enough LIQ never touches Capital Social through either claim year, and keeps essentially all of it", () => {
+    const score = scoreFinanciero(
+      lib,
+      decision([
+        tranche("LIQ", 30, { action: "repeat" }, 6),
+        tranche("CDT90", 30, { action: "repeat" }),
+        tranche("TESUVR8", 40, { action: "repeat" }),
+      ])
+    );
+    expect(score).not.toBeNull();
+    // Both checkpoints that actually feed the real Balance/Solvencia
+    // (finBench's bal1/bal2) are untouched — this is the part that matters
+    // for "aplica bien para ambos años de siniestro".
+    expect(score!.capitalComprometidoY1).toBe(0);
+    expect(score!.capitalComprometidoY2).toBe(0);
+    // Some lumpy month past Year 2 may still nick a negligible amount —
+    // this fixture's 3-claim horizon isn't perfectly smooth — but it stays
+    // a rounding error against Capital Social, not a real erosion.
+    expect(score!.patrimonioDisponible / CAPITAL_SOCIAL).toBeGreaterThan(0.999);
+    expect(score!.cumplimientoCaja).toBeGreaterThan(99.9);
   });
 
   it("forced-selling ACC under duress is penalized more than forced-selling TES1 for an equivalent shortfall — a real hierarchy, not a flat penalty", () => {

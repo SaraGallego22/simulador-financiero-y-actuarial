@@ -10,18 +10,18 @@ const liabilityYear1: LiabilitySchedule = {
   hay: true,
 };
 
-function fakeAlmScore(avgVol: number): FinancialScore {
+function fakeAlmScore(avgVol: number, capitalComprometidoY1 = 0, capitalComprometidoY2 = 0): FinancialScore {
   return {
     cumplimientoCaja: 100,
     rendimiento: 50,
+    ventaForzada: 100,
     liquidez: 100,
     nota: 80,
     portYield: 0.1,
     effYield: 0.1,
     reserva: 20_000_000,
-    peakBrechaCaja: 0,
-    peakBrechaCajaRatio: 0,
-    avgBrechaCajaRatio: 0,
+    peakCapitalComprometidoRatio: 0,
+    avgCapitalComprometidoRatio: 0,
     invInc: 20_000_000 * 0.1,
     liq6: 0,
     liab6: 0,
@@ -31,6 +31,11 @@ function fakeAlmScore(avgVol: number): FinancialScore {
     tranches: [],
     avgVol,
     riskAdjustedYield: 0.1,
+    totalVentaForzada: 0,
+    ventaForzadaSeveridad: 0,
+    capitalComprometidoY1,
+    capitalComprometidoY2,
+    patrimonioDisponible: 70_000_000_000 - capitalComprometidoY1 - capitalComprometidoY2,
   };
 }
 
@@ -93,5 +98,42 @@ describe("finBench", () => {
       almYear1: null,
     });
     expect(bench.solVolRatio).toBe(1);
+  });
+
+  it("erodes bal1's patrimonio by exactly Year 1's committed capital, and bal2's by Year 2's checkpoint", () => {
+    const noErosion = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmScore(0.05, 0, 0),
+    });
+    const eroded = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmScore(0.05, 10_000_000_000, 25_000_000_000),
+    });
+    expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 4);
+    expect(noErosion.bal2!.patrimonio - eroded.bal2!.patrimonio).toBeCloseTo(25_000_000_000, 4);
+    // The eroded patrimonio flows straight into solvency — same rk, lower
+    // fondos propios, so a strictly worse margin.
+    expect(eroded.solFp).toBeLessThan(noErosion.solFp);
+    expect(eroded.solMargen).toBeLessThan(noErosion.solMargen);
+  });
+
+  it("every team starts capital0 from the same fixed Capital Social, independent of its own premium", () => {
+    const smallPremium = finBench({
+      year1: { totalPremium: 100_000_000, claimsAmount: 60_000_000 },
+      liabilityYear1,
+      almYear1: null,
+    });
+    const bigPremium = finBench({
+      year1: { totalPremium: 900_000_000, claimsAmount: 540_000_000 },
+      liabilityYear1,
+      almYear1: null,
+    });
+    // Same starting equity before retained earnings diverge it — patrimonio
+    // - uneta isolates capital0 itself.
+    expect(smallPremium.bal1.patrimonio - smallPremium.p1.uneta).toBeCloseTo(bigPremium.bal1.patrimonio - bigPremium.p1.uneta, 4);
   });
 });
