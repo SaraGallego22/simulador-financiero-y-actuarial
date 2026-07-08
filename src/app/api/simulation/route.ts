@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { toFloat32View } from "@/lib/binary";
+import { getTariffArray } from "@/lib/tariffAccess";
 import { runSimulation } from "@/domain/market/runSimulation";
 import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import type { TeamInfo } from "@/domain/market/runSimulation";
-import { N_COLOMBIA } from "@/domain/generation/constants";
 import { getPreviousAssignmentNumeric, getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
 import { computeCapacityByTeamId } from "@/lib/capacityHelper";
 
@@ -147,7 +146,7 @@ export async function POST(request: Request) {
 
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
-      const tariff = toFloat32View(t.tariffSubmissions[0].data, N_COLOMBIA);
+      const tariff = getTariffArray(t.tariffSubmissions[0], universe);
       aggregateByTeamId.set(
         t.id,
         aggregateMonopoly(
@@ -168,7 +167,7 @@ export async function POST(request: Request) {
       });
       const tariffsByTeam = new Map<number, Float32Array>();
       for (const t of eligibleTeams) {
-        tariffsByTeam.set(numericIdByTeamId.get(t.id)!, toFloat32View(t.tariffSubmissions[0].data, N_COLOMBIA));
+        tariffsByTeam.set(numericIdByTeamId.get(t.id)!, getTariffArray(t.tariffSubmissions[0], universe));
       }
 
       // Solvency-derived, per-team market-share limit — replaces the old

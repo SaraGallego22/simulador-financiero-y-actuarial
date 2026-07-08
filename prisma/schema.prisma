@@ -138,8 +138,17 @@ model TariffSubmission {
   teamId      String
   team        Team     @relation(fields: [teamId], references: [id])
   day         Int
-  data        Bytes
+  // Null when outsourced=true — the emergency tariff is a deterministic
+  // function of the universe seed alone (see generateOutsourcedTariff() in
+  // domain/pricing/outsourced.ts), so it's regenerated on demand instead of
+  // storing another ~4MB bytea per team, exactly like the universe itself
+  // (see CLAUDE.md §4.1).
+  data        Bytes?
   meanPremium Float?
+  // True when this team hit "Tercerizar tarifas" instead of uploading its
+  // own CSV for this day — narratively, an emergency-outsourced tariff from
+  // an inexperienced consultancy (see the outsource route's doc comment).
+  outsourced  Boolean  @default(false)
   submittedAt DateTime @default(now())
 
   @@unique([teamId, day])

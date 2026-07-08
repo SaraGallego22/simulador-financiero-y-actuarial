@@ -1,8 +1,19 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 
-const prisma = new PrismaClient();
+// Same reasoning as src/lib/prisma.ts: a direct (non-adapter) connection
+// goes over raw TCP on port 5432, which several ISPs/firewalls block
+// outright — the Neon serverless driver instead tunnels over WebSocket
+// (port 443), which behaves like normal HTTPS traffic and isn't blocked the
+// same way. Without this, `npm run db:seed` fails with
+// "Can't reach database server" even though the app itself connects fine.
+neonConfig.webSocketConstructor = ws;
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 function randomPassword(): string {
   return randomBytes(9).toString("base64url");

@@ -1,10 +1,11 @@
 import { prisma } from "./prisma";
-import { toInt32View, toFloat32View } from "./binary";
+import { toInt32View } from "./binary";
+import { getTariffArray } from "./tariffAccess";
 import { generateColombia } from "@/domain/generation/generateColombia";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
-import { ANIO_BASE_A1, N_COLOMBIA } from "@/domain/generation/constants";
+import { ANIO_BASE_A1 } from "@/domain/generation/constants";
 import { computeLiabilitySchedules } from "@/domain/reserving/liability";
 import type { ClaimForLiability, LiabilitySchedule } from "@/domain/reserving/liability";
 import { computeDevelopment } from "@/domain/reserving/development";
@@ -356,7 +357,7 @@ export async function getSegmentDataForTeams(
   const tariffByTeamId = new Map(
     tariffSubmissions
       .filter((t) => t.meanPremium != null)
-      .map((t) => [t.teamId, { tariff: toFloat32View(t.data, N_COLOMBIA), meanPremium: t.meanPremium! }])
+      .map((t) => [t.teamId, { tariff: getTariffArray(t, universe), meanPremium: t.meanPremium! }])
   );
 
   const teamIdByNumericId = new Map<number, string>();
