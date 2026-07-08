@@ -57,7 +57,7 @@ export default async function AdminDayPage({
     prisma.team.findMany({
       where: { cohortId: cohort.id },
       include: {
-        tariffSubmissions: { where: { day }, select: { meanPremium: true } },
+        tariffSubmissions: { where: { day }, select: { meanPremium: true, outsourced: true } },
         portfolioAllocations: { where: { day }, select: { allocation: true } },
         members: true,
       },
@@ -234,7 +234,17 @@ export default async function AdminDayPage({
                         {team.name}
                       </td>
                       <td className="px-4 py-2">
-                        {submitted ? <span className="text-[var(--color-brand-green)]">Completa</span> : <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>}
+                        {submitted ? (
+                          team.tariffSubmissions[0]?.outsourced ? (
+                            <span className="text-[var(--color-brand-red)]" title="Consultora chilena — opción de emergencia">
+                              Tercerizada
+                            </span>
+                          ) : (
+                            <span className="text-[var(--color-brand-green)]">Completa</span>
+                          )
+                        ) : (
+                          <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
+                        )}
                       </td>
                       <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}</td>

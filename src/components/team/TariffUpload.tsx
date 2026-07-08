@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { parseCsv } from "@/lib/csv";
 import { tariffCsvSchema } from "@/lib/csvSchemas";
 import { N_COLOMBIA } from "@/domain/generation/constants";
@@ -11,16 +12,37 @@ type Status =
   | { phase: "idle" }
   | { phase: "parsing" }
   | { phase: "uploading"; sent: number; total: number }
-  | { phase: "done"; meanPremium: number }
+  | { phase: "done"; meanPremium: number; outsourced: boolean }
   | { phase: "error"; message: string };
 
-export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day: number; initialComplete: boolean; initialMeanPremium: number | null }) {
+type OutsourceStatus =
+  | { phase: "idle" }
+  | { phase: "confirming" }
+  | { phase: "submitting" }
+  | { phase: "error"; message: string };
+
+export function TariffUpload({
+  day,
+  initialComplete,
+  initialMeanPremium,
+  initialOutsourced,
+}: {
+  day: number;
+  initialComplete: boolean;
+  initialMeanPremium: number | null;
+  initialOutsourced: boolean;
+}) {
+  const router = useRouter();
   const [status, setStatus] = useState<Status>(
-    initialComplete && initialMeanPremium != null ? { phase: "done", meanPremium: initialMeanPremium } : { phase: "idle" }
+    initialComplete && initialMeanPremium != null
+      ? { phase: "done", meanPremium: initialMeanPremium, outsourced: initialOutsourced }
+      : { phase: "idle" }
   );
+  const [outsourceStatus, setOutsourceStatus] = useState<OutsourceStatus>({ phase: "idle" });
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const busy = status.phase === "parsing" || status.phase === "uploading";
+  const complete = status.phase === "done";
 
   async function handleFile(file: File) {
     setFileName(file.name);
@@ -65,11 +87,33 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
         const json = await res.json();
         setStatus({ phase: "uploading", sent: i + 1, total });
         if (json.complete) {
-          setStatus({ phase: "done", meanPremium: json.meanPremium });
+          setStatus({ phase: "done", meanPremium: json.meanPremium, outsourced: false });
+          router.refresh();
         }
       }
     } catch (e) {
       setStatus({ phase: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function confirmOutsource() {
+    setOutsourceStatus({ phase: "submitting" });
+    try {
+      const res = await fetch("/api/teams/tariffs/outsource", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Error al tercerizar la tarifa");
+      }
+      const json = await res.json();
+      setStatus({ phase: "done", meanPremium: json.meanPremium, outsourced: true });
+      setOutsourceStatus({ phase: "idle" });
+      router.refresh();
+    } catch (e) {
+      setOutsourceStatus({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -111,10 +155,54 @@ export function TariffUpload({ day, initialComplete, initialMeanPremium }: { day
         </p>
       )}
       {status.phase === "error" && <p className="text-sm text-[var(--color-brand-red)]">{status.message}</p>}
-      {status.phase === "done" && (
+      {status.phase === "done" && !status.outsourced && (
         <p className="text-sm text-[var(--color-brand-green)]">
           Tarifa cargada. Prima promedio: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}
         </p>
+      )}
+      {status.phase === "done" && status.outsourced && (
+        <div className="rounded border border-[var(--color-brand-red)]/40 bg-[var(--color-brand-red)]/5 p-3">
+          <p className="text-sm font-semibold text-[var(--color-brand-red)]">Tarifa tercerizada — consultora chilena sin experiencia en el mercado colombiano</p>
+          <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
+            Prima promedio asignada: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}. Esta tarifa rinde peor que una propia bien
+            hecha — el costo de la consultoría ya está descontado del precio. Puedes reemplazarla en cualquier momento subiendo tu propio CSV arriba.
+          </p>
+          <a
+            href={`/api/teams/tariffs/outsource?day=${day}`}
+            className="mt-2 inline-block text-sm font-medium text-[var(--color-brand-blue-accent)] underline"
+          >
+            Descargar la tarifa que te asignaron
+          </a>
+        </div>
+      )}
+
+      {!complete && (
+        <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
+          {outsourceStatus.phase === "idle" && (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setOutsourceStatus({ phase: "confirming" })} disabled={busy}>
+              Opción de emergencia: tercerizar tarifas
+            </Button>
+          )}
+          {outsourceStatus.phase === "confirming" && (
+            <div className="rounded border border-[var(--color-brand-red)]/40 bg-[var(--color-brand-red)]/5 p-3">
+              <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                <span className="font-semibold text-[var(--color-brand-red)]">Opción de emergencia:</span> contratar a una consultora chilena, sin
+                experiencia en el mercado colombiano, para que realice las tarifas. Vas a poder participar en el mercado, pero la tarifa resultante rinde
+                peor que una propia bien hecha, y asumes el costo de esa consultoría. Esta acción reemplaza cualquier tarifa que hayas empezado a subir.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Button type="button" size="sm" onClick={confirmOutsource}>
+                  Confirmar tercerización
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setOutsourceStatus({ phase: "idle" })}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+          {outsourceStatus.phase === "submitting" && <p className="text-sm text-[var(--color-brand-text-secondary)]">Tercerizando…</p>}
+          {outsourceStatus.phase === "error" && <p className="text-sm text-[var(--color-brand-red)]">{outsourceStatus.message}</p>}
+        </div>
       )}
     </div>
   );

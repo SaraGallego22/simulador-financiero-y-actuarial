@@ -58,7 +58,7 @@ export default async function TeamDayPage({
 
   const [submission, publishedResult, allocation, deliverables, analyticsRecs, memberScores] = await Promise.all([
     teamId
-      ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true } })
+      ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
       : null,
     teamId
       ? prisma.teamSimResult.findFirst({
@@ -164,9 +164,11 @@ export default async function TeamDayPage({
             Descargar CSV público del universo
           </a>
           <TariffUpload
+            key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}`}
             day={day}
             initialComplete={submission?.meanPremium != null}
             initialMeanPremium={submission?.meanPremium ?? null}
+            initialOutsourced={submission?.outsourced ?? false}
           />
         </div>
       )}

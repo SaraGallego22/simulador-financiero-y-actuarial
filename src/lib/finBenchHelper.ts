@@ -89,8 +89,15 @@ export async function computeFinBenchBundlesForCohort(
     prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId } } }),
   ]);
 
-  const year1ByTeamId = new Map(year1Results.map((r) => [r.teamId, r]));
-  const year2ByTeamId = new Map(year2Results.map((r) => [r.teamId, r]));
+  // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
+  // have several DONE runs for the same day (re-simulations while testing),
+  // and results are ordered newest-first; `new Map` from an array of pairs
+  // keeps the *last* occurrence of a duplicate key, which would silently
+  // pick each team's OLDEST run instead of its most recent one.
+  const year1ByTeamId = new Map<string, (typeof year1Results)[number]>();
+  for (const r of year1Results) if (!year1ByTeamId.has(r.teamId)) year1ByTeamId.set(r.teamId, r);
+  const year2ByTeamId = new Map<string, (typeof year2Results)[number]>();
+  for (const r of year2Results) if (!year2ByTeamId.has(r.teamId)) year2ByTeamId.set(r.teamId, r);
   const toDecision = (allocation: unknown): PortfolioDecisionV3 | null => (isPortfolioDecisionV3(allocation) ? allocation : null);
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
   const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));

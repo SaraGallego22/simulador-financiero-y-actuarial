@@ -1,10 +1,10 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { toInt32View, toFloat32View } from "@/lib/binary";
+import { toInt32View } from "@/lib/binary";
+import { getTariffArray } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { ANIO_BASE_A1 } from "@/domain/generation/constants";
-import { N_COLOMBIA } from "@/domain/generation/constants";
 import { getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
 
 // Streamed — bypasses Vercel's 4.5MB response cap (see CLAUDE.md §4.3), needed
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
   if (!myTariffRow || myTariffRow.meanPremium == null) {
     return new Response("Tu equipo no tiene una tarifa completa para este día.", { status: 404 });
   }
-  const myTariff = toFloat32View(myTariffRow.data, N_COLOMBIA);
+  const myTariff = getTariffArray(myTariffRow, universe);
   const myMeanPremium = myTariffRow.meanPremium;
 
   const encoder = new TextEncoder();

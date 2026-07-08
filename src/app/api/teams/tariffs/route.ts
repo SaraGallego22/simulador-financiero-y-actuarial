@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const submission = await prisma.tariffSubmission.findUnique({
     where: { teamId_day: { teamId, day } },
-    select: { meanPremium: true, submittedAt: true },
+    select: { meanPremium: true, submittedAt: true, outsourced: true },
   });
 
   return NextResponse.json({
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     complete: submission?.meanPremium != null,
     meanPremium: submission?.meanPremium ?? null,
     submittedAt: submission?.submittedAt ?? null,
+    outsourced: submission?.outsourced ?? false,
   });
 }
 
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
   const existing = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } } });
   const buffer =
-    existing && existing.data.byteLength === fullByteLength
+    existing?.data && existing.data.byteLength === fullByteLength
       ? Buffer.from(existing.data)
       : Buffer.alloc(fullByteLength);
   buffer.set(chunkBytes, start);
@@ -85,8 +86,8 @@ export async function POST(request: Request) {
       meanPremium = null;
       await prisma.tariffSubmission.upsert({
         where: { teamId_day: { teamId, day } },
-        update: { data: new Uint8Array(buffer) },
-        create: { teamId, day, data: new Uint8Array(buffer) },
+        update: { data: new Uint8Array(buffer), outsourced: false },
+        create: { teamId, day, data: new Uint8Array(buffer), outsourced: false },
       });
       return NextResponse.json(
         { error: `Cobertura insuficiente: solo ${((covered / N_COLOMBIA) * 100).toFixed(1)}% de las pólizas tienen prima > 0 (se requiere ${MIN_COVERAGE * 100}%).` },
@@ -96,10 +97,14 @@ export async function POST(request: Request) {
     meanPremium = sum / covered;
   }
 
+  // outsourced is always reset to false here (even before the last chunk) —
+  // a team that previously hit "Tercerizar tarifas" and is now uploading its
+  // own CSV should stop being treated as outsourced from the first chunk,
+  // not just once the upload completes.
   await prisma.tariffSubmission.upsert({
     where: { teamId_day: { teamId, day } },
-    update: { data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : undefined },
-    create: { teamId, day, data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : null },
+    update: { data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : undefined, outsourced: false },
+    create: { teamId, day, data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : null, outsourced: false },
   });
 
   return NextResponse.json({ chunkIndex, complete: isLastChunk, meanPremium: isLastChunk ? meanPremium : null });
