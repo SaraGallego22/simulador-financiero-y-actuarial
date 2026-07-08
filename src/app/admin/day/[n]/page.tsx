@@ -210,6 +210,7 @@ export default async function AdminDayPage({
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Gastos (adq+com+adm)</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">RT</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Cuota máxima (pólizas)</th>
                   {day === 2 && (
                     <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
                   )}
@@ -223,6 +224,9 @@ export default async function AdminDayPage({
                   const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
                   const bench = finBenchByTeamId.get(team.id);
                   const gastos = bench ? bench.p1.gadq + bench.p1.gcom + bench.p1.gadm : null;
+                  const capExtra = result?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                  const cappedByCapital =
+                    capExtra?.capacityLimit != null && capExtra?.rawCapacityLimit != null ? capExtra.rawCapacityLimit <= capExtra.capacityLimit : null;
                   return (
                     <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                       <td className="px-4 py-2">
@@ -239,6 +243,18 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
                       <td className="px-4 py-2">{gastos != null ? `$${Math.round(gastos).toLocaleString("es-CO")}` : "—"}</td>
                       <td className="px-4 py-2">{bench ? `$${Math.round(bench.p1.rt).toLocaleString("es-CO")}` : "—"}</td>
+                      <td className="px-4 py-2">
+                        {capExtra?.capacityLimit != null ? (
+                          <>
+                            {capExtra.capacityLimit.toLocaleString("es-CO")}
+                            <span className={`ml-1 text-[11px] ${cappedByCapital ? "text-[var(--color-brand-blue-accent)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                              ({cappedByCapital ? "solvencia" : "techo fijo"})
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       {day === 2 && (
                         <td className="px-4 py-2">
                           {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
