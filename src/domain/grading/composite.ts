@@ -1,4 +1,4 @@
-import { LR_BAJO } from "./analytics";
+import { GASTOS_TOTAL_PCT } from "../finance/constants";
 
 export type ObjectiveMode = "relative" | "ranking";
 
@@ -8,8 +8,20 @@ export interface Skill {
 }
 
 /**
- * Ranks/normalizes each team's Year-1 or Year-2 technical result (premium -
- * claims) into a 0-100 objective tariff score. Ported from
+ * RT (resultado técnico) — premium minus claims minus the standard
+ * acquisition/commission/administration expense load (GASTOS_TOTAL_PCT).
+ * Same shape as finBench()'s own `rt` (see finance/finBench.ts) — kept as
+ * one shared definition so "RT" means the same thing everywhere it's
+ * computed or displayed (grading here, the P&L there, the admin panel),
+ * instead of two similarly-named but different numbers.
+ */
+export function computeRt(r: { totalPremium: number; claimsAmount: number }): number {
+  return r.totalPremium * (1 - GASTOS_TOTAL_PCT) - r.claimsAmount;
+}
+
+/**
+ * Ranks/normalizes each team's Year-1 or Year-2 technical result (RT, see
+ * computeRt()) into a 0-100 objective tariff score. Ported from
  * notaTarifacionAnio(), line ~1241.
  *
  * "relative" mode normalizes between the 10th and 90th percentile of the
@@ -21,7 +33,7 @@ export function notaTarifacionAnio(
   mode: ObjectiveMode
 ): Map<number, number> {
   const byTeam = new Map<number, number>();
-  for (const r of results) byTeam.set(r.teamId, r.totalPremium - r.claimsAmount);
+  for (const r of results) byTeam.set(r.teamId, computeRt(r));
   const teamIds = [...byTeam.keys()];
   const map = new Map<number, number>();
   if (teamIds.length === 0) return map;
@@ -52,12 +64,26 @@ export function notaTarifacionAnio(
 }
 
 /**
- * Score at which a team hitting exactly the "healthy" reference loss ratio
- * (LR_BAJO=0.85, already the "grow" threshold analytics.ts uses elsewhere)
- * lands — high enough to clearly reward genuinely good pricing, without
- * making the sigmoid so steep that ordinary variation around that point
- * swings the score wildly. 90 rather than e.g. 99 leaves headroom above a
- * merely-healthy result for a team that does even better.
+ * Target net technical margin (RT as a fraction of premium, *after* both
+ * claims and the standard GASTOS_TOTAL_PCT expense load) that counts as
+ * "good performance" for notaTarifacionAbsoluta(). This can't reuse
+ * analytics.ts's LR_BAJO (0.85, the "grow" threshold) directly the way an
+ * earlier version of this function did: once RT already subtracts
+ * GASTOS_TOTAL_PCT (20%), a team merely hitting LR_BAJO on claims alone
+ * (0.85 + 0.20 > 1.0 of premium) is still running a net technical loss —
+ * realistic (many insurers run an underwriting loss offset by investment
+ * income, graded separately via ALM), but not what "good performance"
+ * should mean for this specific, underwriting-only score. 10% is a modest,
+ * round, genuinely-profitable P&C target margin instead.
+ */
+export const GOOD_PERFORMANCE_MARGIN_PCT = 0.1;
+
+/**
+ * Score at which a team hitting exactly GOOD_PERFORMANCE_MARGIN_PCT lands —
+ * high enough to clearly reward genuinely good pricing, without making the
+ * sigmoid so steep that ordinary variation around that point swings the
+ * score wildly. 90 rather than e.g. 99 leaves headroom above a merely-good
+ * result for a team that does even better.
  */
 const GOOD_PERFORMANCE_SCORE = 90;
 
@@ -65,7 +91,7 @@ const GOOD_PERFORMANCE_SCORE = 90;
 const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMANCE_SCORE));
 
 /**
- * Maps each team's technical result (RT = premium - claims) onto a 0-100
+ * Maps each team's technical result (RT, see computeRt()) onto a 0-100
  * score anchored to the *model's* own definition of good performance,
  * instead of to how the rest of the cohort happened to do this run (see
  * notaTarifacionAnio() for the cohort-relative alternative, still used for
@@ -74,11 +100,15 @@ const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMA
  *
  * "Good performance" for a given team is defined as: what its RT *would
  * have been* had it priced its own actual book of claims (claimsAmount,
- * already known — not a population estimate) at the healthy reference loss
- * ratio LR_BAJO. That reference RT scales with each team's own claims
- * volume, so a small and a large book are judged on the same relative bar,
- * not on who racked up more absolute COP of technical result by writing
- * more policies.
+ * already known — not a population estimate) to land exactly at
+ * GOOD_PERFORMANCE_MARGIN_PCT net technical margin, after also covering the
+ * same GASTOS_TOTAL_PCT expense load every team pays. Solving
+ * `premium*(1-GASTOS_TOTAL_PCT) - claims = premium*MARGIN` for premium and
+ * substituting back into RT gives `goodRt = claims * MARGIN / (1 -
+ * GASTOS_TOTAL_PCT - MARGIN)`. That reference RT scales with each team's
+ * own claims volume, so a small and a large book are judged on the same
+ * relative bar, not on who racked up more absolute COP of technical result
+ * by writing more policies.
  *
  * RT itself ranges over all of (-∞, ∞), so it's passed through a logistic
  * curve centered on RT=0 (score 50) and scaled by that per-team reference —
@@ -91,8 +121,9 @@ export function notaTarifacionAbsoluta(
   results: { teamId: number; totalPremium: number; claimsAmount: number }[]
 ): Map<number, number> {
   const map = new Map<number, number>();
+  const goodMarginDenominator = 1 - GASTOS_TOTAL_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
   for (const r of results) {
-    const rt = r.totalPremium - r.claimsAmount;
+    const rt = computeRt(r);
     if (r.totalPremium <= 0 && r.claimsAmount <= 0) {
       map.set(r.teamId, 50); // no book at all to judge — neither a good nor a bad signal
       continue;
@@ -101,7 +132,7 @@ export function notaTarifacionAbsoluta(
       map.set(r.teamId, 100); // collected real premium against zero claims — as good as this measure gets
       continue;
     }
-    const goodRt = r.claimsAmount * (1 / LR_BAJO - 1);
+    const goodRt = r.claimsAmount * (GOOD_PERFORMANCE_MARGIN_PCT / goodMarginDenominator);
     const x = rt / goodRt;
     map.set(r.teamId, 100 / (1 + Math.exp(-SIGMOID_STEEPNESS * x)));
   }

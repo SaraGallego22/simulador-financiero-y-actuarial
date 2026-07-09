@@ -10,7 +10,7 @@ import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
 import type { Recommendation } from "@/domain/grading/analytics";
-import { notaTarifacionAbsoluta, notaTarifacionAnio } from "@/domain/grading/composite";
+import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
 import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { ScoreForm } from "./ScoreForm";
@@ -200,6 +200,26 @@ export default async function AdminDayPage({
     if (!deliverablesByTeamId.has(d.teamId)) deliverablesByTeamId.set(d.teamId, {});
     deliverablesByTeamId.get(d.teamId)![d.conceptId] = d.value;
   }
+
+  // Día 2's finAvg component of the objective grade — averages the
+  // financial-profile ("fin") report concepts (gastos, resultado de
+  // inversiones, utilidad neta A1; see concepts.ts's "d2" entries), the same
+  // way computeConsolidado() does. Día 1 has no "reporte" concepts at all —
+  // its financial component is the ALM score alone, shown separately below.
+  const finReportScoreByTeamId = new Map<string, number>();
+  if (day === 2) {
+    const finConcepts = reportConcepts.filter((c) => c.perfil === "fin");
+    for (const team of teams) {
+      const values = deliverablesByTeamId.get(team.id) ?? {};
+      const bench = finBenchByTeamId.get(team.id) ?? null;
+      const finScores = finConcepts
+        .map((c) => scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance)?.score)
+        .filter((s): s is number => s != null);
+      const avg = notaPerfilDia(finScores);
+      if (avg != null) finReportScoreByTeamId.set(team.id, avg);
+    }
+  }
+
   const analyticsRecByTeamId = new Map<string, Record<string, Recommendation>>();
   for (const r of analyticsRecs) {
     if (!analyticsRecByTeamId.has(r.teamId)) analyticsRecByTeamId.set(r.teamId, {});
@@ -477,17 +497,17 @@ export default async function AdminDayPage({
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">RT</th>
-                    <th className="px-4 py-2">Nota actuarial (tarifas)</th>
-                    <th className="px-4 py-2">Nota ALM</th>
+                    <th className="px-4 py-2">Tarifas</th>
+                    <th className="px-4 py-2">{day === 1 ? "Nota ALM" : "Nota financiera"}</th>
                     <th className="px-4 py-2">Nota objetiva</th>
                   </tr>
                 </thead>
                 <tbody>
                   {teams.map((team) => {
                     const result = resultByTeamId.get(team.id);
-                    const rt = result ? result.totalPremium - result.claimsAmount : null;
+                    const rt = result ? computeRt(result) : null;
                     const actuarialScore = actuarialScoreByTeamId.get(team.id);
-                    const almScore = almScoreByTeamId.get(team.id);
+                    const finScore = day === 1 ? almScoreByTeamId.get(team.id)?.nota : finReportScoreByTeamId.get(team.id);
                     const objective = objectiveByTeamId.get(team.id);
                     return (
                       <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
@@ -497,7 +517,7 @@ export default async function AdminDayPage({
                         </td>
                         <td className="px-4 py-2">{rt != null ? `$${Math.round(rt).toLocaleString("es-CO")}` : "—"}</td>
                         <td className="px-4 py-2">{actuarialScore != null ? actuarialScore.toFixed(1) : "—"}</td>
-                        <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2">{finScore != null ? finScore.toFixed(1) : "—"}</td>
                         <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{objective != null ? objective.toFixed(1) : "—"}</td>
                       </tr>
                     );
@@ -506,8 +526,10 @@ export default async function AdminDayPage({
               </table>
               {day === 2 && (
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  En el Día 2, la nota objetiva también incorpora los reportes financieros/actuariales (reservas, gastos, utilidad neta A1 — pestaña
-                  Entregables), así que no siempre coincide con un promedio simple de las dos columnas anteriores.
+                  &ldquo;Nota financiera&rdquo; ya es el promedio real de gastos/resultado de inversiones/utilidad neta A1 reportados (pestaña Entregables) —
+                  coincide con el componente financiero de la nota objetiva. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: la parte actuarial real
+                  también promedia las reservas reportadas (RSA/IBNR) ese mismo día, así que la nota objetiva no siempre es un promedio simple de las dos
+                  columnas anteriores.
                 </p>
               )}
             </div>

@@ -1,13 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { notaDia, notaObjetivaDia, notaSubjetiva, notaSubjetivaEquipo, notaTarifacionAnio, notaTarifacionAbsoluta } from "./composite";
-import { LR_BAJO } from "./analytics";
+import {
+  notaDia,
+  notaObjetivaDia,
+  notaSubjetiva,
+  notaSubjetivaEquipo,
+  notaTarifacionAnio,
+  notaTarifacionAbsoluta,
+  computeRt,
+  GOOD_PERFORMANCE_MARGIN_PCT,
+} from "./composite";
+import { GASTOS_TOTAL_PCT } from "../finance/constants";
 
 describe("notaTarifacionAnio", () => {
+  // RT = totalPremium*(1-GASTOS_TOTAL_PCT) - claimsAmount; all four rows
+  // share the same totalPremium, so the 20 subtracted from every RT for
+  // gastos is a uniform shift that doesn't change the ordering below.
   const results = [
-    { teamId: 1, totalPremium: 100, claimsAmount: 40 }, // RT = 60
-    { teamId: 2, totalPremium: 100, claimsAmount: 70 }, // RT = 30
-    { teamId: 3, totalPremium: 100, claimsAmount: 10 }, // RT = 90 (best)
-    { teamId: 4, totalPremium: 100, claimsAmount: 200 }, // RT = -100 (catastrophic)
+    { teamId: 1, totalPremium: 100, claimsAmount: 40 }, // RT = 40
+    { teamId: 2, totalPremium: 100, claimsAmount: 70 }, // RT = 10
+    { teamId: 3, totalPremium: 100, claimsAmount: 10 }, // RT = 70 (best)
+    { teamId: 4, totalPremium: 100, claimsAmount: 200 }, // RT = -120 (catastrophic)
   ];
 
   it("ranking mode gives the best result 100 and the worst 0", () => {
@@ -28,11 +40,24 @@ describe("notaTarifacionAnio", () => {
   });
 });
 
+describe("computeRt", () => {
+  it("matches finBench's own rt shape: premium*(1-gastos) - claims", () => {
+    expect(computeRt({ totalPremium: 100, claimsAmount: 40 })).toBeCloseTo(100 * (1 - GASTOS_TOTAL_PCT) - 40, 6);
+  });
+});
+
 describe("notaTarifacionAbsoluta", () => {
-  it("scores RT=0 (breakeven) at exactly 50, regardless of book size", () => {
+  // premium that makes RT come out to exactly 0 for a given claims amount:
+  // premium*(1-GASTOS_TOTAL_PCT) - claims = 0
+  const breakevenPremium = (claims: number) => claims / (1 - GASTOS_TOTAL_PCT);
+  // premium that makes RT land exactly at the "good performance" margin:
+  // premium*(1-GASTOS_TOTAL_PCT) - claims = premium*GOOD_PERFORMANCE_MARGIN_PCT
+  const goodPremium = (claims: number) => claims / (1 - GASTOS_TOTAL_PCT - GOOD_PERFORMANCE_MARGIN_PCT);
+
+  it("scores RT=0 (breakeven, after gastos) at exactly 50, regardless of book size", () => {
     const map = notaTarifacionAbsoluta([
-      { teamId: 1, totalPremium: 100, claimsAmount: 100 },
-      { teamId: 2, totalPremium: 100_000_000, claimsAmount: 100_000_000 },
+      { teamId: 1, totalPremium: breakevenPremium(100), claimsAmount: 100 },
+      { teamId: 2, totalPremium: breakevenPremium(100_000_000), claimsAmount: 100_000_000 },
     ]);
     expect(map.get(1)).toBeCloseTo(50, 6);
     expect(map.get(2)).toBeCloseTo(50, 6);
@@ -40,8 +65,8 @@ describe("notaTarifacionAbsoluta", () => {
 
   it("never scores a negative RT above 50, or a positive RT below 50", () => {
     const map = notaTarifacionAbsoluta([
-      { teamId: 1, totalPremium: 99, claimsAmount: 100 }, // RT = -1
-      { teamId: 2, totalPremium: 101, claimsAmount: 100 }, // RT = +1
+      { teamId: 1, totalPremium: breakevenPremium(100) - 1, claimsAmount: 100 }, // RT < 0
+      { teamId: 2, totalPremium: breakevenPremium(100) + 1, claimsAmount: 100 }, // RT > 0
       { teamId: 3, totalPremium: 10, claimsAmount: 1000 }, // catastrophic
       { teamId: 4, totalPremium: 1_000_000, claimsAmount: 100 }, // huge margin
     ]);
@@ -51,16 +76,16 @@ describe("notaTarifacionAbsoluta", () => {
     expect(map.get(4)!).toBeGreaterThan(50);
   });
 
-  it("scores exactly 90 when a team prices its own actual claims at the healthy reference loss ratio (LR_BAJO)", () => {
+  it("scores exactly 90 when a team's own actual claims are priced to the good-performance margin", () => {
     const claimsAmount = 273_900_000_000;
-    const totalPremium = claimsAmount / LR_BAJO;
+    const totalPremium = goodPremium(claimsAmount);
     const map = notaTarifacionAbsoluta([{ teamId: 1, totalPremium, claimsAmount }]);
     expect(map.get(1)!).toBeCloseTo(90, 6);
   });
 
-  it("judges a small and a large book on the same relative bar (both at LR_BAJO score equally)", () => {
-    const small = { teamId: 1, totalPremium: 1000 / LR_BAJO, claimsAmount: 1000 };
-    const large = { teamId: 2, totalPremium: 100_000_000 / LR_BAJO, claimsAmount: 100_000_000 };
+  it("judges a small and a large book on the same relative bar (both at the good-performance margin score equally)", () => {
+    const small = { teamId: 1, totalPremium: goodPremium(1000), claimsAmount: 1000 };
+    const large = { teamId: 2, totalPremium: goodPremium(100_000_000), claimsAmount: 100_000_000 };
     const map = notaTarifacionAbsoluta([small, large]);
     expect(map.get(1)!).toBeCloseTo(map.get(2)!, 6);
   });
