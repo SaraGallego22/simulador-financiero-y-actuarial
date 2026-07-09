@@ -1,4 +1,5 @@
 import { toFloat32View } from "./binary";
+import { prisma } from "./prisma";
 import { generateOutsourcedTariff } from "@/domain/pricing/outsourced";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
@@ -18,4 +19,20 @@ export function getTariffArray(
   if (submission.outsourced) return generateOutsourcedTariff(universe);
   if (!submission.data) throw new Error("La tarifa no tiene datos y no está marcada como tercerizada.");
   return toFloat32View(submission.data, N_COLOMBIA);
+}
+
+/**
+ * Whether a team's objective results for `day` are already published to
+ * them — the same signal the team's own results tab already gates on. Used
+ * to withhold an *outsourced* tariff's actual premium/CSV until then: seeing
+ * it before that day's market has cleared would hint at relative risk
+ * levels a team could otherwise only get by doing its own pricing analysis
+ * (see the outsource route's doc comment).
+ */
+export async function hasPublishedResults(teamId: string, day: number): Promise<boolean> {
+  const result = await prisma.teamSimResult.findFirst({
+    where: { teamId, published: true, simulationRun: { day } },
+    select: { id: true },
+  });
+  return !!result;
 }

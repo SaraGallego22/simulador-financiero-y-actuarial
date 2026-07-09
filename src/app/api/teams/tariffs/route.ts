@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { BYTES_PER_PREMIUM, MIN_COVERAGE, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
 import { toFloat32View } from "@/lib/binary";
+import { hasPublishedResults } from "@/lib/tariffAccess";
 
 async function requireTeam() {
   const session = await auth();
@@ -23,12 +24,20 @@ export async function GET(request: Request) {
     select: { meanPremium: true, submittedAt: true, outsourced: true },
   });
 
+  // An outsourced tariff's premium is withheld from the team until this
+  // day's results are published — seeing it earlier would hint at relative
+  // risk levels before the market even clears (see tariffAccess.ts's doc
+  // comment on hasPublishedResults()). A self-priced tariff has no such
+  // restriction — it's the team's own number, already known to them.
+  const revealed = submission?.outsourced ? await hasPublishedResults(teamId, day) : true;
+
   return NextResponse.json({
     exists: !!submission,
     complete: submission?.meanPremium != null,
-    meanPremium: submission?.meanPremium ?? null,
+    meanPremium: revealed ? (submission?.meanPremium ?? null) : null,
     submittedAt: submission?.submittedAt ?? null,
     outsourced: submission?.outsourced ?? false,
+    revealed,
   });
 }
 

@@ -126,9 +126,16 @@ export function GuiaPasanteDia1() {
             exceso de demanda se redistribuye entre los equipos que todavía tienen cupo disponible.
           </p>
           <p>
-            Tu nota actuarial del día depende de tu resultado técnico (prima cobrada − siniestros − gastos) frente al de los demás equipos: precios muy
-            altos pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen
-            selectivamente el riesgo equivocado.
+            Tu nota actuarial del día depende de tu resultado técnico (prima cobrada − siniestros), comparado contra un desempeño de referencia que define
+            el propio modelo — no contra el resultado de los demás equipos: un resultado técnico en cero (ni ganancia ni pérdida) da una nota de 50; por
+            encima de cero la nota sube, por debajo baja. Precios muy altos pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero
+            pueden hundir el resultado técnico si atraen selectivamente el riesgo equivocado.
+          </p>
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Si tu equipo no alcanza a completar su tarifa a tiempo, la pestaña de Simulación tiene una opción de emergencia — &ldquo;Tercerizar
+            tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir
+            participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
+            revela una vez se publiquen los resultados de ese día. Aplica igual en el Año 2.
           </p>
         </SubSection>
 
