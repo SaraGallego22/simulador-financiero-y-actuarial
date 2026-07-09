@@ -88,13 +88,21 @@ describe("computeSectorStats", () => {
     expect(weighted).toBeGreaterThan(0.5);
     expect(weighted).toBeLessThan(2);
   });
+
+  it("never includes a sector crossing 'hist' — trap variable, excluded from every true ranking", () => {
+    const stats = computeSectorStats(universe, 1);
+    for (const s of stats) {
+      expect(s.dimA).not.toBe("hist");
+      expect(s.dimB).not.toBe("hist");
+    }
+  });
 });
 
 describe("rankForCrecer / rankForDisminuir", () => {
   const stats: SectorStat[] = [
-    { dimA: "zona", valA: "urbana", dimB: "uso", valB: "comercial", count: 10_000, avgIncurredCost: 300, multiplier: 1.5 },
-    { dimA: "zona", valA: "rural", dimB: "uso", valB: "personal", count: 10_000, avgIncurredCost: 100, multiplier: 0.5 },
-    { dimA: "edad", valA: "joven", dimB: "tipo", valB: "deportivo", count: 10_000, avgIncurredCost: 250, multiplier: 1.25 },
+    { dimA: "zona", valA: "urbana", dimB: "uso", valB: "comercial", count: 10_000, claimCount: 900, medianSeverity: 3_000_000, aggregateLoss: 300, multiplier: 1.5 },
+    { dimA: "zona", valA: "rural", dimB: "uso", valB: "personal", count: 10_000, claimCount: 500, medianSeverity: 2_000_000, aggregateLoss: 100, multiplier: 0.5 },
+    { dimA: "edad", valA: "joven", dimB: "tipo", valB: "deportivo", count: 10_000, claimCount: 700, medianSeverity: 2_500_000, aggregateLoss: 250, multiplier: 1.25 },
   ];
 
   it("crecer ranks lowest multiplier first", () => {
@@ -117,7 +125,9 @@ describe("scoreSectorPicks", () => {
     dimB: "uso" as const,
     valB: `w${i}`,
     count: 10_000,
-    avgIncurredCost: 100,
+    claimCount: 600,
+    medianSeverity: 2_000_000,
+    aggregateLoss: 100,
     multiplier: 1 - i * 0.01,
   }));
   const pickAt = (i: number): Sector => ({ dimA: "zona", valA: `v${i}`, dimB: "uso", valB: `w${i}` });

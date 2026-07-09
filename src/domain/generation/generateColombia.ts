@@ -2,7 +2,7 @@ import { seedRand, gammaRand } from "./rng";
 import { sampleClaimDate, sampleReportingLag } from "./dates";
 import { calcLambda } from "../pricing/frequency";
 import { calcMediaSev } from "../pricing/severity";
-import { N_COLOMBIA, ANIO_BASE_A1, SEVERITY_SHAPE } from "./constants";
+import { N_COLOMBIA, ANIO_BASE_A1, SEVERITY_SHAPE, OUTLIER_CLAIM_PROBABILITY, OUTLIER_CLAIM_MULTIPLIER } from "./constants";
 import type {
   Brand,
   ColombiaExposure,
@@ -107,6 +107,11 @@ export function getExposure(u: ColombiaUniverse, index: number): ColombiaExposur
  */
 export function generateColombia(seed = 42, n: number = N_COLOMBIA): ColombiaUniverse {
   const r = seedRand(seed);
+  // Independent stream (not interleaved with `r`) deciding which claims
+  // become catastrophic outliers — see OUTLIER_CLAIM_PROBABILITY's doc
+  // comment. Keeping it separate means every other field's draw stays
+  // bit-identical to before this was added; only severity is affected.
+  const rOutlier = seedRand(seed + 13_131);
 
   const u: ColombiaUniverse = {
     n,
@@ -154,7 +159,9 @@ export function generateColombia(seed = 42, n: number = N_COLOMBIA): ColombiaUni
 
     if (hasClaim) {
       const meanSeverity = calcMediaSev(exposure);
-      u.sev[i] = Math.round((gammaRand(r, SEVERITY_SHAPE) * meanSeverity) / SEVERITY_SHAPE);
+      let severity = (gammaRand(r, SEVERITY_SHAPE) * meanSeverity) / SEVERITY_SHAPE;
+      if (rOutlier() < OUTLIER_CLAIM_PROBABILITY) severity *= OUTLIER_CLAIM_MULTIPLIER;
+      u.sev[i] = Math.round(severity);
       const claimDate = sampleClaimDate(r, ANIO_BASE_A1);
       const reportDate = new Date(claimDate.getTime() + sampleReportingLag(r) * MS_PER_DAY);
       u.fechaSinEpochDay[i] = toEpochDay(claimDate);

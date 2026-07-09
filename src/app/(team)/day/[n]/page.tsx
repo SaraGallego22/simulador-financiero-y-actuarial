@@ -162,6 +162,9 @@ export default async function TeamDayPage({
           >
             Descargar CSV público del universo
           </a>
+          <p className="text-xs text-[var(--color-brand-text-secondary)]">
+            Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+          </p>
           <TariffUpload
             key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
             day={day}
@@ -275,13 +278,16 @@ export default async function TeamDayPage({
                 );
               })()}
               {includeSim && (
-                <div className="col-span-2 sm:col-span-4">
+                <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
                   <a
                     href={`/api/teams/report?day=${day}`}
-                    className="inline-block rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+                    className="inline-block w-fit rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
                   >
                     Descargar reporte de tu cartera (CSV)
                   </a>
+                  <p className="text-xs text-[var(--color-brand-text-secondary)]">
+                    Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+                  </p>
                 </div>
               )}
             </div>

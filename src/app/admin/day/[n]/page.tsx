@@ -470,10 +470,20 @@ export default async function AdminDayPage({
                   Sectores reales — Día {day}
                 </h3>
                 <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  Multiplicador = severidad promedio incurrida del sector ÷ severidad promedio de <strong>todo el universo</strong> (base = 1.0×; por
-                  encima es más riesgoso que el promedio del mercado, por debajo menos). Solo se listan sectores con al menos{" "}
+                  Multiplicador = pérdida agregada del sector ÷ pérdida agregada de <strong>todo el universo</strong> (base = 1.0×; por encima es más
+                  riesgoso que el promedio del mercado, por debajo menos). Pérdida agregada combina frecuencia y severidad: es la mediana de severidad
+                  de los siniestros del sector, ponderada por qué fracción de sus expuestos efectivamente reclamó. Se usa la <strong>mediana</strong>{" "}
+                  (no el promedio) porque el universo incluye siniestros atípicamente altos (outliers) que distorsionarían un promedio simple —
+                  detalle completo en el README, deliberadamente no explicado a los equipos. Solo se listan sectores con al menos{" "}
                   {SECTOR_MIN_COUNT.toLocaleString("es-CO")} expuestos en el universo completo — es la misma verdad global contra la que se califica a
                   todos los equipos, no la cartera propia de ninguno.
+                </p>
+                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  <strong>Nota solo para administradores</strong> (no mencionar a los equipos): los cruces que involucran &quot;historial de
+                  siniestros&quot; (hist) se excluyen deliberadamente de estos rankings reales. Es una variable trampa: sigue disponible para que un
+                  equipo la elija en su recomendación, pero un conteo de siniestros pasados por póliza no define un sector de mercado, así que
+                  cualquier equipo que la priorice debería perder puntos frente a quienes reconocieron que no aporta y buscaron cruces entre las
+                  demás variables.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
