@@ -10,6 +10,7 @@ import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
 import type { Recommendation } from "@/domain/grading/analytics";
+import { notaTarifacionAbsoluta, notaTarifacionAnio } from "@/domain/grading/composite";
 import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { ScoreForm } from "./ScoreForm";
@@ -73,7 +74,7 @@ export default async function AdminDayPage({
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, teamResults: true },
     }),
-    activeTab === "top" ? computeConsolidado(cohort.id) : Promise.resolve(null),
+    activeTab === "top" || activeTab === "obj" ? computeConsolidado(cohort.id) : Promise.resolve(null),
     // Generated once and reused below for every call that would otherwise
     // regenerate its own copy this same request (getTeamBookForDay,
     // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
@@ -113,6 +114,39 @@ export default async function AdminDayPage({
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
   const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
+
+  // Actuarial (tarifación) score per team for this day's results — same
+  // functions computeConsolidado() uses for the final grade, so what the
+  // admin sees here always matches what actually gets graded. Día 1 is
+  // model-anchored (notaTarifacionAbsoluta); Día 2 stays cohort-relative,
+  // per the rubric's configurable objectiveMode.
+  const actuarialScoreByTeamId = new Map<string, number>();
+  if (includeSim && latestRun?.teamResults.length) {
+    const numericIdByTeamId = new Map(latestRun.teamResults.map((r, i) => [r.teamId, i + 1]));
+    const rows = latestRun.teamResults.map((r) => ({
+      teamId: numericIdByTeamId.get(r.teamId)!,
+      totalPremium: r.totalPremium,
+      claimsAmount: r.claimsAmount,
+    }));
+    const scoreByNumericId =
+      day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, (rubric?.objectiveMode as "relative" | "ranking") ?? "relative");
+    for (const [teamId, numericId] of numericIdByTeamId) {
+      const score = scoreByNumericId.get(numericId);
+      if (score != null) actuarialScoreByTeamId.set(teamId, score);
+    }
+  }
+
+  // This day's final "nota objetiva" per team, read straight off
+  // computeConsolidado() rather than re-derived here — Día 2's real blend
+  // also folds in report-concept scores (reservas, gastos, utilidad neta A1;
+  // see concepts.ts's "d2" entries), not just the tariff/ALM scores shown
+  // alongside it below, so recomputing it by hand here would drift from
+  // what's actually graded.
+  const objectiveByTeamId = new Map<string, number>();
+  for (const row of consolidadoRows ?? []) {
+    const objective = row.perDay[day - 1]?.objective;
+    if (objective != null) objectiveByTeamId.set(row.teamId, objective);
+  }
 
   // ALM score per team: needs each team's book of claims (from the completed
   // simulation) to compute reserves, plus whatever portfolio they uploaded.
@@ -431,6 +465,54 @@ export default async function AdminDayPage({
 
       {activeTab === "obj" && (
         <div className="flex flex-col gap-4">
+          {includeSim && (
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+              <div className="p-4 pb-0">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                  Componentes de la nota objetiva — Día {day}
+                </h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                    <th className="px-4 py-2">Equipo</th>
+                    <th className="px-4 py-2">RT</th>
+                    <th className="px-4 py-2">Nota actuarial (tarifas)</th>
+                    <th className="px-4 py-2">Nota ALM</th>
+                    <th className="px-4 py-2">Nota objetiva</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team) => {
+                    const result = resultByTeamId.get(team.id);
+                    const rt = result ? result.totalPremium - result.claimsAmount : null;
+                    const actuarialScore = actuarialScoreByTeamId.get(team.id);
+                    const almScore = almScoreByTeamId.get(team.id);
+                    const objective = objectiveByTeamId.get(team.id);
+                    return (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="px-4 py-2">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="px-4 py-2">{rt != null ? `$${Math.round(rt).toLocaleString("es-CO")}` : "—"}</td>
+                        <td className="px-4 py-2">{actuarialScore != null ? actuarialScore.toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2">{almScore ? almScore.nota.toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{objective != null ? objective.toFixed(1) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {day === 2 && (
+                <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  En el Día 2, la nota objetiva también incorpora los reportes financieros/actuariales (reservas, gastos, utilidad neta A1 — pestaña
+                  Entregables), así que no siempre coincide con un promedio simple de las dos columnas anteriores.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
             <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               ALM — calce del portafolio vs. reservas
