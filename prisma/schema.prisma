@@ -177,15 +177,23 @@ model Deliverable {
   @@unique([teamId, day, conceptId])
 }
 
+// A team's ranked pick within one of its two Día 4 sector lists — one row
+// per (team, day, list, rank). A "sector" is a cross of two dimensions
+// (dimA=valA x dimB=valB, e.g. zona=urbana x uso=comercial), not a single
+// segment — see domain/grading/sectors.ts.
 model AnalyticsRecommendation {
-  id             String @id @default(cuid())
-  teamId         String
-  team           Team   @relation(fields: [teamId], references: [id])
-  day            Int
-  segmentKey     String
-  recommendation String // 'crecer' | 'disminuir' | 'mantener'
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id])
+  day    Int
+  list   String // 'crecer' | 'disminuir'
+  rank   Int // 1-based position within that list
+  dimA   String
+  valA   String
+  dimB   String
+  valB   String
 
-  @@unique([teamId, day, segmentKey])
+  @@unique([teamId, day, list, rank])
 }
 
 model RubricConfig {

@@ -5,10 +5,9 @@ import { calcMediaSev } from "./severity";
 
 /**
  * Loss ratio the "Tercerizar tarifas" emergency tariff is priced to —
- * deliberately worse than analytics.ts's LR_ALTO=1.0 (the "shrink" threshold
- * already used elsewhere as the unhealthy boundary), so a team that
- * outsources always runs at a real technical underwriting loss, not just a
- * thin margin.
+ * deliberately worse than 1.0 (the "shrink"/unhealthy threshold used
+ * elsewhere in the model), so a team that outsources always runs at a real
+ * technical underwriting loss, not just a thin margin.
  */
 export const OUTSOURCED_TARGET_LOSS_RATIO = 1.05;
 

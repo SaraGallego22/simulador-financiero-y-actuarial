@@ -35,9 +35,8 @@ const RESERVE_TO_INCURRED_RATIO = 0.861;
 
 /**
  * Reference loss ratio (siniestros ÷ prima) assumed for capacity sizing —
- * the midpoint of the "healthy" band the analítica sectorial grading
- * already uses (LR_BAJO=0.85 "grow" / LR_ALTO=1.0 "shrink", see
- * analytics.ts), not a number invented for this feature alone. A team
+ * the midpoint of the 0.85 ("grow") / 1.0 ("shrink") healthy band, not a
+ * number invented for this feature alone. A team
  * pricing to land inside that band is assumed sustainable; capacity is
  * sized as if every team does, since there's no way to know each team's
  * *actual* realized loss ratio before the market that determines it has

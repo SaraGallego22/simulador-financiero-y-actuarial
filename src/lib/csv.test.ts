@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCsv } from "./csv";
-import { analyticsCsvSchema, deliverableCsvSchema, rosterCsvSchema, tariffCsvSchema } from "./csvSchemas";
+import { deliverableCsvSchema, rosterCsvSchema, tariffCsvSchema } from "./csvSchemas";
 
 describe("parseCsv / tariffCsvSchema", () => {
   it("parses valid rows", () => {
@@ -45,17 +45,6 @@ describe("deliverableCsvSchema", () => {
     const { rows, errors } = parseCsv("concepto,valor\np1_uneta,1000000\nalm_calce,50", deliverableCsvSchema);
     // alm_calce is tipo 'auto_alm', not a 'reporte' deliverable -> rejected
     expect(rows).toEqual([{ concepto: "p1_uneta", valor: 1000000 }]);
-    expect(errors).toHaveLength(1);
-  });
-});
-
-describe("analyticsCsvSchema", () => {
-  it("parses valid recommendations and rejects invalid ones", () => {
-    const { rows, errors } = parseCsv(
-      "segmento,recomendacion\nzona:urbana,crecer\nzona:urbana,volar",
-      analyticsCsvSchema
-    );
-    expect(rows).toEqual([{ segmento: "zona:urbana", recomendacion: "crecer" }]);
     expect(errors).toHaveLength(1);
   });
 });

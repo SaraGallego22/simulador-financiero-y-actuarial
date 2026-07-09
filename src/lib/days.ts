@@ -38,6 +38,6 @@ export const TAB_NOTES: Record<
   },
   4: {
     analytics:
-      "La analítica sectorial se califica por dirección: loss ratio alto (≥100%) → recomienda disminuir; loss ratio bajo (≤85%) → recomienda crecer.",
+      "Nombra sectores cruzando 2 variables (ej. Zona: urbana × Uso: comercial), no una sola — el mercado tiene interacciones reales que un segmento univariado no puede mostrar. Se califica por ranking contra la verdad del universo completo, que no ves directamente: acertar la dirección no basta, importa qué tan cerca quede tu prioridad de la real.",
   },
 };

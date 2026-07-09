@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { CsvSchema } from "./csv";
 import { CONCEPTO_BY_ID } from "@/domain/grading/concepts";
-import { SEGMENT_BY_KEY } from "@/domain/grading/analytics";
 
 const numericString = z.string().transform((v, ctx) => {
   const n = Number(v.replace(/[^0-9.-]/g, ""));
@@ -45,23 +44,4 @@ export type DeliverableRow = z.infer<typeof deliverableRowSchema>;
 export const deliverableCsvSchema: CsvSchema<DeliverableRow> = {
   headerAliases: { concepto: ["concepto"], valor: ["valor"] },
   rowSchema: deliverableRowSchema,
-};
-
-/** Sector analytics recommendation upload: `segmento,recomendacion` (crecer|disminuir|mantener). */
-export const analyticsRowSchema = z.object({
-  segmento: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .refine((k) => k in SEGMENT_BY_KEY, { message: "segmento no reconocido" }),
-  recomendacion: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .pipe(z.enum(["crecer", "disminuir", "mantener"])),
-});
-export type AnalyticsRow = z.infer<typeof analyticsRowSchema>;
-export const analyticsCsvSchema: CsvSchema<AnalyticsRow> = {
-  headerAliases: { segmento: ["segmento"], recomendacion: ["recomend"] },
-  rowSchema: analyticsRowSchema,
 };
