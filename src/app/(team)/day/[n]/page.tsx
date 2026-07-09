@@ -164,11 +164,16 @@ export default async function TeamDayPage({
             Descargar CSV público del universo
           </a>
           <TariffUpload
-            key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}`}
+            key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
             day={day}
             initialComplete={submission?.meanPremium != null}
-            initialMeanPremium={submission?.meanPremium ?? null}
+            // An outsourced tariff's premium is withheld from the team until
+            // this day's results are published — see hasPublishedResults()'s
+            // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+            // no such restriction, it's the team's own number.
+            initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
             initialOutsourced={submission?.outsourced ?? false}
+            resultsPublished={!!publishedResult}
           />
         </div>
       )}

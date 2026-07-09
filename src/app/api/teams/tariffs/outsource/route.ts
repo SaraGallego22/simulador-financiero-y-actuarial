@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
+import { hasPublishedResults } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { generateOutsourcedTariff, meanPremium } from "@/domain/pricing/outsourced";
 
@@ -60,7 +61,11 @@ export async function POST(request: Request) {
     create: { teamId, day, data: null, meanPremium: mean, outsourced: true },
   });
 
-  return NextResponse.json({ outsourced: true, meanPremium: mean });
+  // meanPremium is deliberately left out of the response — a team can't see
+  // its own outsourced premium until this day's results are published (see
+  // hasPublishedResults()'s doc comment), and echoing it back here would
+  // defeat that even if the UI itself doesn't display it.
+  return NextResponse.json({ outsourced: true });
 }
 
 const CSV_HEADER = "id_expuesto,prima\n";
@@ -76,6 +81,9 @@ export async function GET(request: Request) {
 
   const submission = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } } });
   if (!submission?.outsourced) return new Response("Este equipo no tiene una tarifa tercerizada para este día.", { status: 404 });
+  if (!(await hasPublishedResults(teamId, day))) {
+    return new Response("Esta tarifa estará disponible para descargar una vez se publiquen los resultados de este día.", { status: 403 });
+  }
 
   const cohort = await getOrCreateActiveCohort();
   const universe = await loadUniverse(cohort.id);

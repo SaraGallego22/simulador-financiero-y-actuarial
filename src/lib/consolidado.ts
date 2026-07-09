@@ -8,7 +8,7 @@ import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { scoreAnalitica } from "@/domain/grading/analytics";
 import type { Recommendation } from "@/domain/grading/analytics";
-import { notaTarifacionAnio, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
+import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
 import type { Skill as CompositeSkill } from "@/domain/grading/composite";
 
 export interface TeamConsolidado {
@@ -63,7 +63,11 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
       numericIdByTeamId.set(r.teamId, numericId);
       rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount });
     }
-    const map = notaTarifacionAnio(rows, rubric.objectiveMode as "relative" | "ranking");
+    // Año 1's actuarial score is anchored to the model's own definition of
+    // good performance (see notaTarifacionAbsoluta's doc comment) rather
+    // than to how the rest of the cohort priced this run — Año 2 keeps the
+    // admin-configurable cohort-relative mode.
+    const map = day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, rubric.objectiveMode as "relative" | "ranking");
     const byTeamId = new Map<string, number>();
     for (const [teamId, numericId] of numericIdByTeamId) {
       if (respectPublished && !publishedTeamIds.has(teamId)) continue;

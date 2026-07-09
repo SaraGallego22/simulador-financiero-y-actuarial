@@ -12,7 +12,8 @@ type Status =
   | { phase: "idle" }
   | { phase: "parsing" }
   | { phase: "uploading"; sent: number; total: number }
-  | { phase: "done"; meanPremium: number; outsourced: boolean }
+  | { phase: "done"; meanPremium: number }
+  | { phase: "outsourced"; revealed: boolean; meanPremium: number | null }
   | { phase: "error"; message: string };
 
 type OutsourceStatus =
@@ -26,23 +27,26 @@ export function TariffUpload({
   initialComplete,
   initialMeanPremium,
   initialOutsourced,
+  resultsPublished,
 }: {
   day: number;
   initialComplete: boolean;
+  /** Already withheld (null) by the caller when initialOutsourced && !resultsPublished. */
   initialMeanPremium: number | null;
   initialOutsourced: boolean;
+  resultsPublished: boolean;
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState<Status>(
-    initialComplete && initialMeanPremium != null
-      ? { phase: "done", meanPremium: initialMeanPremium, outsourced: initialOutsourced }
-      : { phase: "idle" }
-  );
+  const [status, setStatus] = useState<Status>(() => {
+    if (!initialComplete) return { phase: "idle" };
+    if (initialOutsourced) return { phase: "outsourced", revealed: resultsPublished, meanPremium: initialMeanPremium };
+    return { phase: "done", meanPremium: initialMeanPremium ?? 0 };
+  });
   const [outsourceStatus, setOutsourceStatus] = useState<OutsourceStatus>({ phase: "idle" });
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const busy = status.phase === "parsing" || status.phase === "uploading";
-  const complete = status.phase === "done";
+  const complete = status.phase === "done" || status.phase === "outsourced";
 
   async function handleFile(file: File) {
     setFileName(file.name);
@@ -87,7 +91,7 @@ export function TariffUpload({
         const json = await res.json();
         setStatus({ phase: "uploading", sent: i + 1, total });
         if (json.complete) {
-          setStatus({ phase: "done", meanPremium: json.meanPremium, outsourced: false });
+          setStatus({ phase: "done", meanPremium: json.meanPremium });
           router.refresh();
         }
       }
@@ -108,8 +112,9 @@ export function TariffUpload({
         const body = await res.json().catch(() => null);
         throw new Error(body?.error ?? "Error al tercerizar la tarifa");
       }
-      const json = await res.json();
-      setStatus({ phase: "done", meanPremium: json.meanPremium, outsourced: true });
+      // The endpoint doesn't return the premium — it stays hidden until this
+      // day's results are published (see hasPublishedResults()).
+      setStatus({ phase: "outsourced", revealed: false, meanPremium: null });
       setOutsourceStatus({ phase: "idle" });
       router.refresh();
     } catch (e) {
@@ -155,24 +160,35 @@ export function TariffUpload({
         </p>
       )}
       {status.phase === "error" && <p className="text-sm text-[var(--color-brand-red)]">{status.message}</p>}
-      {status.phase === "done" && !status.outsourced && (
+      {status.phase === "done" && (
         <p className="text-sm text-[var(--color-brand-green)]">
           Tarifa cargada. Prima promedio: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}
         </p>
       )}
-      {status.phase === "done" && status.outsourced && (
-        <div className="rounded border border-[var(--color-brand-red)]/40 bg-[var(--color-brand-red)]/5 p-3">
-          <p className="text-sm font-semibold text-[var(--color-brand-red)]">Tarifa tercerizada — consultora chilena sin experiencia en el mercado colombiano</p>
-          <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
-            Prima promedio asignada: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}. Esta tarifa rinde peor que una propia bien
-            hecha — el costo de la consultoría ya está descontado del precio. Puedes reemplazarla en cualquier momento subiendo tu propio CSV arriba.
+      {status.phase === "outsourced" && (
+        <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] p-3">
+          <p className="text-sm font-semibold text-[var(--color-brand-blue-accent)]">
+            Tarifa tercerizada — consultora chilena, sin experiencia en el mercado colombiano
           </p>
-          <a
-            href={`/api/teams/tariffs/outsource?day=${day}`}
-            className="mt-2 inline-block text-sm font-medium text-[var(--color-brand-blue-accent)] underline"
-          >
-            Descargar la tarifa que te asignaron
-          </a>
+          {status.revealed && status.meanPremium != null ? (
+            <>
+              <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
+                Prima promedio asignada: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}. Puedes reemplazarla en cualquier
+                momento subiendo tu propio CSV arriba.
+              </p>
+              <a
+                href={`/api/teams/tariffs/outsource?day=${day}`}
+                className="mt-2 inline-block text-sm font-medium text-[var(--color-brand-blue-accent)] underline"
+              >
+                Descargar la tarifa que te asignaron
+              </a>
+            </>
+          ) : (
+            <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
+              El detalle de esta tarifa (prima promedio y descarga) estará disponible cuando se publiquen los resultados objetivos de este día. Puedes
+              reemplazarla en cualquier momento subiendo tu propio CSV arriba.
+            </p>
+          )}
         </div>
       )}
 
@@ -184,11 +200,11 @@ export function TariffUpload({
             </Button>
           )}
           {outsourceStatus.phase === "confirming" && (
-            <div className="rounded border border-[var(--color-brand-red)]/40 bg-[var(--color-brand-red)]/5 p-3">
+            <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] p-3">
               <p className="text-sm text-[var(--color-brand-text-secondary)]">
-                <span className="font-semibold text-[var(--color-brand-red)]">Opción de emergencia:</span> contratar a una consultora chilena, sin
-                experiencia en el mercado colombiano, para que realice las tarifas. Vas a poder participar en el mercado, pero la tarifa resultante rinde
-                peor que una propia bien hecha, y asumes el costo de esa consultoría. Esta acción reemplaza cualquier tarifa que hayas empezado a subir.
+                <span className="font-semibold text-[var(--color-brand-blue-accent)]">Opción de emergencia:</span> contratar a una consultora chilena, sin
+                experiencia en el mercado colombiano, para que defina tus tarifas. Vas a poder participar en el mercado con el precio que ellos asignen, y
+                el costo de esa consultoría corre por tu cuenta. Esta acción reemplaza cualquier tarifa que hayas empezado a subir.
               </p>
               <div className="mt-2 flex gap-2">
                 <Button type="button" size="sm" onClick={confirmOutsource}>

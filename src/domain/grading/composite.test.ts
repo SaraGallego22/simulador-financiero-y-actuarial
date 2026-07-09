@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { notaDia, notaObjetivaDia, notaSubjetiva, notaSubjetivaEquipo, notaTarifacionAnio } from "./composite";
+import { notaDia, notaObjetivaDia, notaSubjetiva, notaSubjetivaEquipo, notaTarifacionAnio, notaTarifacionAbsoluta } from "./composite";
+import { LR_BAJO } from "./analytics";
 
 describe("notaTarifacionAnio", () => {
   const results = [
@@ -24,6 +25,56 @@ describe("notaTarifacionAnio", () => {
     // Team 3 (best RT) should still clearly outscore team 2 (worse RT),
     // i.e. the percentile clamp doesn't flatten the ordering.
     expect(map.get(3)!).toBeGreaterThan(map.get(2)!);
+  });
+});
+
+describe("notaTarifacionAbsoluta", () => {
+  it("scores RT=0 (breakeven) at exactly 50, regardless of book size", () => {
+    const map = notaTarifacionAbsoluta([
+      { teamId: 1, totalPremium: 100, claimsAmount: 100 },
+      { teamId: 2, totalPremium: 100_000_000, claimsAmount: 100_000_000 },
+    ]);
+    expect(map.get(1)).toBeCloseTo(50, 6);
+    expect(map.get(2)).toBeCloseTo(50, 6);
+  });
+
+  it("never scores a negative RT above 50, or a positive RT below 50", () => {
+    const map = notaTarifacionAbsoluta([
+      { teamId: 1, totalPremium: 99, claimsAmount: 100 }, // RT = -1
+      { teamId: 2, totalPremium: 101, claimsAmount: 100 }, // RT = +1
+      { teamId: 3, totalPremium: 10, claimsAmount: 1000 }, // catastrophic
+      { teamId: 4, totalPremium: 1_000_000, claimsAmount: 100 }, // huge margin
+    ]);
+    expect(map.get(1)!).toBeLessThan(50);
+    expect(map.get(2)!).toBeGreaterThan(50);
+    expect(map.get(3)!).toBeLessThan(50);
+    expect(map.get(4)!).toBeGreaterThan(50);
+  });
+
+  it("scores exactly 90 when a team prices its own actual claims at the healthy reference loss ratio (LR_BAJO)", () => {
+    const claimsAmount = 273_900_000_000;
+    const totalPremium = claimsAmount / LR_BAJO;
+    const map = notaTarifacionAbsoluta([{ teamId: 1, totalPremium, claimsAmount }]);
+    expect(map.get(1)!).toBeCloseTo(90, 6);
+  });
+
+  it("judges a small and a large book on the same relative bar (both at LR_BAJO score equally)", () => {
+    const small = { teamId: 1, totalPremium: 1000 / LR_BAJO, claimsAmount: 1000 };
+    const large = { teamId: 2, totalPremium: 100_000_000 / LR_BAJO, claimsAmount: 100_000_000 };
+    const map = notaTarifacionAbsoluta([small, large]);
+    expect(map.get(1)!).toBeCloseTo(map.get(2)!, 6);
+  });
+
+  it("stays within (0, 100) even for extreme results, and returns a neutral 50 for a team with no book at all", () => {
+    const map = notaTarifacionAbsoluta([
+      { teamId: 1, totalPremium: 0, claimsAmount: 1_000_000_000_000 },
+      { teamId: 2, totalPremium: 0, claimsAmount: 0 },
+      { teamId: 3, totalPremium: 500, claimsAmount: 0 },
+    ]);
+    expect(map.get(1)!).toBeGreaterThan(0);
+    expect(map.get(1)!).toBeLessThan(50);
+    expect(map.get(2)).toBe(50);
+    expect(map.get(3)).toBe(100);
   });
 });
 
