@@ -73,19 +73,30 @@ export function notaTarifacionAnio(
  * (0.85 + 0.20 > 1.0 of premium) is still running a net technical loss —
  * realistic (many insurers run an underwriting loss offset by investment
  * income, graded separately via ALM), but not what "good performance"
- * should mean for this specific, underwriting-only score. 10% is a modest,
- * round, genuinely-profitable P&C target margin instead.
+ * should mean for this specific, underwriting-only score.
+ *
+ * 20% (not a thinner margin like 10%) is deliberate: since GASTOS_TOTAL_PCT
+ * is a fixed 20% of premium regardless of how a team prices, RT swings by a
+ * lot for perfectly ordinary changes in loss ratio — anchoring "good" to too
+ * thin a margin made the reference RT small, which (per notaTarifacionAbsoluta's
+ * comment below) also sets how *steeply* the score reacts to RT, and made
+ * merely-mediocre (not actually bad) results score in the single digits.
+ * 20% widens that reference so a genuinely bad result still reads as clearly
+ * bad without every below-breakeven result collapsing toward 0.
  */
-export const GOOD_PERFORMANCE_MARGIN_PCT = 0.1;
+export const GOOD_PERFORMANCE_MARGIN_PCT = 0.2;
 
 /**
  * Score at which a team hitting exactly GOOD_PERFORMANCE_MARGIN_PCT lands —
- * high enough to clearly reward genuinely good pricing, without making the
- * sigmoid so steep that ordinary variation around that point swings the
- * score wildly. 90 rather than e.g. 99 leaves headroom above a merely-good
- * result for a team that does even better.
+ * deliberately not closer to 100: a 20%-net-margin result is genuinely
+ * excellent (see GOOD_PERFORMANCE_MARGIN_PCT's comment), so it shouldn't
+ * score *only* marginally better than an ordinary result the way a 99 would
+ * force the curve to. 75 keeps real headroom below it for exceptional
+ * results, and — combined with the wider margin reference above — keeps the
+ * whole curve gentler around RT=0 instead of punishing ordinary variation
+ * as if it were catastrophic.
  */
-const GOOD_PERFORMANCE_SCORE = 90;
+export const GOOD_PERFORMANCE_SCORE = 75;
 
 /** Sigmoid steepness solved so that x=1 (RT exactly at the "good performance" reference) scores GOOD_PERFORMANCE_SCORE — see notaTarifacionAbsoluta(). */
 const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMANCE_SCORE));

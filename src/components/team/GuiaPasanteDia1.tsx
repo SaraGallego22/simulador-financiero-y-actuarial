@@ -127,11 +127,20 @@ export function GuiaPasanteDia1() {
           </p>
           <p>
             Tu nota actuarial del día depende de tu resultado técnico (prima cobrada − siniestros − gastos de adquisición/comisión/administración),
-            comparado contra un desempeño de referencia que define el propio modelo — no contra el resultado de los demás equipos: un resultado técnico en
-            cero (ni ganancia ni pérdida) da una nota de 50; por encima de cero la nota sube, por debajo baja. Precios muy altos pierden clientes (y con
-            ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente el riesgo equivocado — y los
-            gastos, al ser un porcentaje fijo de la prima, pesan más cuanto más barato cobres.
+            comparado contra un desempeño de referencia que define el propio modelo — no contra el resultado de los demás equipos. Precios muy altos pierden
+            clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente el riesgo
+            equivocado — y los gastos, al ser un porcentaje fijo de la prima, pesan más cuanto más barato cobres.
           </p>
+          <ul className="list-disc pl-5">
+            <li>Resultado técnico en cero (ni ganancia ni pérdida, ya descontados los gastos) → nota 50.</li>
+            <li>Resultado técnico positivo → nota por encima de 50, acercándose a 100 mientras mejor sea tu margen.</li>
+            <li>Resultado técnico negativo → nota por debajo de 50, acercándose a 0 mientras peor sea, sin llegar nunca a un número negativo.</li>
+            <li>
+              El &ldquo;buen desempeño&rdquo; de referencia (el que da una nota de 75) es un margen técnico neto del 20% sobre la prima, después de
+              siniestros y gastos — calculado sobre tu propia siniestralidad real, no un monto fijo en pesos, para que un equipo con una cartera chica y uno
+              con una grande se midan con la misma vara relativa.
+            </li>
+          </ul>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Si tu equipo no alcanza a completar su tarifa a tiempo, la pestaña de Simulación tiene una opción de emergencia — &ldquo;Tercerizar
             tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir

@@ -8,6 +8,7 @@ import {
   notaTarifacionAbsoluta,
   computeRt,
   GOOD_PERFORMANCE_MARGIN_PCT,
+  GOOD_PERFORMANCE_SCORE,
 } from "./composite";
 import { GASTOS_TOTAL_PCT } from "../finance/constants";
 
@@ -76,11 +77,11 @@ describe("notaTarifacionAbsoluta", () => {
     expect(map.get(4)!).toBeGreaterThan(50);
   });
 
-  it("scores exactly 90 when a team's own actual claims are priced to the good-performance margin", () => {
+  it("scores exactly GOOD_PERFORMANCE_SCORE when a team's own actual claims are priced to the good-performance margin", () => {
     const claimsAmount = 273_900_000_000;
     const totalPremium = goodPremium(claimsAmount);
     const map = notaTarifacionAbsoluta([{ teamId: 1, totalPremium, claimsAmount }]);
-    expect(map.get(1)!).toBeCloseTo(90, 6);
+    expect(map.get(1)!).toBeCloseTo(GOOD_PERFORMANCE_SCORE, 6);
   });
 
   it("judges a small and a large book on the same relative bar (both at the good-performance margin score equally)", () => {
@@ -88,6 +89,17 @@ describe("notaTarifacionAbsoluta", () => {
     const large = { teamId: 2, totalPremium: goodPremium(100_000_000), claimsAmount: 100_000_000 };
     const map = notaTarifacionAbsoluta([small, large]);
     expect(map.get(1)!).toBeCloseTo(map.get(2)!, 6);
+  });
+
+  it("doesn't collapse ordinary (not catastrophic) underperformance toward 0", () => {
+    // Loss ratio 0.95 — a bit worse than breakeven-after-gastos (0.80), but a
+    // perfectly ordinary result, not a disaster. Should land comfortably
+    // below 50 but nowhere near the bottom of the scale.
+    const claimsAmount = 1_000_000;
+    const totalPremium = claimsAmount / 0.95;
+    const map = notaTarifacionAbsoluta([{ teamId: 1, totalPremium, claimsAmount }]);
+    expect(map.get(1)!).toBeLessThan(50);
+    expect(map.get(1)!).toBeGreaterThan(25);
   });
 
   it("stays within (0, 100) even for extreme results, and returns a neutral 50 for a team with no book at all", () => {
