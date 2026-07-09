@@ -7,8 +7,7 @@ import { prisma } from "./prisma";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import { SEGMENTS } from "@/domain/grading/analytics";
-import type { Recommendation } from "@/domain/grading/analytics";
+import { isValidSectorPick } from "@/domain/grading/sectors";
 
 async function requireTeam(): Promise<string> {
   const session = await auth();
@@ -113,7 +112,16 @@ export interface SubmitAnalyticsState {
   success?: boolean;
 }
 
-/** Upserts a team's crecer/disminuir/mantener recommendation per segment (Día 4). */
+const SECTOR_LISTS = ["crecer", "disminuir"] as const;
+const MAX_SECTOR_RANK = 3;
+
+/**
+ * Replaces a team's Día 4 sector rankings — up to 3 "crecer" + 3 "disminuir"
+ * picks, each a cross of two dimensions (e.g. zona=urbana x uso=comercial;
+ * see domain/grading/sectors.ts). Full replace (delete then recreate) rather
+ * than per-slot upsert, since a team clearing a previously-filled slot needs
+ * that row actually removed, not left stale.
+ */
 export async function submitAnalyticsAction(
   day: number,
   _prev: SubmitAnalyticsState,
@@ -121,23 +129,26 @@ export async function submitAnalyticsAction(
 ): Promise<SubmitAnalyticsState> {
   const teamId = await requireTeam();
 
-  const rows: { segmentKey: string; recommendation: Recommendation }[] = [];
-  for (const seg of SEGMENTS) {
-    const raw = formData.get(seg.key);
-    if (raw !== "crecer" && raw !== "disminuir" && raw !== "mantener") continue;
-    rows.push({ segmentKey: seg.key, recommendation: raw });
+  const rows: { list: string; rank: number; dimA: string; valA: string; dimB: string; valB: string }[] = [];
+  for (const list of SECTOR_LISTS) {
+    for (let rank = 1; rank <= MAX_SECTOR_RANK; rank++) {
+      const dimA = String(formData.get(`${list}-${rank}-dimA`) ?? "");
+      const valA = String(formData.get(`${list}-${rank}-valA`) ?? "");
+      const dimB = String(formData.get(`${list}-${rank}-dimB`) ?? "");
+      const valB = String(formData.get(`${list}-${rank}-valB`) ?? "");
+      if (!dimA && !valA && !dimB && !valB) continue; // empty slot — skipped, not an error
+      if (!isValidSectorPick(dimA, valA, dimB, valB)) {
+        return { error: `El sector en la posición ${rank} de "${list}" no es válido — elige dos dimensiones distintas con un valor cada una.` };
+      }
+      rows.push({ list, rank, dimA, valA, dimB, valB });
+    }
   }
-  if (rows.length === 0) return { error: "Selecciona al menos una recomendación." };
+  if (rows.length === 0) return { error: "Nombra al menos un sector en alguna de las dos listas." };
 
-  await prisma.$transaction(
-    rows.map((r) =>
-      prisma.analyticsRecommendation.upsert({
-        where: { teamId_day_segmentKey: { teamId, day, segmentKey: r.segmentKey } },
-        update: { recommendation: r.recommendation },
-        create: { teamId, day, segmentKey: r.segmentKey, recommendation: r.recommendation },
-      })
-    )
-  );
+  await prisma.$transaction([
+    prisma.analyticsRecommendation.deleteMany({ where: { teamId, day } }),
+    ...rows.map((r) => prisma.analyticsRecommendation.create({ data: { teamId, day, ...r } })),
+  ]);
 
   revalidatePath(`/day/${day}`);
   revalidatePath(`/admin/day/${day}`);

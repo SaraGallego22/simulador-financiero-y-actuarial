@@ -1,15 +1,22 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedForTeamAction } from "@/lib/adminActions";
-import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams, getActiveColombiaUniverse } from "@/lib/teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import { scoreAnalitica } from "@/domain/grading/analytics";
-import type { Recommendation } from "@/domain/grading/analytics";
+import {
+  rankForCrecer,
+  rankForDisminuir,
+  groupSectorPicksByTeam,
+  scoreSectorRecommendation,
+  sectorKey,
+  sectorLabel,
+  SECTOR_MIN_COUNT,
+} from "@/domain/grading/sectors";
 import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
 import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
@@ -52,7 +59,7 @@ export default async function AdminDayPage({
     capacityRuns,
     deliverables,
     rubric,
-    segmentDataByTeamId,
+    universeRunForSectors,
     analyticsRecs,
   ] = await Promise.all([
     prisma.team.findMany({
@@ -97,7 +104,13 @@ export default async function AdminDayPage({
     // finBench's computed benchmark within a tolerance band.
     reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { day, team: { cohortId: cohort.id } } }) : Promise.resolve([]),
     prisma.rubricConfig.findUnique({ where: { cohortId: cohort.id } }),
-    hasAnalitica ? getSegmentDataForTeams(cohort.id) : Promise.resolve(null),
+    // Just the seed — the universe-wide sector "true answer" (see
+    // sectors.ts) is computed below, after `universe` (already being
+    // resolved above) is available; Promise.all entries can't depend on
+    // each other's results.
+    hasAnalitica
+      ? prisma.universeRun.findFirst({ where: { cohortId: cohort.id, kind: "colombia", status: "DONE" }, orderBy: { createdAt: "desc" }, select: { seed: true } })
+      : Promise.resolve(null),
     hasAnalitica
       ? prisma.analyticsRecommendation.findMany({ where: { day, team: { cohortId: cohort.id } } })
       : Promise.resolve([]),
@@ -134,6 +147,20 @@ export default async function AdminDayPage({
       const score = scoreByNumericId.get(numericId);
       if (score != null) actuarialScoreByTeamId.set(teamId, score);
     }
+  }
+
+  // Día 4 sector exercise: the one true global ranking (never per-team —
+  // see sectors.ts's doc comment on why a team's own book is a biased
+  // sample), and each team's score against it.
+  const sectorStats = hasAnalitica && universe && universeRunForSectors ? getSectorStatsForSeed(universeRunForSectors.seed, universe) : [];
+  const trueCrecer = rankForCrecer(sectorStats);
+  const trueDisminuir = rankForDisminuir(sectorStats);
+
+  const picksByTeamId = groupSectorPicksByTeam(analyticsRecs);
+  const analiticaScoreByTeamId = new Map<string, number>();
+  for (const [teamId, picks] of picksByTeamId) {
+    const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir);
+    if (score != null) analiticaScoreByTeamId.set(teamId, score);
   }
 
   // This day's final "nota objetiva" per team, read straight off
@@ -217,19 +244,6 @@ export default async function AdminDayPage({
         .filter((s): s is number => s != null);
       const avg = notaPerfilDia(finScores);
       if (avg != null) finReportScoreByTeamId.set(team.id, avg);
-    }
-  }
-
-  const analyticsRecByTeamId = new Map<string, Record<string, Recommendation>>();
-  for (const r of analyticsRecs) {
-    if (!analyticsRecByTeamId.has(r.teamId)) analyticsRecByTeamId.set(r.teamId, {});
-    analyticsRecByTeamId.get(r.teamId)![r.segmentKey] = r.recommendation as Recommendation;
-  }
-  const analiticaScoreByTeamId = new Map<string, number | null>();
-  if (hasAnalitica && segmentDataByTeamId) {
-    for (const [teamId, segData] of segmentDataByTeamId) {
-      const recs = analyticsRecByTeamId.get(teamId) ?? {};
-      analiticaScoreByTeamId.set(teamId, scoreAnalitica(recs, segData));
     }
   }
 
@@ -453,31 +467,134 @@ export default async function AdminDayPage({
             <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Analítica sectorial — Día {day}
+                  Sectores reales — Día {day}
                 </h3>
+                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  Multiplicador = severidad promedio incurrida del sector ÷ severidad promedio de <strong>todo el universo</strong> (base = 1.0×; por
+                  encima es más riesgoso que el promedio del mercado, por debajo menos). Solo se listan sectores con al menos{" "}
+                  {SECTOR_MIN_COUNT.toLocaleString("es-CO")} expuestos en el universo completo — es la misma verdad global contra la que se califica a
+                  todos los equipos, no la cartera propia de ninguno.
+                </p>
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                    <th className="px-4 py-2">Equipo</th>
-                    <th className="px-4 py-2">Nota analítica</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teams.map((team) => {
-                    const score = analiticaScoreByTeamId.get(team.id);
-                    return (
-                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                        <td className="px-4 py-2">
+              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                    Top 10 para crecer (menor riesgo relativo)
+                  </p>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                        <th className="py-1 pr-2">#</th>
+                        <th className="py-1 pr-2">Sector</th>
+                        <th className="py-1 pr-2">Multiplicador</th>
+                        <th className="py-1">Expuestos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trueCrecer.slice(0, 10).map((s, i) => (
+                        <tr key={sectorKey(s)} className="border-t border-[var(--color-brand-gray-light)]">
+                          <td className="py-1 pr-2">{i + 1}</td>
+                          <td className="py-1 pr-2">{sectorLabel(s)}</td>
+                          <td className="py-1 pr-2">{s.multiplier.toFixed(2)}×</td>
+                          <td className="py-1">{s.count.toLocaleString("es-CO")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                    Top 10 para disminuir (mayor riesgo relativo)
+                  </p>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                        <th className="py-1 pr-2">#</th>
+                        <th className="py-1 pr-2">Sector</th>
+                        <th className="py-1 pr-2">Multiplicador</th>
+                        <th className="py-1">Expuestos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trueDisminuir.slice(0, 10).map((s, i) => (
+                        <tr key={sectorKey(s)} className="border-t border-[var(--color-brand-gray-light)]">
+                          <td className="py-1 pr-2">{i + 1}</td>
+                          <td className="py-1 pr-2">{sectorLabel(s)}</td>
+                          <td className="py-1 pr-2">{s.multiplier.toFixed(2)}×</td>
+                          <td className="py-1">{s.count.toLocaleString("es-CO")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {hasAnalitica && (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Recomendación sectorial por equipo — Día {day}
+              </h3>
+              <div className="flex flex-col gap-2">
+                {teams.map((team) => {
+                  const score = analiticaScoreByTeamId.get(team.id);
+                  const picks = picksByTeamId.get(team.id);
+                  return (
+                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                      <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+                        <span>
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                           {team.name}
-                        </td>
-                        <td className="px-4 py-2">{score != null ? score.toFixed(0) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </span>
+                        <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
+                          {score != null ? `Nota: ${score.toFixed(0)}` : "Sin recomendación aún"}
+                        </span>
+                      </summary>
+                      <div className="grid grid-cols-1 gap-4 border-t border-[var(--color-brand-gray-light)] p-3 sm:grid-cols-2">
+                        {(["crecer", "disminuir"] as const).map((listKey) => {
+                          const trueRanking = listKey === "crecer" ? trueCrecer : trueDisminuir;
+                          const listPicks = picks?.[listKey] ?? [null, null, null];
+                          return (
+                            <div key={listKey}>
+                              <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{listKey}</p>
+                              <table className="w-full text-sm">
+                                <tbody>
+                                  {listPicks.map((pick, i) => {
+                                    if (!pick) {
+                                      return (
+                                        <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
+                                          <td className="py-1 pr-2 text-[var(--color-brand-text-secondary)]">{i + 1}º</td>
+                                          <td className="py-1 text-[var(--color-brand-text-secondary)]">—</td>
+                                        </tr>
+                                      );
+                                    }
+                                    const trueIdx = trueRanking.findIndex((s) => sectorKey(s) === sectorKey(pick));
+                                    return (
+                                      <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
+                                        <td className="py-1 pr-2">{i + 1}º</td>
+                                        <td className="py-1">
+                                          {sectorLabel(pick)}
+                                          <span className="ml-1 text-[var(--color-brand-text-secondary)]">
+                                            —{" "}
+                                            {trueIdx === -1
+                                              ? "no está en el ranking real"
+                                              : `real: #${trueIdx + 1} (${trueRanking[trueIdx].multiplier.toFixed(2)}×)`}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

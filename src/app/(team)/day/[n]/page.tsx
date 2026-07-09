@@ -10,7 +10,6 @@ import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import type { Recommendation } from "@/domain/grading/analytics";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
@@ -108,8 +107,8 @@ export default async function TeamDayPage({
     }
   }
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
-  const analyticsByKey = Object.fromEntries(
-    analyticsRecs.map((r) => [r.segmentKey, r.recommendation as Recommendation])
+  const analyticsPicksByKey = Object.fromEntries(
+    analyticsRecs.map((r) => [`${r.list}-${r.rank}`, { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB }])
   );
 
   // ALM detail (team-scoped): only computed once the day's simulation is
@@ -196,7 +195,7 @@ export default async function TeamDayPage({
           {hasAnalitica && (
             <>
               {TAB_NOTES[day]?.analytics && <TabNote>{TAB_NOTES[day].analytics}</TabNote>}
-              <AnalyticsForm day={day} initialRecommendations={analyticsByKey} />
+              <AnalyticsForm day={day} initialPicks={analyticsPicksByKey} />
             </>
           )}
           {!includeSim && reportConcepts.length === 0 && !hasAnalitica && (

@@ -1,13 +1,12 @@
 import { prisma } from "./prisma";
-import { getTeamBookForDay, computeReservesForTeams, getSegmentDataForTeams } from "./teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSectorStatsForSeed } from "./teamBook";
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import { scoreAnalitica } from "@/domain/grading/analytics";
-import type { Recommendation } from "@/domain/grading/analytics";
+import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
 import type { Skill as CompositeSkill } from "@/domain/grading/composite";
 
@@ -93,19 +92,26 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
     }
   }
 
+  // Día 4's sector exercise — graded against the one true, universe-wide
+  // ranking (never per-team, see sectors.ts's doc comment on why a team's
+  // own book is a biased sample).
   const hasAnalitica = conceptosDia("d4").some((c) => c.tipo === "auto_analitica");
   const analiticaScoreByTeamId = new Map<string, number>();
   if (hasAnalitica) {
-    const segmentDataByTeamId = await getSegmentDataForTeams(cohort.id);
-    if (segmentDataByTeamId) {
+    const universeRun = await prisma.universeRun.findFirst({
+      where: { cohortId: cohort.id, kind: "colombia", status: "DONE" },
+      orderBy: { createdAt: "desc" },
+      select: { seed: true },
+    });
+    if (universeRun) {
+      const universe = getUniverseForSeed(universeRun.seed);
+      const sectorStats = getSectorStatsForSeed(universeRun.seed, universe);
+      const trueCrecer = rankForCrecer(sectorStats);
+      const trueDisminuir = rankForDisminuir(sectorStats);
       const recs = await prisma.analyticsRecommendation.findMany({ where: { day: 4, team: { cohortId: cohort.id } } });
-      const recsByTeamId = new Map<string, Record<string, Recommendation>>();
-      for (const r of recs) {
-        if (!recsByTeamId.has(r.teamId)) recsByTeamId.set(r.teamId, {});
-        recsByTeamId.get(r.teamId)![r.segmentKey] = r.recommendation as Recommendation;
-      }
-      for (const [teamId, segData] of segmentDataByTeamId) {
-        const score = scoreAnalitica(recsByTeamId.get(teamId) ?? {}, segData);
+      const picksByTeamId = groupSectorPicksByTeam(recs);
+      for (const [teamId, picks] of picksByTeamId) {
+        const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir);
         if (score != null) analiticaScoreByTeamId.set(teamId, score);
       }
     }

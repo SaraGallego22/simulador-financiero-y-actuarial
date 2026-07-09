@@ -1,6 +1,5 @@
 import { prisma } from "./prisma";
 import { toInt32View } from "./binary";
-import { getTariffArray } from "./tariffAccess";
 import { generateColombia } from "@/domain/generation/generateColombia";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
@@ -10,9 +9,8 @@ import { computeLiabilitySchedules } from "@/domain/reserving/liability";
 import type { ClaimForLiability, LiabilitySchedule } from "@/domain/reserving/liability";
 import { computeDevelopment } from "@/domain/reserving/development";
 import type { TeamDevelopment } from "@/domain/reserving/development";
-import { getExposure } from "@/domain/generation/generateColombia";
-import { segmentKeysFor, computeSegmentData } from "@/domain/grading/analytics";
-import type { SegmentLossRatio } from "@/domain/grading/analytics";
+import { computeSectorStats } from "@/domain/grading/sectors";
+import type { SectorStat } from "@/domain/grading/sectors";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -49,6 +47,22 @@ export function getYear2ClaimsForSeed(seed: number, universe: ColombiaUniverse):
     cachedYear2Claims = { seed, claims: generateYear2Claims(universe, seed) };
   }
   return cachedYear2Claims.claims;
+}
+
+/**
+ * The Día 4 sector exercise's one true answer — universe-wide, never
+ * per-team (see sectors.ts's doc comment on why a team's own book is a
+ * biased sample, not a fair ground truth). Same module-scope-cache-by-seed
+ * pattern as getUniverseForSeed/getYear2ClaimsForSeed above, for the same
+ * reason: cheap to recompute (~1s at n=1,000,000) but no reason to pay that
+ * cost more than once per seed within a warm instance.
+ */
+let cachedSectorStats: { seed: number; stats: SectorStat[] } | null = null;
+export function getSectorStatsForSeed(seed: number, universe: ColombiaUniverse): SectorStat[] {
+  if (cachedSectorStats?.seed !== seed) {
+    cachedSectorStats = { seed, stats: computeSectorStats(universe) };
+  }
+  return cachedSectorStats.stats;
 }
 
 export interface TeamBook {
@@ -309,86 +323,3 @@ export function computeDevelopmentForTeams(
   return byTeamId;
 }
 
-/**
- * Per-team, per-segment premium/claims (for scoreAnalitica, Día 4). Uses
- * Year 2's book if it's done (the latest completed experience the
- * recommendation should be judged against), falling back to Year 1's.
- * Needs each involved team's *real* per-policy tariff (not just its mean
- * premium) since a risk-differentiated tariff prices segments unevenly —
- * using a flat mean would distort exactly the loss ratios this is grading.
- */
-export async function getSegmentDataForTeams(
-  cohortId: string
-): Promise<Map<string, Record<string, SegmentLossRatio>> | null> {
-  const day2Run = await prisma.simulationRun.findFirst({ where: { cohortId, day: 2, status: "DONE" } });
-  const day = day2Run ? 2 : 1;
-
-  const run = await prisma.simulationRun.findFirst({
-    where: { cohortId, day, status: "DONE" },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!run) return null;
-
-  const universeRun = await prisma.universeRun.findFirst({
-    where: { cohortId, kind: "colombia", status: "DONE" },
-    orderBy: { createdAt: "desc" },
-    select: { seed: true },
-  });
-  if (!universeRun) return null;
-  const universe = getUniverseForSeed(universeRun.seed);
-  const claims = day === 2 ? getYear2ClaimsForSeed(universeRun.seed, universe) : universe;
-
-  const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
-  let assignment: Int32Array;
-  let teamIds: string[];
-  if (run.resultData && params?.teamIdByNumericId) {
-    assignment = toInt32View(run.resultData, universe.n);
-    teamIds = Object.values(params.teamIdByNumericId);
-  } else {
-    const teamResults = await prisma.teamSimResult.findMany({ where: { simulationRunId: run.id } });
-    if (teamResults.length !== 1) return null;
-    assignment = new Int32Array(universe.n).fill(1);
-    teamIds = [teamResults[0].teamId];
-  }
-
-  const tariffSubmissions = await prisma.tariffSubmission.findMany({
-    where: { teamId: { in: teamIds }, day },
-  });
-  const tariffByTeamId = new Map(
-    tariffSubmissions
-      .filter((t) => t.meanPremium != null)
-      .map((t) => [t.teamId, { tariff: getTariffArray(t, universe), meanPremium: t.meanPremium! }])
-  );
-
-  const teamIdByNumericId = new Map<number, string>();
-  if (run.resultData && params?.teamIdByNumericId) {
-    for (const [numericId, teamId] of Object.entries(params.teamIdByNumericId)) {
-      teamIdByNumericId.set(Number(numericId), teamId);
-    }
-  } else {
-    teamIdByNumericId.set(1, teamIds[0]);
-  }
-
-  const rowsByTeamId = new Map<string, { premium: number; hasClaim: boolean; claimAmount: number; segmentKeys: string[] }[]>();
-  for (let k = 0; k < universe.n; k++) {
-    const teamId = teamIdByNumericId.get(assignment[k]);
-    if (!teamId) continue;
-    const tariffInfo = tariffByTeamId.get(teamId);
-    if (!tariffInfo) continue;
-    const premium = tariffInfo.tariff[k] || tariffInfo.meanPremium;
-    const exposure = getExposure(universe, k);
-    if (!rowsByTeamId.has(teamId)) rowsByTeamId.set(teamId, []);
-    rowsByTeamId.get(teamId)!.push({
-      premium,
-      hasClaim: !!claims.siniestro[k],
-      claimAmount: claims.sev[k],
-      segmentKeys: segmentKeysFor(exposure),
-    });
-  }
-
-  const result = new Map<string, Record<string, SegmentLossRatio>>();
-  for (const [teamId, rows] of rowsByTeamId) {
-    result.set(teamId, computeSegmentData(rows));
-  }
-  return result;
-}
