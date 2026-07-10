@@ -177,3 +177,20 @@ export function isPortfolioDecisionV3(value: unknown): value is PortfolioDecisio
     v.tranches.every((t) => isValidTranche(t, 0))
   );
 }
+
+/**
+ * Guards a Día 1 minimum-variance submission: a flat {instrumentId: weight}
+ * map, one entry per instrument in the menu (no more, no less — a team
+ * can't silently omit an instrument to dodge it, must explicitly weight it
+ * 0), every weight a finite number >= 0. Distinguishes this shape from
+ * PortfolioDecisionV3 (which has a `tranches` key instead) — both are
+ * stored in the same PortfolioAllocation.allocation Json column, keyed by
+ * day (day=1 is always this shape, day=2/3 are always PortfolioDecisionV3).
+ */
+export function isMinVarianceAllocation(value: unknown): value is Allocation {
+  if (typeof value !== "object" || value === null || "tranches" in value) return false;
+  const v = value as Record<string, unknown>;
+  const keys = Object.keys(v);
+  if (keys.length !== INSTRUMENTS.length) return false;
+  return INSTRUMENTS.every((ins) => typeof v[ins.id] === "number" && Number.isFinite(v[ins.id]) && (v[ins.id] as number) >= 0);
+}

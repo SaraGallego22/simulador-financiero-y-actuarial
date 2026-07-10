@@ -2,7 +2,7 @@ import type { FinBenchResult } from "../finance/finBench";
 
 export type Perfil = "act" | "fin";
 export type Dia = "d1" | "d2" | "d3" | "d4";
-export type ConceptType = "reporte" | "auto_alm" | "auto_analitica";
+export type ConceptType = "reporte" | "auto_alm" | "auto_analitica" | "auto_minvar";
 
 export interface Concepto {
   id: string;
@@ -16,12 +16,14 @@ export interface Concepto {
 
 /**
  * Gradable financial/actuarial deliverables per day, ported verbatim from
- * CONCEPTOS in the legacy prototype, line ~1170. `auto_alm`/`auto_analitica`
- * concepts don't have a `get()` — they're scored by scoreFinanciero()/
- * scoreAnalitica() directly (see the module doc comment on scoreConcepto()
- * below for why that dispatch isn't folded into this same function here).
+ * CONCEPTOS in the legacy prototype, line ~1170. `auto_alm`/`auto_analitica`/
+ * `auto_minvar` concepts don't have a `get()` — they're scored by
+ * scoreFinanciero()/scoreAnalitica()/the minimum-variance scorer directly
+ * (see the module doc comment on scoreConcepto() below for why that
+ * dispatch isn't folded into this same function here).
  */
 export const CONCEPTOS: Concepto[] = [
+  { id: "minvar", dia: "d1", perfil: "fin", tipo: "auto_minvar", label: "Portafolio de mínima varianza", unit: "score" },
   { id: "res_total", dia: "d2", perfil: "act", tipo: "reporte", label: "Reservas totales (RSA+IBNR)", unit: "COP", get: (b) => b.resTotal },
   { id: "res_rsa", dia: "d2", perfil: "act", tipo: "reporte", label: "RSA (avisados pend.)", unit: "COP", get: (b) => b.resRsa },
   { id: "res_ibnr", dia: "d2", perfil: "act", tipo: "reporte", label: "IBNR (no reportados)", unit: "COP", get: (b) => b.resIbnr },
@@ -31,7 +33,7 @@ export const CONCEPTOS: Concepto[] = [
   { id: "p1_gadm", dia: "d2", perfil: "fin", tipo: "reporte", label: "Gastos administrativos A1", unit: "COP", get: (b) => b.p1.gadm },
   { id: "p1_rinv", dia: "d2", perfil: "fin", tipo: "reporte", label: "Resultado de inversiones A1", unit: "COP", get: (b) => b.p1.rinv },
   { id: "p1_uneta", dia: "d2", perfil: "fin", tipo: "reporte", label: "Utilidad neta A1", unit: "COP", get: (b) => b.p1.uneta },
-  { id: "alm_calce", dia: "d1", perfil: "fin", tipo: "auto_alm", label: "Calce ALM del portafolio", unit: "score" },
+  { id: "alm_calce", dia: "d2", perfil: "fin", tipo: "auto_alm", label: "Calce ALM del portafolio", unit: "score" },
   { id: "res2_total", dia: "d3", perfil: "act", tipo: "reporte", label: "Reservas A2", unit: "COP", get: (b) => b.p2?.reservas ?? null },
   { id: "p2_rt", dia: "d3", perfil: "fin", tipo: "reporte", label: "Resultado técnico A2 (calendario)", unit: "COP", get: (b) => b.p2?.rt ?? null },
   { id: "p2_pagos", dia: "d3", perfil: "fin", tipo: "reporte", label: "Siniestros pagados en A2", unit: "COP", get: (b) => b.p2?.pagos ?? null },

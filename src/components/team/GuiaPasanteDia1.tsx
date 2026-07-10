@@ -57,20 +57,6 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
   );
 }
 
-function ScoreCard({ label, weight, formula }: { label: string; weight: string; formula: string }) {
-  return (
-    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
-      <p className="text-xs text-[var(--color-brand-text-secondary)]">
-        {label} <span className="font-semibold">({weight})</span>
-      </p>
-      <p className="my-1 flex h-8 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
-        &nbsp;
-      </p>
-      <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
-    </div>
-  );
-}
-
 export function GuiaPasanteDia1() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
@@ -78,7 +64,7 @@ export function GuiaPasanteDia1() {
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 1 — Tarificación Año 1 y portafolio de inversión
+          Día 1 — Tarificación Año 1 y portafolio de mínima varianza
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
           Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de subir tu tarifa o construir tu portafolio: te explica exactamente
@@ -101,9 +87,10 @@ export function GuiaPasanteDia1() {
             fijado para el resto del ejercicio — es la base de las reservas y el P&G que vas a calcular desde el Día 2.
           </li>
           <li>
-            <strong>Financiero — el portafolio de inversión.</strong> Decides cómo invertir el dinero que va entrando por primas frente a las obligaciones
-            (reservas) que se van generando. Esta decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente tu nota de ALM
-            de hoy y, más adelante, el Resultado de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes.
+            <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
+            menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte del árbol de inversión real, que vas a construir en el
+            Día 2 una vez conozcas tus cifras reales de prima y siniestros. Este portafolio de mínima varianza también alimenta tu tope de cuota de
+            mercado del Año 1 (ver sección 2).
           </li>
         </ul>
         <p>
@@ -149,34 +136,22 @@ export function GuiaPasanteDia1() {
           </p>
         </SubSection>
 
-        <SubSection title="Portafolio de inversión (ALM)" accent="fin">
+        <SubSection title="Portafolio de mínima varianza" accent="fin">
           <p>
-            Construyes un árbol de decisiones de inversión: repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 4) y, para cada
-            uno, decides qué pasa cuando venza — dejarlo en caja, repetirlo indefinidamente, o reasignarlo entre nuevos instrumentos (que a su vez tienen
-            su propia decisión). El sistema simula, mes a mes durante 60 meses, cómo tu árbol enfrenta el flujo de caja real: primas que entran, siniestros
-            y gastos que salen, vencimientos que regresan como caja, y lo que queda se reinvierte según tu árbol.
+            Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 4) buscando el <strong>menor riesgo posible</strong>{" "}
+            — medido como la varianza del portafolio, usando la matriz de covarianza que se te da en el formulario — sujeto a alcanzar al menos un{" "}
+            <strong>rendimiento esperado objetivo</strong>. No es un árbol de decisiones de vencimientos como el del Día 2: es una asignación de pesos, de
+            una sola vez, sin reinversión ni horizonte temporal — una fotografía de cómo invertirías el capital hoy mismo, antes de saber cuánta prima vas
+            a cobrar o cuántos siniestros vas a pagar.
           </p>
-          <p>Tu nota (&ldquo;Calce ALM del portafolio&rdquo;) tiene 4 componentes, con estos pesos:</p>
-          <ul className="list-disc pl-5">
-            <li>
-              <strong>Cumplimiento de Caja Mínima (35%)</strong> — qué tan poco tuviste que comprometer tu Capital Social para cubrir una caja
-              insuficiente.
-            </li>
-            <li>
-              <strong>Rendimiento ajustado por riesgo (35%)</strong> — tu rendimiento real simulado, descontado por la volatilidad de lo que mantuviste
-              invertido.
-            </li>
-            <li>
-              <strong>Venta forzada de portafolio (20%)</strong> — si tuviste que vender activos antes de tiempo bajo presión de caja, y qué tan
-              volátil/riesgoso era lo que vendiste.
-            </li>
-            <li>
-              <strong>Liquidez (10%)</strong> — qué tan cubiertos estabas en el corto plazo (próximos 6 meses) frente a tus pagos esperados.
-            </li>
-          </ul>
           <p>
-            La sección 4 te da la plantilla exacta y las fórmulas de cada componente, para que puedas anticipar tu nota antes de enviar tu árbol, no solo
-            leerla después.
+            Tu nota compara la varianza que realmente lograste contra la varianza mínima real (la que un portafolio óptimo habría logrado con el mismo
+            rendimiento objetivo) — mientras más cerca de esa varianza mínima, mejor tu nota.
+          </p>
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Este mismo portafolio — el que realmente sometas, no la solución óptima — también determina qué tan volátil se considera tu perfil de inversión
+            para efectos del tope de cuota de mercado del Año 1: un portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un
+            margen de solvencia saludable (el mismo mecanismo que vas a ver en detalle en el Día 4).
           </p>
         </SubSection>
       </Section>
@@ -209,39 +184,35 @@ export function GuiaPasanteDia1() {
           </ul>
         </SubSection>
 
-        <SubSection title="Para el portafolio" accent="fin">
+        <SubSection title="Para el portafolio de mínima varianza" accent="fin">
           <p>
-            El menú de instrumentos (sección 4.1) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
-            rendimiento nominal más alto es la mejor opción una vez ajustas por riesgo. Antes de construir tu árbol, considera:
+            La matriz de covarianza no es un adorno — es la pieza que hace que este ejercicio no se resuelva solo mirando la volatilidad individual de
+            cada instrumento. Antes de asignar pesos, considera:
           </p>
           <ul className="list-disc pl-5">
             <li>
-              <strong>Relación rendimiento/riesgo, no solo rendimiento.</strong> Compara cuánto rendimiento adicional te da cada instrumento por cada
-              punto extra de volatilidad que asumes frente a uno más conservador.
+              <strong>El instrumento menos volátil solo no basta.</strong> Con un rendimiento objetivo por cumplir, no puedes simplemente concentrar todo
+              en el instrumento más seguro del menú si su rendimiento no alcanza el objetivo — necesitas combinar instrumentos, y la combinación óptima
+              depende de cómo covarían entre sí, no solo de sus volatilidades individuales.
             </li>
             <li>
-              <strong>Nunca dependas de vender bajo presión.</strong> LIQ es el único instrumento que puedes retirar sin ninguna penalización — mantener
-              algo de colchón ahí evita caer en venta forzada cuando falte caja en un mes puntual.
+              <strong>Correlación baja (o negativa) reduce riesgo más que un instrumento &ldquo;seguro&rdquo; aislado.</strong> Dos instrumentos con
+              volatilidades similares pero que no se mueven juntos pueden combinarse en un portafolio con menos riesgo total que cualquiera de los dos por
+              separado — ese es exactamente el tipo de relación que la matriz de covarianza te muestra y una tabla de volatilidades individuales no.
             </li>
             <li>
-              <strong>Los vencimientos personalizados no son gratis de planear.</strong> LIQ y ACC no tienen plazo fijo — tú decides cuándo se te vuelve a
-              preguntar qué hacer con ellos. Un vencimiento demasiado largo en el instrumento más volátil del menú te deja atrapado justo cuando podrías
-              necesitar liquidez.
-            </li>
-            <li>
-              <strong>Piensa en tu árbol completo, no solo en la primera decisión.</strong> Si reasignas un vencimiento hacia otro instrumento, esa nueva
-              posición también vence en algún momento y también necesita una decisión — encadenar reasignaciones sin ninguna salida líquida puede parecer
-              rentable en papel y fallar en la práctica.
+              <strong>El rendimiento objetivo no es negociable, pero cómo lo alcanzas sí.</strong> Hay muchas combinaciones de pesos que llegan al mismo
+              rendimiento esperado — tu trabajo es encontrar, de esas, la que minimiza la varianza resultante.
             </li>
           </ul>
         </SubSection>
       </Section>
 
-      <Section n="4" title="Plantilla del ALM — cómo se construye y cómo alimenta el resultado">
+      <Section n="4" title="Plantilla de mínima varianza — cómo se construye y cómo alimenta el resultado">
         <p>
-          Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tu árbol en papel antes
-          de construirlo en el formulario. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya resueltas con tus números, en
-          los resultados objetivos después de guardar tu portafolio.
+          Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tus pesos en papel antes
+          de enviarlos en el formulario (que además te muestra la matriz de covarianza completa en vivo). Las fórmulas de calificación que aparecen aquí
+          son las mismas que vas a ver, ya resueltas con tus números, en los resultados objetivos después de guardar tu portafolio.
         </p>
 
         <div>
@@ -277,63 +248,46 @@ export function GuiaPasanteDia1() {
         </div>
 
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Tu árbol de decisión — plantilla en blanco</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Tus pesos — plantilla en blanco</p>
           <BlankTable
-            headers={["Instrumento (del menú de 4.1)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
-            rows={5}
-            note='Si en "Al vencer, ¿qué haces?" elegiste reasignar, repite esta misma tabla para esa porción — el vencimiento de la nueva línea se cuenta desde el mes en que venció la anterior, no desde el mes 0. Los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8) siempre vencen en su propio plazo; el vencimiento personalizado solo aplica a LIQ y ACC.'
+            headers={["Instrumento (del menú de 4.1)", "% asignado"]}
+            rows={INSTRUMENTS.length}
+            note="A diferencia del árbol de Día 2, aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) se te muestra en vivo en el formulario y también es descargable en CSV desde la pestaña de instrumentos — no se repite aquí por ser demasiado extensa para una plantilla en papel."
           />
         </div>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-            4.3 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja
-          </p>
-          <BlankTable
-            headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
-            rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 4.2."
-          />
-          <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Importante — </span>
-            la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
-            1/12 de tu reserva total, ni más ni menos. Esto es intencional — todavía no sabes cuánta prima real vas a cobrar (eso lo decide el mercado que
-            corre al cierre de hoy), así que este ejercicio evalúa la calidad de tu árbol de decisión de forma aislada, sin mezclarla con el resultado de
-            tu tarifa. Más adelante, cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la plataforma no
-            te lo resuelve.
+        <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+          <p className="text-xs text-[var(--color-brand-text-secondary)]">
+            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Restricción — </span>
+            tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que no
+            lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
+            retroalimentación mientras ajustas tus pesos.
           </p>
         </div>
 
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · Las 4 notas — plantilla de calificación</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · La nota — plantilla de calificación</p>
           <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
-            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota del portafolio de mínima varianza</p>
             <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
               &nbsp;
             </p>
             <p className="text-xs italic text-[var(--color-brand-text-secondary)]">
-              = 35% × Cumplimiento de Caja + 35% × Rendimiento ajustado + 20% × Venta forzada + 10% × Liquidez
+              Banda de tolerancia sobre el error relativo entre tu varianza lograda y la varianza mínima real: 100 dentro de la tolerancia perfecta,
+              decae linealmente hasta 0 en la tolerancia cero (ambas configurables por el evaluador, mismas bandas que el resto de entregables numéricos).
             </p>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <ScoreCard label="Cumplimiento de Caja Mínima" weight="35%" formula="100 × (1 − 0.5×[peor mes de capital comprometido ÷ Capital Social] − 0.5×[acumulado ÷ Capital Social])" />
-            <ScoreCard label="Rendimiento ajustado por riesgo" weight="35%" formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad promedio realizada)" />
-            <ScoreCard label="Venta forzada de portafolio" weight="20%" formula="100 × (1 − severidad de lo vendido bajo presión, ponderada por volatilidad)" />
-            <ScoreCard label="Liquidez" weight="10%" formula="100 × min(1, líquido disponible ÷ pagos esperados en los próximos 6 meses)" />
           </div>
         </div>
 
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.5 · El camino completo, de tu decisión a tu nota</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · El camino completo, de tu decisión a tu nota</p>
           <p className="text-sm">
-            Tu árbol (4.2) → se simula mes a mes contra la caja real (4.3) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
-            alimentan las 4 notas (4.4) → esas 4 notas, ponderadas, son tu nota final de ALM del Día 1.
+            Tus pesos (4.2), sujetos a la restricción de retorno (4.3) → se comparan contra el portafolio de mínima varianza real al mismo retorno
+            objetivo → la cercanía entre tu varianza lograda y esa varianza mínima real es tu nota de hoy.
           </p>
           <p className="mt-2 text-sm">
-            Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en el P&G del Día 2 — para ese entregable necesitas
-            volver a razonar tu árbol, esta vez con tu prima real (la que ganaste en el mercado de hoy) en vez del supuesto de fondeo perfecto de esta
-            plantilla. El objetivo de esta guía es que entiendas la mecánica completa desde ahora, para que ese siguiente paso sea un ajuste sobre algo que
-            ya entiendes, no un ejercicio desde cero.
+            Este portafolio no se vuelve a usar en el P&G ni en el Balance — es un ejercicio aparte del árbol de inversión real, que vas a construir en el
+            Día 2 una vez conozcas tus cifras reales de prima y siniestros de este año.
           </p>
         </div>
       </Section>

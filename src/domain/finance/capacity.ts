@@ -48,23 +48,34 @@ const REFERENCE_LOSS_RATIO = 0.925;
 export const RESERVE_TO_PREMIUM_RATIO = RESERVE_TO_INCURRED_RATIO * REFERENCE_LOSS_RATIO;
 
 /**
+ * Weighted-average volatility ratio of a plain {instrumentId: weight} map,
+ * relative to VOL_MENU_AVG (1 = same as the menu average). Shared by
+ * nominalPortfolioVolRatio() (extracts this shape from a tree's top-level
+ * tranches) and Año 1's capacity calc (capacityHelper.ts), which sources
+ * the weights from a team's Día 1 minimum-variance submission instead of a
+ * tree — both only ever need instrumentId+weight pairs, never a tranche's
+ * onMaturity/durationM, so this is the one normalization implementation.
+ * No weights at all -> 1 (the flat, pre-volatility charge).
+ */
+export function volRatioFromWeights(weights: Record<string, number> | null): number {
+  if (!weights) return 1;
+  const entries = Object.entries(weights).filter(([id, w]) => INSTRUMENT_BY_ID[id] && w > 0);
+  const totalW = entries.reduce((s, [, w]) => s + w, 0);
+  if (totalW <= 0) return 1;
+  const avgVol = entries.reduce((s, [id, w]) => s + (w / totalW) * INSTRUMENT_BY_ID[id].volAnual, 0);
+  return avgVol / VOL_MENU_AVG;
+}
+
+/**
  * Decision-only (no simulation) weighted-average volatility ratio of a
- * portfolio's top-level tranches, relative to VOL_MENU_AVG — the exact
- * same shape scoreFinanciero() already uses for portYield, just for
- * volAnual instead of yield, and expressed as a ratio to match
- * finBench()'s volRatio semantics (1 = same as the menu average). Mirrors
- * finBench()'s own fallback: no decision at all -> 1 (the flat,
- * pre-volatility charge).
+ * portfolio's top-level tranches — see volRatioFromWeights(), which this
+ * just extracts {instrumentId: weight} pairs for.
  */
 export function nominalPortfolioVolRatio(tranches: Tranche[] | null): number {
   if (!tranches || tranches.length === 0) return 1;
-  const totalTopW = tranches.reduce((s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s), 0);
-  if (totalTopW <= 0) return 1;
-  const avgVol = tranches.reduce((s, t) => {
-    const ins = INSTRUMENT_BY_ID[t.instrumentId];
-    return ins ? s + (Math.max(0, t.weight) / totalTopW) * ins.volAnual : s;
-  }, 0);
-  return avgVol / VOL_MENU_AVG;
+  const weights: Record<string, number> = {};
+  for (const t of tranches) if (INSTRUMENT_BY_ID[t.instrumentId] && t.weight > 0) weights[t.instrumentId] = (weights[t.instrumentId] ?? 0) + t.weight;
+  return volRatioFromWeights(weights);
 }
 
 /**

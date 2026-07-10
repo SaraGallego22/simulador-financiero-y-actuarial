@@ -3,7 +3,7 @@ import Link from "next/link";
 export type DayTabKey = "sim" | "entreg" | "obj" | "subj" | "top";
 
 const ALL_TABS: { key: DayTabKey; label: string }[] = [
-  { key: "sim", label: "Tarifas, portafolio y simulación" },
+  { key: "sim", label: "Tarifas y simulación" },
   { key: "entreg", label: "Entregables" },
   { key: "obj", label: "Resultados objetivos" },
   { key: "subj", label: "Calificación subjetiva" },
@@ -12,9 +12,11 @@ const ALL_TABS: { key: DayTabKey; label: string }[] = [
 
 /**
  * Matches the legacy prototype's per-day sub-tab structure (yr-tab-bar):
- * Días 1-2 have a "sim" tab (tariff/portfolio upload + trigger the year's
+ * Días 1-2 have a "sim" tab (tariff upload + trigger the year's
  * simulation); Días 3-4 don't, since Year 2 is the last year simulated —
- * see CLAUDE.md's domain glossary.
+ * see CLAUDE.md's domain glossary. The portfolio/ALM forms live in the
+ * "entreg" tab on every day that has one (Día 1's minimum-variance
+ * exercise, Día 2's real tree, Día 3's optional rebalance).
  */
 export function DayTabBar({
   basePath,
