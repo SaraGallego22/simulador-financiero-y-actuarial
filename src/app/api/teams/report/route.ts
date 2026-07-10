@@ -6,6 +6,7 @@ import { getTariffArray } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { ANIO_BASE_A1 } from "@/domain/generation/constants";
 import { getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
+import { dirtyRow, type DirtyColumns } from "@/lib/dirtyCsv";
 
 // Streamed — bypasses Vercel's 4.5MB response cap (see CLAUDE.md §4.3), needed
 // since one team's book can be up to the full 1,000,000-row universe.
@@ -26,6 +27,15 @@ const HEADER_YEAR2 =
   "id_expuesto,edad_conductor,tipo_vehiculo,zona,antiguedad_vehiculo,usos_anuales_km,historial_siniestros,valor_vehiculo,uso_vehiculo,parqueadero,nivel_educativo,estrato,genero,marca_vehiculo,prima_cobrada_a2,asegurado_a1,siniestros_a1_monto,fecha_siniestro,fecha_aviso,monto_siniestro\n";
 
 const BATCH_SIZE = 20_000;
+
+// Risk-factor column indexes shared by both years' reports (id_expuesto at
+// index 0 is never dirtied); outcome columns appended after these (premium,
+// fechas, montos) are never touched — see dirtyCsv.ts. Kept in sync with
+// /api/universe/public-csv's split.
+const DIRTY_COLUMNS: DirtyColumns = {
+  categorical: [2, 3, 8, 9, 10, 12, 13], // tipo, zona, uso, parq, edu, genero, marca
+  numeric: [1, 4, 5, 6, 7, 11], // edad, antig, km, hist, valor, estrato
+};
 
 /**
  * A team's own per-policy report: their assigned exposures, the premium they
@@ -109,7 +119,10 @@ export async function GET(request: Request) {
             const fechaSin = visible ? epochDayIso(universe.fechaSinEpochDay[k]) : "";
             const fechaAviso = visible ? epochDayIso(universe.fechaAvisoEpochDay[k]) : "";
             const monto = visible ? universe.sev[k] : "";
-            text += `${e.id},${e.edad},${e.tipo},${e.zona},${e.antig},${e.km},${e.hist},${e.valor},${e.uso},${e.parq},${e.edu},${e.estrato},${e.genero},${e.marca},${premium},${fechaSin},${fechaAviso},${monto}\n`;
+            const fields = [e.id, e.edad, e.tipo, e.zona, e.antig, e.km, e.hist, e.valor, e.uso, e.parq, e.edu, e.estrato, e.genero, e.marca];
+            for (const row of dirtyRow(universeRun.seed, k, fields, DIRTY_COLUMNS)) {
+              text += [...row, premium, fechaSin, fechaAviso, monto].join(",") + "\n";
+            }
           }
           controller.enqueue(encoder.encode(text));
         }
@@ -171,7 +184,13 @@ export async function GET(request: Request) {
           const fechaSin2 = visible2 ? epochDayIso(year2Claims.fechaSinEpochDay[k]) : "";
           const fechaAviso2 = visible2 ? epochDayIso(year2Claims.fechaAvisoEpochDay[k]) : "";
           const monto2 = visible2 ? year2Claims.sev[k] : "";
-          text += `${e.id},${e.edad},${e.tipo},${e.zona},${e.antig + 1},${e.km},${e.hist + (universe.siniestro[k] ? 1 : 0)},${e.valor},${e.uso},${e.parq},${e.edu},${e.estrato},${e.genero},${e.marca},${premium2},${eraA1},${sinMontoA1},${fechaSin2},${fechaAviso2},${monto2}\n`;
+          const fields = [
+            e.id, e.edad, e.tipo, e.zona, e.antig + 1, e.km, e.hist + (universe.siniestro[k] ? 1 : 0),
+            e.valor, e.uso, e.parq, e.edu, e.estrato, e.genero, e.marca,
+          ];
+          for (const row of dirtyRow(universeRun.seed, k, fields, DIRTY_COLUMNS)) {
+            text += [...row, premium2, eraA1, sinMontoA1, fechaSin2, fechaAviso2, monto2].join(",") + "\n";
+          }
         }
         controller.enqueue(encoder.encode(text));
       }

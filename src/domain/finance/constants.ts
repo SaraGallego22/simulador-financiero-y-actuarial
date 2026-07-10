@@ -52,17 +52,22 @@ export const VOL_PENALTY_LAMBDA = 0.35;
  * Derivation (measured empirically against generateColombia(42), not
  * guessed): a representative team holding ~10% of the 1,000,000-policy
  * market (100,000 policies) has an expected total Year-1 incurred severity
- * of ≈ $273.9B COP; of that, ≈86.1% remains as the post-Year-1 reserve
- * (computeLiabilitySchedules — most development, even for early-year
- * claims, falls past month 12 once the notice lag + 3-month
- * notice-to-payment lag + 3-year development pattern are layered, see
- * README §3) — a reference reserve of ≈$235.9B COP. Applying the same
- * capital-adequacy ratio finBench already used for capital0 pre-this-change
- * (30%, ex-FZ.cap0Pct) gives ≈$70.8B COP; rounded to a clean $70B.
+ * of ≈ $313.9B COP (re-measured after OUTLIER_CLAIM_PROBABILITY/
+ * OUTLIER_CLAIM_MULTIPLIER were added to generation/constants.ts — the same
+ * reference was ≈$273.9B before catastrophic-outlier claims existed at all;
+ * always re-measure this against the live generator rather than trust a
+ * stale comment if severity generation changes again); of that, ≈86.1%
+ * remains as the post-Year-1 reserve (computeLiabilitySchedules — most
+ * development, even for early-year claims, falls past month 12 once the
+ * notice lag + 3-month notice-to-payment lag + 3-year development pattern
+ * are layered, see README §3) — a reference reserve of ≈$270.3B COP.
+ * Applying the same capital-adequacy ratio finBench already used for
+ * capital0 pre-this-change (30%, ex-FZ.cap0Pct) gives ≈$81.1B COP; rounded
+ * to a clean $81B.
  *
  * This single constant now also drives finBench()'s capital0 (see §4/§5 in
  * README) — replacing the old premium-based FZ.cap0Pct*totalPremium, since
  * capital social is meant to be the same starting point for every team,
  * every year, in both the fictitious ALM and the real P&L/Balance it feeds.
  */
-export const CAPITAL_SOCIAL = 70_000_000_000;
+export const CAPITAL_SOCIAL = 81_000_000_000;

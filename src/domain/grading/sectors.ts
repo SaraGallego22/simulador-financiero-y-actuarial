@@ -10,6 +10,13 @@ import { VEHICLE_TYPES, ZONES, USAGE_TYPES, EDUCATION_LEVELS } from "../generati
  * structurally can't surface any of those — it always marginalizes over the
  * other three dimensions, diluting exactly the signal this exercise is meant
  * to test for.
+ *
+ * "hist" stays in this list (and in the form) even though it's *excluded*
+ * from every true ranking (see TRUE_RANKING_EXCLUDED_DIMENSIONS below) — a
+ * team can still pick it, it just never scores. Deliberate trap: a team's
+ * own claims history is an underwriting factor about *that policyholder*,
+ * not a market sector an insurer targets for growth/shrink strategy the way
+ * "urban commercial" or "young sports-car drivers" is.
  */
 export type SectorDimension = "zona" | "uso" | "edad" | "estrato" | "tipo" | "antig" | "hist" | "edu";
 
@@ -112,23 +119,45 @@ export function isValidSectorPick(dimA: string, valA: string, dimB: string, valB
  */
 export const SECTOR_MIN_COUNT = 2000;
 
+/**
+ * "hist" (historial de siniestros) is deliberately excluded from every true
+ * ranking computeSectorStats() produces — it stays pickable in the form
+ * (SECTOR_DIMENSIONS still lists it), but any sector crossing it will never
+ * appear in rankForCrecer()/rankForDisminuir()'s output, so scoreSectorPicks()
+ * always scores it 0 (not found in the true ranking — same as any other
+ * wrong pick). This is intentional, a trap: a claims-history count is an
+ * individual underwriting factor, not a market *sector* a business targets
+ * for growth/shrink strategy the way a demographic/vehicle/usage segment is
+ * — recognizing that distinction is itself part of what this exercise
+ * grades. Not explained to teams (see AnalyticsForm.tsx); explained to the
+ * admin (day/[n]/page.tsx) and in the README.
+ */
+const TRUE_RANKING_EXCLUDED_DIMENSIONS: readonly SectorDimension[] = ["hist"];
+
 export interface SectorStat extends Sector {
   count: number;
+  claimCount: number;
+  /** Median claim size among this cell's exposures that actually had a claim (0 if none) — genuine severity, robust to the rare catastrophic-claim outliers the universe now includes (see generateColombia.ts) in a way a mean would not be. */
+  medianSeverity: number;
   /**
-   * Average incurred cost per exposure — claims sum ÷ *all* exposures in the
-   * cell, not just the ones that had a claim (same convention as
-   * CAPITAL_SOCIAL's derivation and the outsourced-tariff generator, see
-   * constants.ts/outsourced.ts) — which is exactly what folds frequency and
-   * severity into one number: a cell with more frequent claims raises this
-   * even at constant claim size, and a cell with larger claims raises it even
-   * at constant claim count. Frequency alone (claim count ÷ exposures) or
-   * severity alone (claim sum ÷ *claim* count, ignoring exposures that never
-   * claimed) would each miss half of what the model's real interaction terms
-   * (all of them on frequency — see this module's doc comment) actually do.
+   * "Pérdida agregada" — (claimCount ÷ count) × medianSeverity, the expected
+   * loss per exposure this cell implies. This is deliberately *not* called
+   * "severidad": it folds in frequency too (a cell with more frequent claims
+   * scores higher here even at the same claim size, which is exactly what
+   * the model's real interaction terms — all of them on frequency, see this
+   * module's top doc comment — actually do), so severity alone would miss
+   * half the story and frequency alone would miss the other half.
    */
-  avgIncurredCost: number;
-  /** avgIncurredCost ÷ the whole universe's own average — 1.0 always means "same as the overall market", regardless of which two dimensions are crossed. This is the number shown to the admin as "el multiplicador". */
+  aggregateLoss: number;
+  /** aggregateLoss ÷ the whole universe's own aggregateLoss — 1.0 always means "same as the overall market", regardless of which two dimensions are crossed. This is the number shown to the admin as "el multiplicador". */
   multiplier: number;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 /**
@@ -140,12 +169,20 @@ export interface SectorStat extends Sector {
  * cache it at module scope keyed by seed for repeated requests within the
  * same warm instance (see teamBook.ts's getUniverseForSeed for the pattern).
  *
+ * Uses the *median* claim size, not the mean, specifically because the
+ * universe now seeds a small fraction of unusually large ("catastrophic")
+ * claims (see generateColombia.ts) — a mean would let a handful of those
+ * outliers dominate a cell's number; the median doesn't move unless *most*
+ * of a cell's claims are actually large, which is what makes "is this sector
+ * really risky, or did it just catch an outlier" a real judgment call
+ * instead of a one-line pivot-table average.
+ *
  * One O(n) pass buckets every exposure into all 8 dimensions at once
  * (reading raw typed arrays, not getExposure() — avoids 1,000,000 object
- * allocations); a second O(n × 28) pass accumulates every one of the 28
- * possible dimension pairs' cells in the same sweep, using flat typed-array
- * accumulators (no Map, no per-cell allocation) to keep this fast enough to
- * run on every admin page load.
+ * allocations); a second pass accumulates every valid dimension pair's cells
+ * in the same sweep (collecting each cell's claim severities for its median,
+ * not just a running sum) to keep this fast enough to run on every admin
+ * page load.
  */
 export function computeSectorStats(universe: ColombiaUniverse, minCount = SECTOR_MIN_COUNT): SectorStat[] {
   const n = universe.n;
@@ -157,26 +194,35 @@ export function computeSectorStats(universe: ColombiaUniverse, minCount = SECTOR
     bucketsByDim.set(d.dim, arr);
   }
 
-  let totalSev = 0;
-  for (let i = 0; i < n; i++) if (universe.siniestro[i]) totalSev += universe.sev[i];
-  const popAvg = totalSev / n;
+  const allClaimSeverities: number[] = [];
+  let totalClaims = 0;
+  for (let i = 0; i < n; i++) {
+    if (universe.siniestro[i]) {
+      allClaimSeverities.push(universe.sev[i]);
+      totalClaims++;
+    }
+  }
+  const popMedianSeverity = median(allClaimSeverities);
+  const popAggregateLoss = (totalClaims / n) * popMedianSeverity;
 
   const stats: SectorStat[] = [];
   for (let a = 0; a < DIMENSIONS.length; a++) {
     for (let b = a + 1; b < DIMENSIONS.length; b++) {
       const dA = DIMENSIONS[a];
       const dB = DIMENSIONS[b];
+      if (TRUE_RANKING_EXCLUDED_DIMENSIONS.includes(dA.dim) || TRUE_RANKING_EXCLUDED_DIMENSIONS.includes(dB.dim)) continue;
+
       const levelsB = dB.levels.length;
       const bucketsA = bucketsByDim.get(dA.dim)!;
       const bucketsB = bucketsByDim.get(dB.dim)!;
       const cellCount = dA.levels.length * levelsB;
-      const sumSev = new Float64Array(cellCount);
       const counts = new Int32Array(cellCount);
+      const severitiesByCell: number[][] = Array.from({ length: cellCount }, () => []);
 
       for (let i = 0; i < n; i++) {
         const cell = bucketsA[i] * levelsB + bucketsB[i];
         counts[cell]++;
-        if (universe.siniestro[i]) sumSev[cell] += universe.sev[i];
+        if (universe.siniestro[i]) severitiesByCell[cell].push(universe.sev[i]);
       }
 
       for (let ia = 0; ia < dA.levels.length; ia++) {
@@ -184,15 +230,19 @@ export function computeSectorStats(universe: ColombiaUniverse, minCount = SECTOR
           const cell = ia * levelsB + ib;
           const count = counts[cell];
           if (count < minCount) continue;
-          const avgIncurredCost = sumSev[cell] / count;
+          const claims = severitiesByCell[cell];
+          const medianSeverity = median(claims);
+          const aggregateLoss = (claims.length / count) * medianSeverity;
           stats.push({
             dimA: dA.dim,
             valA: dA.levels[ia],
             dimB: dB.dim,
             valB: dB.levels[ib],
             count,
-            avgIncurredCost,
-            multiplier: popAvg > 0 ? avgIncurredCost / popAvg : 1,
+            claimCount: claims.length,
+            medianSeverity,
+            aggregateLoss,
+            multiplier: popAggregateLoss > 0 ? aggregateLoss / popAggregateLoss : 1,
           });
         }
       }

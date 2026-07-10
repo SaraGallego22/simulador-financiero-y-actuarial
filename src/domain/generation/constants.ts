@@ -10,6 +10,20 @@ export const CAL_FREQ = 0.33;
 export const ANIO_BASE_A1 = 2027;
 export const SEVERITY_SHAPE = 3.306;
 
+/**
+ * A small fraction of claims are deliberately inflated into "catastrophic"
+ * outliers — real auto-insurance severity is right-tailed (total losses,
+ * bodily injury/liability) in a way a plain Gamma draw understates, and
+ * without them a mean and a median of claim size are close enough that
+ * nothing forces a team to actually notice the difference. Applied via an
+ * independent RNG stream (see generateColombia.ts/generateYear2Claims.ts) so
+ * it never disturbs the existing per-row draw-count invariant the rest of
+ * generation relies on for reproducibility.
+ */
+export const OUTLIER_CLAIM_PROBABILITY = 0.02;
+/** How much an outlier claim's severity is multiplied by, on top of its normal Gamma draw. */
+export const OUTLIER_CLAIM_MULTIPLIER = 8;
+
 /** Monthly claim-occurrence seasonality weights, ported from ESTAC (line ~2029). */
 export const MONTHLY_SEASONALITY = [
   1.25, 1.05, 1.15, 1.0, 0.9, 0.95, 1.2, 1.15, 0.95, 0.9, 0.95, 1.35,

@@ -2,7 +2,7 @@ import { seedRand, gammaRand } from "./rng";
 import { sampleClaimDate, sampleReportingLag } from "./dates";
 import { calcLambda } from "../pricing/frequency";
 import { calcMediaSev } from "../pricing/severity";
-import { SEVERITY_SHAPE } from "./constants";
+import { SEVERITY_SHAPE, OUTLIER_CLAIM_PROBABILITY, OUTLIER_CLAIM_MULTIPLIER } from "./constants";
 import { getExposure } from "./generateColombia";
 import type { ColombiaUniverse } from "./generateColombia";
 
@@ -30,6 +30,11 @@ const YEAR_2 = 2028;
 
 export function generateYear2Claims(universe: ColombiaUniverse, seed = 42): Year2Claims {
   const r = seedRand(seed + 99_991);
+  // Independent stream for catastrophic-outlier claims — see
+  // OUTLIER_CLAIM_PROBABILITY's doc comment and generateColombia.ts's
+  // matching stream (kept separate so it never disturbs the existing
+  // per-row draw-count invariant).
+  const rOutlier = seedRand(seed + 14_141);
   const n = universe.n;
 
   const lam = new Float32Array(n);
@@ -55,7 +60,9 @@ export function generateYear2Claims(universe: ColombiaUniverse, seed = 42): Year
 
     if (hasClaim) {
       const meanSeverity = calcMediaSev(eYear2);
-      sev[i] = Math.round((gammaRand(r, SEVERITY_SHAPE) * meanSeverity) / SEVERITY_SHAPE);
+      let severity = (gammaRand(r, SEVERITY_SHAPE) * meanSeverity) / SEVERITY_SHAPE;
+      if (rOutlier() < OUTLIER_CLAIM_PROBABILITY) severity *= OUTLIER_CLAIM_MULTIPLIER;
+      sev[i] = Math.round(severity);
       const claimDate = sampleClaimDate(r, YEAR_2);
       const reportDate = new Date(claimDate.getTime() + sampleReportingLag(r) * MS_PER_DAY);
       fechaSinEpochDay[i] = toEpochDay(claimDate);
