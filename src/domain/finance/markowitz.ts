@@ -209,8 +209,17 @@ export function solveLongOnlyMinVariance(targetReturn: number = TARGET_RETURN, s
  *    they deserve. Reaching for a higher return is still rewarded, but only
  *    through the small bonus below, never through a moving benchmark.
  */
-const MINVAR_TOLERANCE_PERFECT = 0.05;
-const MINVAR_TOLERANCE_ZERO = 2.0;
+/**
+ * Tightened from an initial 0.05/2.0 pass after that calibration turned out
+ * to reward casual guessing too generously — e.g. an uninformed equal-weight
+ * split scored 57 and a naive 2-instrument pairing scored 73. At 0.03/0.8,
+ * both of those (and every other undiversified/naive allocation checked)
+ * drop to 0, while a genuinely reasoned 3+-instrument attempt still scores
+ * 85-100 and the true optimum still scores 100 — re-verify against a batch
+ * of representative allocations before loosening or tightening further.
+ */
+const MINVAR_TOLERANCE_PERFECT = 0.03;
+const MINVAR_TOLERANCE_ZERO = 0.8;
 /** Max extra points a high achieved return can add on top of the variance score — deliberately small, variance dominates the grade. */
 const MINVAR_RETURN_BONUS_MAX = 10;
 
