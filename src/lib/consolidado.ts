@@ -3,7 +3,8 @@ import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSect
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
-import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { scoreMinVariance } from "@/domain/finance/markowitz";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
@@ -78,17 +79,29 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
   const finBenchByTeamId = await computeFinBenchForCohort(cohort.id);
 
+  // Año 1's real ALM tree is submitted Día 2 (not Día 1 — Día 1 is the
+  // minimum-variance exercise, scored separately below).
   const almScoreByTeamId = new Map<string, number>();
   const book1 = await getTeamBookForDay(cohort.id, 1);
   if (book1) {
     const reserves1 = computeReservesForTeams(book1.claimsByTeamId);
-    const allocations1 = await prisma.portfolioAllocation.findMany({ where: { day: 1, team: { cohortId: cohort.id } } });
-    for (const a of allocations1) {
+    const treeAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId: cohort.id } } });
+    for (const a of treeAllocations) {
       const reserves = reserves1.get(a.teamId);
       if (reserves && isPortfolioDecisionV3(a.allocation)) {
         const s = scoreFinanciero(reserves, a.allocation);
         if (s) almScoreByTeamId.set(a.teamId, s.nota);
       }
+    }
+  }
+
+  // Día 1's minimum-variance exercise — scored against the true optimal
+  // portfolio at TARGET_RETURN, never per-team (see markowitz.ts).
+  const minVarScoreByTeamId = new Map<string, number>();
+  const minVarAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 1, team: { cohortId: cohort.id } } });
+  for (const a of minVarAllocations) {
+    if (isMinVarianceAllocation(a.allocation)) {
+      minVarScoreByTeamId.set(a.teamId, scoreMinVariance(a.allocation, tolerance.tolerancePerfect, tolerance.toleranceZero));
     }
   }
 
@@ -145,6 +158,10 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
         if (scored?.score != null) (c.perfil === "act" ? actScores : finScores).push(scored.score);
       }
       if (day === 1) {
+        const minVar = minVarScoreByTeamId.get(team.id);
+        if (minVar != null) finScores.push(minVar);
+      }
+      if (day === 2) {
         const alm = almScoreByTeamId.get(team.id);
         if (alm != null) finScores.push(alm);
       }

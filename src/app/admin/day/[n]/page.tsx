@@ -4,7 +4,8 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -38,6 +39,12 @@ export default async function AdminDayPage({
   const { n } = await params;
   const day = Number(n);
   const includeSim = day <= 2;
+  // Día 1 hosts the minimum-variance exercise; the real ALM tree lives on
+  // Día 2 (Año 1, graded against bookYear=1's reserves) and Día 3 (Año 2's
+  // optional rebalance, bookYear=2) — see README's market-clearing section.
+  const hasMinVariance = day === 1;
+  const hasPortfolioTree = day === 2 || day === 3;
+  const bookYear = day === 2 ? 1 : day === 3 ? 2 : null;
   const { tab } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
@@ -176,15 +183,16 @@ export default async function AdminDayPage({
   }
 
   // ALM score per team: needs each team's book of claims (from the completed
-  // simulation) to compute reserves, plus whatever portfolio they uploaded.
-  // This is the *fictitious* ALM only (what's graded for the Día 1/2 ALM
-  // nota) — the real ALM (below, via finBenchBundlesByTeamId) is a
-  // completely separate, 12-months-at-a-time computation, not a variant of
-  // this one (see README §5.3).
+  // simulation for bookYear, not necessarily this page's own `day` — Día 3
+  // has no simulation of its own, it grades against bookYear=2's) to compute
+  // reserves, plus whatever tree they uploaded. This is the *fictitious* ALM
+  // only (what's graded for the Día 2/3 ALM nota) — the real ALM (below, via
+  // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
+  // computation, not a variant of this one (see README §5.3).
   // These two both only depend on `universe` (already resolved above), not
   // on each other, so they run together instead of one after the other.
   const [book, finBenchBundlesByTeamId] = await Promise.all([
-    latestRun?.status === "DONE" ? getTeamBookForDay(cohort.id, day, universe ?? undefined) : Promise.resolve(null),
+    bookYear != null ? getTeamBookForDay(cohort.id, bookYear, universe ?? undefined) : Promise.resolve(null),
     // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
     // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
     // before any portfolio/Year-2 data exists (it falls back to a default
@@ -199,7 +207,7 @@ export default async function AdminDayPage({
 
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
-  if (book) {
+  if (book && hasPortfolioTree) {
     const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
     for (const team of teams) {
       const rawAllocation = team.portfolioAllocations[0]?.allocation;
@@ -222,6 +230,21 @@ export default async function AdminDayPage({
     tolerancePerfect: rubric?.tolerancePerfect ?? 0.05,
     toleranceZero: rubric?.toleranceZero ?? 0.4,
   };
+
+  // Día 1's minimum-variance exercise, per team — scored against the true
+  // optimal portfolio at TARGET_RETURN, never per-team (see markowitz.ts).
+  const minVarScoreByTeamId = new Map<string, number>();
+  const minVarWeightsByTeamId = new Map<string, Record<string, number>>();
+  if (hasMinVariance) {
+    for (const team of teams) {
+      const rawAllocation = team.portfolioAllocations[0]?.allocation;
+      if (isMinVarianceAllocation(rawAllocation)) {
+        minVarWeightsByTeamId.set(team.id, rawAllocation);
+        minVarScoreByTeamId.set(team.id, scoreMinVariance(rawAllocation, tolerance.tolerancePerfect, tolerance.toleranceZero));
+      }
+    }
+  }
+
   const deliverablesByTeamId = new Map<string, Record<string, number>>();
   for (const d of deliverables) {
     if (!deliverablesByTeamId.has(d.teamId)) deliverablesByTeamId.set(d.teamId, {});
@@ -376,7 +399,57 @@ export default async function AdminDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {includeSim && (
+          {hasMinVariance && (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Portafolio de mínima varianza — Día {day}
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                      <th className="py-1 pr-4">Equipo</th>
+                      <th className="py-1 pr-4">Estado</th>
+                      <th className="py-1 pr-4">Retorno logrado</th>
+                      <th className="py-1 pr-4">Varianza lograda</th>
+                      <th className="py-1 pr-4">Nota</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teams.map((team) => {
+                      const weights = minVarWeightsByTeamId.get(team.id);
+                      const score = minVarScoreByTeamId.get(team.id);
+                      return (
+                        <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                          <td className="py-1 pr-4">
+                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                            {team.name}
+                          </td>
+                          <td className="py-1 pr-4">
+                            {weights ? (
+                              <span className="text-[var(--color-brand-green)]">Cargado</span>
+                            ) : (
+                              <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
+                            )}
+                          </td>
+                          <td className="py-1 pr-4">{weights ? `${(portfolioExpectedReturn(weights) * 100).toFixed(2)}%` : "—"}</td>
+                          <td className="py-1 pr-4">{weights ? portfolioVariance(weights).toFixed(6) : "—"}</td>
+                          <td className="py-1 pr-4">{score != null ? score.toFixed(0) : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  Varianza mínima real a {(TARGET_RETURN * 100).toFixed(0)}% de retorno: {portfolioVariance(solveLongOnlyMinVariance(TARGET_RETURN)).toFixed(6)}.
+                  Este mismo portafolio (el que cada equipo realmente sometió, no la solución óptima) alimenta también el tope de cuota de mercado del Año 1
+                  — ver pestaña Simulación.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {hasPortfolioTree && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolios de inversión — Día {day}
@@ -625,7 +698,7 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">RT</th>
                     <th className="px-4 py-2">Tarifas</th>
-                    <th className="px-4 py-2">{day === 1 ? "Nota ALM" : "Nota financiera"}</th>
+                    <th className="px-4 py-2">{day === 1 ? "Nota mín. varianza" : "Nota financiera"}</th>
                     <th className="px-4 py-2">Nota objetiva</th>
                   </tr>
                 </thead>
@@ -634,7 +707,7 @@ export default async function AdminDayPage({
                     const result = resultByTeamId.get(team.id);
                     const rt = result ? computeRt(result) : null;
                     const actuarialScore = actuarialScoreByTeamId.get(team.id);
-                    const finScore = day === 1 ? almScoreByTeamId.get(team.id)?.nota : finReportScoreByTeamId.get(team.id);
+                    const finScore = day === 1 ? minVarScoreByTeamId.get(team.id) : finReportScoreByTeamId.get(team.id);
                     const objective = objectiveByTeamId.get(team.id);
                     return (
                       <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
@@ -651,84 +724,93 @@ export default async function AdminDayPage({
                   })}
                 </tbody>
               </table>
+              {day === 1 && (
+                <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  &ldquo;Nota mín. varianza&rdquo; es la nota del ejercicio de mínima varianza (ver pestaña Entregables para el detalle por equipo) — es el
+                  único componente financiero de la nota objetiva de este día, ya que Día 1 no tiene reportes financieros propios.
+                </p>
+              )}
               {day === 2 && (
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  &ldquo;Nota financiera&rdquo; ya es el promedio real de gastos/resultado de inversiones/utilidad neta A1 reportados (pestaña Entregables) —
-                  coincide con el componente financiero de la nota objetiva. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: la parte actuarial real
-                  también promedia las reservas reportadas (RSA/IBNR) ese mismo día, así que la nota objetiva no siempre es un promedio simple de las dos
-                  columnas anteriores.
+                  &ldquo;Nota financiera&rdquo; es el promedio de gastos/resultado de inversiones/utilidad neta A1 reportados (pestaña Entregables) —{" "}
+                  <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM
+                  (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el árbol de
+                  portafolio se movió a este día. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: la parte actuarial real también promedia las
+                  reservas reportadas (RSA/IBNR) ese mismo día.
                 </p>
               )}
             </div>
           )}
 
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
-            <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              ALM — calce del portafolio vs. reservas
-            </h3>
-            <div className="flex flex-col gap-3">
-              {teams.map((team) => {
-                const almScore = almScoreByTeamId.get(team.id);
-                const ladder = almLadderByTeamId.get(team.id);
-                const bundle = finBenchBundlesByTeamId.get(team.id);
-                const realAlmYear = day === 1 ? bundle?.realAlmYear1 : bundle?.realAlmYear2;
-                const rawAllocation = team.portfolioAllocations[0]?.allocation;
-                const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
-                return (
-                  <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
-                    <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
-                      <span>
-                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                        {team.name}
-                      </span>
-                      <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
-                        {almScore ? `Nota ALM: ${almScore.nota.toFixed(1)}` : "Sin portafolio o sin reservas aún"}
-                      </span>
-                    </summary>
-                    {almScore && (
-                      <div className="border-t border-[var(--color-brand-gray-light)] p-3">
-                        <div className="mb-3">
-                          <AlmScoreTiles score={almScore} />
-                        </div>
+          {hasPortfolioTree && bookYear && (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                ALM — calce del portafolio vs. reservas de Año {bookYear}
+              </h3>
+              <div className="flex flex-col gap-3">
+                {teams.map((team) => {
+                  const almScore = almScoreByTeamId.get(team.id);
+                  const ladder = almLadderByTeamId.get(team.id);
+                  const bundle = finBenchBundlesByTeamId.get(team.id);
+                  const realAlmYear = bookYear === 1 ? bundle?.realAlmYear1 : bundle?.realAlmYear2;
+                  const rawAllocation = team.portfolioAllocations[0]?.allocation;
+                  const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
+                  return (
+                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                      <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+                        <span>
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </span>
+                        <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
+                          {almScore ? `Nota ALM: ${almScore.nota.toFixed(1)}` : "Sin portafolio o sin reservas aún"}
+                        </span>
+                      </summary>
+                      {almScore && (
+                        <div className="border-t border-[var(--color-brand-gray-light)] p-3">
+                          <div className="mb-3">
+                            <AlmScoreTiles score={almScore} />
+                          </div>
 
-                        <div className="mb-3">
-                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                            Árbol de decisión de inversión
-                          </p>
-                          {decision ? (
-                            <PortfolioTreeView tranches={decision.tranches} />
-                          ) : (
-                            <p className="text-xs text-[var(--color-brand-text-secondary)]">—</p>
+                          <div className="mb-3">
+                            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                              Árbol de decisión de inversión
+                            </p>
+                            {decision ? (
+                              <PortfolioTreeView tranches={decision.tranches} />
+                            ) : (
+                              <p className="text-xs text-[var(--color-brand-text-secondary)]">—</p>
+                            )}
+                          </div>
+
+                          {ladder && <AlmLadderTable rows={ladder.rows} />}
+                          {ladder && (
+                            <div className="mt-3">
+                              <AlmPortfolioTable rows={ladder.rows} />
+                            </div>
+                          )}
+
+                          {realAlmYear && (
+                            <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
+                              <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                                ALM real — con la prima real de este equipo, solo los 12 meses de Año {bookYear} (esto es lo que finBench usa para
+                                el Resultado de Inversiones/Balance/Solvencia reales; el ALM ficticio de arriba solo califica la nota de ALM de este día)
+                              </p>
+                              <div className="flex flex-col gap-3">
+                                <AlmPnlBreakdown scoreFicticio={almScore} realYear={realAlmYear} year={bookYear} />
+                                <AlmLadderTable rows={realAlmYear.rows} />
+                                <AlmPortfolioTable rows={realAlmYear.rows} />
+                              </div>
+                            </div>
                           )}
                         </div>
-
-                        {ladder && <AlmLadderTable rows={ladder.rows} />}
-                        {ladder && (
-                          <div className="mt-3">
-                            <AlmPortfolioTable rows={ladder.rows} />
-                          </div>
-                        )}
-
-                        {realAlmYear && (
-                          <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
-                            <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              ALM real — con la prima real de este equipo, solo los 12 meses de Año {day === 1 ? 1 : 2} (esto es lo que finBench usa para
-                              el Resultado de Inversiones/Balance/Solvencia reales; el ALM ficticio de arriba solo califica la nota de ALM del Día 1/2)
-                            </p>
-                            <div className="flex flex-col gap-3">
-                              <AlmPnlBreakdown scoreFicticio={almScore} realYear={realAlmYear} year={day === 1 ? 1 : 2} />
-                              <AlmLadderTable rows={realAlmYear.rows} />
-                              <AlmPortfolioTable rows={realAlmYear.rows} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </details>
-                );
-              })}
+                      )}
+                    </details>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {day >= 2 && finBenchByTeamId.size > 0 && (
             <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">

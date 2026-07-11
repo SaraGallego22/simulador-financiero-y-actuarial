@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TariffUpload } from "@/components/team/TariffUpload";
 import { PortfolioForm } from "@/components/team/PortfolioForm";
+import { MinVarianceForm } from "@/components/team/MinVarianceForm";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
@@ -10,8 +11,9 @@ import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
+import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
@@ -40,6 +42,12 @@ export default async function TeamDayPage({
   const { n } = await params;
   const day = Number(n);
   const includeSim = day <= 2;
+  // Día 1 hosts the minimum-variance exercise (a flat weight map, not a
+  // tree); the real ALM tree lives on Día 2 (Año 1) and Día 3 (Año 2's
+  // optional rebalance) — decoupled from includeSim, which stays about the
+  // tariff/simulation tab only. See README's market-clearing section.
+  const hasMinVariance = day === 1;
+  const hasPortfolioTree = day === 2 || day === 3;
   const { tab } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const session = await auth();
@@ -111,25 +119,47 @@ export default async function TeamDayPage({
     analyticsRecs.map((r) => [`${r.list}-${r.rank}`, { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB }])
   );
 
-  // ALM detail (team-scoped): only computed once the day's simulation is
-  // published, same gate as the underwriting results above. Teams only
-  // ever see the fictitious ALM (what's graded) — the real-premium
-  // companion run exists for evaluators only, on the admin day page, so
-  // teams work out their own real P&G figure instead of reading it off an
-  // auto-computed number (see README §5.3).
+  // ALM detail (team-scoped): Día 2's tree is graded against Año 1's real
+  // reserves (bookYear=1, same as consolidado.ts), Día 3's optional
+  // rebalance against Año 2's (bookYear=2) — neither depends on a
+  // simulation existing *for this day* (there is none for Día 3), unlike
+  // the underwriting card above. Teams only ever see the fictitious ALM
+  // (what's graded) — the real-premium companion run exists for evaluators
+  // only, on the admin day page, so teams work out their own real P&G
+  // figure instead of reading it off an auto-computed number (see README
+  // §5.3).
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
-  if (activeTab === "obj" && includeSim && publishedResult && teamId) {
+  const bookYear = day === 2 ? 1 : day === 3 ? 2 : null;
+  if (activeTab === "obj" && hasPortfolioTree && teamId && bookYear) {
     const decision = isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null;
     if (decision) {
       const cohort = await getOrCreateActiveCohort();
-      const book = await getTeamBookForDay(cohort.id, day);
+      const book = await getTeamBookForDay(cohort.id, bookYear);
       const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
       if (reserves) {
         almScore = scoreFinanciero(reserves, decision);
         almLadderRows = almLadder(reserves, decision);
       }
     }
+  }
+
+  // Día 1's minimum-variance exercise: team-scoped result (achieved vs. true
+  // variance, expected return, score) — never per-team ground truth, see
+  // markowitz.ts.
+  let minVarResult: { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number } | null = null;
+  if (activeTab === "obj" && hasMinVariance && teamId && isMinVarianceAllocation(allocation?.allocation)) {
+    const cohort = await getOrCreateActiveCohort();
+    const rubric = await prisma.rubricConfig.upsert({ where: { cohortId: cohort.id }, update: {}, create: { cohortId: cohort.id } });
+    const weights = allocation!.allocation as Record<string, number>;
+    const trueSolution = solveLongOnlyMinVariance(TARGET_RETURN);
+    minVarResult = {
+      weights,
+      achievedVariance: portfolioVariance(weights),
+      trueVariance: portfolioVariance(trueSolution),
+      achievedReturn: portfolioExpectedReturn(weights),
+      score: scoreMinVariance(weights, rubric.tolerancePerfect, rubric.toleranceZero),
+    };
   }
 
   return (
@@ -141,7 +171,7 @@ export default async function TeamDayPage({
           </h1>
           <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
         </div>
-        {day === 1 && (
+        {(day === 1 || day === 2) && (
           <Link
             href={`/day/${day}/guia`}
             className="shrink-0 rounded-md border border-[var(--color-brand-blue-accent)] px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors hover:bg-[var(--color-brand-blue-light)]"
@@ -182,8 +212,14 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {includeSim && <InstrumentsPanel />}
-          {includeSim && (
+          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel />}
+          {hasMinVariance && (
+            <>
+              {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
+              <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
+            </>
+          )}
+          {hasPortfolioTree && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
               <PortfolioForm day={day} initialDecision={isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null} />
@@ -201,7 +237,7 @@ export default async function TeamDayPage({
               <AnalyticsForm day={day} initialPicks={analyticsPicksByKey} />
             </>
           )}
-          {!includeSim && reportConcepts.length === 0 && !hasAnalitica && (
+          {!hasMinVariance && !hasPortfolioTree && reportConcepts.length === 0 && !hasAnalitica && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               No hay entregables para este día.
             </div>
@@ -327,10 +363,48 @@ export default async function TeamDayPage({
           </div>
         )}
 
-        {includeSim && (
+        {hasMinVariance && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
             <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              ALM — tu portafolio vs. tus reservas
+              Mínima varianza — tu portafolio vs. el óptimo real
+            </h3>
+            {minVarResult ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Retorno esperado</p>
+                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+                    {(minVarResult.achievedReturn * 100).toFixed(2)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza lograda</p>
+                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+                    {minVarResult.achievedVariance.toFixed(6)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza mínima real</p>
+                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+                    {minVarResult.trueVariance.toFixed(6)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota</p>
+                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+                    {minVarResult.score.toFixed(0)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-brand-text-secondary)]">Aún no tienes un portafolio de mínima varianza guardado.</p>
+            )}
+          </div>
+        )}
+
+        {hasPortfolioTree && (
+          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              ALM — tu portafolio vs. tus reservas de Año {bookYear}
             </h3>
             {almScore ? (
               <div className="flex flex-col gap-3">
@@ -340,9 +414,7 @@ export default async function TeamDayPage({
               </div>
             ) : (
               <p className="text-sm text-[var(--color-brand-text-secondary)]">
-                {publishedResult
-                  ? "Aún no tienes un portafolio guardado o no hay reservas calculadas para este día."
-                  : "El evaluador aún no ha publicado los resultados de este día."}
+                Aún no tienes un portafolio guardado para este día, o las reservas correspondientes todavía no están disponibles.
               </p>
             )}
           </div>

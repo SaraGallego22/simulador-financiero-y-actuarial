@@ -31,7 +31,7 @@ export interface TeamFinBenchBundle {
  * (year1.totalPremium/BUILD_MONTHS, not the fictitious reserva/12 notional
  * almSim() otherwise assumes) — finBench()'s job is to benchmark the *real*
  * P&G/Balance/Solvencia deliverables (see README §5.3), so its inputs have
- * to be the real ALM, not the fictitious one the team's Día 1 nota is
+ * to be the real ALM, not the fictitious one the team's Día 2 nota is
  * graded on.
  *
  * The real ALM only ever runs 12 months per year — Año 1 fresh (funded by
@@ -85,8 +85,12 @@ export async function computeFinBenchBundlesForCohort(
       where: { simulationRun: { cohortId, day: 2, status: "DONE" } },
       orderBy: { simulationRun: { createdAt: "desc" } },
     }),
-    prisma.portfolioAllocation.findMany({ where: { day: 1, team: { cohortId } } }),
+    // Año 1's real ALM tree now lives on Día 2 (not Día 1 — Día 1 is the
+    // minimum-variance exercise, a flat weight map, never a tree); Año 2's
+    // optional rebalance now lives on Día 3 (not Día 2) — see README's
+    // market-clearing section for the day mapping and why.
     prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId } } }),
+    prisma.portfolioAllocation.findMany({ where: { day: 3, team: { cohortId } } }),
   ]);
 
   // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
@@ -99,6 +103,8 @@ export async function computeFinBenchBundlesForCohort(
   const year2ByTeamId = new Map<string, (typeof year2Results)[number]>();
   for (const r of year2Results) if (!year2ByTeamId.has(r.teamId)) year2ByTeamId.set(r.teamId, r);
   const toDecision = (allocation: unknown): PortfolioDecisionV3 | null => (isPortfolioDecisionV3(allocation) ? allocation : null);
+  // alloc1 = Año 1's real tree, submitted Día 2; alloc2 = Año 2's optional
+  // rebalance, submitted Día 3 (falls back to alloc1 below if never resubmitted).
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
   const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));
 
@@ -113,8 +119,8 @@ export async function computeFinBenchBundlesForCohort(
       : null;
 
     const year2 = year2ByTeamId.get(teamId);
-    // A team's own Día 2 decision takes priority; falls back to Día 1's if
-    // they never updated it (the Año 2 portfolio is optional — see TAB_NOTES).
+    // A team's own Día 3 decision takes priority; falls back to Día 2's if
+    // they never updated it (the Año 2 rebalance is optional — see TAB_NOTES).
     const alloc2 = alloc2ByTeamId.get(teamId) ?? alloc1;
     let realAlmYear2: AlmRealYearResult | null = null;
     let almYear2: AlmYearBenchInput | undefined;

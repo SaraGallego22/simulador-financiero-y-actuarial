@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { TARGET_RETURN, portfolioExpectedReturn } from "@/domain/finance/markowitz";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { isValidSectorPick } from "@/domain/grading/sectors";
@@ -58,6 +59,54 @@ export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioS
 
   revalidatePath("/dashboard");
   revalidatePath(`/admin/day/${day}`);
+  return { success: true };
+}
+
+export interface SubmitMinVarianceState {
+  error?: string;
+  success?: boolean;
+}
+
+/**
+ * Día 1's minimum-variance exercise: a flat weight per instrument (no
+ * maturity tree — this is a one-shot "how would you allocate right now"
+ * question, not the ALM decision, which moved to Día 2 — see
+ * submitPortfolioAction). Rejects (rather than silently persisting and
+ * scoring 0) a submission whose weights don't even reach TARGET_RETURN,
+ * since that's not a valid candidate answer to the exercise, same spirit as
+ * rejecting a malformed tree above. Always day=1 — this exercise has no
+ * other day it could belong to.
+ */
+export async function submitMinVarianceAction(_prev: SubmitMinVarianceState, formData: FormData): Promise<SubmitMinVarianceState> {
+  const teamId = await requireTeam();
+
+  const weights: Record<string, number> = {};
+  for (const ins of INSTRUMENTS) {
+    const raw = formData.get(`w-${ins.id}`);
+    const value = Number(raw ?? 0);
+    if (!Number.isFinite(value) || value < 0) return { error: `Peso inválido para ${ins.nombre}.` };
+    weights[ins.id] = value;
+  }
+  if (!isMinVarianceAllocation(weights)) return { error: "El portafolio enviado tiene un formato inválido." };
+
+  const total = Object.values(weights).reduce((s, w) => s + w, 0);
+  if (total <= 0) return { error: "Asigna al menos algo de peso a un instrumento." };
+
+  const achievedReturn = portfolioExpectedReturn(weights);
+  if (achievedReturn < TARGET_RETURN - 1e-6) {
+    return {
+      error: `Ese portafolio rinde ${(achievedReturn * 100).toFixed(2)}%, por debajo del objetivo de ${(TARGET_RETURN * 100).toFixed(0)}%. Ajusta los pesos para alcanzar al menos el retorno objetivo.`,
+    };
+  }
+
+  await prisma.portfolioAllocation.upsert({
+    where: { teamId_day: { teamId, day: 1 } },
+    update: { allocation: weights as unknown as Prisma.InputJsonValue },
+    create: { teamId, day: 1, allocation: weights as unknown as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/admin/day/1");
   return { success: true };
 }
 
