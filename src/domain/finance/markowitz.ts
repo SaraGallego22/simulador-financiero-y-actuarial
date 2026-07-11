@@ -178,43 +178,44 @@ export function solveLongOnlyMinVariance(targetReturn: number = TARGET_RETURN, s
 
 /**
  * Scores a team's Día 1 minimum-variance submission: how close its achieved
- * variance (wᵀΣw, at the weights the team actually submitted) came to the
- * true minimum achievable at TARGET_RETURN — 100 within tolerancePerfect
- * relative error, decaying linearly to 0 at toleranceZero, same tolerance-
- * band shape as scoreConcepto() (src/domain/grading/concepts.ts) uses for
- * every other numeric deliverable, just inlined here rather than imported
- * (finance/ doesn't depend on grading/ — see that module's layering).
+ * variance came to the true minimum achievable at TARGET_RETURN — 100
+ * within tolerancePerfect relative error, decaying linearly to 0 at
+ * toleranceZero, same tolerance-band shape as scoreConcepto() (src/domain/
+ * grading/concepts.ts) uses for every other numeric deliverable, just
+ * inlined here rather than imported (finance/ doesn't depend on grading/ —
+ * see that module's layering).
  *
  * Two deliberate departures from that generic pattern, both from empirical
- * calibration (see the commit that introduced this, which ran a batch of
- * representative allocations through the formula before picking these
- * numbers — a naive reuse of the rubric's generic COP-reporting tolerance
- * band, 5%/40% relative error on the achieved *variance*, put every
- * plausible team submission at 0):
+ * calibration against a batch of representative allocations (naive reuse of
+ * the rubric's generic COP-reporting tolerance band, 5%/40% relative error
+ * on the achieved *variance*, put every plausible submission at 0):
  *
  * 1. **Error is measured on volatility (sqrt of variance), not variance
  *    itself.** Variance is quadratic in allocation error, so a team only
  *    moderately off the optimal weights can easily land at 2-4x the true
  *    minimum variance — an enormous relative error on variance, but a much
  *    gentler (and more human-interpretable, since it reads as an annualized
- *    volatility %) 40-100% on its square root.
- * 2. **The benchmark is the true minimum variance at the team's own
- *    achieved return, not always at TARGET_RETURN.** A team that reaches
- *    for a higher return (still ≥ TARGET_RETURN) isn't punished for the
- *    extra variance that return genuinely requires — only for variance
- *    *beyond* what's needed for the return it actually chose. A small
- *    additive bonus (capped, and scaled by how good the variance score
- *    already is, so it can't rescue a bad allocation) further rewards
- *    reaching for more than the minimum required return.
+ *    volatility %) 60-100% on its square root.
+ * 2. **The benchmark is always the true minimum variance at the fixed
+ *    TARGET_RETURN, never at the team's own achieved return.** An earlier
+ *    version benchmarked against the team's own return instead, meaning to
+ *    reward reaching for more than the minimum required return — but that
+ *    let any allocation concentrated enough to sit at an extreme return
+ *    score as "optimal for itself" (100% ACC, the only way to reach its own
+ *    14% yield, scored 100, while a much less extreme but equally
+ *    undiversified 50/50 ACC+LIQ scored 0 — an inconsistent, backwards
+ *    result). Comparing everyone against the same fixed reference instead
+ *    makes both of those allocations score equally poorly, which is what
+ *    they deserve. Reaching for a higher return is still rewarded, but only
+ *    through the small bonus below, never through a moving benchmark.
  */
 const MINVAR_TOLERANCE_PERFECT = 0.05;
-const MINVAR_TOLERANCE_ZERO = 1.0;
+const MINVAR_TOLERANCE_ZERO = 2.0;
 /** Max extra points a high achieved return can add on top of the variance score — deliberately small, variance dominates the grade. */
 const MINVAR_RETURN_BONUS_MAX = 10;
 
 export function scoreMinVariance(submitted: Allocation): number {
-  const achievedReturn = portfolioExpectedReturn(submitted);
-  const benchmark = solveLongOnlyMinVariance(Math.max(achievedReturn, TARGET_RETURN));
+  const benchmark = solveLongOnlyMinVariance(TARGET_RETURN);
   const benchVol = Math.sqrt(portfolioVariance(benchmark));
   const achievedVol = Math.sqrt(portfolioVariance(submitted));
   const err = benchVol > 0 ? (achievedVol - benchVol) / benchVol : 0;
@@ -224,6 +225,7 @@ export function scoreMinVariance(submitted: Allocation): number {
   else if (err >= MINVAR_TOLERANCE_ZERO) varianceScore = 0;
   else varianceScore = 100 * (1 - (err - MINVAR_TOLERANCE_PERFECT) / (MINVAR_TOLERANCE_ZERO - MINVAR_TOLERANCE_PERFECT));
 
+  const achievedReturn = portfolioExpectedReturn(submitted);
   const maxYield = Math.max(...MU);
   const returnBonusRaw = 100 * Math.max(0, Math.min(1, (achievedReturn - TARGET_RETURN) / (maxYield - TARGET_RETURN)));
   const bonus = MINVAR_RETURN_BONUS_MAX * (varianceScore / 100) * (returnBonusRaw / 100);

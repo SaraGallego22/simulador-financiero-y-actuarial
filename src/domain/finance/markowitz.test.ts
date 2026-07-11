@@ -140,13 +140,20 @@ describe("scoreMinVariance", () => {
     expect(scoreMinVariance(trueSolution)).toBe(100);
   });
 
-  it("gives 100 to 100% ACC — the only feasible (and therefore optimal) portfolio at its own 14% return", () => {
-    // Not a loophole: with only one instrument yielding 14%, there is no
-    // lower-variance way to achieve that exact return, so this is a
-    // legitimate (if extreme) point on the efficient frontier — see
-    // scoreMinVariance()'s doc comment on why the benchmark is evaluated at
-    // the team's own achieved return, not always at TARGET_RETURN.
-    expect(scoreMinVariance({ LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 })).toBe(100);
+  it("gives a low score to 100% ACC — extreme concentration, not a benchmark loophole", () => {
+    // An earlier version benchmarked against the team's own achieved return,
+    // which made 100% ACC score 100 (it's the only way to hit exactly its
+    // own 14% return) while an equally undiversified 50/50 ACC+LIQ scored 0
+    // — an inconsistent result a user correctly flagged as broken. Benchmarking
+    // against the fixed TARGET_RETURN always scores both extremes low.
+    expect(scoreMinVariance({ LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 })).toBeLessThan(10);
+  });
+
+  it("gives a comparably low score to 50/50 ACC+LIQ — consistent with 100% ACC, not a special case", () => {
+    const accLiq = scoreMinVariance({ LIQ: 0.5, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 0.5 });
+    const allAcc = scoreMinVariance({ LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 });
+    expect(accLiq).toBeLessThan(10);
+    expect(Math.abs(accLiq - allAcc)).toBeLessThan(15);
   });
 
   it("gives partial credit to a reasonable but imperfect submission", () => {
