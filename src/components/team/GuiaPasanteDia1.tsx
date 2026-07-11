@@ -149,9 +149,9 @@ export function GuiaPasanteDia1() {
             rendimiento objetivo) — mientras más cerca de esa varianza mínima, mejor tu nota.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-            Este mismo portafolio — el que realmente sometas, no la solución óptima — también determina qué tan volátil se considera tu perfil de inversión
-            para efectos del tope de cuota de mercado del Año 1: un portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un
-            margen de solvencia saludable (el mismo mecanismo que vas a ver en detalle en el Día 4).
+            Este portafolio también determina qué tan volátil se considera tu perfil de inversión para efectos del tope de cuota de mercado del Año 1: un
+            portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un margen de solvencia saludable (el mismo mecanismo que
+            vas a ver en detalle en el Día 4).
           </p>
         </SubSection>
       </Section>

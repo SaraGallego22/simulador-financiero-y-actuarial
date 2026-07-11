@@ -96,12 +96,13 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
   }
 
   // Día 1's minimum-variance exercise — scored against the true optimal
-  // portfolio at TARGET_RETURN, never per-team (see markowitz.ts).
+  // portfolio at the team's own achieved return, never per-team (see
+  // markowitz.ts).
   const minVarScoreByTeamId = new Map<string, number>();
   const minVarAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 1, team: { cohortId: cohort.id } } });
   for (const a of minVarAllocations) {
     if (isMinVarianceAllocation(a.allocation)) {
-      minVarScoreByTeamId.set(a.teamId, scoreMinVariance(a.allocation, tolerance.tolerancePerfect, tolerance.toleranceZero));
+      minVarScoreByTeamId.set(a.teamId, scoreMinVariance(a.allocation));
     }
   }
 

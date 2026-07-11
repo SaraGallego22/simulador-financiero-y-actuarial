@@ -146,19 +146,20 @@ export default async function TeamDayPage({
 
   // Día 1's minimum-variance exercise: team-scoped result (achieved vs. true
   // variance, expected return, score) — never per-team ground truth, see
-  // markowitz.ts.
+  // markowitz.ts. trueVariance is the minimum achievable at the team's OWN
+  // achieved return (not always TARGET_RETURN) — the same benchmark
+  // scoreMinVariance() grades against, so the two numbers stay consistent.
   let minVarResult: { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number } | null = null;
   if (activeTab === "obj" && hasMinVariance && teamId && isMinVarianceAllocation(allocation?.allocation)) {
-    const cohort = await getOrCreateActiveCohort();
-    const rubric = await prisma.rubricConfig.upsert({ where: { cohortId: cohort.id }, update: {}, create: { cohortId: cohort.id } });
     const weights = allocation!.allocation as Record<string, number>;
-    const trueSolution = solveLongOnlyMinVariance(TARGET_RETURN);
+    const achievedReturn = portfolioExpectedReturn(weights);
+    const trueSolution = solveLongOnlyMinVariance(Math.max(achievedReturn, TARGET_RETURN));
     minVarResult = {
       weights,
       achievedVariance: portfolioVariance(weights),
       trueVariance: portfolioVariance(trueSolution),
-      achievedReturn: portfolioExpectedReturn(weights),
-      score: scoreMinVariance(weights, rubric.tolerancePerfect, rubric.toleranceZero),
+      achievedReturn,
+      score: scoreMinVariance(weights),
     };
   }
 
@@ -212,7 +213,7 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel />}
+          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance} />}
           {hasMinVariance && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
