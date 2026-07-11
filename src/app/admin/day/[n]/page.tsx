@@ -4,7 +4,7 @@ import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedFor
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
@@ -232,7 +232,8 @@ export default async function AdminDayPage({
   };
 
   // Día 1's minimum-variance exercise, per team — scored against the true
-  // optimal portfolio at TARGET_RETURN, never per-team (see markowitz.ts).
+  // optimal portfolio at the team's own achieved return, never per-team
+  // (see markowitz.ts).
   const minVarScoreByTeamId = new Map<string, number>();
   const minVarWeightsByTeamId = new Map<string, Record<string, number>>();
   if (hasMinVariance) {
@@ -240,10 +241,13 @@ export default async function AdminDayPage({
       const rawAllocation = team.portfolioAllocations[0]?.allocation;
       if (isMinVarianceAllocation(rawAllocation)) {
         minVarWeightsByTeamId.set(team.id, rawAllocation);
-        minVarScoreByTeamId.set(team.id, scoreMinVariance(rawAllocation, tolerance.tolerancePerfect, tolerance.toleranceZero));
+        minVarScoreByTeamId.set(team.id, scoreMinVariance(rawAllocation));
       }
     }
   }
+  const minVarReferenceWeights = solveLongOnlyMinVariance(TARGET_RETURN);
+  const minVarReferenceReturn = portfolioExpectedReturn(minVarReferenceWeights);
+  const minVarReferenceVariance = portfolioVariance(minVarReferenceWeights);
 
   const deliverablesByTeamId = new Map<string, Record<string, number>>();
   for (const d of deliverables) {
@@ -404,6 +408,22 @@ export default async function AdminDayPage({
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolio de mínima varianza — Día {day}
               </h3>
+              <div className="mb-4 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                  Portafolio correcto (referencia, a {(TARGET_RETURN * 100).toFixed(0)}% de retorno)
+                </p>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  {INSTRUMENTS.map((ins) => (
+                    <span key={ins.id}>
+                      <strong>{ins.id}:</strong> {(minVarReferenceWeights[ins.id] * 100).toFixed(1)}%
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-sm">
+                  Retorno: {(minVarReferenceReturn * 100).toFixed(2)}% · Varianza: {minVarReferenceVariance.toFixed(6)} · Volatilidad:{" "}
+                  {(Math.sqrt(minVarReferenceVariance) * 100).toFixed(2)}%
+                </p>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -440,12 +460,31 @@ export default async function AdminDayPage({
                     })}
                   </tbody>
                 </table>
-                <p className="mt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  Varianza mínima real a {(TARGET_RETURN * 100).toFixed(0)}% de retorno: {portfolioVariance(solveLongOnlyMinVariance(TARGET_RETURN)).toFixed(6)}.
-                  Este mismo portafolio (el que cada equipo realmente sometió, no la solución óptima) alimenta también el tope de cuota de mercado del Año 1
-                  — ver pestaña Simulación.
-                </p>
               </div>
+              <div className="mt-3 flex flex-col gap-2">
+                {teams.map((team) => {
+                  const weights = minVarWeightsByTeamId.get(team.id);
+                  if (!weights) return null;
+                  return (
+                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name} — ver pesos
+                      </summary>
+                      <div className="flex flex-wrap gap-4 border-t border-[var(--color-brand-gray-light)] p-3 text-sm">
+                        {INSTRUMENTS.map((ins) => (
+                          <span key={ins.id}>
+                            <strong>{ins.id}:</strong> {(weights[ins.id] ?? 0).toFixed(1)}%
+                          </span>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                Este portafolio también alimenta el tope de cuota de mercado del Año 1 — ver pestaña Simulación.
+              </p>
             </div>
           )}
 

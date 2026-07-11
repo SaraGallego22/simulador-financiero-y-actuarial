@@ -137,18 +137,41 @@ describe("scoreMinVariance", () => {
   const trueSolution = solveLongOnlyMinVariance(TARGET_RETURN);
 
   it("gives 100 to the true optimal submission", () => {
-    expect(scoreMinVariance(trueSolution, 0.05, 0.4)).toBe(100);
+    expect(scoreMinVariance(trueSolution)).toBe(100);
   });
 
-  it("decays linearly between the tolerance bands for a worse submission", () => {
-    const worse = { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 }; // feasible (14% > 10%) but far riskier
-    const score = scoreMinVariance(worse, 0.05, 0.4);
-    expect(score).toBeGreaterThanOrEqual(0);
+  it("gives 100 to 100% ACC — the only feasible (and therefore optimal) portfolio at its own 14% return", () => {
+    // Not a loophole: with only one instrument yielding 14%, there is no
+    // lower-variance way to achieve that exact return, so this is a
+    // legitimate (if extreme) point on the efficient frontier — see
+    // scoreMinVariance()'s doc comment on why the benchmark is evaluated at
+    // the team's own achieved return, not always at TARGET_RETURN.
+    expect(scoreMinVariance({ LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 })).toBe(100);
+  });
+
+  it("gives partial credit to a reasonable but imperfect submission", () => {
+    const decent = { LIQ: 0, CDT90: 1, TES1: 0, TES3: 0, TESUVR8: 1, ACC: 0 }; // 50/50 CDT90+TESUVR8
+    const score = scoreMinVariance(decent);
+    expect(score).toBeGreaterThan(50);
     expect(score).toBeLessThan(100);
   });
 
-  it("gives 0 once relative error reaches toleranceZero", () => {
-    const worse = { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 };
-    expect(scoreMinVariance(worse, 0.001, 0.002)).toBe(0);
+  it("gives low credit to a submission that chases return inefficiently", () => {
+    const inefficient = { LIQ: 0, CDT90: 0.3, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 0.7 }; // reaches ~12.7% but far from that return's own frontier
+    const score = scoreMinVariance(inefficient);
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThan(30);
+  });
+
+  it("never returns a negative score or a score above 100", () => {
+    for (const alloc of [
+      trueSolution,
+      { LIQ: 1, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 0 },
+      { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 1 },
+    ]) {
+      const score = scoreMinVariance(alloc);
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
+    }
   });
 });
