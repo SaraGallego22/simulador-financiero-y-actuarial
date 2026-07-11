@@ -156,11 +156,17 @@ describe("scoreMinVariance", () => {
     expect(Math.abs(accLiq - allAcc)).toBeLessThan(15);
   });
 
-  it("gives partial credit to a reasonable but imperfect submission", () => {
-    const decent = { LIQ: 0, CDT90: 1, TES1: 0, TES3: 0, TESUVR8: 1, ACC: 0 }; // 50/50 CDT90+TESUVR8
-    const score = scoreMinVariance(decent);
+  it("gives high (but not perfect) credit to a genuinely reasoned multi-instrument attempt", () => {
+    const rough = { LIQ: 0.2, CDT90: 0.5, TES1: 0, TES3: 0, TESUVR8: 0.3, ACC: 0 };
+    const score = scoreMinVariance(rough);
     expect(score).toBeGreaterThan(50);
     expect(score).toBeLessThan(100);
+  });
+
+  it("gives low credit to a naive 2-instrument pairing — guessing shouldn't score well", () => {
+    const naive = { LIQ: 0, CDT90: 1, TES1: 0, TES3: 0, TESUVR8: 1, ACC: 0 }; // 50/50 CDT90+TESUVR8
+    const score = scoreMinVariance(naive);
+    expect(score).toBeLessThan(50);
   });
 
   it("gives low credit to a submission that chases return inefficiently", () => {
