@@ -4,6 +4,8 @@ import { generateColombia } from "@/domain/generation/generateColombia";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { generateYear2Claims } from "@/domain/generation/generateYear2Claims";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
+import { generateChile } from "@/domain/generation/generateChile";
+import type { ChilePolicy } from "@/domain/generation/generateChile";
 import { ANIO_BASE_A1 } from "@/domain/generation/constants";
 import { computeLiabilitySchedules } from "@/domain/reserving/liability";
 import type { ClaimForLiability, LiabilitySchedule } from "@/domain/reserving/liability";
@@ -63,6 +65,14 @@ export function getSectorStatsForSeed(seed: number, universe: ColombiaUniverse):
     cachedSectorStats = { seed, stats: computeSectorStats(universe) };
   }
   return cachedSectorStats.stats;
+}
+
+let cachedChile: { seed: number; policies: ChilePolicy[] } | null = null;
+export function getChileForSeed(seed: number): ChilePolicy[] {
+  if (cachedChile?.seed !== seed) {
+    cachedChile = { seed, policies: generateChile(seed) };
+  }
+  return cachedChile.policies;
 }
 
 export interface TeamBook {

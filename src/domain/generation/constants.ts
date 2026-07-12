@@ -24,6 +24,18 @@ export const OUTLIER_CLAIM_PROBABILITY = 0.02;
 /** How much an outlier claim's severity is multiplied by, on top of its normal Gamma draw. */
 export const OUTLIER_CLAIM_MULTIPLIER = 8;
 
+/**
+ * Annual claims-cost inflation applied to Year-2 severity relative to Year 1
+ * (2027 -> 2028, see ANIO_BASE_A1 and generateYear2Claims.ts's YEAR_2) — auto
+ * claims run above general CPI in Colombia (parts/labor costs skew import-
+ * heavy), so 9% is a realistic single-year assumption, not the general IPC.
+ * Frequency (calcLambda) is untouched: inflation moves the cost of a claim,
+ * not the probability of having one. Not disclosed to teams as a number
+ * anywhere in the product copy — see GuiaPasanteDia1's Chile section for the
+ * related (separate) present-value trap on the Chile reference dataset.
+ */
+export const CLAIMS_INFLATION_ANNUAL = 0.09;
+
 /** Monthly claim-occurrence seasonality weights, ported from ESTAC (line ~2029). */
 export const MONTHLY_SEASONALITY = [
   1.25, 1.05, 1.15, 1.0, 0.9, 0.95, 1.2, 1.15, 0.95, 0.9, 0.95, 1.35,

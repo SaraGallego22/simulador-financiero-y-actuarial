@@ -2,7 +2,7 @@ import { seedRand, gammaRand } from "./rng";
 import { sampleClaimDate, sampleReportingLag } from "./dates";
 import { calcLambda } from "../pricing/frequency";
 import { calcMediaSev } from "../pricing/severity";
-import { SEVERITY_SHAPE, OUTLIER_CLAIM_PROBABILITY, OUTLIER_CLAIM_MULTIPLIER } from "./constants";
+import { SEVERITY_SHAPE, OUTLIER_CLAIM_PROBABILITY, OUTLIER_CLAIM_MULTIPLIER, CLAIMS_INFLATION_ANNUAL } from "./constants";
 import { getExposure } from "./generateColombia";
 import type { ColombiaUniverse } from "./generateColombia";
 
@@ -16,7 +16,12 @@ const toEpochDay = (d: Date) => Math.floor(d.getTime() / MS_PER_DAY);
  * indexed the same way as ColombiaUniverse, kept separate from it since a
  * universe is otherwise immutable/regeneratable from just its seed.
  *
- * Ported from generarSiniestrosA2() in the legacy prototype, line ~3351.
+ * Severity also carries one year of claims-cost inflation over Year 1's
+ * model (CLAIMS_INFLATION_ANNUAL) — frequency does not, since inflation
+ * moves cost, not the probability of a claim. This is new relative to the
+ * legacy prototype, which reused the same severity model unchanged for both
+ * years — ported from generarSiniestrosA2() in the legacy prototype, line
+ * ~3351, plus this inflation adjustment.
  */
 export interface Year2Claims {
   lam: Float32Array;
@@ -59,7 +64,12 @@ export function generateYear2Claims(universe: ColombiaUniverse, seed = 42): Year
     siniestro[i] = hasClaim ? 1 : 0;
 
     if (hasClaim) {
-      const meanSeverity = calcMediaSev(eYear2);
+      // One year of claims-cost inflation on top of the Year-1 severity
+      // model (2027 -> 2028) — see CLAIMS_INFLATION_ANNUAL's doc comment.
+      // Applied as a flat multiplier on the mean, after the risk-factor
+      // calculation and before the Gamma draw, so it scales the whole
+      // distribution (including the tail) rather than just shifting its center.
+      const meanSeverity = calcMediaSev(eYear2) * (1 + CLAIMS_INFLATION_ANNUAL);
       let severity = (gammaRand(r, SEVERITY_SHAPE) * meanSeverity) / SEVERITY_SHAPE;
       if (rOutlier() < OUTLIER_CLAIM_PROBABILITY) severity *= OUTLIER_CLAIM_MULTIPLIER;
       sev[i] = Math.round(severity);
