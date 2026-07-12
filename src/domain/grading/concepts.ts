@@ -75,8 +75,11 @@ export const CONCEPTOS: Concepto[] = [
   { id: "p2_uai", dia: "d3", perfil: "fin", tipo: "reporte", label: "Utilidad antes de impuestos A2", unit: "COP", group: "pyg_a2", get: (b) => b.p2?.uai ?? null },
   { id: "p2_imp", dia: "d3", perfil: "fin", tipo: "reporte", label: "Impuesto A2", unit: "COP", group: "pyg_a2", get: (b) => b.p2?.imp ?? null },
   { id: "p2_uneta", dia: "d3", perfil: "fin", tipo: "reporte", label: "Utilidad neta A2", unit: "COP", group: "pyg_a2", get: (b) => b.p2?.uneta ?? null },
-  { id: "p2_pagos", dia: "d3", perfil: "fin", tipo: "reporte", label: "Siniestros pagados en A2", unit: "COP", get: (b) => b.p2?.pagos ?? null },
-  { id: "p2_desarrollo", dia: "d3", perfil: "fin", tipo: "reporte", label: "Desarrollo siniestros A1", unit: "COP", get: (b) => b.p2?.desarrollo ?? null },
+  // Nota de auditoría actuarial, no líneas del P&G — ver README §4. p2_desarrollo
+  // es un componente de p2_costo (costo = ultAcc + desarrollo), y p2_pagos es
+  // caja pagada (flujo de caja), distinto del costo incurrido (base contable).
+  { id: "p2_pagos", dia: "d3", perfil: "fin", tipo: "reporte", label: "Siniestros pagados en A2 (caja, no se suma al P&G)", unit: "COP", get: (b) => b.p2?.pagos ?? null },
+  { id: "p2_desarrollo", dia: "d3", perfil: "fin", tipo: "reporte", label: "Desarrollo siniestros A1 (parte del Costo de siniestros A2)", unit: "COP", get: (b) => b.p2?.desarrollo ?? null },
 
   // Día 3 — Estado de resultados Año 3 (proyectado)
   { id: "p3_prima", dia: "d3", perfil: "fin", tipo: "reporte", label: "Prima devengada A3 (proy.)", unit: "COP", group: "pyg_a3", get: (b) => b.p3?.prima ?? null },

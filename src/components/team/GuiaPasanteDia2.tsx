@@ -57,6 +57,52 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
   );
 }
 
+/** Vertical financial-statement template with real row labels, matching how DeliverablesForm groups/renders these same lines. */
+function StatementTemplate({ rowLabels, emphasizedLabels, note }: { rowLabels: string[]; emphasizedLabels?: string[]; note?: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+          <thead>
+            <tr>
+              <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                Línea
+              </th>
+              <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                Año 1
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowLabels.map((label) => (
+              <tr key={label}>
+                <td className={`border border-[var(--color-brand-gray-light)] px-2 py-1.5 ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>
+                  {label}
+                </td>
+                <td className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">&nbsp;</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+    </div>
+  );
+}
+
+const PYG_ROWS = [
+  "Prima devengada",
+  "Costo de siniestros",
+  "Gastos de adquisición",
+  "Comisiones",
+  "Gastos administrativos",
+  "Resultado técnico",
+  "Resultado de inversiones",
+  "Utilidad antes de impuestos",
+  "Impuesto",
+  "Utilidad neta",
+];
+
 function ScoreCard({ label, weight, formula }: { label: string; weight: string; formula: string }) {
   return (
     <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
@@ -159,7 +205,7 @@ export function GuiaPasanteDia2() {
 
         <SubSection title="Para el portafolio" accent="fin">
           <p>
-            El menú de instrumentos (sección 4.1) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
+            El menú de instrumentos (sección 4.2) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
             rendimiento nominal más alto es la mejor opción una vez ajustas por riesgo. Antes de construir tu árbol, considera:
           </p>
           <ul className="list-disc pl-5">
@@ -185,15 +231,24 @@ export function GuiaPasanteDia2() {
         </SubSection>
       </Section>
 
-      <Section n="4" title="Plantilla del ALM — cómo se construye y cómo alimenta el resultado">
+      <Section n="4" title="Plantillas — cómo se construyen y cómo alimentan el resultado">
         <p>
-          Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tu árbol en papel antes
-          de construirlo en el formulario. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya resueltas con tus números, en
-          los resultados objetivos después de guardar tu portafolio.
+          Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tu estado de resultados
+          y tu árbol en papel antes de construirlos en los formularios. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya
+          resueltas con tus números, en los resultados objetivos después de guardar cada entregable.
         </p>
 
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Instrumentos disponibles</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Estado de resultados — Año 1</p>
+          <StatementTemplate
+            rowLabels={PYG_ROWS}
+            emphasizedLabels={["Resultado técnico", "Utilidad antes de impuestos", "Utilidad neta"]}
+            note="Gastos de adquisición/Comisiones/Gastos administrativos son 10%/4%/6% de la prima devengada. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 4.2-4.6), no de una fórmula aparte."
+          />
+        </div>
+
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Instrumentos disponibles</p>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
               <thead>
@@ -225,9 +280,9 @@ export function GuiaPasanteDia2() {
         </div>
 
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Tu árbol de decisión — plantilla en blanco</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · Tu árbol de decisión — plantilla en blanco</p>
           <BlankTable
-            headers={["Instrumento (del menú de 4.1)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
+            headers={["Instrumento (del menú de 4.2)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
             rows={5}
             note='Si en "Al vencer, ¿qué haces?" elegiste reasignar, repite esta misma tabla para esa porción — el vencimiento de la nueva línea se cuenta desde el mes en que venció la anterior, no desde el mes 0. Los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8) siempre vencen en su propio plazo; el vencimiento personalizado solo aplica a LIQ y ACC.'
           />
@@ -235,12 +290,12 @@ export function GuiaPasanteDia2() {
 
         <div>
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-            4.3 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja
+            4.4 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja
           </p>
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 4.2."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 4.3."
           />
           <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
             <span className="font-semibold text-[var(--color-brand-blue-accent)]">Importante — </span>
@@ -253,7 +308,7 @@ export function GuiaPasanteDia2() {
         </div>
 
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · Las 4 notas — plantilla de calificación</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.5 · Las 4 notas — plantilla de calificación</p>
           <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
             <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
@@ -272,10 +327,10 @@ export function GuiaPasanteDia2() {
         </div>
 
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.5 · El camino completo, de tu decisión a tu nota</p>
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.6 · El camino completo, de tu decisión a tu nota</p>
           <p className="text-sm">
-            Tu árbol (4.2) → se simula mes a mes contra la caja real (4.3) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
-            alimentan las 4 notas (4.4) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
+            Tu árbol (4.3) → se simula mes a mes contra la caja real (4.4) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
+            alimentan las 4 notas (4.5) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
           </p>
           <p className="mt-2 text-sm">
             Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en tu P&G — para ese entregable necesitas volver a

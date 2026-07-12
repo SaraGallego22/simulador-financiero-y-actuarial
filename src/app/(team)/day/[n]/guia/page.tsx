@@ -2,6 +2,8 @@ import Link from "next/link";
 import { PrintButton } from "@/components/PrintButton";
 import { GuiaPasanteDia1 } from "@/components/team/GuiaPasanteDia1";
 import { GuiaPasanteDia2 } from "@/components/team/GuiaPasanteDia2";
+import { GuiaPasanteDia3 } from "@/components/team/GuiaPasanteDia3";
+import { GuiaPasanteDia4 } from "@/components/team/GuiaPasanteDia4";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,10 @@ export default async function GuiaPasantePage({ params }: { params: Promise<{ n:
         <GuiaPasanteDia1 />
       ) : day === 2 ? (
         <GuiaPasanteDia2 />
+      ) : day === 3 ? (
+        <GuiaPasanteDia3 />
+      ) : day === 4 ? (
+        <GuiaPasanteDia4 />
       ) : (
         <p className="text-sm text-[var(--color-brand-text-secondary)]">La guía del pasante para este día todavía no está disponible.</p>
       )}

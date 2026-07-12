@@ -171,14 +171,12 @@ export default async function TeamDayPage({
           </h1>
           <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
         </div>
-        {(day === 1 || day === 2) && (
-          <Link
-            href={`/day/${day}/guia`}
-            className="shrink-0 rounded-md border border-[var(--color-brand-blue-accent)] px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors hover:bg-[var(--color-brand-blue-light)]"
-          >
-            📄 Guía del pasante
-          </Link>
-        )}
+        <Link
+          href={`/day/${day}/guia`}
+          className="shrink-0 rounded-md border border-[var(--color-brand-blue-accent)] px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors hover:bg-[var(--color-brand-blue-light)]"
+        >
+          📄 Guía del pasante
+        </Link>
       </div>
 
       <DayTabBar basePath="/day" day={day} activeTab={activeTab} includeSim={includeSim} />
