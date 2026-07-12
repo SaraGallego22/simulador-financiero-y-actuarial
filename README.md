@@ -141,6 +141,8 @@ En el peor caso estos tramos se **suman**: un siniestro ocurrido cerca del cierr
 
 `pasivo` (`reservasTec + cxp`) y `pasivoPatrim` (`pasivo + patrimonio`) no son campos nativos de `BalanceSheet` — son sumas derivadas, agregadas solo como conceptos reportables para que el equipo verifique la identidad contable básica (`activos == pasivo + patrimonio`, ver §4.3) con sus propios números, no solo de lectura.
 
+**Dos conceptos de Día 3 quedan fuera de los grupos anteriores, deliberadamente**: `p2_pagos` (siniestros pagados en A2) y `p2_desarrollo` (desarrollo de siniestros A1) — ver §4.2 para de dónde sale cada uno. No son líneas adicionales del P&G que se sumen o resten en algún lado — son notas de auditoría actuarial, análogas a las notas a los estados financieros de un reporte real: `p2_desarrollo` es *un componente* de `costo` (`costo = ultAcc + desarrollo`), no algo aparte de esa cifra, y `p2_pagos` es la caja efectivamente pagada durante el Año 2 (un concepto de **flujo de caja**), mientras que `costo` es lo **incurrido** en base contable (devengado, no necesariamente pagado todavía) — ambos números pueden diferir legítimamente. Se reportan y califican por separado porque son un chequeo de que el equipo entendió de dónde sale la cifra de costo, no porque haya que sumarlos al P&G.
+
 #### 4.1 · P&G del Año 1 (`p1`)
 
 Construido por `pyg(prima, siniestros, reservas, rinv)`, con estos insumos:

@@ -84,7 +84,8 @@ export function GuiaPasanteDia1() {
           <li>
             <strong>Actuarial — la tarifa del Año 1.</strong> Fijas el precio de cada póliza. Al cerrar el día, todos los equipos entran a un mercado
             simultáneo: cada asegurado elige la aseguradora que más le conviene, y el resultado (cuántas pólizas ganaste, con qué nivel de riesgo) queda
-            fijado para el resto del ejercicio — es la base de las reservas y el P&G que vas a calcular desde el Día 2.
+            fijado para el resto del ejercicio — es la base del estado de resultados que vas a reportar desde el Día 2 y de las reservas técnicas que vas
+            a calcular como parte del Balance en el Día 3.
           </li>
           <li>
             <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
