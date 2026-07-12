@@ -134,6 +134,13 @@ En el peor caso estos tramos se **suman**: un siniestro ocurrido cerca del cierr
 
 `finBench()` es el motor de referencia (el "Motor" que se compara contra lo que cada equipo reporta, ver §7) para tres entregables: el P&G de cada año, el Balance, y la Solvencia del Día 4. Esta sección explica, línea por línea, de dónde sale cada cifra — no solo el resultado final.
 
+**Qué se reporta cada día.** El equipo nunca sube un solo número aparte — cada estado se reporta completo, línea por línea, en el mismo orden vertical de un P&G/Balance real (`DeliverablesForm` los agrupa así, ver `Concepto.group` en `concepts.ts`):
+
+- **Día 2**: el P&G completo del Año 1 (`p1`, 10 líneas: prima, costo, gadq, gcom, gadm, rt, rinv, uai, imp, uneta) — sin un reporte de reservas aparte.
+- **Día 3**: el P&G del Año 2 (`p2`) y la proyección del Año 3 (`p3`), cada uno con las mismas 10 líneas, más el Balance completo de Año 1, 2 y 3 (`bal1`/`bal2`/`bal3`, 9 líneas cada uno: caja, inversiones, cuentas por cobrar, activos totales, reservas técnicas, cuentas por pagar, pasivo total, patrimonio, pasivo+patrimonio). Las reservas técnicas de Año 1 y Año 2 — antes un reporte aparte en Día 2/3 — ahora viven ahí, como la línea `reservasTec` de cada balance.
+
+`pasivo` (`reservasTec + cxp`) y `pasivoPatrim` (`pasivo + patrimonio`) no son campos nativos de `BalanceSheet` — son sumas derivadas, agregadas solo como conceptos reportables para que el equipo verifique la identidad contable básica (`activos == pasivo + patrimonio`, ver §4.3) con sus propios números, no solo de lectura.
+
 #### 4.1 · P&G del Año 1 (`p1`)
 
 Construido por `pyg(prima, siniestros, reservas, rinv)`, con estos insumos:
@@ -373,8 +380,8 @@ Cada día tiene las mismas 5 sub-pestañas que el prototipo original: **Tarifas/
 | Día | Actuarial | Financiero |
 |---|---|---|
 | 1 | Tarificar Año 1 | Portafolio de mínima varianza sujeto a un retorno objetivo (ver §5.6) — también alimenta la cuota de mercado del Año 1 (§2.1) |
-| 2 | Reservas Año 1 + retarifar Año 2 (con retención de clientes) | P&G Año 1 real (deducido del ALM ficticio, §5.3) + árbol de portafolio real Año 1 (ALM ficticio, calce con reservas — ver §5) |
-| 3 | Reservas Año 2 | P&G Año 2 (+ proyección Año 3), Balance, y rebalanceo opcional del árbol para Año 2 |
+| 2 | Retarifar Año 2 (con retención de clientes) | Estado de resultados completo Año 1 (10 líneas, deducido del ALM ficticio, §5.3 — sin reservas por separado, ver §4) + árbol de portafolio real Año 1 (ALM ficticio, calce con reservas — ver §5) |
+| 3 | Reservas técnicas Año 1 y Año 2 (como línea del Balance de cada año) | Estado de resultados Año 2 + proyección Año 3, Balance de Año 1/2/3, y rebalanceo opcional del árbol para Año 2 |
 | 4 | Recomendación sectorial (top 3 sectores a crecer/disminuir, rankeados — ver §6) | Solvencia (capital requerido, margen) y dividendos |
 
 ## Roles

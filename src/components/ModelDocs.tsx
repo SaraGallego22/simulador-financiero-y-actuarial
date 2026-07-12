@@ -17,7 +17,7 @@ const SECTIONS = [
   },
   {
     title: "Día 3 — P&G Año 2, Balance, proyección Año 3 y rebalanceo",
-    body: "Con el desarrollo Año1→Año2 ya conocido, se cierra el P&G del Año 2 (siniestros del Año 2 + desarrollo de los del Año 1) y se arma un balance simplificado (caja, cuentas por cobrar/pagar, inversiones, patrimonio) para el Año 1 y el Año 2. El Año 3 no se simula — se proyecta aplicando una tasa de crecimiento fija sobre el resultado del Año 2, para dar visibilidad de tendencia sin abrir un tercer ciclo de mercado completo. El equipo también puede, opcionalmente, actualizar su árbol de portafolio para el Año 2 (si no sube uno nuevo, se sigue usando el que definió en el Día 2).",
+    body: "Con el desarrollo Año1→Año2 ya conocido, el equipo entrega el estado de resultados completo del Año 2 (siniestros del Año 2 + desarrollo de los del Año 1) y la proyección del Año 3 — cada uno con las mismas líneas que el P&G del Año 1 (prima, costo de siniestros, gastos, resultado técnico, resultado de inversiones, utilidad antes de impuestos, impuesto, utilidad neta) — más el balance completo (caja, cuentas por cobrar, inversiones, reservas técnicas, cuentas por pagar, patrimonio) de los tres años, Año 1 a Año 3. El Año 3 no se simula — se proyecta aplicando una tasa de crecimiento fija sobre el resultado del Año 2, para dar visibilidad de tendencia sin abrir un tercer ciclo de mercado completo. El equipo también puede, opcionalmente, actualizar su árbol de portafolio para el Año 2 (si no sube uno nuevo, se sigue usando el que definió en el Día 2).",
   },
   {
     title: "Día 4 — Solvencia, dividendos y analítica sectorial",

@@ -7,8 +7,8 @@ import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
-import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
-import type { Dia } from "@/domain/grading/concepts";
+import { conceptosDia, scoreConcepto, GROUP_LABELS } from "@/domain/grading/concepts";
+import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
 import {
   rankForCrecer,
   rankForDisminuir,
@@ -537,6 +537,39 @@ export default async function AdminDayPage({
                   const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.result!.score!, 0) / scored.length : null;
                   const fmt = (v: number | null, unit: string) =>
                     v == null ? "—" : unit === "COP" ? `$${Math.round(v).toLocaleString("es-CO")}` : unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
+
+                  const grouped = new Map<ConceptGroup, { c: Concepto; result: ReturnType<typeof scoreConcepto> }[]>();
+                  const ungrouped: { c: Concepto; result: ReturnType<typeof scoreConcepto> }[] = [];
+                  for (const row of rows) {
+                    if (row.c.group) {
+                      if (!grouped.has(row.c.group)) grouped.set(row.c.group, []);
+                      grouped.get(row.c.group)!.push(row);
+                    } else {
+                      ungrouped.push(row);
+                    }
+                  }
+                  const statementTable = (rowsForGroup: { c: Concepto; result: ReturnType<typeof scoreConcepto> }[]) => (
+                    <table className="w-full border-t border-[var(--color-brand-gray-light)] text-sm">
+                      <thead>
+                        <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                          <th className="px-4 py-2">Concepto</th>
+                          <th className="px-4 py-2">Reportado</th>
+                          <th className="px-4 py-2">Motor</th>
+                          <th className="px-4 py-2">Nota</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rowsForGroup.map(({ c, result }) => (
+                          <tr key={c.id} className="border-t border-[var(--color-brand-gray-light)]">
+                            <td className="px-4 py-2">{c.label}</td>
+                            <td className="px-4 py-2">{fmt(result?.val ?? null, c.unit)}</td>
+                            <td className="px-4 py-2">{fmt(result?.bench ?? null, c.unit)}</td>
+                            <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
                   return (
                     <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
@@ -548,26 +581,17 @@ export default async function AdminDayPage({
                           {avgScore != null ? `Nota promedio: ${avgScore.toFixed(0)}` : "Sin reportes calificables aún"}
                         </span>
                       </summary>
-                      <table className="w-full border-t border-[var(--color-brand-gray-light)] text-sm">
-                        <thead>
-                          <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                            <th className="px-4 py-2">Concepto</th>
-                            <th className="px-4 py-2">Reportado</th>
-                            <th className="px-4 py-2">Motor</th>
-                            <th className="px-4 py-2">Nota</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(({ c, result }) => (
-                            <tr key={c.id} className="border-t border-[var(--color-brand-gray-light)]">
-                              <td className="px-4 py-2">{c.label}</td>
-                              <td className="px-4 py-2">{fmt(result?.val ?? null, c.unit)}</td>
-                              <td className="px-4 py-2">{fmt(result?.bench ?? null, c.unit)}</td>
-                              <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="flex flex-col gap-3 p-3">
+                        {[...grouped.entries()].map(([group, rowsForGroup]) => (
+                          <div key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
+                            <p className="bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                              {GROUP_LABELS[group]}
+                            </p>
+                            {statementTable(rowsForGroup)}
+                          </div>
+                        ))}
+                        {ungrouped.length > 0 && statementTable(ungrouped)}
+                      </div>
                     </details>
                   );
                 })}
