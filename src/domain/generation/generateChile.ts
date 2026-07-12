@@ -21,7 +21,7 @@ const ZONES_CL: readonly ChileZone[] = ["metropolitana", "norte", "centro", "sur
 const USAGE_CL: readonly ChileUsage[] = ["particular", "comercial", "taxi", "uber"];
 const COMUNAS_CL: readonly ChileComuna[] = ["gran_ciudad", "ciudad_media", "rural"];
 const GENDERS_CL = ["M", "F"] as const;
-const YEARS_CL = [2021, 2022, 2023] as const;
+export const YEARS_CL = [2021, 2022, 2023] as const;
 
 export type ChileYear = (typeof YEARS_CL)[number];
 

@@ -193,6 +193,21 @@ export default async function TeamDayPage({
           <p className="text-xs text-[var(--color-brand-text-secondary)]">
             Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
           </p>
+          {day === 1 && (
+            <>
+              <a
+                href="/api/universe/chile-csv"
+                className="w-fit rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+              >
+                Descargar dataset Chile (referencia)
+              </a>
+              <p className="text-xs text-[var(--color-brand-text-secondary)]">
+                100,000 pólizas chilenas con 3 años de exposición (2021-2023) y sus siniestros — el universo público de Colombia no trae siniestros ni
+                severidad, así que este es el único dato con el que puedes calibrar frecuencia y severidad antes de tarificar. Ver la guía del pasante
+                para los retos de transferibilidad entre ambos datasets.
+              </p>
+            </>
+          )}
           <TariffUpload
             key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
             day={day}
