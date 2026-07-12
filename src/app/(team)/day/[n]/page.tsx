@@ -57,7 +57,7 @@ export default async function TeamDayPage({
   // cross the Server->Client Component boundary (see DeliverablesForm).
   const reportConcepts = conceptosDia(`d${day}` as Dia)
     .filter((c) => c.tipo === "reporte")
-    .map((c) => ({ id: c.id, label: c.label, unit: c.unit }));
+    .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
   const topRows =

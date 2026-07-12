@@ -93,8 +93,8 @@ export function GuiaPasanteDia2() {
         </p>
         <ul className="list-disc pl-5">
           <li>
-            <strong>Actuarial — reservas y retarifación Año 2.</strong> Calculas tus reservas (RSA + IBNR) con tu propio historial de siniestros, y ajustas
-            tu modelo de tarificación para el Año 2, ahora con el historial de siniestros de cada póliza como variable adicional.
+            <strong>Actuarial — retarifación Año 2.</strong> Ajustas tu modelo de tarificación para el Año 2, ahora con el historial de siniestros de cada
+            póliza como variable adicional. Las reservas técnicas del Año 1 no se reportan hoy — van como una línea del Balance que entregas en Día 3.
           </li>
           <li>
             <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 4)
@@ -102,10 +102,24 @@ export function GuiaPasanteDia2() {
             tu nota de ALM de hoy y, más adelante, el Resultado de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A
             diferencia del portafolio de mínima varianza de Día 1 (un ejercicio aparte, ya calificado), este árbol es tu decisión de inversión real.
           </li>
+          <li>
+            <strong>Financiero — estado de resultados completo del Año 1.</strong> Reportas las 10 líneas del P&G del Año 1 (prima devengada, costo de
+            siniestros, gastos, resultado técnico, resultado de inversiones, utilidad antes de impuestos, impuesto y utilidad neta), en el mismo orden
+            vertical de un estado de resultados real — ver sección 2.
+          </li>
         </ul>
       </Section>
 
       <Section n="2" title="Qué se te va a calificar">
+        <SubSection title="Estado de resultados Año 1" accent="fin">
+          <p>
+            Reporta cada línea del P&G del Año 1 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
+            mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real; los gastos de adquisición, comisión y
+            administración son porcentajes fijos sobre la prima (10%/4%/6%). El Resultado de inversiones es el ingreso real que tu árbol de portafolio
+            (abajo) devengó durante los 12 meses del Año 1 — no una fórmula, el resultado de la simulación mes a mes. Cada línea se califica por
+            separado, con una banda de tolerancia sobre el error relativo.
+          </p>
+        </SubSection>
         <SubSection title="Árbol de portafolio real (ALM)" accent="fin">
           <p>
             Construyes un árbol de decisiones de inversión: repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 4) y, para cada
