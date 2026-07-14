@@ -77,7 +77,6 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
     update: {
       subjectiveWeight: Number(formData.get("subjectiveWeight")),
       actuarialWeight: Number(formData.get("actuarialWeight")),
-      maxScale: Number(formData.get("maxScale")),
       objectiveMode: String(formData.get("objectiveMode")),
       tolerancePerfect: Number(formData.get("tolerancePerfect")),
       toleranceZero: Number(formData.get("toleranceZero")),
@@ -86,44 +85,12 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
       cohortId: cohort.id,
       subjectiveWeight: Number(formData.get("subjectiveWeight")),
       actuarialWeight: Number(formData.get("actuarialWeight")),
-      maxScale: Number(formData.get("maxScale")),
       objectiveMode: String(formData.get("objectiveMode")),
       tolerancePerfect: Number(formData.get("tolerancePerfect")),
       toleranceZero: Number(formData.get("toleranceZero")),
     },
   });
 
-  revalidatePath("/admin/config");
-}
-
-export async function addSkillAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const cohort = await getOrCreateActiveCohort();
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
-
-  const rubric = await prisma.rubricConfig.upsert({
-    where: { cohortId: cohort.id },
-    update: {},
-    create: { cohortId: cohort.id },
-  });
-
-  await prisma.skill.create({ data: { rubricConfigId: rubric.id, name, weight: 1 } });
-  revalidatePath("/admin/config");
-}
-
-export async function removeSkillAction(skillId: string): Promise<void> {
-  await requireAdmin();
-  await prisma.skill.delete({ where: { id: skillId } });
-  revalidatePath("/admin/config");
-}
-
-export async function updateSkillWeightAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const skillId = String(formData.get("skillId"));
-  const weight = Number(formData.get("weight"));
-  if (!skillId || !Number.isFinite(weight)) return;
-  await prisma.skill.update({ where: { id: skillId }, data: { weight } });
   revalidatePath("/admin/config");
 }
 
@@ -143,18 +110,18 @@ export async function publishAllAction(simulationRunId: string, day: number): Pr
 
 
 /**
- * Publishes/unpublishes all of one team's *member*-level scores for a day at
- * once — subjective grading is person-level only (see CLAUDE.md's domain
- * glossary — notaSubjetivaEquipo averages member scores into the team's
- * grade), so "publish this team's subjective grade" means publishing every
- * member's rows together, not a separate team-level Score.
+ * Publishes/unpublishes all of one team's *member*-level Día evaluations for
+ * a day at once — subjective grading is person-level only (see
+ * CLAUDE.md's domain glossary — notaSubjetivaEquipo averages members' Nota
+ * general into the team's grade), so "publish this team's subjective grade"
+ * means publishing every member's row together.
  */
-export async function toggleMemberScoresPublishedForTeamAction(teamId: string, day: number): Promise<void> {
+export async function toggleMemberEvaluationsPublishedForTeamAction(teamId: string, day: number): Promise<void> {
   await requireAdmin();
-  const scores = await prisma.memberScore.findMany({ where: { day, teamMember: { teamId } } });
-  if (scores.length === 0) return;
-  const nextPublished = !scores[0].published;
-  await prisma.memberScore.updateMany({ where: { day, teamMember: { teamId } }, data: { published: nextPublished } });
+  const evaluations = await prisma.memberDayEvaluation.findMany({ where: { day, teamMember: { teamId } } });
+  if (evaluations.length === 0) return;
+  const nextPublished = !evaluations[0].published;
+  await prisma.memberDayEvaluation.updateMany({ where: { day, teamMember: { teamId } }, data: { published: nextPublished } });
   revalidatePath(`/admin/day/${day}`);
 }
 
@@ -199,29 +166,38 @@ export async function uploadRosterAction(_prev: UploadRosterState, formData: For
   return { success: `${created} integrante(s) creados.` };
 }
 
-/** Bulk-upserts one member's subjective MemberScore per skill for a day (form fields named by skillId). */
-export async function submitMemberScoresAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
+const EVALUATION_PROFILES = ["ACTUARIAL", "FINANCIERO", "GENERALISTA"] as const;
+
+/**
+ * Upserts one member's subjective evaluation for a day — Nota general (1-5,
+ * clamped), Aprobó (independent checkbox), Perfil (categorical), and a
+ * comment + its author. Día 1 has no subjective grade (see
+ * MemberDayEvaluation's doc comment) — rejected here, not just hidden in the UI.
+ */
+export async function submitMemberEvaluationAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
   await requireAdmin();
-  const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId }, include: { team: true } });
+  if (day < 2 || day > 4) return;
+  const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId } });
   if (!member) return;
-  const skills = await prisma.skill.findMany({ where: { rubricConfig: { cohortId: member.team.cohortId } } });
 
-  const rows: { skillId: string; value: number }[] = [];
-  for (const skill of skills) {
-    const raw = formData.get(skill.id);
-    if (raw == null || raw === "") continue;
-    const value = Number(raw);
-    if (Number.isFinite(value)) rows.push({ skillId: skill.id, value });
-  }
+  const rawNota = formData.get("notaGeneral");
+  const notaGeneral =
+    rawNota != null && rawNota !== "" && Number.isFinite(Number(rawNota))
+      ? Math.max(1, Math.min(5, Number(rawNota)))
+      : null;
+  const rawAprobado = String(formData.get("aprobado") ?? "");
+  const aprobado = rawAprobado === "true" ? true : rawAprobado === "false" ? false : null;
+  const rawPerfil = String(formData.get("perfil") ?? "");
+  const perfil = (EVALUATION_PROFILES as readonly string[]).includes(rawPerfil)
+    ? (rawPerfil as (typeof EVALUATION_PROFILES)[number])
+    : null;
+  const comentario = String(formData.get("comentario") ?? "").trim() || null;
+  const comentarioAutor = String(formData.get("comentarioAutor") ?? "").trim() || null;
 
-  await prisma.$transaction(
-    rows.map((r) =>
-      prisma.memberScore.upsert({
-        where: { teamMemberId_skillId_day: { teamMemberId, skillId: r.skillId, day } },
-        update: { value: r.value },
-        create: { teamMemberId, skillId: r.skillId, day, value: r.value },
-      })
-    )
-  );
+  await prisma.memberDayEvaluation.upsert({
+    where: { teamMemberId_day: { teamMemberId, day } },
+    update: { notaGeneral, aprobado, perfil, comentario, comentarioAutor },
+    create: { teamMemberId, day, notaGeneral, aprobado, perfil, comentario, comentarioAutor },
+  });
   revalidatePath(`/admin/day/${day}`);
 }

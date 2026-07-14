@@ -60,7 +60,6 @@ model Team {
   deliverables             Deliverable[]
   analyticsRecommendations AnalyticsRecommendation[]
   simResults               TeamSimResult[]
-  scores                   Score[]
 
   @@unique([cohortId, name])
 }
@@ -71,7 +70,7 @@ model TeamMember {
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   name   String
 
-  memberScores MemberScore[]
+  evaluations MemberDayEvaluation[]
 }
 
 // Bulk-generated reference datasets (Colombia universe, Chile reference set).
@@ -203,51 +202,34 @@ model RubricConfig {
 
   subjectiveWeight Float  @default(0.30)
   actuarialWeight  Float  @default(0.50)
-  maxScale         Int    @default(5)
   objectiveMode    String @default("relative")
   tolerancePerfect Float  @default(0.05)
   toleranceZero    Float  @default(0.40)
-
-  skills Skill[]
 }
 
-model Skill {
-  id             String       @id @default(cuid())
-  rubricConfigId String
-  rubricConfig   RubricConfig @relation(fields: [rubricConfigId], references: [id], onDelete: Cascade)
-  name           String
-  weight         Float        @default(1)
-
-  scores       Score[]
-  memberScores MemberScore[]
+enum EvaluationProfile {
+  ACTUARIAL
+  FINANCIERO
+  GENERALISTA
 }
 
-// Team-level subjective + objective composite score for one skill, one day.
-model Score {
-  id      String @id @default(cuid())
-  teamId  String
-  team    Team   @relation(fields: [teamId], references: [id])
-  skillId String
-  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  day     Int
-  value   Float?
+// Per-participant subjective evaluation for one day. Only Días 2-4 — Día 1 has
+// no subjective grade (not enough contact time yet to judge each member).
+// `aprobado` is independent of `notaGeneral` (see composite.ts's notaDia:
+// only notaGeneral feeds the numeric grade; aprobado/perfil/comentario are
+// reporting fields the evaluator fills in alongside it).
+model MemberDayEvaluation {
+  id              String             @id @default(cuid())
+  teamMemberId    String
+  teamMember      TeamMember         @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  day             Int
+  notaGeneral     Float? // 1.0-5.0, one decimal
+  aprobado        Boolean?
+  perfil          EvaluationProfile?
+  comentario      String?
+  comentarioAutor String? // name of the evaluator who wrote the comment
 
   published Boolean @default(false)
 
-  @@unique([teamId, skillId, day])
-}
-
-// Per-member variant of Score, used when the admin has uploaded a team roster.
-model MemberScore {
-  id           String     @id @default(cuid())
-  teamMemberId String
-  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  skillId      String
-  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  day          Int
-  value        Float?
-
-  published Boolean @default(false)
-
-  @@unique([teamMemberId, skillId, day])
+  @@unique([teamMemberId, day])
 }

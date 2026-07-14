@@ -1,6 +1,6 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { addSkillAction, removeSkillAction, updateRubricWeightsAction, updateSkillWeightAction } from "@/lib/adminActions";
+import { updateRubricWeightsAction } from "@/lib/adminActions";
 import { CreateTeamForm } from "./CreateTeamForm";
 import { DeleteTeamButton } from "./DeleteTeamButton";
 import { RosterUpload } from "./RosterUpload";
@@ -18,7 +18,6 @@ export default async function ConfigPage() {
       where: { cohortId: cohort.id },
       update: {},
       create: { cohortId: cohort.id },
-      include: { skills: { orderBy: { name: "asc" } } },
     }),
   ]);
 
@@ -106,17 +105,6 @@ export default async function ConfigPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
-            Escala máxima de la rúbrica
-            <input
-              name="maxScale"
-              type="number"
-              step="1"
-              min="1"
-              defaultValue={rubric.maxScale}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Modo de normalización objetiva
             <select name="objectiveMode" defaultValue={rubric.objectiveMode} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm">
               <option value="relative">Relativa (percentil 10-90)</option>
@@ -157,52 +145,6 @@ export default async function ConfigPage() {
             </button>
           </div>
         </form>
-
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-          <h3 className="mb-3 text-sm font-semibold text-[var(--color-foreground)]">Habilidades blandas</h3>
-          <div className="flex flex-col gap-2">
-            {rubric.skills.map((skill) => (
-              <div key={skill.id} className="flex items-center gap-3">
-                <span className="flex-1 text-sm text-[var(--color-foreground)]">{skill.name}</span>
-                <form action={updateSkillWeightAction} className="flex items-center gap-2">
-                  <input type="hidden" name="skillId" value={skill.id} />
-                  <input
-                    name="weight"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    defaultValue={skill.weight}
-                    className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
-                  />
-                  <button type="submit" className="text-xs text-[var(--color-brand-blue-accent)] underline">
-                    Guardar
-                  </button>
-                </form>
-                <form action={removeSkillAction.bind(null, skill.id)}>
-                  <button type="submit" className="text-xs text-[var(--color-brand-red)] underline">
-                    Eliminar
-                  </button>
-                </form>
-              </div>
-            ))}
-            {rubric.skills.length === 0 && <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin habilidades configuradas.</p>}
-          </div>
-
-          <form action={addSkillAction} className="mt-4 flex gap-2">
-            <input
-              name="name"
-              placeholder="Nueva habilidad (ej. Trabajo en equipo)"
-              required
-              className="flex-1 rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
-            >
-              Añadir
-            </button>
-          </form>
-        </div>
       </section>
     </main>
   );

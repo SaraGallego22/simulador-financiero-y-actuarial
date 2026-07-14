@@ -464,8 +464,15 @@ En resumen: el óptimo no es "todo seguro" (deja rentabilidad ajustada por riesg
 
     El RT real pasa por una curva logística `nota = 100 / (1 + e^(−k·RT/goodRt))`, con `k` resuelto para que `RT = goodRt` dé exactamente `GOOD_PERFORMANCE_SCORE = 75` (no más cerca de 100: un margen neto del 20% ya es un resultado sobresaliente, y dejar cupo por encima evita que la curva castigue como si fuera catastrófico cualquier resultado apenas mediocre). Por construcción, para cualquier entrada: `RT = 0` (después de gastos) da nota 50 exacta, todo `RT > 0` da más de 50, todo `RT < 0` da menos de 50 — sin importar quién más se presentó ni cómo tarificó, y sin que un resultado apenas por debajo del punto de equilibrio se desplome a un solo dígito (la primera calibración, con un margen objetivo del 10% y nota 90 en la referencia, sí lo hacía — un loss ratio de 0.95, apenas mediocre, terminaba en ~8/100 — por eso se ensanchó la curva).
   - **Año 2** (`notaTarifacionAnio`) — sigue siendo relativa al cohorte (normalización entre percentil 10-90 del RT del mercado, o por posición/ranking, configurable).
-- **Subjetivo** — es **por integrante**, no por equipo: el evaluador califica cada habilidad de la rúbrica a cada persona (`MemberScore`), y la nota del equipo es el **promedio** de sus integrantes (`notaSubjetivaEquipo`). Un equipo sin roster cargado no tiene nota subjetiva — no hay atajo de equipo.
-- **Nota final** — promedio de los objetivos de los 4 días (ponderado actuarial/financiero) combinado con el promedio subjetivo de los 4 días, según el peso subjetivo configurado en la rúbrica.
+- **Subjetivo** — es **por integrante**, no por equipo, y solo existe para **Días 2-4**: el Día 1 no tiene calificación subjetiva, porque todavía no ha habido suficiente contacto con los equipos para evaluar a cada integrante. Para cada integrante y cada día, el evaluador registra un único `MemberDayEvaluation` con cinco campos:
+  - **Nota general del día** (1.0-5.0, un decimal) — el único campo que entra en el cálculo: la nota subjetiva del equipo es el **promedio** de la Nota general de sus integrantes, escalado a 0-100 sobre esa escala fija de 5 (`notaSubjetivaEquipo()`, `src/domain/grading/composite.ts`).
+  - **¿Aprobó el día?** (sí/no) — independiente de la Nota general por diseño: no entra en ningún cálculo, es un check administrativo aparte (un integrante puede tener una nota baja y aun así estar "aprobado", o viceversa).
+  - **Perfil** (actuarial / financiero / generalista) — metadata descriptiva del rol que jugó ese integrante ese día; tampoco alimenta ningún cálculo.
+  - **Comentarios del día** — texto libre del evaluador.
+  - **Autor de los comentarios** — nombre del evaluador que escribió el comentario (campo de texto libre; hoy no hay cuentas de evaluador separadas, solo la cuenta admin compartida).
+
+  Un equipo sin roster cargado no tiene nota subjetiva — no hay atajo de equipo.
+- **Nota final** — promedio de los objetivos de los 4 días (ponderado actuarial/financiero) combinado con el promedio subjetivo de los 3 días que sí lo tienen (Días 2-4), según el peso subjetivo configurado en la rúbrica.
 
 ## Los 4 días
 
