@@ -10,7 +10,6 @@ const LINKS = [
   { href: "/day/3", label: "Día 3" },
   { href: "/day/4", label: "Día 4" },
   { href: "/standings", label: "Ranking" },
-  { href: "/model-docs", label: "Modelo técnico" },
 ];
 
 export function TeamNav() {

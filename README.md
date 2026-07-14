@@ -87,7 +87,7 @@ Todo esto se fija en el momento de `generateColombia(seed)`: la misma semilla si
 
 El CSV público del universo (`/api/universe/public-csv`) trae solo las 13 variables de riesgo, nunca siniestros ni severidad — ninguna aseguradora real regala esos resultados a la competencia, y un equipo tampoco los conoce de antemano de su propio libro. La única fuente con resultados reales que un equipo tiene antes de tarificar el Año 1 es el **dataset Chile** (`generateChile()`, `src/domain/generation/generateChile.ts`): 100,000 pólizas con **tres años de exposición independientes (2021, 2022, 2023)**, cada una con su propio sorteo de siniestro, fecha de ocurrencia y fecha de aviso — descargable como CSV desde la pestaña de Simulación del Día 1 (`/api/universe/chile-csv`, mismo patrón de regeneración desde semilla que el universo de Colombia, nunca un blob almacenado — ver CLAUDE.md §4.1).
 
-No es un atajo: el dataset está diseñado con **retos de transferibilidad deliberados**, documentados en detalle en la guía del pasante del Día 1 (§3 de esa guía):
+No es un atajo: el dataset está diseñado con **retos de transferibilidad deliberados**, que ningún equipo ve documentados en ninguna vista del producto — solo aquí, como referencia del evaluador:
 
 - **Variables con nombre distinto pero mismo concepto** (`kilometraje_anual` → `km`, `siniestros_previos` → `hist`) — transferibles sin más que renombrar.
 - **Variables con el mismo nombre pero significado distinto** — `zona` en Chile es región administrativa (metropolitana/norte/centro/sur/austral), no densidad urbana como en Colombia; `comuna_tipo` (gran_ciudad/ciudad_media/rural) es en realidad el análogo más cercano al concepto colombiano de `zona`.
@@ -96,6 +96,92 @@ No es un atajo: el dataset está diseñado con **retos de transferibilidad delib
 - **Brecha temporal (el reto nuevo, más allá de lo que ya traía el prototipo original)** — Chile cubre 2021-2023, mientras que el Año 1 de Colombia es **2027**: incluso después de convertir de UF a COP, la severidad de Chile no está a valor presente. El costo de un siniestro sube con el tiempo (inflación general, más un componente propio de repuestos/mano de obra que suele superarla) — usar la severidad de Chile tal cual para calibrar la tarifa del Año 1 la subestima sistemáticamente. La plataforma no publica una tasa de inflación para aplicar; es una decisión que cada equipo debe justificar con criterio propio (la inflación histórica de Colombia y Chile en años recientes es información pública), igual que el resto de ajustes de este dataset — la misma brecha, un año más, vuelve a aplicar al retarifar para el Año 2 en el Día 2.
 
 Lo único que **sí** es directamente transferible sin ajuste es el patrón de desarrollo aviso→pago: ambos datasets muestrean el rezago con la misma distribución lognormal (μ=3.0, σ=1.2), que es justamente lo que calibra internamente la curva de desarrollo de reservas del motor (`src/domain/reserving/constants.ts`, ver §3) — a diferencia de la severidad, el tiempo de desarrollo no depende de en qué año ocurrió el siniestro.
+
+La tabla variable-por-variable de qué tan transferible es cada campo de Chile a Colombia (antes documentada en la guía del pasante del Día 1) vive ahora solo aquí, como referencia del evaluador — no se le muestra a los equipos, que deben llegar a ella por su cuenta:
+
+| Variable Chile | Análogo Colombia | Truco de transferibilidad |
+|---|---|---|
+| `edad_conductor` | `edad` | Transferible directamente |
+| `tipo_vehiculo` | `tipo` | `station_wagon` y `furgon` no existen en Colombia — requiere mapeo |
+| `zona` | `zona` | Mismo nombre, significado distinto: en Chile es región geográfica, no densidad urbana |
+| `antiguedad_vehiculo` | `antig` | Transferible |
+| `kilometraje_anual` | `km` | Mismo concepto, nombre distinto |
+| `siniestros_previos` | `hist` | Transferible |
+| `valor_comercial_uf` | `valor` | En UF chilenas — requiere conversión de moneda y recalibración |
+| `uso_vehiculo` | `uso` | `taxi`/`uber` no existen como categoría en Colombia |
+| `caja_automatica` | — (no existe en Colombia) | Sin análogo directo |
+| `seguro_complementario` | — (no existe en Colombia) | Indica si tiene SOAP activo — no existe en Colombia |
+| `genero` | `genero` | Transferible (señal débil en ambos datasets — ver "trampas" en §1.2/§1.3) |
+| `comuna_tipo` | — (más cercano a `zona` Colombia) | Más parecido al concepto colombiano de `zona` que la propia variable `zona` de Chile |
+
+#### 1.2 · Coeficientes exactos de `calcLambda()` y `calcMediaSev()` (Colombia)
+
+Modelo de referencia completo, para verificar entregables contra el motor exacto (no una aproximación) — `src/domain/pricing/frequency.ts` y `src/domain/pricing/severity.ts`. Ninguno de estos números se muestra en ninguna vista de equipo.
+
+**Frecuencia (`calcLambda()`)** — base `0.065`, multiplicativo, truncado a `[0.01, 0.94]`. La constante de calibración global `CAL_FREQ = 0.33` (`src/domain/generation/constants.ts`) se aplica una sola vez, entre el factor de kilometraje y el de historial, en el orden exacto del código:
+
+| Variable | Categoría → factor |
+|---|---|
+| Edad | ≤24 ×1.90 · 25–35 ×1.00 · 36–55 ×0.82 · 56–65 ×1.20 · >65 ×1.55 |
+| Zona | urbana ×1.45 · rural ×0.70 · (otra) ×1.00 |
+| Tipo de vehículo | deportivo ×1.38 · suv/pickup ×1.12 · van ×1.08 · (otro) ×1.00 |
+| Historial de siniestros (`hist`) | 0 ×0.75 · 1 ×1.30 · 2 ×1.85 · 3 ×2.60 · 4 ×3.20 · 5+ ×3.20 |
+| Kilometraje anual | <15,000 ×0.75 · 15,000–40,000 ×1.00 · 40,001–70,000 ×1.25 · >70,000 ×1.60 |
+| Uso | comercial ×1.70 · mixto ×1.30 · (particular) ×1.00 |
+| Parqueadero | sí ×0.82 · (no) ×1.00 |
+| Educación | básica ×1.25 · técnica ×1.10 · posgrado ×0.90 · (otra) ×1.00 |
+| Antigüedad del vehículo | ≤3 ×1.05 · >12 ×1.08 · (4–12) ×1.00 |
+| Interacción edad≤24 × deportivo | ×1.40 |
+| Interacción edad≤24 × (suv/pickup) | ×1.15 |
+| Interacción zona=urbana × uso=comercial | ×1.35 |
+| Interacción zona=rural × uso=comercial | ×1.10 |
+| Interacción hist≥2 × antig≥8 | ×1.25 |
+| Interacción edad≤24 × edu=básica | ×1.20 |
+| Género (trampa) | M ×1.04 · F ×0.96 |
+| Estrato (trampa, 1→6) | ×1.05 · ×1.03 · ×1.01 · ×0.99 · ×0.97 · ×0.95 |
+| Marca (trampa) | chevrolet ×1.02 · renault ×1.01 · mazda ×0.99 · toyota ×0.97 · nissan ×1.01 · hyundai ×0.99 · kia ×0.98 · ford ×1.02 |
+
+**Severidad media (`calcMediaSev()`)** — fracción del valor asegurado del vehículo (`e.valor`):
+
+| Variable | Categoría → factor |
+|---|---|
+| Tipo de vehículo (factor base sobre `valor`) | deportivo ×0.19 · suv/pickup/van ×0.15 · (otro) ×0.12 |
+| Zona | urbana ×1.28 · rural ×0.82 · (otra) ×1.00 |
+| Antigüedad del vehículo | ≤3 ×1.22 · >10 ×0.72 · (4–10) ×1.00 |
+
+El siniestro individual se muestrea de una Gamma con media `calcMediaSev()` y forma fija `SEVERITY_SHAPE = 3.306` (`src/domain/generation/constants.ts`). Un `2%` de los siniestros (`OUTLIER_CLAIM_PROBABILITY`) recibe además un multiplicador `×8` (`OUTLIER_CLAIM_MULTIPLIER`) vía un stream de RNG independiente — ver §6. La severidad del Año 2 aplica `CLAIMS_INFLATION_ANNUAL = 9%` como multiplicador plano adicional sobre la media, antes del sorteo Gamma (ver arriba).
+
+#### 1.3 · Coeficientes exactos del dataset Chile (`calcLambdaChile()` / `calcSeverityBaseChile()`)
+
+Mismo modelo funcional que Colombia, coeficientes propios — `src/domain/pricing/chile.ts`. `genero` se genera para Chile pero no se usa en este modelo (campo puramente descriptivo, igual que en el prototipo original).
+
+**Frecuencia (`calcLambdaChile()`)** — base `0.072 × CAL_FREQ`, truncado a `[0.01, 0.94]`:
+
+| Variable | Categoría → factor |
+|---|---|
+| Edad | ≤24 ×1.85 · 25–35 ×1.00 · 36–55 ×0.84 · 56–65 ×1.18 · >65 ×1.50 |
+| Zona | metropolitana ×1.40 · norte ×0.95 · centro ×1.05 · sur ×0.90 · austral ×0.78 |
+| Tipo de vehículo | furgon ×1.35 · pickup ×1.12 · suv ×1.08 · station_wagon ×1.02 · (otro) ×1.00 |
+| Historial de siniestros (`hist`) | 0 ×0.72 · 1 ×1.28 · 2 ×1.80 · 3 ×2.55 · 4 ×3.10 · 5+ ×3.10 |
+| Kilometraje anual | <15,000 ×0.76 · 15,000–40,000 ×1.00 · 40,001–70,000 ×1.22 · >70,000 ×1.55 |
+| Uso | comercial ×1.60 · taxi ×2.10 · uber ×1.80 · (particular) ×1.00 |
+| Caja automática | sí ×0.92 |
+| Seguro complementario | sí ×0.88 |
+| Tipo de comuna | gran_ciudad ×1.15 · rural ×0.80 · (ciudad_media) ×1.00 |
+| Antigüedad del vehículo | ≤3 ×1.04 · >12 ×1.10 · (4–12) ×1.00 |
+| Interacción edad≤24 × tipo=furgon | ×1.30 |
+| Interacción zona=metropolitana × uso∈{taxi,uber} | ×1.25 |
+| Interacción hist≥2 × antig≥8 | ×1.22 |
+
+**Severidad base en UF (`calcSeverityBaseChile()`)** — fracción del valor asegurado en UF (`valorUf`):
+
+| Variable | Categoría → factor |
+|---|---|
+| Tipo de vehículo (factor base sobre `valorUf`) | furgon ×0.18 · suv/pickup ×0.15 · station_wagon ×0.13 · (otro) ×0.12 |
+| Zona metropolitana | ×1.25 (resto de zonas, sin ajuste) |
+| Antigüedad del vehículo | ≤3 ×1.20 · >10 ×0.74 · (4–10) ×1.00 |
+
+El siniestro individual se muestrea con la misma Gamma (`SEVERITY_SHAPE = 3.306`) que el universo de Colombia (`generateChile.ts`).
 
 ### 2 · Mercado (a quién le toca cada póliza)
 
@@ -430,7 +516,7 @@ Todo acceso a datos de un equipo se filtra por `teamId` en la capa de datos (no 
   /domain          Motor puro (sin Next.js/Prisma/React) — generación, mercado, reservas, finanzas, calificación
   /lib             Server Actions, helpers de Prisma/CSV/binario, orquestación por equipo
   /app
-    /(team)/...    Vistas de equipo (dashboard, día/[n], ranking, modelo técnico)
+    /(team)/...    Vistas de equipo (dashboard, día/[n], ranking)
     /admin/...     Vistas de admin (universo, configuración, día/[n], consolidado, modelo técnico)
     /api/...       Route Handlers (universo, simulación, tarifas, reporte)
     proxy.ts       Gating por rol (Next.js 16 renombró middleware.ts a proxy.ts)

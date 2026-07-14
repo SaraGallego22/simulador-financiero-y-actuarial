@@ -31,8 +31,8 @@ export const OUTLIER_CLAIM_MULTIPLIER = 8;
  * heavy), so 9% is a realistic single-year assumption, not the general IPC.
  * Frequency (calcLambda) is untouched: inflation moves the cost of a claim,
  * not the probability of having one. Not disclosed to teams as a number
- * anywhere in the product copy — see GuiaPasanteDia1's Chile section for the
- * related (separate) present-value trap on the Chile reference dataset.
+ * anywhere in the product copy — see README.md §1.1 for the related
+ * (separate) present-value trap on the Chile reference dataset.
  */
 export const CLAIMS_INFLATION_ANNUAL = 0.09;
 
