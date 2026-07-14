@@ -135,6 +135,11 @@ export function GuiaPasanteDia1() {
             participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
             revela una vez se publiquen los resultados de ese día. Aplica igual en el Año 2.
           </p>
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Para calibrar tu propio modelo de frecuencia y severidad tienes disponible, además del universo público, un dataset de referencia con
+            siniestros reales (dataset Chile, 100.000 pólizas, descargable desde la pestaña de Simulación de este día) — juzgar qué variables aplican a
+            Colombia y cómo ajustarlas es parte del reto.
+          </p>
         </SubSection>
 
         <SubSection title="Portafolio de mínima varianza" accent="fin">
@@ -157,82 +162,7 @@ export function GuiaPasanteDia1() {
         </SubSection>
       </Section>
 
-      <Section n="3" title="Dataset Chile — tu referencia para calibrar frecuencia y severidad">
-        <p>
-          El universo público de Colombia (sección 2) te da 13 variables de riesgo por póliza, pero <strong>no incluye siniestros ni severidad</strong> —
-          ninguna aseguradora real regala esa información a la competencia. El único dato con resultados reales que tienes disponible es el{" "}
-          <strong>dataset Chile</strong>: 100.000 pólizas con tres años de exposición (2021, 2022 y 2023), cada una con sus siniestros, fecha de
-          ocurrencia y fecha de aviso — descargable desde la pestaña de Simulación de este día.
-        </p>
-        <p>
-          No es un dataset colombiano ni de este año: tu trabajo es <strong>juzgar qué variables son transferibles a Colombia y cómo ajustarlas</strong>,
-          no usarlas tal cual llegan.
-        </p>
-
-        <SubSection title="Variables y sus trucos de transferibilidad" accent="act">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  {["Variable Chile", "Análogo Colombia", "Truco de transferibilidad"].map((h) => (
-                    <th
-                      key={h}
-                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["edad_conductor", "edad", "Transferible directamente"],
-                  ["tipo_vehiculo", "tipo", "station_wagon y furgon no existen en Colombia — requiere mapeo"],
-                  ["zona", "zona", "Mismo nombre, significado distinto: en Chile es región geográfica, no densidad urbana"],
-                  ["antiguedad_vehiculo", "antig", "Transferible"],
-                  ["kilometraje_anual", "km", "Mismo concepto, nombre distinto"],
-                  ["siniestros_previos", "hist", "Transferible"],
-                  ["valor_comercial_uf", "valor", "En UF chilenas — requiere conversión de moneda y recalibración (ver abajo)"],
-                  ["uso_vehiculo", "uso", "taxi/uber no existen como categoría en Colombia"],
-                  ["caja_automatica", "— (no existe en Colombia)", "Decide tú si es proxy de otra variable"],
-                  ["seguro_complementario", "— (no existe en Colombia)", "Indica si tiene SOAP activo — no existe en Colombia"],
-                  ["genero", "genero", "Transferible (aunque en Colombia es una señal débil, no la fuerces)"],
-                  ["comuna_tipo", "— (más cercano a zona Colombia)", "Más parecido al concepto de zona de Colombia que la propia variable zona de Chile"],
-                ].map((row) => (
-                  <tr key={row[0]}>
-                    {row.map((cell, i) => (
-                      <td key={i} className={`border border-[var(--color-brand-gray-light)] px-2 py-1.5 ${i === 0 ? "font-mono" : ""}`}>
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-            Los patrones de rezago (ocurrencia→aviso) usan la misma distribución que Colombia, así que los tiempos de desarrollo calibrados en Chile sí
-            son directamente transferibles — a diferencia de la severidad, que no lo es (ver abajo).
-          </p>
-        </SubSection>
-
-        <SubSection title="La severidad no está a valor presente" accent="act">
-          <p>
-            Aun después de convertir de UF a pesos colombianos, la severidad de Chile sigue sin ser directamente comparable con lo que vas a tarificar:{" "}
-            <strong>2021-2023 no es el mismo momento que el Año 1 (2027)</strong>. El costo de reparar o reponer un vehículo no es constante en el
-            tiempo — ha habido varios años de inflación de por medio, tanto en Colombia como en Chile, y el costo de los siniestros suele subir más
-            rápido que la inflación general (repuestos y mano de obra importada pesan mucho en esa cuenta). Si tomas la severidad de Chile tal cual y la
-            usas para calibrar tu tarifa del Año 1, la vas a subestimar sistemáticamente.
-          </p>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-            La plataforma no te da una tasa de inflación para aplicar — es una decisión que debes justificar con criterio propio (inflación histórica de
-            Colombia y Chile en años recientes es información pública), igual que el resto de ajustes de este dataset. La misma lógica aplica cuando
-            retarifiques para el Año 2 en el Día 2: un año más de costos no es gratis.
-          </p>
-        </SubSection>
-      </Section>
-
-      <Section n="4" title="Conceptos que debes aplicar">
+      <Section n="3" title="Conceptos que debes aplicar">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — el modelo exacto de riesgo y la asignación óptima del portafolio son parte de lo que se
           evalúa que tu equipo descubra.
@@ -243,10 +173,10 @@ export function GuiaPasanteDia1() {
           <ul className="list-disc pl-5">
             <li>
               <strong>¿Qué tan probable es que cada póliza tenga un siniestro, y qué tan costoso sería si lo tiene?</strong> El universo público te da 13
-              variables de riesgo por póliza, pero sin resultados — para eso está el dataset Chile de la sección 3, con los ajustes de transferibilidad
-              que ahí se explican. No todas las variables pesan igual — parte de tu trabajo es identificar cuáles combinan señal real de riesgo y cuáles
-              no. El modelo exacto de frecuencia/severidad no se revela: se espera que lo estimes con criterio actuarial (frecuencia esperada × severidad
-              esperada ≈ costo esperado por póliza), no que lo adivines a ciegas.
+              variables de riesgo por póliza, pero sin resultados — para eso está el dataset Chile (sección 2), que trae sus propios retos de
+              transferibilidad hacia Colombia. No todas las variables pesan igual — parte de tu trabajo es identificar cuáles combinan señal real de
+              riesgo y cuáles no. El modelo exacto de frecuencia/severidad no se revela: se espera que lo estimes con criterio actuarial (frecuencia
+              esperada × severidad esperada ≈ costo esperado por póliza), no que lo adivines a ciegas.
             </li>
             <li>
               <strong>¿Qué pasa si cobras lo mismo a todos, o casi lo mismo?</strong> Una tarifa plana es vulnerable a selección adversa: los clientes de
@@ -285,7 +215,7 @@ export function GuiaPasanteDia1() {
         </SubSection>
       </Section>
 
-      <Section n="5" title="Plantilla de mínima varianza — cómo se construye y cómo alimenta el resultado">
+      <Section n="4" title="Plantilla de mínima varianza — cómo se construye y cómo alimenta el resultado">
         <p>
           Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tus pesos en papel antes
           de enviarlos en el formulario (que además te muestra la matriz de covarianza completa en vivo). Las fórmulas de calificación que aparecen aquí
