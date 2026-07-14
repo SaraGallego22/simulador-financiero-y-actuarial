@@ -1,6 +1,6 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { publishAllAction, togglePublishedAction, toggleMemberScoresPublishedForTeamAction } from "@/lib/adminActions";
+import { publishAllAction, togglePublishedAction, toggleMemberEvaluationsPublishedForTeamAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
@@ -21,7 +21,7 @@ import {
 import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
 import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
-import { ScoreForm } from "./ScoreForm";
+import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
@@ -58,8 +58,7 @@ export default async function AdminDayPage({
   // latency that otherwise just adds up sequentially for no reason.
   const [
     teams,
-    skills,
-    memberScores,
+    memberEvaluations,
     latestRun,
     consolidadoRows,
     universe,
@@ -78,11 +77,13 @@ export default async function AdminDayPage({
       },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } }, orderBy: { name: "asc" } }),
-    prisma.memberScore.findMany({
-      where: { day, teamMember: { team: { cohortId: cohort.id } } },
-      include: { teamMember: { select: { teamId: true } } },
-    }),
+    // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc comment).
+    day >= 2
+      ? prisma.memberDayEvaluation.findMany({
+          where: { day, teamMember: { team: { cohortId: cohort.id } } },
+          include: { teamMember: { select: { teamId: true } } },
+        })
+      : Promise.resolve([]),
     prisma.simulationRun.findFirst({
       where: { cohortId: cohort.id, day },
       orderBy: { createdAt: "desc" },
@@ -123,12 +124,11 @@ export default async function AdminDayPage({
       : Promise.resolve([]),
   ]);
 
-  const memberScoresByMemberId = new Map<string, Record<string, number | null>>();
+  const evaluationByMemberId = new Map<string, (typeof memberEvaluations)[number]>();
   const teamPublishedByTeamId = new Map<string, boolean>();
-  for (const s of memberScores) {
-    if (!memberScoresByMemberId.has(s.teamMemberId)) memberScoresByMemberId.set(s.teamMemberId, {});
-    memberScoresByMemberId.get(s.teamMemberId)![s.skillId] = s.value;
-    if (!teamPublishedByTeamId.has(s.teamMember.teamId)) teamPublishedByTeamId.set(s.teamMember.teamId, s.published);
+  for (const e of memberEvaluations) {
+    evaluationByMemberId.set(e.teamMemberId, e);
+    if (!teamPublishedByTeamId.has(e.teamMember.teamId)) teamPublishedByTeamId.set(e.teamMember.teamId, e.published);
   }
 
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
@@ -997,13 +997,9 @@ export default async function AdminDayPage({
 
       {activeTab === "subj" && (
         <div className="flex flex-col gap-4">
-          {skills.length === 0 ? (
+          {day === 1 ? (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
-              No hay habilidades configuradas en la rúbrica —{" "}
-              <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
-                configúralas aquí
-              </a>
-              .
+              El Día 1 no tiene calificación subjetiva — todavía no ha habido suficiente contacto con los equipos para evaluar a cada integrante. Empieza en el Día 2.
             </div>
           ) : (
             teams.map((team) => {
@@ -1016,7 +1012,7 @@ export default async function AdminDayPage({
                       {team.name}
                     </h3>
                     {team.members.length > 0 && (
-                      <form action={toggleMemberScoresPublishedForTeamAction.bind(null, team.id, day)}>
+                      <form action={toggleMemberEvaluationsPublishedForTeamAction.bind(null, team.id, day)}>
                         <button
                           type="submit"
                           className={`rounded px-3 py-1 text-xs font-semibold ${
@@ -1039,17 +1035,25 @@ export default async function AdminDayPage({
                     </p>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {team.members.map((member) => (
-                        <div key={member.id}>
-                          <p className="mb-1 text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
-                          <ScoreForm
-                            id={member.id}
-                            day={day}
-                            skills={skills}
-                            initialValues={memberScoresByMemberId.get(member.id) ?? {}}
-                          />
-                        </div>
-                      ))}
+                      {team.members.map((member) => {
+                        const ev = evaluationByMemberId.get(member.id);
+                        return (
+                          <div key={member.id}>
+                            <p className="mb-1 text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                            <MemberEvaluationForm
+                              id={member.id}
+                              day={day}
+                              initial={{
+                                notaGeneral: ev?.notaGeneral ?? null,
+                                aprobado: ev?.aprobado ?? null,
+                                perfil: ev?.perfil ?? null,
+                                comentario: ev?.comentario ?? null,
+                                comentarioAutor: ev?.comentarioAutor ?? null,
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

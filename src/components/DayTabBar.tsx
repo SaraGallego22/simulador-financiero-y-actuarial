@@ -29,7 +29,11 @@ export function DayTabBar({
   activeTab: DayTabKey;
   includeSim: boolean;
 }) {
-  const tabs = includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim");
+  // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
+  // comment) — not enough contact time yet to judge each member.
+  const tabs = (includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim")).filter(
+    (t) => day !== 1 || t.key !== "subj"
+  );
   return (
     <div className="flex flex-wrap gap-1 border-b border-[var(--color-brand-gray-light)]">
       {tabs.map((tab) => {

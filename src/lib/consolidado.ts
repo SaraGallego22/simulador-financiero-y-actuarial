@@ -9,7 +9,6 @@ import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
-import type { Skill as CompositeSkill } from "@/domain/grading/composite";
 
 export interface TeamConsolidado {
   teamId: string;
@@ -32,12 +31,10 @@ export interface TeamConsolidado {
 export async function computeConsolidado(cohortId?: string, respectPublished = false): Promise<TeamConsolidado[]> {
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
-  const [teams, rubric, skills] = await Promise.all([
+  const [teams, rubric] = await Promise.all([
     prisma.team.findMany({ where: { cohortId: cohort.id }, include: { members: true }, orderBy: { createdAt: "asc" } }),
     prisma.rubricConfig.upsert({ where: { cohortId: cohort.id }, update: {}, create: { cohortId: cohort.id } }),
-    prisma.skill.findMany({ where: { rubricConfig: { cohortId: cohort.id } } }),
   ]);
-  const skillDefs: CompositeSkill[] = skills.map((s) => ({ id: s.id, weight: s.weight }));
   const tolerance = { tolerancePerfect: rubric.tolerancePerfect, toleranceZero: rubric.toleranceZero };
 
   // Year 1 / Year 2 tariff-quality scores (notaTarifacionAnio), keyed by real
@@ -135,10 +132,15 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
   const deliverableValueByTeamDay = new Map<string, number>();
   for (const d of allDeliverables) deliverableValueByTeamDay.set(`${d.teamId}:${d.day}:${d.conceptId}`, d.value);
 
-  const allTeamScores = await prisma.score.findMany({ where: { team: { cohortId: cohort.id } } });
-  const allMemberScores = await prisma.memberScore.findMany({
+  // Subjective grading is person-level only, and only for Días 2-4 — Día 1
+  // has no subjective grade at all (see MemberDayEvaluation's doc comment).
+  const allMemberEvaluations = await prisma.memberDayEvaluation.findMany({
     where: { teamMember: { team: { cohortId: cohort.id } } },
   });
+  const notaGeneralByMemberDay = new Map<string, { value: number | null; published: boolean }>();
+  for (const e of allMemberEvaluations) {
+    notaGeneralByMemberDay.set(`${e.teamMemberId}:${e.day}`, { value: e.notaGeneral, published: e.published });
+  }
 
   const results: TeamConsolidado[] = teams.map((team) => {
     const perDay = [1, 2, 3, 4].map((day) => {
@@ -175,28 +177,18 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
       const finAvg = notaPerfilDia(finScores);
       const objective = notaObjetivaDia(actAvg, finAvg, rubric.actuarialWeight);
 
-      const teamScoreValues: Partial<Record<string, number>> = {};
-      for (const s of allTeamScores) {
-        if (s.teamId === team.id && s.day === day && s.value != null && (!respectPublished || s.published)) {
-          teamScoreValues[s.skillId] = s.value;
-        }
-      }
-      const memberScoreArrays: Partial<Record<string, number>>[] = team.members.map((m) => {
-        const values: Partial<Record<string, number>> = {};
-        for (const s of allMemberScores) {
-          if (s.teamMemberId === m.id && s.day === day && s.value != null && (!respectPublished || s.published)) {
-            values[s.skillId] = s.value;
-          }
-        }
-        return values;
-      });
-      const subjectiveResult = notaSubjetivaEquipo(
-        memberScoreArrays.length > 0 ? memberScoreArrays : null,
-        teamScoreValues,
-        skillDefs,
-        rubric.maxScale
-      );
-      const subjective = subjectiveResult.value;
+      // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
+      // comment) — pass an empty array so notaSubjetivaEquipo reports null
+      // without treating it as "still pending".
+      const memberNotas: (number | null)[] =
+        day === 1
+          ? []
+          : team.members.map((m) => {
+              const ev = notaGeneralByMemberDay.get(`${m.id}:${day}`);
+              if (!ev || (respectPublished && !ev.published)) return null;
+              return ev.value;
+            });
+      const subjective = notaSubjetivaEquipo(memberNotas).value;
 
       return { objective, subjective, nota: notaDia(objective, subjective, rubric.subjectiveWeight) };
     });

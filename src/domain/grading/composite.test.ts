@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   notaDia,
   notaObjetivaDia,
-  notaSubjetiva,
   notaSubjetivaEquipo,
   notaTarifacionAnio,
   notaTarifacionAbsoluta,
@@ -129,35 +128,36 @@ describe("notaObjetivaDia", () => {
   });
 });
 
-describe("notaSubjetiva / notaSubjetivaEquipo", () => {
-  const skills = [
-    { id: "s1", weight: 1 },
-    { id: "s2", weight: 1 },
-  ];
-
-  it("scores a full rubric as a weighted percentage of maxScale", () => {
-    const r = notaSubjetiva({ s1: 5, s2: 5 }, skills, 5);
-    expect(r.value).toBeCloseTo(100, 6);
+describe("notaSubjetivaEquipo", () => {
+  it("averages members' Nota general (1-5) into a 0-100 team score", () => {
+    const r = notaSubjetivaEquipo([5, 0]);
+    expect(r.value).toBeCloseTo(50, 6);
     expect(r.complete).toBe(true);
   });
 
-  it("returns null when nothing has been graded yet", () => {
-    const r = notaSubjetiva({}, skills, 5);
+  it("scores a perfect 5 as exactly 100", () => {
+    const r = notaSubjetivaEquipo([5, 5]);
+    expect(r.value).toBeCloseTo(100, 6);
+  });
+
+  it("returns null when no member has been graded yet", () => {
+    const r = notaSubjetivaEquipo([null, undefined]);
     expect(r.value).toBeNull();
     expect(r.complete).toBe(false);
     expect(r.missing).toBe(2);
   });
 
-  it("averages per-member scores when a roster is present", () => {
-    const members = [{ s1: 5, s2: 5 }, { s1: 0, s2: 0 }];
-    const r = notaSubjetivaEquipo(members, {}, skills, 5);
-    expect(r.value).toBeCloseTo(50, 6);
-    expect(r.complete).toBe(true);
+  it("ignores ungraded members but reports them as missing", () => {
+    const r = notaSubjetivaEquipo([4, null]);
+    expect(r.value).toBeCloseTo(80, 6);
+    expect(r.complete).toBe(false);
+    expect(r.missing).toBe(1);
   });
 
-  it("falls back to the team-consensus score with no roster", () => {
-    const r = notaSubjetivaEquipo(null, { s1: 4, s2: 4 }, skills, 5);
-    expect(r.value).toBeCloseTo(80, 6);
+  it("reports no subjective grade at all (Día 1) as null, not pending", () => {
+    const r = notaSubjetivaEquipo([]);
+    expect(r.value).toBeNull();
+    expect(r.missing).toBe(0);
   });
 });
 

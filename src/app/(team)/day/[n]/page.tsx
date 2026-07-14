@@ -63,7 +63,7 @@ export default async function TeamDayPage({
   const topRows =
     activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs, memberScores] = await Promise.all([
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs, memberEvaluations] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
       : null,
@@ -76,10 +76,11 @@ export default async function TeamDayPage({
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
-    teamId
-      ? prisma.memberScore.findMany({
+    // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc comment).
+    teamId && day >= 2
+      ? prisma.memberDayEvaluation.findMany({
           where: { day, published: true, teamMember: { teamId } },
-          include: { skill: true, teamMember: true },
+          include: { teamMember: true },
         })
       : [],
   ]);
@@ -100,20 +101,10 @@ export default async function TeamDayPage({
         })
       : [];
 
-  // Subjective grading is person-level only — the team's grade per skill is
-  // the average across members who have a published score for it.
-  const teamAverageBySkill: { skillName: string; average: number }[] = [];
-  {
-    const bySkill = new Map<string, { skillName: string; values: number[] }>();
-    for (const s of memberScores) {
-      if (s.value == null) continue;
-      if (!bySkill.has(s.skillId)) bySkill.set(s.skillId, { skillName: s.skill.name, values: [] });
-      bySkill.get(s.skillId)!.values.push(s.value);
-    }
-    for (const { skillName, values } of bySkill.values()) {
-      if (values.length > 0) teamAverageBySkill.push({ skillName, average: values.reduce((a, b) => a + b, 0) / values.length });
-    }
-  }
+  // Subjective grading is person-level only — the team's Nota general is the
+  // average across members who have a published evaluation for this day.
+  const gradedNotas = memberEvaluations.map((e) => e.notaGeneral).filter((v): v is number => v != null);
+  const teamAverageNota = gradedNotas.length > 0 ? gradedNotas.reduce((a, b) => a + b, 0) / gradedNotas.length : null;
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
     analyticsRecs.map((r) => [`${r.list}-${r.rank}`, { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB }])
@@ -440,52 +431,58 @@ export default async function TeamDayPage({
           <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             Calificación subjetiva — Día {day}
           </h3>
-          {memberScores.length === 0 ? (
+          {day === 1 ? (
+            <p className="text-sm text-[var(--color-brand-text-secondary)]">El Día 1 no tiene calificación subjetiva.</p>
+          ) : memberEvaluations.length === 0 ? (
             <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {teamAverageBySkill.length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Nota de tu equipo (promedio por integrante)</p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {teamAverageBySkill.map((s) => (
-                      <div key={s.skillName} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                        <p className="text-xs text-[var(--color-brand-text-secondary)]">{s.skillName}</p>
-                        <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                          {s.average.toFixed(1)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+              {teamAverageNota != null && (
+                <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                  <p className="text-xs text-[var(--color-brand-text-secondary)]">Nota de tu equipo (promedio por integrante)</p>
+                  <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
+                    {teamAverageNota.toFixed(1)}
+                  </p>
                 </div>
               )}
-              {memberScores.length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Por integrante</p>
-                  <div className="flex flex-col gap-2">
-                    {Object.entries(
-                      memberScores.reduce<Record<string, typeof memberScores>>((acc, s) => {
-                        acc[s.teamMember.name] = [...(acc[s.teamMember.name] ?? []), s];
-                        return acc;
-                      }, {} as Record<string, typeof memberScores>)
-                    ).map(([name, scores]) => (
-                      <div key={name}>
-                        <p className="text-xs font-semibold text-[var(--color-foreground)]">{name}</p>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {scores.map((s) => (
-                            <div key={s.id} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                              <p className="text-xs text-[var(--color-brand-text-secondary)]">{s.skill.name}</p>
-                              <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                                {s.value ?? "—"}
-                              </p>
-                            </div>
-                          ))}
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Por integrante</p>
+                <div className="flex flex-col gap-2">
+                  {memberEvaluations.map((e) => (
+                    <div key={e.id} className="rounded border border-[var(--color-brand-gray-light)] p-3">
+                      <p className="mb-1 text-xs font-semibold text-[var(--color-foreground)]">{e.teamMember.name}</p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Nota general</p>
+                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
+                            {e.notaGeneral ?? "—"}
+                          </p>
+                        </div>
+                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                          <p className="text-xs text-[var(--color-brand-text-secondary)]">¿Aprobó el día?</p>
+                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
+                            {e.aprobado == null ? "—" : e.aprobado ? "Sí" : "No"}
+                          </p>
+                        </div>
+                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
+                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Perfil</p>
+                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
+                            {e.perfil ?? "—"}
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      {e.comentario && (
+                        <p className="mt-2 text-sm text-[var(--color-foreground)]">
+                          {e.comentario}
+                          {e.comentarioAutor && (
+                            <span className="text-xs text-[var(--color-brand-text-secondary)]"> — {e.comentarioAutor}</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>

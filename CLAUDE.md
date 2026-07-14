@@ -113,14 +113,14 @@ This keeps every individual request tiny and free-tier-safe without adding Verce
 | `finBench` (1113) | `src/domain/finance/finBench.ts` | P&L + simplified balance sheet + Solvency-II-style capital (underwriting/financial/operational risk) |
 | `almSim`/`scoreFinanciero`/`almNAV`/`almLadder` (1659-1837) | `src/domain/finance` | Portfolio-vs-liability cashflow matching, NAV sensitivity to rate shocks |
 | `scoreConcepto` (1227), `scoreAnalitica` (1222) | `src/domain/grading` | Auto-grading of uploaded financial deliverables and sector recommendations against tolerance bands |
-| `esVisible2027/2028/2029` (2482, 3660, 4060) | `published` flags on `Score`/`TeamSimResult` | Claims censoring by notice date → generalized into grading visibility |
+| `esVisible2027/2028/2029` (2482, 3660, 4060) | `published` flags on `MemberDayEvaluation`/`TeamSimResult` | Claims censoring by notice date → generalized into grading visibility |
 | `page-tarifas3`/`simulacion3`/`resultados3`/`reportes3`, `correrSim3` | **do not migrate** | Orphaned "Year 3" code with no sidebar entry point — an abandoned feature, not a spec. See §10. |
 
 ## 7. Data model (Prisma summary)
 
 Principles: role lives on `User` (enum `ADMIN`/`TEAM`, nullable `teamId`); everything that was global-per-run in the legacy app (universe, rubric) carries a `cohortId` to isolate future cohorts/classes without collision; bulk data lives in `Bytes` (`bytea`) columns of the same Postgres, never a separate blob service; visibility via `published`.
 
-Main models: `User`, `Cohort`, `Team`, `TeamMember`, `UniverseRun` (universe/Chile; `data Bytes?` column with the serialized array), `SimulationRun` + `TeamSimResult` (per-team aggregates; `extra Json` field for the many `finBench`/`almSim` outputs until the schema stabilizes after the engine port), `TariffSubmission` (`data Bytes` column with 1M serialized floats), `PortfolioAllocation`, `Deliverable`, `AnalyticsRecommendation`, `RubricConfig` + `Skill`, `Score` / `MemberScore` (with `published`).
+Main models: `User`, `Cohort`, `Team`, `TeamMember`, `UniverseRun` (universe/Chile; `data Bytes?` column with the serialized array), `SimulationRun` + `TeamSimResult` (per-team aggregates; `extra Json` field for the many `finBench`/`almSim` outputs until the schema stabilizes after the engine port), `TariffSubmission` (`data Bytes` column with 1M serialized floats), `PortfolioAllocation`, `Deliverable`, `AnalyticsRecommendation`, `RubricConfig` (objective weights/tolerances only), `MemberDayEvaluation` (one row per team member per day, Días 2-4 only: a 1-5 `notaGeneral`, an independent `aprobado` check, a categorical `perfil`, and a free-text `comentario`/`comentarioAutor`, with `published`).
 
 Field-by-field detail is defined when writing `prisma/schema.prisma`; this summary fixes the entities and relations, not the final DDL. Watch Neon's free 0.5 GB as cohorts accumulate — if it approaches the limit, purge `UniverseRun`/`TariffSubmission` rows from closed cohorts before considering a paid plan.
 

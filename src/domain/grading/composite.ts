@@ -2,11 +2,6 @@ import { GASTOS_TOTAL_PCT } from "../finance/constants";
 
 export type ObjectiveMode = "relative" | "ranking";
 
-export interface Skill {
-  id: string;
-  weight: number;
-}
-
 /**
  * RT (resultado técnico) — premium minus claims minus the standard
  * acquisition/commission/administration expense load (GASTOS_TOTAL_PCT).
@@ -178,52 +173,25 @@ export interface SubjectiveResult {
 }
 
 /**
- * Weighted-average rubric score for one team or member on one day. Ported
- * from notaSubjetivaDia()/notaSubjetivaMiembro(), line ~1267/1274.
+ * Fixed scale for the per-member "Nota general del Día" (§ MemberDayEvaluation) —
+ * not admin-configurable, unlike the old per-skill rubric's maxScale.
  */
-export function notaSubjetiva(
-  skillScores: Partial<Record<string, number>>,
-  skills: Skill[],
-  maxScale: number
-): SubjectiveResult {
-  const sumWeight = skills.reduce((s, k) => s + (k.weight || 0), 0);
-  if (sumWeight <= 0 || skills.length === 0) return { value: null, complete: false, missing: skills.length };
-
-  let acc = 0;
-  let missing = 0;
-  for (const skill of skills) {
-    const raw = skillScores[skill.id];
-    const has = raw != null && !Number.isNaN(raw);
-    if (!has) missing++;
-    const v = has ? Math.max(0, Math.min(raw as number, maxScale)) : 0;
-    acc += (skill.weight || 0) * (v / maxScale) * 100;
-  }
-  return { value: missing === skills.length ? null : acc / sumWeight, complete: missing === 0, missing };
-}
+export const SUBJECTIVE_MAX_SCALE = 5;
 
 /**
- * Team-level subjective score: averages per-member scores when a roster has
- * been uploaded, otherwise falls back to a single team-consensus score.
- * Ported from the branch in notaSubjetivaDia(), line ~1267.
+ * Team-level subjective score for one day: the average of each member's
+ * "Nota general del Día" (1-5), scaled to 0-100. Día 1 has no subjective
+ * grade at all — callers should pass an empty array for it, which this
+ * reports as `{ value: null, complete: false, missing: 0 }` (nothing to
+ * average, not "still pending").
  */
-export function notaSubjetivaEquipo(
-  memberSkillScores: Partial<Record<string, number>>[] | null,
-  teamSkillScores: Partial<Record<string, number>>,
-  skills: Skill[],
-  maxScale: number
-): SubjectiveResult {
-  if (memberSkillScores && memberSkillScores.length > 0) {
-    const results = memberSkillScores.map((s) => notaSubjetiva(s, skills, maxScale));
-    const withValue = results.filter((r) => r.value != null);
-    if (!withValue.length) return { value: null, complete: false, missing: memberSkillScores.length };
-    const value = withValue.reduce((a, r) => a + (r.value as number), 0) / withValue.length;
-    return {
-      value,
-      complete: withValue.length === memberSkillScores.length,
-      missing: memberSkillScores.length - withValue.length,
-    };
-  }
-  return notaSubjetiva(teamSkillScores, skills, maxScale);
+export function notaSubjetivaEquipo(memberNotas: (number | null | undefined)[]): SubjectiveResult {
+  if (memberNotas.length === 0) return { value: null, complete: false, missing: 0 };
+  const withValue = memberNotas.filter((v): v is number => v != null && !Number.isNaN(v));
+  if (!withValue.length) return { value: null, complete: false, missing: memberNotas.length };
+  const avg = withValue.reduce((a, b) => a + b, 0) / withValue.length;
+  const value = (Math.max(0, Math.min(avg, SUBJECTIVE_MAX_SCALE)) / SUBJECTIVE_MAX_SCALE) * 100;
+  return { value, complete: withValue.length === memberNotas.length, missing: memberNotas.length - withValue.length };
 }
 
 /** Final per-day grade: objective/subjective weighted by pesoSubj. Ported from notaDia(), line ~1278. */
