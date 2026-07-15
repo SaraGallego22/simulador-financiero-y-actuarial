@@ -173,6 +173,10 @@ export function GuiaPasanteDia2() {
             su propia decisión). El sistema simula, mes a mes durante 60 meses, cómo tu árbol enfrenta el flujo de caja real: primas que entran, siniestros
             y gastos que salen, vencimientos que regresan como caja, y lo que queda se reinvierte según tu árbol.
           </p>
+          <p>
+            Este es tu único árbol para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del Año 2 más adelante — no
+            vas a tener una segunda oportunidad de someter uno distinto. Piensa tu árbol pensando en ambos años, no solo en el Año 1.
+          </p>
           <p>Tu nota (&ldquo;Calce ALM del portafolio&rdquo;) tiene 4 componentes, con estos pesos:</p>
           <ul className="list-disc pl-5">
             <li>
@@ -297,6 +301,16 @@ export function GuiaPasanteDia2() {
             rows={4}
             note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 4.3."
           />
+          <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
+            primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
+            compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
+            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según tu árbol de la sección 4.3 — nunca es la Prima Cobrada cruda.
+            La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
+            cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
+            lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
+            Caja Mínima) — nunca se queda la Caja Mínima sin cubrir.
+          </p>
           <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
             <span className="font-semibold text-[var(--color-brand-blue-accent)]">Importante — </span>
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
