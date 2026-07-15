@@ -6,8 +6,6 @@ export interface MemberEvaluationInitial {
   notaGeneral: number | null;
   aprobado: boolean | null;
   perfil: "ACTUARIAL" | "FINANCIERO" | "GENERALISTA" | null;
-  comentario: string | null;
-  comentarioAutor: string | null;
 }
 
 /** Subjective grading is person-level only, Días 2-4 only (see MemberDayEvaluation's doc comment). */
@@ -62,26 +60,6 @@ export function MemberEvaluationForm({
           <option value="FINANCIERO">Financiero</option>
           <option value="GENERALISTA">Generalista</option>
         </select>
-      </label>
-
-      <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-        Comentarios del día
-        <textarea
-          name="comentario"
-          rows={2}
-          defaultValue={initial.comentario ?? ""}
-          className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-        Autor del comentario
-        <input
-          type="text"
-          name="comentarioAutor"
-          defaultValue={initial.comentarioAutor ?? ""}
-          className="w-36 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
-        />
       </label>
 
       <button

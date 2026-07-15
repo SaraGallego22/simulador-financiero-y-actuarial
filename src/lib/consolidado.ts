@@ -1,3 +1,4 @@
+import type { EvaluationProfile } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSectorStatsForSeed } from "./teamBook";
 import { computeFinBenchForCohort } from "./finBenchHelper";
@@ -201,4 +202,63 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
   });
 
   return results.sort((a, b) => (b.notaFinal ?? -1) - (a.notaFinal ?? -1));
+}
+
+export interface MemberConsolidadoRow {
+  teamMemberId: string;
+  memberName: string;
+  teamId: string;
+  teamName: string;
+  teamColor: string;
+  perDay: { day: number; notaGeneral: number | null; aprobado: boolean | null; perfil: EvaluationProfile | null }[];
+  promedio: number | null;
+  diasAprobados: number;
+  diasEvaluados: number;
+}
+
+/**
+ * Per-person subjective-grading summary across Días 2-4 (Día 1 has no
+ * subjective grade — see MemberDayEvaluation's doc comment), so an evaluator
+ * can compare/rank people across the whole cohort instead of only within
+ * their own team's day-by-day view. Sorted by `promedio` like
+ * computeConsolidado() sorts teams by `notaFinal`.
+ */
+export async function computeMemberConsolidado(cohortId?: string, respectPublished = false): Promise<MemberConsolidadoRow[]> {
+  const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
+
+  const teams = await prisma.team.findMany({
+    where: { cohortId: cohort.id },
+    include: { members: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const evaluations = await prisma.memberDayEvaluation.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+  });
+  const evalByMemberDay = new Map<string, (typeof evaluations)[number]>();
+  for (const e of evaluations) evalByMemberDay.set(`${e.teamMemberId}:${e.day}`, e);
+
+  const rows: MemberConsolidadoRow[] = [];
+  for (const team of teams) {
+    for (const member of team.members) {
+      const perDay = [2, 3, 4].map((day) => {
+        const e = evalByMemberDay.get(`${member.id}:${day}`);
+        if (!e || (respectPublished && !e.published)) return { day, notaGeneral: null, aprobado: null, perfil: null };
+        return { day, notaGeneral: e.notaGeneral, aprobado: e.aprobado, perfil: e.perfil };
+      });
+      const notas = perDay.map((d) => d.notaGeneral).filter((v): v is number => v != null);
+      rows.push({
+        teamMemberId: member.id,
+        memberName: member.name,
+        teamId: team.id,
+        teamName: team.name,
+        teamColor: team.color,
+        perDay,
+        promedio: notaPerfilDia(notas),
+        diasAprobados: perDay.filter((d) => d.aprobado === true).length,
+        diasEvaluados: notas.length,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => (b.promedio ?? -1) - (a.promedio ?? -1));
 }

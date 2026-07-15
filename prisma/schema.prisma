@@ -71,6 +71,7 @@ model TeamMember {
   name   String
 
   evaluations MemberDayEvaluation[]
+  comments    MemberComment[]
 }
 
 // Bulk-generated reference datasets (Colombia universe, Chile reference set).
@@ -219,17 +220,31 @@ enum EvaluationProfile {
 // only notaGeneral feeds the numeric grade; aprobado/perfil/comentario are
 // reporting fields the evaluator fills in alongside it).
 model MemberDayEvaluation {
-  id              String             @id @default(cuid())
-  teamMemberId    String
-  teamMember      TeamMember         @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  day             Int
-  notaGeneral     Float? // 1.0-5.0, one decimal
-  aprobado        Boolean?
-  perfil          EvaluationProfile?
-  comentario      String?
-  comentarioAutor String? // name of the evaluator who wrote the comment
+  id           String             @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember         @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  day          Int
+  notaGeneral  Float? // 1.0-5.0, one decimal
+  aprobado     Boolean?
+  perfil       EvaluationProfile?
 
   published Boolean @default(false)
 
   @@unique([teamMemberId, day])
+}
+
+// Free-form remark on one participant for one day, authored by an
+// evaluator. Unlike MemberDayEvaluation (one row per member/day, holding the
+// scored fields), a member/day can have any number of these — several
+// evaluators can each leave their own note without overwriting one another.
+model MemberComment {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  day          Int
+  author       String
+  text         String
+  createdAt    DateTime   @default(now())
+
+  @@index([teamMemberId, day])
 }

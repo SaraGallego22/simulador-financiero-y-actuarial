@@ -170,9 +170,11 @@ const EVALUATION_PROFILES = ["ACTUARIAL", "FINANCIERO", "GENERALISTA"] as const;
 
 /**
  * Upserts one member's subjective evaluation for a day — Nota general (1-5,
- * clamped), Aprobó (independent checkbox), Perfil (categorical), and a
- * comment + its author. Día 1 has no subjective grade (see
- * MemberDayEvaluation's doc comment) — rejected here, not just hidden in the UI.
+ * clamped), Aprobó (independent checkbox), Perfil (categorical). Comments are
+ * tracked separately (see addMemberCommentAction) — several evaluators can
+ * each leave their own, instead of one field the next save overwrites. Día 1
+ * has no subjective grade (see MemberDayEvaluation's doc comment) — rejected
+ * here, not just hidden in the UI.
  */
 export async function submitMemberEvaluationAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
   await requireAdmin();
@@ -191,13 +193,41 @@ export async function submitMemberEvaluationAction(teamMemberId: string, day: nu
   const perfil = (EVALUATION_PROFILES as readonly string[]).includes(rawPerfil)
     ? (rawPerfil as (typeof EVALUATION_PROFILES)[number])
     : null;
-  const comentario = String(formData.get("comentario") ?? "").trim() || null;
-  const comentarioAutor = String(formData.get("comentarioAutor") ?? "").trim() || null;
 
   await prisma.memberDayEvaluation.upsert({
     where: { teamMemberId_day: { teamMemberId, day } },
-    update: { notaGeneral, aprobado, perfil, comentario, comentarioAutor },
-    create: { teamMemberId, day, notaGeneral, aprobado, perfil, comentario, comentarioAutor },
+    update: { notaGeneral, aprobado, perfil },
+    create: { teamMemberId, day, notaGeneral, aprobado, perfil },
   });
+  revalidatePath(`/admin/day/${day}`);
+}
+
+/**
+ * Adds one dated, authored comment for a member/day — never overwrites an
+ * existing one, so multiple evaluators can weigh in independently. Also
+ * upserts a bare MemberDayEvaluation row if none exists yet, so a
+ * comment-only member still has a row for the per-team "Publicar" toggle
+ * (toggleMemberEvaluationsPublishedForTeamAction) to act on.
+ */
+export async function addMemberCommentAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  if (day < 2 || day > 4) return;
+
+  const author = String(formData.get("author") ?? "").trim();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!author || !text) return;
+
+  await prisma.memberDayEvaluation.upsert({
+    where: { teamMemberId_day: { teamMemberId, day } },
+    update: {},
+    create: { teamMemberId, day },
+  });
+  await prisma.memberComment.create({ data: { teamMemberId, day, author, text } });
+  revalidatePath(`/admin/day/${day}`);
+}
+
+export async function deleteMemberCommentAction(commentId: string, day: number): Promise<void> {
+  await requireAdmin();
+  await prisma.memberComment.delete({ where: { id: commentId } });
   revalidatePath(`/admin/day/${day}`);
 }
