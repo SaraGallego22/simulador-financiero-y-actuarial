@@ -33,6 +33,23 @@ function resolveHeaderAliases(headers: string[], aliases: Record<string, string[
 }
 
 /**
+ * Decodes an uploaded CSV's raw bytes to text. Excel's "CSV (Comma
+ * delimited)" export on Spanish-locale Windows writes Windows-1252 (ANSI),
+ * not UTF-8, which mangles á/é/í/ó/ú/ñ when decoded as UTF-8 (e.g. a team
+ * named "Seguros Medellín" fails to match because the roster's `equipo`
+ * value decodes to something else). UTF-8 decoding with `fatal: true`
+ * throws on the invalid byte sequences that non-UTF-8 accented characters
+ * produce, so a caught error here reliably signals a Windows-1252 file.
+ */
+export function decodeCsvText(buffer: ArrayBuffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+}
+
+/**
  * Parses a CSV upload against a schema of canonical fields + zod validation.
  * Replaces the legacy's hand-rolled `line.split(',')` parsing (no
  * quote/comma escaping) with Papa Parse, and its ad hoc `isNaN` checks with

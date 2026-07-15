@@ -132,12 +132,12 @@ export interface UploadRosterState {
 
 export async function uploadRosterAction(_prev: UploadRosterState, formData: FormData): Promise<UploadRosterState> {
   await requireAdmin();
-  const { parseCsv } = await import("./csv");
+  const { parseCsv, decodeCsvText } = await import("./csv");
   const { rosterCsvSchema } = await import("./csvSchemas");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Selecciona un archivo CSV." };
-  const text = await file.text();
+  const text = decodeCsvText(await file.arrayBuffer());
   const { rows, errors } = parseCsv(text, rosterCsvSchema);
   if (rows.length === 0) return { error: errors[0]?.message ?? "No se reconoció ninguna fila válida." };
 
