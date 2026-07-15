@@ -49,7 +49,11 @@ export default async function TeamDayPage({
   const hasMinVariance = day === 1;
   const hasPortfolioTree = day === 2 || day === 3;
   const { tab } = await searchParams;
-  const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
+  // "subj" isn't a team-facing tab (see DayTabBar's includeSubj) — never
+  // rendered below, but guard the fallback so a hand-typed ?tab=subj doesn't
+  // just land on a blank pane.
+  const requestedTab = tab as DayTabKey | undefined;
+  const activeTab = requestedTab && requestedTab !== "subj" ? requestedTab : includeSim ? "sim" : "entreg";
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
@@ -63,7 +67,7 @@ export default async function TeamDayPage({
   const topRows =
     activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs, memberEvaluations] = await Promise.all([
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
       : null,
@@ -76,13 +80,6 @@ export default async function TeamDayPage({
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
-    // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc comment).
-    teamId && day >= 2
-      ? prisma.memberDayEvaluation.findMany({
-          where: { day, published: true, teamMember: { teamId } },
-          include: { teamMember: true },
-        })
-      : [],
   ]);
 
   // Día 4 retrospective: both years' capital-derived market-share limits
@@ -101,10 +98,6 @@ export default async function TeamDayPage({
         })
       : [];
 
-  // Subjective grading is person-level only — the team's Nota general is the
-  // average across members who have a published evaluation for this day.
-  const gradedNotas = memberEvaluations.map((e) => e.notaGeneral).filter((v): v is number => v != null);
-  const teamAverageNota = gradedNotas.length > 0 ? gradedNotas.reduce((a, b) => a + b, 0) / gradedNotas.length : null;
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
     analyticsRecs.map((r) => [`${r.list}-${r.rank}`, { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB }])
@@ -170,7 +163,7 @@ export default async function TeamDayPage({
         </Link>
       </div>
 
-      <DayTabBar basePath="/day" day={day} activeTab={activeTab} includeSim={includeSim} />
+      <DayTabBar basePath="/day" day={day} activeTab={activeTab} includeSim={includeSim} includeSubj={false} />
 
       {activeTab === "sim" && includeSim && (
         <div className="flex flex-col gap-4">
@@ -426,68 +419,6 @@ export default async function TeamDayPage({
         </div>
       )}
 
-      {activeTab === "subj" && (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-            Calificación subjetiva — Día {day}
-          </h3>
-          {day === 1 ? (
-            <p className="text-sm text-[var(--color-brand-text-secondary)]">El Día 1 no tiene calificación subjetiva.</p>
-          ) : memberEvaluations.length === 0 ? (
-            <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado la calificación subjetiva de este día.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {teamAverageNota != null && (
-                <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                  <p className="text-xs text-[var(--color-brand-text-secondary)]">Nota de tu equipo (promedio por integrante)</p>
-                  <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                    {teamAverageNota.toFixed(1)}
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Por integrante</p>
-                <div className="flex flex-col gap-2">
-                  {memberEvaluations.map((e) => (
-                    <div key={e.id} className="rounded border border-[var(--color-brand-gray-light)] p-3">
-                      <p className="mb-1 text-xs font-semibold text-[var(--color-foreground)]">{e.teamMember.name}</p>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Nota general</p>
-                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                            {e.notaGeneral ?? "—"}
-                          </p>
-                        </div>
-                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                          <p className="text-xs text-[var(--color-brand-text-secondary)]">¿Aprobó el día?</p>
-                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                            {e.aprobado == null ? "—" : e.aprobado ? "Sí" : "No"}
-                          </p>
-                        </div>
-                        <div className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2">
-                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Perfil</p>
-                          <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
-                            {e.perfil ?? "—"}
-                          </p>
-                        </div>
-                      </div>
-                      {e.comentario && (
-                        <p className="mt-2 text-sm text-[var(--color-foreground)]">
-                          {e.comentario}
-                          {e.comentarioAutor && (
-                            <span className="text-xs text-[var(--color-brand-text-secondary)]"> — {e.comentarioAutor}</span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {activeTab === "top" && (
         <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           {!topRows || topRows.every((r) => r.perDay[day - 1]?.nota == null) ? (
@@ -498,6 +429,8 @@ export default async function TeamDayPage({
                 <tr className="bg-[var(--color-brand-blue)] text-left text-white">
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
                 </tr>
               </thead>
@@ -515,6 +448,8 @@ export default async function TeamDayPage({
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
                         {r.teamName}
                       </td>
+                      <td className="px-4 py-2">{r.perDay[day - 1]?.objective != null ? r.perDay[day - 1]!.objective!.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2">{r.perDay[day - 1]?.subjective != null ? r.perDay[day - 1]!.subjective!.toFixed(1) : "—"}</td>
                       <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {r.perDay[day - 1]!.nota!.toFixed(1)}
                       </td>

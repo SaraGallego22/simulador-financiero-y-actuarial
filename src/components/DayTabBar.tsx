@@ -23,16 +23,19 @@ export function DayTabBar({
   day,
   activeTab,
   includeSim,
+  includeSubj = true,
 }: {
   basePath: string;
   day: number;
   activeTab: DayTabKey;
   includeSim: boolean;
+  /** Teams never see the "Calificación subjetiva" tab — only the admin does. Individual notas/comentarios aren't for teams; the team's own subjective nota (an aggregate) surfaces in "Top del día" instead. */
+  includeSubj?: boolean;
 }) {
   // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
   // comment) — not enough contact time yet to judge each member.
   const tabs = (includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim")).filter(
-    (t) => day !== 1 || t.key !== "subj"
+    (t) => (day !== 1 || t.key !== "subj") && (includeSubj || t.key !== "subj")
   );
   return (
     <div className="flex flex-wrap gap-1 border-b border-[var(--color-brand-gray-light)]">

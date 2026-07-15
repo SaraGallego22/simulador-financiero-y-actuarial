@@ -22,6 +22,7 @@ import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } 
 import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
+import { MemberComments } from "./MemberComments";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
@@ -59,6 +60,9 @@ export default async function AdminDayPage({
   const [
     teams,
     memberEvaluations,
+    memberComments,
+    historicalEvaluations,
+    historicalComments,
     latestRun,
     consolidadoRows,
     universe,
@@ -82,6 +86,27 @@ export default async function AdminDayPage({
       ? prisma.memberDayEvaluation.findMany({
           where: { day, teamMember: { team: { cohortId: cohort.id } } },
           include: { teamMember: { select: { teamId: true } } },
+        })
+      : Promise.resolve([]),
+    day >= 2
+      ? prisma.memberComment.findMany({
+          where: { day, teamMember: { team: { cohortId: cohort.id } } },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+    // Historial: earlier days' nota/aprobado/perfil for the same members, so
+    // grading Día 3 can show what was recorded on Día 2 without navigating
+    // away. Admin sees its own unpublished work here (unlike the team-facing
+    // page), so no `published` filter.
+    day > 2
+      ? prisma.memberDayEvaluation.findMany({
+          where: { day: { gte: 2, lt: day }, teamMember: { team: { cohortId: cohort.id } } },
+        })
+      : Promise.resolve([]),
+    day > 2
+      ? prisma.memberComment.findMany({
+          where: { day: { gte: 2, lt: day }, teamMember: { team: { cohortId: cohort.id } } },
+          orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
     prisma.simulationRun.findFirst({
@@ -129,6 +154,24 @@ export default async function AdminDayPage({
   for (const e of memberEvaluations) {
     evaluationByMemberId.set(e.teamMemberId, e);
     if (!teamPublishedByTeamId.has(e.teamMember.teamId)) teamPublishedByTeamId.set(e.teamMember.teamId, e.published);
+  }
+
+  const commentsByMemberId = new Map<string, (typeof memberComments)[number][]>();
+  for (const c of memberComments) {
+    if (!commentsByMemberId.has(c.teamMemberId)) commentsByMemberId.set(c.teamMemberId, []);
+    commentsByMemberId.get(c.teamMemberId)!.push(c);
+  }
+
+  // Historial: previous days' evaluation + comments, grouped by member then
+  // by day, for the read-only recap shown above each member's current-day
+  // form (see admin/day/[n]/page.tsx's "subj" tab below).
+  const historicalEvaluationsByMemberDay = new Map<string, (typeof historicalEvaluations)[number]>();
+  for (const e of historicalEvaluations) historicalEvaluationsByMemberDay.set(`${e.teamMemberId}:${e.day}`, e);
+  const historicalCommentsByMemberDay = new Map<string, (typeof historicalComments)[number][]>();
+  for (const c of historicalComments) {
+    const key = `${c.teamMemberId}:${c.day}`;
+    if (!historicalCommentsByMemberDay.has(key)) historicalCommentsByMemberDay.set(key, []);
+    historicalCommentsByMemberDay.get(key)!.push(c);
   }
 
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
@@ -1037,9 +1080,43 @@ export default async function AdminDayPage({
                     <div className="flex flex-col gap-3">
                       {team.members.map((member) => {
                         const ev = evaluationByMemberId.get(member.id);
+                        const priorDays = Array.from({ length: day - 2 }, (_, i) => i + 2); // [2..day-1]
+                        const hasHistorial = priorDays.some(
+                          (d) => historicalEvaluationsByMemberDay.has(`${member.id}:${d}`) || historicalCommentsByMemberDay.has(`${member.id}:${d}`)
+                        );
                         return (
-                          <div key={member.id}>
-                            <p className="mb-1 text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                          <div key={member.id} className="flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+
+                            {hasHistorial && (
+                              <details className="rounded border border-[var(--color-brand-gray-light)]">
+                                <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                  Historial (Días anteriores)
+                                </summary>
+                                <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
+                                  {priorDays.map((d) => {
+                                    const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
+                                    const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
+                                    if (!priorEv && priorComments.length === 0) return null;
+                                    return (
+                                      <div key={d} className="text-sm">
+                                        <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
+                                        <p className="text-xs text-[var(--color-foreground)]">
+                                          Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
+                                          {priorEv?.perfil ?? "—"}
+                                        </p>
+                                        {priorComments.map((c) => (
+                                          <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
+                                            &ldquo;{c.text}&rdquo; — {c.author}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </details>
+                            )}
+
                             <MemberEvaluationForm
                               id={member.id}
                               day={day}
@@ -1047,10 +1124,9 @@ export default async function AdminDayPage({
                                 notaGeneral: ev?.notaGeneral ?? null,
                                 aprobado: ev?.aprobado ?? null,
                                 perfil: ev?.perfil ?? null,
-                                comentario: ev?.comentario ?? null,
-                                comentarioAutor: ev?.comentarioAutor ?? null,
                               }}
                             />
+                            <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
                           </div>
                         );
                       })}
