@@ -43,11 +43,11 @@ export default async function TeamDayPage({
   const day = Number(n);
   const includeSim = day <= 2;
   // Día 1 hosts the minimum-variance exercise (a flat weight map, not a
-  // tree); the real ALM tree lives on Día 2 (Año 1) and Día 3 (Año 2's
-  // optional rebalance) — decoupled from includeSim, which stays about the
-  // tariff/simulation tab only. See README's market-clearing section.
+  // tree); the real ALM tree is submitted once, on Día 2 — decoupled from
+  // includeSim, which stays about the tariff/simulation tab only. See
+  // README's market-clearing section.
   const hasMinVariance = day === 1;
-  const hasPortfolioTree = day === 2 || day === 3;
+  const hasPortfolioTree = day === 2;
   const { tab } = await searchParams;
   // "subj" isn't a team-facing tab (see DayTabBar's includeSubj) — never
   // rendered below, but guard the fallback so a hand-typed ?tab=subj doesn't
@@ -104,17 +104,15 @@ export default async function TeamDayPage({
   );
 
   // ALM detail (team-scoped): Día 2's tree is graded against Año 1's real
-  // reserves (bookYear=1, same as consolidado.ts), Día 3's optional
-  // rebalance against Año 2's (bookYear=2) — neither depends on a
-  // simulation existing *for this day* (there is none for Día 3), unlike
-  // the underwriting card above. Teams only ever see the fictitious ALM
-  // (what's graded) — the real-premium companion run exists for evaluators
-  // only, on the admin day page, so teams work out their own real P&G
-  // figure instead of reading it off an auto-computed number (see README
-  // §5.3).
+  // reserves (bookYear=1, same as consolidado.ts) — doesn't depend on a
+  // simulation existing *for this day*, unlike the underwriting card above.
+  // Teams only ever see the fictitious ALM (what's graded) — the
+  // real-premium companion run exists for evaluators only, on the admin day
+  // page, so teams work out their own real P&G figure instead of reading it
+  // off an auto-computed number (see README §5.3).
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
-  const bookYear = day === 2 ? 1 : day === 3 ? 2 : null;
+  const bookYear = day === 2 ? 1 : null;
   if (activeTab === "obj" && hasPortfolioTree && teamId && bookYear) {
     const decision = isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null;
     if (decision) {

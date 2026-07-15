@@ -40,12 +40,13 @@ export default async function AdminDayPage({
   const { n } = await params;
   const day = Number(n);
   const includeSim = day <= 2;
-  // Día 1 hosts the minimum-variance exercise; the real ALM tree lives on
-  // Día 2 (Año 1, graded against bookYear=1's reserves) and Día 3 (Año 2's
-  // optional rebalance, bookYear=2) — see README's market-clearing section.
+  // Día 1 hosts the minimum-variance exercise; the real ALM tree is submitted
+  // once, on Día 2 (graded against bookYear=1's reserves) — Día 3 no longer
+  // offers a rebalance, it was cut to lighten an already-packed day. Año 2
+  // still uses whatever tree was submitted on Día 2.
   const hasMinVariance = day === 1;
-  const hasPortfolioTree = day === 2 || day === 3;
-  const bookYear = day === 2 ? 1 : day === 3 ? 2 : null;
+  const hasPortfolioTree = day === 2;
+  const bookYear = day === 2 ? 1 : null;
   const { tab } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
@@ -225,11 +226,10 @@ export default async function AdminDayPage({
     if (objective != null) objectiveByTeamId.set(row.teamId, objective);
   }
 
-  // ALM score per team: needs each team's book of claims (from the completed
-  // simulation for bookYear, not necessarily this page's own `day` — Día 3
-  // has no simulation of its own, it grades against bookYear=2's) to compute
-  // reserves, plus whatever tree they uploaded. This is the *fictitious* ALM
-  // only (what's graded for the Día 2/3 ALM nota) — the real ALM (below, via
+  // ALM score per team: needs Año 1's book of claims (bookYear is only ever
+  // 1, on Día 2 — see hasPortfolioTree above) to compute reserves, plus
+  // whatever tree they uploaded. This is the *fictitious* ALM only (what's
+  // graded for the Día 2 ALM nota) — the real ALM (below, via
   // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
   // computation, not a variant of this one (see README §5.3).
   // These two both only depend on `universe` (already resolved above), not
@@ -1118,6 +1118,13 @@ export default async function AdminDayPage({
                             )}
 
                             <MemberEvaluationForm
+                              // Keyed by the saved values so a successful save
+                              // remounts the (uncontrolled) form instead of
+                              // leaving its <select>s at whatever the native
+                              // post-action form reset left them at — without
+                              // this they visually snap to "Sin definir" even
+                              // though the save succeeded.
+                              key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
                               id={member.id}
                               day={day}
                               initial={{

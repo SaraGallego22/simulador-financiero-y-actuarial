@@ -317,9 +317,9 @@ Esta es la triple conexión directa entre la decisión de portafolio y la solven
 Hay **dos decisiones de portafolio separadas**, deliberadamente en días distintos:
 
 - **Día 1 — portafolio de mínima varianza** (una foto, sin fecha de vencimiento ni reinversión): el equipo asigna pesos entre el menú de instrumentos buscando la **mínima varianza posible sujeta a un retorno mínimo objetivo**, dada una matriz de covarianza — un ejercicio de optimización con respuesta objetiva, no una decisión estratégica libre. Narrativa: es la presentación del equipo al regulador en el "momento 0", antes de escribir una sola póliza. Se detalla en §5.6.
-- **Día 2 (y opcionalmente Día 3) — el árbol de decisiones real** descrito en el resto de esta sección: la decisión de inversión real del equipo, informada por sus propias cifras de prima/siniestros ya conocidas, con reinversión y vencimientos genuinos a lo largo de 60 meses simulados.
+- **Día 2 — el árbol de decisiones real** descrito en el resto de esta sección: la decisión de inversión real del equipo, informada por sus propias cifras de prima/siniestros ya conocidas, con reinversión y vencimientos genuinos a lo largo de 60 meses simulados.
 
-**Por qué el árbol se movió de Día 1 a Día 2**: antes, el árbol se sometía en Día 1, antes de que el equipo supiera cuánta prima iba a cobrar o cuántos siniestros iba a pagar — una decisión financiera real tomada a ciegas. Moverlo a Día 2 (junto con el P&G del Año 1) deja que el equipo razone con sus propias cifras reales en la mano. El rebalanceo opcional del Año 2 (antes en Día 2) se corrió un día más, a Día 3, por la misma razón.
+**Por qué el árbol se movió de Día 1 a Día 2**: antes, el árbol se sometía en Día 1, antes de que el equipo supiera cuánta prima iba a cobrar o cuántos siniestros iba a pagar — una decisión financiera real tomada a ciegas. Moverlo a Día 2 (junto con el P&G del Año 1) deja que el equipo razone con sus propias cifras reales en la mano.
 
 **El desface deliberado en la cuota de mercado**: la cuota de mercado por solvencia del Año 1 (§2.1) usa la volatilidad del portafolio de mínima varianza que el equipo sometió en Día 1, nunca el árbol real. La cuota del Año 2 usa el árbol real de Día 2, que ya existe para cuando cierra ese mercado. El portafolio de mínima varianza no vuelve a usarse para nada más allá de la cuota del Año 1: no alimenta ALM, P&G, Balance ni Solvencia.
 
@@ -407,7 +407,7 @@ Comparando ambos runs (el evaluador sí puede hacerlo) queda claro qué depende 
 
 **Cuánto queda del Capital Social al final de cada ALM real** se muestra siempre de forma explícita en `AlmPnlBreakdown` — `AlmRealYearResult.capitalSocialRestante = CAPITAL_SOCIAL − capitalComprometidoAcumulado`, acumulado desde el Año 1 para el corte del Año 2 (nunca se repone solo, ver §5.1). Es exactamente el mismo número que `finBench()` resta del patrimonio en el Balance real de ese año — no un cálculo paralelo.
 
-**Importante para no confundir qué ALM alimenta qué**: la nota de ALM del Día 2/3 (§5.2, lo que ve el equipo) se califica con el ALM **ficticio** (`almSim()`/`scoreFinanciero()`, 60 meses, independiente por año). Pero `finBenchHelper.ts` — la plomería que alimenta a `finBench()` (§4) — corre el ALM **real** (`almSimRealYear()`, 12 meses, Año 2 continuando el Año 1) específicamente para eso: benchmarquear un entregable real (Resultado de Inversiones, Balance, Solvencia) contra el ALM ficticio sería comparar contra un escenario hipotético en el que el equipo nunca estuvo. Son dos motores distintos, para dos propósitos distintos — ninguno alimenta al otro.
+**Importante para no confundir qué ALM alimenta qué**: la nota de ALM del Día 2 (§5.2, lo que ve el equipo) se califica con el ALM **ficticio** (`almSim()`/`scoreFinanciero()`, 60 meses, independiente por año). Pero `finBenchHelper.ts` — la plomería que alimenta a `finBench()` (§4) — corre el ALM **real** (`almSimRealYear()`, 12 meses, Año 2 continuando el Año 1) específicamente para eso: benchmarquear un entregable real (Resultado de Inversiones, Balance, Solvencia) contra el ALM ficticio sería comparar contra un escenario hipotético en el que el equipo nunca estuvo. Son dos motores distintos, para dos propósitos distintos — ninguno alimenta al otro.
 
 #### 5.4 · Qué es un portafolio óptimo, y por qué
 
@@ -479,18 +479,18 @@ En resumen: el óptimo no es "todo seguro" (deja rentabilidad ajustada por riesg
 ```mermaid
 flowchart LR
     D1["Día 1\nTarifación Año 1\n+ Mínima varianza"] --> D2["Día 2\nP&G Año 1\n+ Retarifación Año 2\n+ Árbol de portafolio real"]
-    D2 --> D3["Día 3\nP&G Año 2\n+ Balance + proy. Año 3\n+ Rebalanceo opcional"]
+    D2 --> D3["Día 3\nP&G Año 2\n+ Balance + proy. Año 3"]
     D3 --> D4["Día 4\nSolvencia, dividendos\n+ Analítica sectorial"]
     D4 --> Final["Consolidado final\n(4 días, objetivo + subjetivo)"]
 ```
 
-Cada día tiene las mismas 5 sub-pestañas que el prototipo original: **Tarifas/Simulación** (solo Días 1-2, ya que el Año 2 es el último año simulado), **Entregables** (incluye el portafolio de mínima varianza en Día 1, y el árbol de portafolio real en Días 2-3 — ver §5/§5.6), **Resultados objetivos**, **Calificación subjetiva** y **Top del día**.
+Cada día tiene las mismas 5 sub-pestañas que el prototipo original: **Tarifas/Simulación** (solo Días 1-2, ya que el Año 2 es el último año simulado), **Entregables** (incluye el portafolio de mínima varianza en Día 1, y el árbol de portafolio real en Día 2 — ver §5/§5.6), **Resultados objetivos**, **Calificación subjetiva** y **Top del día**.
 
 | Día | Actuarial | Financiero |
 |---|---|---|
 | 1 | Tarificar Año 1 | Portafolio de mínima varianza sujeto a un retorno objetivo (ver §5.6) — también alimenta la cuota de mercado del Año 1 (§2.1) |
 | 2 | Retarifar Año 2 (con retención de clientes) | Estado de resultados completo Año 1 (10 líneas, deducido del ALM ficticio, §5.3 — sin reservas por separado, ver §4) + árbol de portafolio real Año 1 (ALM ficticio, calce con reservas — ver §5) |
-| 3 | Reservas técnicas Año 1 y Año 2 (como línea del Balance de cada año) | Estado de resultados Año 2 + proyección Año 3, Balance de Año 1/2/3, y rebalanceo opcional del árbol para Año 2 |
+| 3 | Reservas técnicas Año 1 y Año 2 (como línea del Balance de cada año) | Estado de resultados Año 2 + proyección Año 3, Balance de Año 1/2/3 |
 | 4 | Recomendación sectorial (top 3 sectores a crecer/disminuir, rankeados — ver §6) | Solvencia (capital requerido, margen) y dividendos |
 
 ## Roles

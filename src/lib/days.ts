@@ -1,18 +1,18 @@
 export const DAY_TITLES: Record<number, string> = {
   1: "Tarificación Año 1 y mínima varianza",
   2: "Estado de resultados Año 1, retarifación Año 2 y portafolio",
-  3: "Estado de resultados Año 2/3 (proy.), Balance y rebalanceo",
+  3: "Estado de resultados Año 2/3 (proy.) y Balance",
   4: "Solvencia, dividendos y analítica",
 };
 
 // Qué toca hacer ese día — portado de la introducción de cada día en el
 // prototipo legacy (Pasantia_SURA_v3_inversiones_dinamicas.html), con el
-// portafolio ALM movido a Día 2/3 (ver README's market-clearing section) y
+// portafolio ALM movido a Día 2 (ver README's market-clearing section) y
 // el reporte financiero reestructurado en estados completos (ver README §4).
 export const DAY_DESCRIPTIONS: Record<number, string> = {
   1: "Actuarial: tarifica el Año 1 (el dataset Chile es tu única referencia con siniestros y severidad para calibrar el modelo). Financiero: encuentra el portafolio de mínima varianza sujeto a un retorno objetivo. Al cierre del día se corre la simulación.",
   2: "Actuarial: retarifica el Año 2. Financiero: entrega el estado de resultados completo del Año 1 (sin reservas por separado — esas van en el Balance de Día 3) y arma el árbol de decisión de tu portafolio real (ya conoces tus cifras reales de Año 1). Al cierre del día se corre la simulación del Año 2.",
-  3: "Actuarial: calcula las reservas técnicas de Año 1 y Año 2 como parte del Balance. Financiero: entrega el estado de resultados del Año 2 y la proyección de Año 3, el Balance completo de los tres años, y opcionalmente rebalancea tu portafolio para Año 2.",
+  3: "Actuarial: calcula las reservas técnicas de Año 1 y Año 2 como parte del Balance. Financiero: entrega el estado de resultados del Año 2 y la proyección de Año 3, y el Balance completo de los tres años.",
   4: "Financiero: calcula solvencia, RK, fondos propios y dividendos. Actuarial: entrega la analítica sectorial para el eventual Año 3.",
 };
 
@@ -39,8 +39,6 @@ export const TAB_NOTES: Record<
   3: {
     deliverables:
       "Recalcula las reservas del Año 2 con la emergencia de siniestros del Año 1 (casos avisados durante 2028, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año — no hay un reporte de reservas aparte. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de Año 1, Año 2 y Año 3 (proyectado), línea por línea.",
-    portfolio:
-      "El rebalanceo del portafolio para Año 2 es opcional e independiente del Año 1: si no subes uno nuevo, el Año 2 sigue usando el árbol que definiste en el Día 2.",
   },
   4: {
     analytics:
