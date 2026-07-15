@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeMemberConsolidado } from "@/lib/consolidado";
 
-const FIELDS = ["#", "Integrante", "Equipo", "Día 2", "Día 3", "Día 4", "Promedio", "Días aprobados"];
+const FIELDS = ["#", "Integrante", "Equipo", "Día 2", "Día 3", "Día 4", "Promedio", "Días aprobados", "Comentarios"];
 
 /** Admin's own export — unpublished scores included, same as /admin/standings itself. */
 export async function GET() {
@@ -22,6 +22,7 @@ export async function GET() {
     r.perDay[2]?.notaGeneral?.toFixed(1) ?? "",
     r.promedio?.toFixed(1) ?? "",
     `${r.diasAprobados}/${r.diasEvaluados}`,
+    r.comments.map((c) => `[Día ${c.day}] ${c.author}: ${c.text}`).join(" | "),
   ]);
   const csv = Papa.unparse({ fields: FIELDS, data });
 

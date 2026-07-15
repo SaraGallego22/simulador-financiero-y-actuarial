@@ -214,6 +214,10 @@ export interface MemberConsolidadoRow {
   promedio: number | null;
   diasAprobados: number;
   diasEvaluados: number;
+  // Not shown in /admin/standings' on-screen table (which is why this isn't
+  // published-gated like perDay above) — carried only for the CSV export
+  // (/api/members/consolidado-csv), which is the admin's own private copy.
+  comments: { day: number; author: string; text: string }[];
 }
 
 /**
@@ -237,6 +241,16 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
   const evalByMemberDay = new Map<string, (typeof evaluations)[number]>();
   for (const e of evaluations) evalByMemberDay.set(`${e.teamMemberId}:${e.day}`, e);
 
+  const comments = await prisma.memberComment.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+    orderBy: [{ day: "asc" }, { createdAt: "asc" }],
+  });
+  const commentsByMemberId = new Map<string, (typeof comments)[number][]>();
+  for (const c of comments) {
+    if (!commentsByMemberId.has(c.teamMemberId)) commentsByMemberId.set(c.teamMemberId, []);
+    commentsByMemberId.get(c.teamMemberId)!.push(c);
+  }
+
   const rows: MemberConsolidadoRow[] = [];
   for (const team of teams) {
     for (const member of team.members) {
@@ -256,6 +270,7 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
         promedio: notaPerfilDia(notas),
         diasAprobados: perDay.filter((d) => d.aprobado === true).length,
         diasEvaluados: notas.length,
+        comments: (commentsByMemberId.get(member.id) ?? []).map((c) => ({ day: c.day, author: c.author, text: c.text })),
       });
     }
   }
