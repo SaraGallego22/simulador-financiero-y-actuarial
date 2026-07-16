@@ -1,5 +1,7 @@
 import { FZ, CORR_MOD, CAPITAL_SOCIAL } from "./constants";
 import { VOL_MENU_AVG } from "./instruments";
+import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
+import { DEV_FRAC } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
 
@@ -19,11 +21,15 @@ export interface AlmYearBenchInput {
   capitalComprometido: number;
   /** This year's book-value-weighted average realized volatility — feeds rFin's volRatio. */
   avgVol: number;
+  /** Realized yield (income ÷ average invested balance) — see almSimRealYear()'s doc comment. Used to project Año 3's rinv off what the portfolio actually earned instead of its nominal `portYield`; undefined falls back to `portYield`. */
+  effectiveYield?: number;
 }
 
 export interface YearResult {
   totalPremium: number;
   claimsAmount: number;
+  /** Real policy count that year — needed only for the Año 3 prima projection (retained + new); undefined falls back to the flat FZ.growth3 projection. */
+  insuredCount?: number;
 }
 
 export interface PnL {
@@ -85,6 +91,8 @@ export interface FinBenchInput {
   development?: TeamDevelopment;
   almYear1: AlmYearBenchInput | null;
   almYear2?: AlmYearBenchInput | null;
+  /** Año 2's real retained-vs-new policy split (from TeamSimResult.extra) — needed only for the Año 3 prima projection; undefined falls back to the flat FZ.growth3 projection. */
+  year2Retention?: { retainedCount: number; newCount: number };
 }
 
 function pyg(prima: number, sin: number, reservas: number, rinv: number): PnL {
@@ -127,7 +135,7 @@ function balance(pygY: PnL | null, capital0: number, retenido: number, capitalCo
  * instead of reading mutable globals (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
-  const { year1, year2, liabilityYear1, development, almYear1, almYear2 } = input;
+  const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention } = input;
 
   let reservas1: number;
   let rsa1: number;
@@ -200,9 +208,61 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     p2.portYield2 = portYield2;
   }
 
+  // Año 3 is never simulated (no third market, no third ALM year) — it's a
+  // projection built from real Año1/Año2 data wherever that's possible, only
+  // falling back to a flat growth rate for the one piece that genuinely
+  // can't exist yet (Año 3's own accident-year claims).
   let p3: PnL | null = null;
   let reservas3 = 0;
-  if (p2) {
+  if (
+    p2 &&
+    year2 &&
+    development &&
+    year1.insuredCount != null &&
+    year2.insuredCount != null &&
+    year2Retention &&
+    development.claimCountY2 > 0
+  ) {
+    // Prima: retained + new policies (Año 2's real market outcome), not a
+    // flat growth rate on the premium total.
+    const retentionRate = year2Retention.retainedCount / year1.insuredCount;
+    const retainedPolicies3 = retentionRate * year2.insuredCount;
+    const newPolicies3 = year2Retention.newCount;
+    const insuredCount3 = retainedPolicies3 + newPolicies3;
+    const avgPremiumPerPolicy2 = p2.prima / year2.insuredCount;
+    const prima3 = insuredCount3 * avgPremiumPerPolicy2;
+
+    // Costo: Año 1's 3rd (final) and Año 2's 2nd development-year tails are
+    // exact, real numbers (same claim-level data computeDevelopment() already
+    // has, one kernel step further — see TeamDevelopment's devTailY1InY3/
+    // devTailY2InY3). Only Año 3's own accident-year claims are projected:
+    // frequency held at Año 2's observed rate, severity inflated by
+    // CLAIMS_INFLATION_ANNUAL — the same rate the engine already uses for
+    // Año1->Año2, reused as-is (see that constant's doc comment for why this
+    // isn't double-counted against the Chile real-trend clue).
+    const frecuencia2 = development.claimCountY2 / year2.insuredCount;
+    const severidad2 = development.ultY2 / development.claimCountY2;
+    const severidad3 = severidad2 * (1 + CLAIMS_INFLATION_ANNUAL);
+    const siniestrosNuevosAño3 = insuredCount3 * frecuencia2 * severidad3;
+    const costo3 = development.devTailY1InY3 + development.devTailY2InY3 + siniestrosNuevosAño3;
+
+    // Reservas: the matching outstanding tails (same real data) plus the
+    // projected Año3 claims' own first development-year outstanding balance
+    // (DEV_FRAC[0] = 55% paid within their own accident year, 45% still open).
+    const osAño3Propio = siniestrosNuevosAño3 * (1 - DEV_FRAC[0]);
+    reservas3 = development.osY1endY3 + development.osY2endY3 + osAño3Propio;
+
+    // Resultado de inversiones: the *realized* yield Año 2's real ALM
+    // actually earned, not the tree's nominal rate — a team that had to
+    // force-sell or commit capital in Año 2 carries that into its Año 3
+    // projection instead of the projection "forgetting" it. Falls back to
+    // the nominal portYield if no real ALM ran for Año 2.
+    const rinv3 = reservas3 * (almYear2?.effectiveYield ?? portYield);
+
+    p3 = pyg(prima3, costo3, reservas3, rinv3);
+  } else if (p2) {
+    // Fallback: the flat growth-rate projection, unchanged, for whenever the
+    // richer inputs above aren't available yet.
     const g = 1 + FZ.growth3;
     reservas3 = reservas2 * g;
     p3 = pyg(p2.prima * g, p2.costo * g, reservas3, reservas3 * portYield);

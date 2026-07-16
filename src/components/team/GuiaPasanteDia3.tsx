@@ -96,7 +96,7 @@ export function GuiaPasanteDia3() {
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 3 — Estado de resultados Año 2/3 (proy.), Balance y rebalanceo
+          Día 3 — Estado de resultados Año 2/3 (proy.) y Balance
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
           Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tus estados financieros: te explica exactamente qué se
@@ -122,10 +122,6 @@ export function GuiaPasanteDia3() {
             <strong>Financiero — Balance de Año 1, Año 2 y Año 3.</strong> El mismo balance simplificado (caja, inversiones, cuentas por cobrar/pagar,
             reservas técnicas, patrimonio) para los tres años, terminando en el chequeo contable Pasivo + Patrimonio = Activos.
           </li>
-          <li>
-            <strong>Financiero — rebalanceo opcional del árbol (Año 2).</strong> Si quieres ajustar tu árbol de portafolio para el Año 2, este es el
-            momento — si no subes uno nuevo, se sigue usando el que definiste en el Día 2 (ver la guía de ese día para la mecánica completa del árbol).
-          </li>
         </ul>
       </Section>
 
@@ -144,9 +140,16 @@ export function GuiaPasanteDia3() {
 
         <SubSection title="Estado de resultados Año 3 (proyectado)" accent="fin">
           <p>
-            El Año 3 <strong>no se simula</strong> — no hay un tercer mercado, ni siniestros nuevos, ni un ALM propio. Se proyecta creciendo la prima y el
-            costo de siniestros del Año 2 a una tasa fija, para dar visibilidad de tendencia sin abrir un ciclo completo nuevo. Ver sección 3 para la
-            fórmula exacta.
+            El Año 3 <strong>no se simula</strong> — no hay un tercer mercado ni un ALM propio. Pero tampoco es una sola tasa de crecimiento aplicada a
+            todo: cada línea se proyecta con la lógica que le corresponde, no todas igual.
+          </p>
+          <p>
+            La prima depende de cuántas pólizas conservas (retención) y cuántas ganas de nuevo — no de crecer el peso total de la prima de Año 2 por un
+            porcentaje. El costo de siniestros de Año 3, igual que el de Año 2, tiene un componente de <strong>desarrollo</strong> (lo que sigue
+            emergiendo de siniestros de años anteriores, esta vez de Año 1 y de Año 2 a la vez) más un componente de siniestros propios de Año 3 — ese sí
+            hay que proyectarlo, porque todavía no existe. Y el Resultado de inversiones ya no puede salir de una fórmula plana sobre la reserva: piensa
+            en qué te dice tu propio ALM real de Año 2 sobre lo que tu portafolio efectivamente rindió, más allá de lo que su rendimiento nominal
+            prometía. Ver sección 3 para cómo razonar cada pieza.
           </p>
         </SubSection>
 
@@ -160,15 +163,6 @@ export function GuiaPasanteDia3() {
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Las reservas técnicas de cada año son la misma cifra actuarial que ya viste en el motor (RSA + IBNR para el Año 1; lo pendiente de ambos
             orígenes al cierre del Año 2) — solo que ahora se reportan como una línea del Balance, no como un entregable aparte.
-          </p>
-        </SubSection>
-
-        <SubSection title="Rebalanceo opcional del árbol (Año 2)" accent="fin">
-          <p>
-            Es exactamente el mismo mecanismo del árbol de decisiones que construiste en Día 2 (ver esa guía para el detalle completo) — repartes tu
-            presupuesto entre instrumentos y decides qué pasa cuando cada tramo venza. Es opcional: si no subes uno nuevo hoy, el Año 2 sigue usando el
-            árbol que ya definiste. Si lo actualizas, este nuevo árbol es el que corre en la simulación real del Año 2 (Resultado de inversiones, Balance
-            del Año 2).
           </p>
         </SubSection>
       </Section>
@@ -195,11 +189,39 @@ export function GuiaPasanteDia3() {
         </SubSection>
 
         <SubSection title="Para la proyección del Año 3" accent="fin">
-          <p>
-            Sin un mercado real que simular, la proyección tiene que ser una regla explícita y consistente — no una intuición libre. Piensa qué le pasa a
-            <em> cada línea</em> del estado de resultados cuando la prima y el costo crecen a la misma tasa: los gastos (porcentajes fijos de la prima)
-            crecen con ella, pero ¿qué le pasa al resultado de inversiones si no hay una nueva simulación de portafolio para este año?
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Sin un mercado real que simular, cada línea necesita su propia regla explícita y consistente — no una intuición libre, y no la misma regla
+            para todas.
           </p>
+          <ul className="list-disc pl-5">
+            <li>
+              <strong>La prima no crece sola — depende de cuántas pólizas conservas.</strong> Piensa en tu Año 3 como pólizas retenidas de Año 2 (a la
+              misma tasa de retención que ya observaste de Año 1 a Año 2) más pólizas nuevas — no como un porcentaje aplicado al total de prima de Año 2.
+            </li>
+            <li>
+              <strong>El costo de siniestros de Año 3 también tiene desarrollo — de dos orígenes a la vez.</strong> Igual que el costo de Año 2 mezclaba
+              lo propio de ese año con el desarrollo de Año 1, el de Año 3 mezcla lo propio de Año 3 con el desarrollo que todavía sigue emergiendo de
+              Año 1 <em>y</em> de Año 2 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 3 de la guía de Día 2 si no la tienes fresca).
+              Solo la pieza de Año 3 propiamente dicha necesita proyectarse; el resto ya lo conoces.
+            </li>
+            <li>
+              <strong>Para proyectar el siniestro propio de Año 3, separa frecuencia de severidad.</strong> La frecuencia (cuántas pólizas de tu libro
+              tienen siniestro) no tiene por qué cambiar de un año a otro sin razón — la severidad (cuánto cuesta cada siniestro) sí, por inflación. No
+              las mezcles en una sola tasa de crecimiento.
+            </li>
+            <li>
+              <strong>¿Qué tasa de inflación de siniestros usar?</strong> No está publicada, pero es reconstruible: el dataset de Chile (Día 1) ahora
+              tiene una tendencia real de severidad año a año, en UF — una unidad ya libre de inflación chilena, así que ese crecimiento es puro costo
+              real (repuestos/mano de obra), no inflación disfrazada. Súmale tu propia estimación de la inflación general de Colombia (dato público) y
+              deberías acercarte a la inflación de siniestros que el motor ya usó para llevar tu propio libro de Año 1 a Año 2 — compara la severidad
+              promedio de tus siniestros reales entre esos dos años para verificarlo.
+            </li>
+            <li>
+              <strong>El Resultado de inversiones ya no puede salir de una fórmula plana sobre la reserva.</strong> Piensa en lo que tu ALM real de Año 2
+              efectivamente rindió (no lo que su árbol prometía rendir en teoría) — si tuviste que vender algo bajo presión o comprometer capital en
+              Año 2, eso también debería pesar en tu proyección de Año 3, no desaparecer.
+            </li>
+          </ul>
         </SubSection>
 
         <SubSection title="Para el Balance" accent="fin">
@@ -253,9 +275,9 @@ export function GuiaPasanteDia3() {
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · El camino completo, de tus decisiones a tu reporte</p>
           <p className="text-sm">
-            El desarrollo real de siniestros (3) + tu árbol de portafolio, sin cambios o rebalanceado (2) → alimentan el estado de resultados del Año 2
-            (4.1) → que junto con la prima/costo proyectados a una tasa fija te da el Año 3 (4.1) → cada año, junto con el capital comprometido de tu ALM
-            real, te da el Balance de ese año (4.3).
+            El desarrollo real de siniestros (3) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del Año 2 (4.1) → que junto con la
+            retención real de Año 2, el desarrollo que sigue emergiendo de Año 1 y Año 2, y el rendimiento realmente devengado por tu ALM real, te da la
+            proyección del Año 3 (4.1) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (4.3).
           </p>
           <p className="mt-2 text-sm">
             Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) son las que alimentan la Solvencia y los dividendos que vas a

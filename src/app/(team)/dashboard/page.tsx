@@ -20,7 +20,7 @@ const DAYS = [
     n: 3,
     label: "Día 3 — P&G Año 2 y Balance",
     actuarial: "Reportas las reservas técnicas de Año 1 y Año 2.",
-    financiero: "Reportas el estado de resultados del Año 2, la proyección del Año 3 y el Balance completo; puedes rebalancear tu portafolio.",
+    financiero: "Reportas el estado de resultados del Año 2, la proyección del Año 3 y el Balance completo.",
   },
   {
     n: 4,

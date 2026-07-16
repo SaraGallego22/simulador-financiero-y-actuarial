@@ -11,7 +11,10 @@ describe("generateChile", () => {
   it("matches golden values from the legacy prototype (seed=42, n=500)", () => {
     // Golden values produced by running generarChile()'s exact loop body
     // (copied verbatim, including the local calcLamCL()) from
-    // Pasantia_SURA_v3_inversiones_dinamicas.html with seed=42, N_CHL=500.
+    // Pasantia_SURA_v3_inversiones_dinamicas.html with seed=42, N_CHL=500 —
+    // except montoUf for 2022/2023 claims, deliberately adjusted from the
+    // legacy values by CHILE_REAL_SEVERITY_GROWTH_ANNUAL (see that constant's
+    // doc comment); claim counts/dates/2021 severities are still untouched.
     const policies = generateChile(42, 500);
 
     let claimCount = 0;
@@ -72,7 +75,8 @@ describe("generateChile", () => {
       siniestro: 1,
       fechaSiniestro: "2022-08-11",
       fechaAviso: "2022-08-12",
-      montoUf: 199,
+      // 199 pre-CHILE_REAL_SEVERITY_GROWTH_ANNUAL (199 * 1.03^1 ≈ 205).
+      montoUf: 205,
     });
     expect(last.years[2023]).toEqual({ siniestro: 0, fechaSiniestro: "", fechaAviso: "", montoUf: "" });
   });

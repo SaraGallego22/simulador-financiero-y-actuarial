@@ -210,7 +210,7 @@ export function GuiaPasanteDia4() {
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · El camino completo, de tus decisiones a tu nota</p>
           <p className="text-sm">
-            Tu Balance de cada año (Día 3) + la volatilidad realizada de tu árbol de portafolio (Día 2/3) → alimentan el RK y tu margen de solvencia
+            Tu Balance de cada año (Día 3) + la volatilidad realizada de tu árbol de portafolio (Día 2) → alimentan el RK y tu margen de solvencia
             (4.1). En paralelo, tu lectura del mercado a través de tu propia cartera y el CSV público → tu recomendación sectorial (4.2), calificada
             contra el ranking real que nunca ves directamente.
           </p>
