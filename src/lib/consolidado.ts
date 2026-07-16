@@ -123,7 +123,7 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
       const recs = await prisma.analyticsRecommendation.findMany({ where: { day: 4, team: { cohortId: cohort.id } } });
       const picksByTeamId = groupSectorPicksByTeam(recs);
       for (const [teamId, picks] of picksByTeamId) {
-        const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir);
+        const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir, tolerance);
         if (score != null) analiticaScoreByTeamId.set(teamId, score);
       }
     }

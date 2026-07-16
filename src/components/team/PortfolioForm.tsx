@@ -63,8 +63,7 @@ function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id:
         {INSTRUMENTS.map((ins) => (
           <div key={ins.id} className="flex flex-col gap-1">
             <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-              {ins.id}{" "}
-              <span className="font-normal">(volatilidad {(ins.volAnual * 100).toFixed(1)}%)</span>
+              {ins.id}
               <input
                 type="number"
                 min="0"
@@ -166,7 +165,9 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
         acciones también necesitan un vencimiento personalizado: por cuántos meses los dejas ahí antes de decidir de
         nuevo. La nota de rendimiento está ajustada por riesgo: un instrumento con mayor volatilidad exige un
         rendimiento más alto para que valga la pena — perseguir el rendimiento nominal más alto (acciones) sin
-        cuidar la volatilidad puede darte una nota peor que un portafolio más balanceado. Si te falta caja en algún
+        cuidar la volatilidad puede darte una nota peor que un portafolio más balanceado. La volatilidad de cada
+        instrumento no se muestra aquí directamente — puedes deducirla de la diagonal de la matriz de covarianza
+        (pestaña de instrumentos, arriba). Si te falta caja en algún
         mes, el sistema cubre la diferencia vendiendo LIQ primero (gratis, es su función) y, si no alcanza, vendiendo
         el resto de tu portafolio empezando por lo menos volátil — pero verte obligado a vender es un castigo aparte
         en la nota, y vender acciones bajo presión pesa mucho más que vender un CDT o un TES.

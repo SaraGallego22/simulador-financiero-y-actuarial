@@ -122,12 +122,15 @@ export function GuiaPasanteDia4() {
           <p>
             Nombra hasta 3 <strong>sectores</strong> — cada uno cruzando dos variables (ej. Zona: urbana × Uso: comercial, no una sola) — que
             priorizarías para <strong>crecer</strong>, en orden de prioridad, y hasta 3 para <strong>disminuir</strong>. Todo lo que no nombres queda
-            implícitamente en &ldquo;mantener&rdquo;.
+            implícitamente en &ldquo;mantener&rdquo;. Para cada sector que nombres, estima también su <strong>multiplicador</strong> (qué tan por
+            encima o por debajo del promedio del mercado queda su pérdida agregada — 1.0 es el promedio).
           </p>
           <p>
             Se califica contra el ranking real de sectores de <strong>todo el mercado</strong>, que no ves directamente — tu propia cartera y el CSV
             público del universo (características de riesgo, sin resultados) son tu única evidencia. Acertar la dirección no basta: importa qué tan
-            cerca quede tu prioridad (posición 1, 2 o 3) de la posición real de ese sector en el ranking verdadero.
+            cerca quede tu prioridad (posición 1, 2 o 3) de la posición real de ese sector en el ranking verdadero, <strong>y</strong> qué tan cerca
+            quede tu multiplicador estimado del real — nombrar el sector correcto sin estimar su multiplicador solo te da la mitad del puntaje de esa
+            posición.
           </p>
         </SubSection>
       </Section>
@@ -176,6 +179,11 @@ export function GuiaPasanteDia4() {
               mercado (el mercado se reparte por precio, así que ganaste desproporcionadamente los riesgos que subvaloraste) — razona con eso en mente,
               no asumas que tu cartera representa al mercado completo.
             </li>
+            <li>
+              <strong>El multiplicador es una pérdida agregada relativa, no un nivel de precio.</strong> Combina frecuencia y severidad de ese sector
+              frente al promedio del mercado completo — puedes construir tu propia versión de este número con tu cartera (aunque sesgada) como punto
+              de partida, no partas de cero.
+            </li>
           </ul>
         </SubSection>
       </Section>
@@ -210,14 +218,16 @@ export function GuiaPasanteDia4() {
             Variables disponibles para cruzar: {SECTOR_DIMENSIONS.map((d) => d.label).join(", ")}.
           </p>
           <BlankTable
-            headers={["Prioridad", "Dimensión A", "Valor A", "Dimensión B", "Valor B"]}
+            headers={["Prioridad", "Dimensión A", "Valor A", "Dimensión B", "Valor B", "Multiplicador estimado"]}
             rows={3}
             note="Repite esta tabla para tu lista de crecer y tu lista de disminuir (hasta 3 posiciones cada una). Un sector siempre cruza dos dimensiones distintas."
           />
           <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-            Nota de calificación: acertar la posición exacta del sector real da 100 puntos para esa posición, decayendo linealmente hasta 0 conforme la
-            diferencia de posición crece — nombrar un sector que ni siquiera aparece en el ranking real también da 0. Las posiciones que dejes en blanco
-            simplemente no cuentan, ni para bien ni para mal.
+            Nota de calificación: cada posición nombrada vale por dos mitades, 50/50. La primera mitad es la posición — acertar la posición exacta del
+            sector real da 100 puntos, decayendo linealmente hasta 0 conforme la diferencia de posición crece; nombrar un sector que ni siquiera
+            aparece en el ranking real también da 0. La segunda mitad es el multiplicador estimado — se califica con la misma banda de tolerancia
+            sobre el error relativo que el resto de tus entregables numéricos, y da 0 si el sector nombrado no está en el ranking real o si dejaste el
+            multiplicador en blanco. Las posiciones que dejes en blanco por completo simplemente no cuentan, ni para bien ni para mal.
           </p>
         </div>
 

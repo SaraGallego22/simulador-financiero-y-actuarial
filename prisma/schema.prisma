@@ -192,6 +192,11 @@ model AnalyticsRecommendation {
   valA   String
   dimB   String
   valB   String
+  // Team's own guess at this sector's true multiplier (aggregateLoss ÷
+  // universe aggregateLoss) — optional, scored via a tolerance band exactly
+  // like any other numeric estimate; null contributes 0 to that half of the
+  // slot's score, same as leaving it blank. See scoreSectorPicks().
+  estimatedMultiplier Float?
 
   @@unique([teamId, day, list, rank])
 }

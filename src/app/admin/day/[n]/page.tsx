@@ -209,11 +209,6 @@ export default async function AdminDayPage({
   const trueDisminuir = rankForDisminuir(sectorStats);
 
   const picksByTeamId = groupSectorPicksByTeam(analyticsRecs);
-  const analiticaScoreByTeamId = new Map<string, number>();
-  for (const [teamId, picks] of picksByTeamId) {
-    const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir);
-    if (score != null) analiticaScoreByTeamId.set(teamId, score);
-  }
 
   // This day's final "nota objetiva" per team, read straight off
   // computeConsolidado() rather than re-derived here — Día 2's real blend
@@ -274,6 +269,12 @@ export default async function AdminDayPage({
     tolerancePerfect: rubric?.tolerancePerfect ?? 0.05,
     toleranceZero: rubric?.toleranceZero ?? 0.4,
   };
+
+  const analiticaScoreByTeamId = new Map<string, number>();
+  for (const [teamId, picks] of picksByTeamId) {
+    const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir, tolerance);
+    if (score != null) analiticaScoreByTeamId.set(teamId, score);
+  }
 
   // Día 1's minimum-variance exercise, per team — scored against the true
   // optimal portfolio at the team's own achieved return, never per-team
@@ -447,7 +448,7 @@ export default async function AdminDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance} />}
+          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioTree} />}
           {hasMinVariance && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -673,6 +674,11 @@ export default async function AdminDayPage({
                   cualquier equipo que la priorice debería perder puntos frente a quienes reconocieron que no aporta y buscaron cruces entre las
                   demás variables.
                 </p>
+                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                  Cada posición nombrada vale por dos cosas, 50/50: acertar la posición en el ranking real, y estimar el multiplicador de ese sector
+                  dentro de la misma banda de tolerancia que el resto de entregables numéricos — nombrar el sector sin estimar su multiplicador (o
+                  nombrar uno que no aparece en el ranking real) da 0 en esa mitad.
+                </p>
               </div>
               <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                 <div>
@@ -778,6 +784,8 @@ export default async function AdminDayPage({
                                             {trueIdx === -1
                                               ? "no está en el ranking real"
                                               : `real: #${trueIdx + 1} (${trueRanking[trueIdx].multiplier.toFixed(2)}×)`}
+                                            {" · estimado: "}
+                                            {pick.estimatedMultiplier != null ? `${pick.estimatedMultiplier.toFixed(2)}×` : "sin estimar"}
                                           </span>
                                         </td>
                                       </tr>

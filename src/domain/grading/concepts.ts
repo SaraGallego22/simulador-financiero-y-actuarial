@@ -151,6 +151,21 @@ export interface ConceptScoreResult {
 }
 
 /**
+ * Tolerance-band scoring shared by every numeric estimate this platform
+ * grades against a computed benchmark: 100 if the relative error is within
+ * `tolerancePerfect`, 0 once it reaches `toleranceZero`, linear in between.
+ * Extracted out of scoreConcepto() so scorers outside the "reporte" concept
+ * shape (e.g. a Día 4 sector's estimated multiplier, see scoreSectorPicks()
+ * in sectors.ts) use the exact same formula instead of a parallel copy.
+ */
+export function toleranceBandScore(submittedValue: number, benchmarkValue: number, tolerance: ConceptTolerance): number {
+  const err = Math.abs(submittedValue - benchmarkValue) / Math.max(Math.abs(benchmarkValue), 1e-9);
+  if (err <= tolerance.tolerancePerfect) return 100;
+  if (err >= tolerance.toleranceZero) return 0;
+  return 100 * (1 - (err - tolerance.tolerancePerfect) / (tolerance.toleranceZero - tolerance.tolerancePerfect));
+}
+
+/**
  * Grades one uploaded "reporte" deliverable against its computed benchmark
  * with a tolerance band (100 if error <= tolerancePerfect, 0 if error >=
  * toleranceZero, linear in between). Ported from scoreConcepto() in the
@@ -177,11 +192,5 @@ export function scoreConcepto(
   if (b == null) return { val: submittedValue, bench: null, score: null };
   if (submittedValue == null) return { val: null, bench: b, score: null };
 
-  const err = Math.abs(submittedValue - b) / Math.max(Math.abs(b), 1e-9);
-  let score: number;
-  if (err <= tolerance.tolerancePerfect) score = 100;
-  else if (err >= tolerance.toleranceZero) score = 0;
-  else score = 100 * (1 - (err - tolerance.tolerancePerfect) / (tolerance.toleranceZero - tolerance.tolerancePerfect));
-
-  return { val: submittedValue, bench: b, score };
+  return { val: submittedValue, bench: b, score: toleranceBandScore(submittedValue, b, tolerance) };
 }

@@ -100,7 +100,10 @@ export default async function TeamDayPage({
 
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
-    analyticsRecs.map((r) => [`${r.list}-${r.rank}`, { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB }])
+    analyticsRecs.map((r) => [
+      `${r.list}-${r.rank}`,
+      { dimA: r.dimA, valA: r.valA, dimB: r.dimB, valB: r.valB, multiplier: r.estimatedMultiplier != null ? String(r.estimatedMultiplier) : "" },
+    ])
   );
 
   // ALM detail (team-scoped): Día 2's tree is graded against Año 1's real
@@ -207,7 +210,7 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance} />}
+          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioTree} />}
           {hasMinVariance && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}

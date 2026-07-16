@@ -178,18 +178,23 @@ export async function submitAnalyticsAction(
 ): Promise<SubmitAnalyticsState> {
   const teamId = await requireTeam();
 
-  const rows: { list: string; rank: number; dimA: string; valA: string; dimB: string; valB: string }[] = [];
+  const rows: { list: string; rank: number; dimA: string; valA: string; dimB: string; valB: string; estimatedMultiplier: number | null }[] = [];
   for (const list of SECTOR_LISTS) {
     for (let rank = 1; rank <= MAX_SECTOR_RANK; rank++) {
       const dimA = String(formData.get(`${list}-${rank}-dimA`) ?? "");
       const valA = String(formData.get(`${list}-${rank}-valA`) ?? "");
       const dimB = String(formData.get(`${list}-${rank}-dimB`) ?? "");
       const valB = String(formData.get(`${list}-${rank}-valB`) ?? "");
+      const multiplierRaw = formData.get(`${list}-${rank}-multiplier`);
       if (!dimA && !valA && !dimB && !valB) continue; // empty slot — skipped, not an error
       if (!isValidSectorPick(dimA, valA, dimB, valB)) {
         return { error: `El sector en la posición ${rank} de "${list}" no es válido — elige dos dimensiones distintas con un valor cada una.` };
       }
-      rows.push({ list, rank, dimA, valA, dimB, valB });
+      const estimatedMultiplier = multiplierRaw != null && multiplierRaw !== "" ? Number(multiplierRaw) : null;
+      if (estimatedMultiplier != null && !Number.isFinite(estimatedMultiplier)) {
+        return { error: `El multiplicador estimado en la posición ${rank} de "${list}" no es un número válido.` };
+      }
+      rows.push({ list, rank, dimA, valA, dimB, valB, estimatedMultiplier });
     }
   }
   if (rows.length === 0) return { error: "Nombra al menos un sector en alguna de las dos listas." };
