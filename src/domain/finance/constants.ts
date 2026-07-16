@@ -8,6 +8,8 @@ export const FZ = {
   resVol: 0.3,
   corrPR: 0.75,
   finRiskPct: 0.066,
+  /** Día 4 solvency capital charge for portfolio concentration — see rConcentracion in finBench.ts and CORR_MOD_CONCENTRACION below. A team maximally concentrated in a single risky instrument (portfolioConcentrationRatio=1) pays 3% of its inversiones on top of the volatility-based rFin charge; a fully spread risky sleeve pays nothing here. */
+  concRiskPct: 0.03,
   opPct: 0.03,
   targetMargin: 1.5,
   cajaPct: 0.15,
@@ -16,12 +18,50 @@ export const FZ = {
   growth3: 0.06,
 };
 
-/** Correlation matrix between underwriting/financial/operational risk. Ported from CORR_MOD, line ~1071. */
+/** Correlation matrix between underwriting/financial/operational risk. Ported from CORR_MOD, line ~1071. Stays 3x3 (Susc/Fin/Op) — capacity.ts's market-share cap reuses this exact matrix and assumes that shape; the concentration risk charge (Día 4 only, not part of capacity sizing) has its own extended matrix below instead of reshaping this one. */
 export const CORR_MOD = [
   [1, 0.75, 1],
   [0.75, 1, 1],
   [1, 1, 1],
 ];
+
+/**
+ * Correlation matrix for finBench()'s 4-component solvency capital
+ * (underwriting/financial/operational/concentration risk), order [rSusc,
+ * rFin, rOp, rConcentracion] — the first 3 rows/columns are CORR_MOD
+ * unchanged, extended with a 4th for concentration risk. Real Solvency II
+ * treats concentration as a market-risk sub-module alongside volatility
+ * (not a separate top-level category like operational risk), which is why
+ * it correlates with rFin (0.5 — related domain, but a genuinely different
+ * driver: a low-volatility single-instrument portfolio scores high on
+ * concentration and low on rFin, and vice versa for an evenly-spread but
+ * individually volatile blend) more than with rSusc (0.75, same as rFin's
+ * own correlation to rSusc — both are investment-side risks equally
+ * distant from underwriting). Like rOp, it correlates 1 with everything
+ * else — the same conservative "just add it" treatment CORR_MOD already
+ * gives operational risk, extended consistently to this new component.
+ */
+export const CORR_MOD_CONCENTRACION = [
+  [1, 0.75, 1, 0.75],
+  [0.75, 1, 1, 0.5],
+  [1, 1, 1, 1],
+  [0.75, 0.5, 1, 1],
+];
+
+/**
+ * How much a Día 2 ALM decision's portfolio-concentration ratio (see
+ * portfolioConcentrationRatio() in alm.ts) discounts the "Rendimiento"
+ * sub-score's riskAdjustedYield, the same mechanism VOL_PENALTY_LAMBDA
+ * already uses for volatility: riskAdjustedYield = effYield −
+ * VOL_PENALTY_LAMBDA×avgVol − CONCENTRATION_PENALTY_MU×concentrationRatio
+ * (see scoreFinanciero() in alm.ts). This is what makes concentration a
+ * felt penalty on the same day the team makes the decision, not something
+ * that only shows up in Día 4's solvency capital charge (FZ.concRiskPct)
+ * three days later — a team should see a worse Día 2 nota from
+ * concentrating, and understand why when it separately has to reproduce a
+ * higher RK on Día 4.
+ */
+export const CONCENTRATION_PENALTY_MU = 0.03;
 
 /** Total expense ratio (adquisición + comisión + administración), reused at
  * monthly granularity in the ALM ladder — same ratios finBench's pyg() uses

@@ -109,11 +109,12 @@ export function GuiaPasanteDia4() {
             banda de tolerancia sobre el error relativo, igual que el resto de tus entregables numéricos.
           </p>
           <p>
-            El RK combina tres riesgos (suscripción, financiero y operacional) — el riesgo financiero es el que conecta directamente con tus decisiones
-            de portafolio de los días anteriores: no es un porcentaje plano sobre tus inversiones, se escala por qué tan volátil resultó realmente tu
-            portafolio frente al promedio del menú de instrumentos. Un equipo que concentró su árbol en el instrumento más volátil paga un capital de
-            riesgo mayor que uno con el mismo monto invertido de forma más conservadora — sin importar el rendimiento nominal que haya obtenido. Ver
-            sección 4 para las fórmulas completas.
+            El RK combina cuatro riesgos (suscripción, financiero, operacional y concentración) — los dos que conectan directamente con tu árbol de
+            portafolio de Día 2 son el financiero y el de concentración, y son dos cosas distintas. El riesgo financiero no es un porcentaje plano sobre
+            tus inversiones: se escala por qué tan volátil resultó realmente tu portafolio frente al promedio del menú de instrumentos. El riesgo de
+            concentración es independiente de eso — se escala por qué tan repartido quedó tu árbol entre los instrumentos con plazo propio
+            (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo
+            nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 4 para las fórmulas completas.
           </p>
         </SubSection>
 
@@ -143,6 +144,12 @@ export function GuiaPasanteDia4() {
               <strong>El riesgo financiero no es gratis, aunque el rendimiento haya sido bueno.</strong> Dos equipos con el mismo patrimonio pueden tener
               un RK muy distinto si uno concentró su portafolio en el instrumento más volátil del menú — revisa tu propia volatilidad realizada, no solo
               tu rendimiento, antes de reportar.
+            </li>
+            <li>
+              <strong>Si tu nota de Rendimiento del Día 2 quedó más baja de lo esperado, revisa qué tan repartido quedó tu árbol.</strong> Ese mismo
+              descuento por concentración reaparece aquí como un cargo de capital aparte del financiero — un CDT90 100% concentrado paga este cargo
+              completo aunque su volatilidad sea baja. Entender esa conexión es lo que te permite reportar un RK correcto hoy, no solo recordar que tu
+              nota de Día 2 fue más baja.
             </li>
             <li>
               <strong>El patrimonio que usas es el del año vigente, no un acumulado de todos los años.</strong> Si tuviste que comprometer Capital
@@ -180,7 +187,14 @@ export function GuiaPasanteDia4() {
             <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√((prima×14.76%)² + (reservas×30%)² + 2×0.75×(prima×14.76%)×(reservas×30%))" />
             <ScoreCard label="Riesgo financiero (rFin)" formula="6.6% × inversiones × (tu volatilidad realizada ÷ volatilidad promedio del menú)" />
             <ScoreCard label="Riesgo operacional (rOp)" formula="3% × prima" />
-            <ScoreCard label="Requerimiento de Capital (RK)" formula="combinación de rSusc/rFin/rOp vía matriz de correlación (rSusc-rFin=0.75, el resto=1)" />
+            <ScoreCard
+              label="Riesgo de concentración (rConcentracion)"
+              formula="3% × inversiones × concentración de tu árbol (0 a 1, excluye LIQ — mismo número que descontó tu Rendimiento en Día 2)"
+            />
+            <ScoreCard
+              label="Requerimiento de Capital (RK)"
+              formula="combinación de rSusc/rFin/rOp/rConcentracion vía matriz de correlación (rSusc-rFin=0.75, rSusc-rConcentracion=0.75, rFin-rConcentracion=0.5, el resto=1)"
+            />
             <ScoreCard label="Margen de solvencia" formula="Fondos propios (patrimonio) ÷ RK" />
             <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
           </div>
@@ -210,9 +224,9 @@ export function GuiaPasanteDia4() {
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · El camino completo, de tus decisiones a tu nota</p>
           <p className="text-sm">
-            Tu Balance de cada año (Día 3) + la volatilidad realizada de tu árbol de portafolio (Día 2) → alimentan el RK y tu margen de solvencia
-            (4.1). En paralelo, tu lectura del mercado a través de tu propia cartera y el CSV público → tu recomendación sectorial (4.2), calificada
-            contra el ranking real que nunca ves directamente.
+            Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu árbol de portafolio (Día 2, la misma concentración que ya
+            descontó tu nota de Rendimiento entonces) → alimentan el RK y tu margen de solvencia (4.1). En paralelo, tu lectura del mercado a través de
+            tu propia cartera y el CSV público → tu recomendación sectorial (4.2), calificada contra el ranking real que nunca ves directamente.
           </p>
         </div>
       </Section>

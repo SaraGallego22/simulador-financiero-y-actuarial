@@ -11,8 +11,15 @@ const liabilityYear1: LiabilitySchedule = {
   hay: true,
 };
 
-function fakeAlmYear(avgVol: number, capitalComprometido = 0, income = 2_000_000, portYield = 0.1, effectiveYield?: number): AlmYearBenchInput {
-  return { portYield, income, capitalComprometido, avgVol, effectiveYield };
+function fakeAlmYear(
+  avgVol: number,
+  capitalComprometido = 0,
+  income = 2_000_000,
+  portYield = 0.1,
+  effectiveYield?: number,
+  concentrationRatio = 0
+): AlmYearBenchInput {
+  return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield };
 }
 
 /** A realistic Año1(100 claims)/Año2(80 claims) development schedule, for exercising finBench()'s Año3 "rich data" path. */
@@ -134,6 +141,31 @@ describe("finBench", () => {
       almYear1: null,
     });
     expect(bench.solVolRatio).toBe(1);
+  });
+
+  it("charges more concentration-risk capital for a team whose ALM decision was concentrated in a single instrument", () => {
+    const input = (concentrationRatio: number) => ({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmYear(0.05, 0, 2_000_000, 0.1, undefined, concentrationRatio),
+    });
+    const diversified = finBench(input(0));
+    const concentrated = finBench(input(1));
+    expect(concentrated.solRConc).toBeGreaterThan(diversified.solRConc);
+    expect(diversified.solRConc).toBe(0);
+    expect(concentrated.solRk).toBeGreaterThan(diversified.solRk);
+    expect(concentrated.solMargen).toBeLessThan(diversified.solMargen);
+    expect(concentrated.solConcRatio).toBe(1);
+  });
+
+  it("charges no concentration-risk capital when no ALM decision exists", () => {
+    const bench = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: null,
+    });
+    expect(bench.solRConc).toBe(0);
+    expect(bench.solConcRatio).toBe(0);
   });
 
   it("erodes bal1's patrimonio by exactly Year 1's committed capital, and bal2's by Year 2's checkpoint", () => {
