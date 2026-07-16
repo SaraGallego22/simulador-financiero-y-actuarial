@@ -36,6 +36,18 @@ export const OUTLIER_CLAIM_MULTIPLIER = 8;
  */
 export const CLAIMS_INFLATION_ANNUAL = 0.09;
 
+/**
+ * Real (above general inflation) year-over-year growth in Chile claims
+ * severity, baked into `generateChile()`'s 2021-2023 series. Expressed in UF
+ * — Chile's own inflation-indexed unit — so this represents genuine repair/
+ * labor cost growth, not currency debasement. A team that measures this
+ * trend and adds a public estimate of Colombia's own general inflation
+ * should land close to CLAIMS_INFLATION_ANNUAL above: the same
+ * reverse-engineering pattern as the Día 1 "brecha temporal" challenge (see
+ * README §1.1) — never disclosed directly.
+ */
+export const CHILE_REAL_SEVERITY_GROWTH_ANNUAL = 0.03;
+
 /** Monthly claim-occurrence seasonality weights, ported from ESTAC (line ~2029). */
 export const MONTHLY_SEASONALITY = [
   1.25, 1.05, 1.15, 1.0, 0.9, 0.95, 1.2, 1.15, 0.95, 0.9, 0.95, 1.35,

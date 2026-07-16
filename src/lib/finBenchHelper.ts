@@ -76,7 +76,7 @@ export async function computeFinBenchBundlesForCohort(
   // scope for a real ALM that only ever runs one year at a time).
   const year2LiabilityByTeamId = year2ClaimsByTeamId ? computeReservesForTeams(year2ClaimsByTeamId) : null;
 
-  const [year1Results, year2Results, allocations1, allocations2] = await Promise.all([
+  const [year1Results, year2Results, allocations1] = await Promise.all([
     prisma.teamSimResult.findMany({
       where: { simulationRun: { cohortId, day: 1, status: "DONE" } },
       orderBy: { simulationRun: { createdAt: "desc" } },
@@ -85,12 +85,10 @@ export async function computeFinBenchBundlesForCohort(
       where: { simulationRun: { cohortId, day: 2, status: "DONE" } },
       orderBy: { simulationRun: { createdAt: "desc" } },
     }),
-    // Año 1's real ALM tree now lives on Día 2 (not Día 1 — Día 1 is the
-    // minimum-variance exercise, a flat weight map, never a tree); Año 2's
-    // optional rebalance now lives on Día 3 (not Día 2) — see README's
-    // market-clearing section for the day mapping and why.
+    // Año 1's real ALM tree lives on Día 2 (not Día 1 — Día 1 is the
+    // minimum-variance exercise, a flat weight map, never a tree) — it's the
+    // only tree the platform collects, and also drives Año 2's real ALM.
     prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId } } }),
-    prisma.portfolioAllocation.findMany({ where: { day: 3, team: { cohortId } } }),
   ]);
 
   // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
@@ -103,10 +101,9 @@ export async function computeFinBenchBundlesForCohort(
   const year2ByTeamId = new Map<string, (typeof year2Results)[number]>();
   for (const r of year2Results) if (!year2ByTeamId.has(r.teamId)) year2ByTeamId.set(r.teamId, r);
   const toDecision = (allocation: unknown): PortfolioDecisionV3 | null => (isPortfolioDecisionV3(allocation) ? allocation : null);
-  // alloc1 = Año 1's real tree, submitted Día 2; alloc2 = Año 2's optional
-  // rebalance, submitted Día 3 (falls back to alloc1 below if never resubmitted).
+  // The only tree the platform collects — submitted Día 2, drives Año 1's
+  // real ALM and (unchanged for Año 2, see below) Año 2's too.
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
-  const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));
 
   for (const [teamId, year1] of year1ByTeamId) {
     const liabilityYear1 = reserves1.get(teamId);
@@ -119,28 +116,42 @@ export async function computeFinBenchBundlesForCohort(
       : null;
 
     const year2 = year2ByTeamId.get(teamId);
-    // A team's own Día 3 decision takes priority; falls back to Día 2's if
-    // they never updated it (the Año 2 rebalance is optional — see TAB_NOTES).
-    const alloc2 = alloc2ByTeamId.get(teamId) ?? alloc1;
+    // Año 2's real ALM continues with the same Día 2 tree — there's no
+    // separate Año 2 decision to fall back from anymore.
     let realAlmYear2: AlmRealYearResult | null = null;
     let almYear2: AlmYearBenchInput | undefined;
-    if (alloc2 && year2 && realAlmYear1) {
+    if (alloc1 && year2 && realAlmYear1) {
       const desarrolloAnio1 = liabilityYear1.L.slice(0, 12);
       const siniestrosPropiosAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(0, 12) ?? new Array(12).fill(0);
       const claimsYear2 = desarrolloAnio1.map((v, i) => (v || 0) + (siniestrosPropiosAnio2[i] || 0));
-      realAlmYear2 = almSimRealYear(2, claimsYear2, alloc2, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState);
+      realAlmYear2 = almSimRealYear(2, claimsYear2, alloc1, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState);
       if (realAlmYear2) {
-        almYear2 = { portYield: realAlmYear2.portYield, income: realAlmYear2.income, capitalComprometido: realAlmYear2.capitalComprometidoAcumulado, avgVol: realAlmYear2.avgVol };
+        almYear2 = {
+          portYield: realAlmYear2.portYield,
+          income: realAlmYear2.income,
+          capitalComprometido: realAlmYear2.capitalComprometidoAcumulado,
+          avgVol: realAlmYear2.avgVol,
+          effectiveYield: realAlmYear2.effectiveYield,
+        };
       }
     }
 
+    // Retained/new policy counts for Año 3's prima projection — same
+    // `{retainedCount, newCount}` shape already read in admin/day/[n]/page.tsx.
+    const year2Extra = year2?.extra as { retainedCount?: number; newCount?: number } | null;
+    const year2Retention =
+      year2Extra?.retainedCount != null && year2Extra?.newCount != null
+        ? { retainedCount: year2Extra.retainedCount, newCount: year2Extra.newCount }
+        : undefined;
+
     const bench = finBench({
-      year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount },
-      year2: year2 ? { totalPremium: year2.totalPremium, claimsAmount: year2.claimsAmount } : undefined,
+      year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount, insuredCount: year1.insuredCount },
+      year2: year2 ? { totalPremium: year2.totalPremium, claimsAmount: year2.claimsAmount, insuredCount: year2.insuredCount } : undefined,
       liabilityYear1,
       development: developmentByTeamId?.get(teamId),
       almYear1,
       almYear2,
+      year2Retention,
     });
     results.set(teamId, { bench, realAlmYear1, realAlmYear2 });
   }

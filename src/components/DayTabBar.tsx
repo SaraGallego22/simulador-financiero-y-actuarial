@@ -16,7 +16,7 @@ const ALL_TABS: { key: DayTabKey; label: string }[] = [
  * simulation); Días 3-4 don't, since Year 2 is the last year simulated —
  * see CLAUDE.md's domain glossary. The portfolio/ALM forms live in the
  * "entreg" tab on every day that has one (Día 1's minimum-variance
- * exercise, Día 2's real tree, Día 3's optional rebalance).
+ * exercise, Día 2's real tree).
  */
 export function DayTabBar({
   basePath,

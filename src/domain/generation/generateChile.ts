@@ -7,7 +7,7 @@ import type {
   ChileVehicleType,
   ChileZone,
 } from "../pricing/chile";
-import { N_CHILE, SEVERITY_SHAPE } from "./constants";
+import { N_CHILE, SEVERITY_SHAPE, CHILE_REAL_SEVERITY_GROWTH_ANNUAL } from "./constants";
 
 const VEHICLE_TYPES_CL: readonly ChileVehicleType[] = [
   "sedan",
@@ -83,7 +83,14 @@ export function generateChile(seed = 42, n: number = N_CHILE): ChilePolicy[] {
     for (const year of YEARS_CL) {
       const hasClaim = r() < lam;
       if (hasClaim) {
-        const sevUf = Math.round((gammaRand(r, SEVERITY_SHAPE) * baseUf) / SEVERITY_SHAPE);
+        // Real (above Chile's own general inflation, since UF already strips
+        // that out) severity growth across the 3 years — see
+        // CHILE_REAL_SEVERITY_GROWTH_ANNUAL's doc comment. Scales the mean
+        // feeding the draw, same technique generateYear2Claims.ts already
+        // uses for CLAIMS_INFLATION_ANNUAL — doesn't touch the RNG call
+        // sequence, only the deterministic multiplier applied to baseUf.
+        const baseUfYear = baseUf * (1 + CHILE_REAL_SEVERITY_GROWTH_ANNUAL) ** (year - 2021);
+        const sevUf = Math.round((gammaRand(r, SEVERITY_SHAPE) * baseUfYear) / SEVERITY_SHAPE);
         const claimDate = sampleClaimDate(r, year);
         const lag = sampleReportingLag(r);
         const reportDate = new Date(claimDate.getTime() + lag * MS_PER_DAY);

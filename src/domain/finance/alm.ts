@@ -560,6 +560,8 @@ export interface AlmRealYearResult {
   portYield: number;
   /** Real investment income this specific 12-month year accrued (Σ rendimientoPortafolio) — what finBench() uses for that year's P&G "Resultado de inversiones" line. */
   income: number;
+  /** Realized yield actually earned this year (income ÷ average invested book balance across the 12 months) — distinct from `portYield` (the tree's nominal, decision-only yield): a team that had to force-sell or commit capital gets a lower effectiveYield than its tree's nominal rate would suggest. Used to project Año 3's investment income off the *realized* rate instead of the nominal one — see finBench.ts's p3. */
+  effectiveYield: number;
   /** Book-value-weighted average volatility actually held during just this year — feeds finBench()'s rFin volRatio for that year. */
   avgVol: number;
   /** Cumulative Capital Social committed through the end of this year (continues accumulating from whatever initialState carried in, if any). */
@@ -645,6 +647,9 @@ export function almSimRealYear(
     rows,
     portYield: portfolioNominalYield(decision.tranches),
     income,
+    // sumPV is already accumulated per-month for avgVol above — reuse it
+    // here as the average invested book balance (sumPV / 12 months).
+    effectiveYield: sumPV > 0 ? income / (sumPV / 12) : 0,
     avgVol: sumPV > 0 ? sumVolWeighted / sumPV : 0,
     capitalComprometidoAcumulado: state.capitalComprometidoAcumulado,
     capitalSocialRestante: CAPITAL_SOCIAL - state.capitalComprometidoAcumulado,

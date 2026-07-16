@@ -38,6 +38,16 @@ export interface TeamDevelopment {
   reservaFinY2: number;
   /** Claims paid during calendar Year 2. */
   pagosY2: number;
+  /** Year-1 claims' 3rd (final) development-year payment, landing within calendar Year 3 — exact, from real claim-level data (see DEV_FRAC's 3rd tranche). */
+  devTailY1InY3: number;
+  /** Year-2 claims' 2nd development-year payment, landing within calendar Year 3. */
+  devTailY2InY3: number;
+  /** What's left open on Year-1 claims after Year 3 closes — small but not always zero: DEV_FRAC's 3-year kernel needs a full 39 months from notice (LAG_AVISO_PAGO + 36) to fully resolve, so a claim noticed late in Year 1 still has a sliver open at month 35 (the same reason HORIZON=48 exists, see README §3). */
+  osY1endY3: number;
+  /** What's left open on Year-2 claims after their own 2nd development year (Year 3). */
+  osY2endY3: number;
+  /** Count of Year-2's own accident-year claims — needed to derive an average frequency/severity for projecting Year 3's own (not-yet-real) accident-year claims. */
+  claimCountY2: number;
 }
 
 function emptyDevelopment(): TeamDevelopment {
@@ -60,6 +70,11 @@ function emptyDevelopment(): TeamDevelopment {
     development: 0,
     reservaFinY2: 0,
     pagosY2: 0,
+    devTailY1InY3: 0,
+    devTailY2InY3: 0,
+    osY1endY3: 0,
+    osY2endY3: 0,
+    claimCountY2: 0,
   };
 }
 
@@ -95,8 +110,11 @@ export function computeDevelopment(
     const a = get(claim.teamId);
     const paidEndY1 = ultimate * cumulativeKernelAt(11 - am);
     const paidEndY2 = ultimate * cumulativeKernelAt(23 - am);
+    const paidEndY3 = ultimate * cumulativeKernelAt(35 - am);
     a.paidY1inY2 += paidEndY2 - paidEndY1;
     a.osY1endY2 += ultimate - paidEndY2;
+    a.devTailY1InY3 += paidEndY3 - paidEndY2;
+    a.osY1endY3 += ultimate - paidEndY3;
     totalUltimate += ultimate;
 
     if (am <= 11) {
@@ -122,9 +140,13 @@ export function computeDevelopment(
     const am = claim.noticeMonth;
     const a = get(claim.teamId);
     const paidEndY2 = ultimate * cumulativeKernelAt(23 - am);
+    const paidEndY3 = ultimate * cumulativeKernelAt(35 - am);
     a.ultY2 += ultimate;
     a.paidY2inY2 += paidEndY2;
     a.osY2endY2 += ultimate - paidEndY2;
+    a.devTailY2InY3 += paidEndY3 - paidEndY2;
+    a.osY2endY3 += ultimate - paidEndY3;
+    a.claimCountY2 += 1;
   }
 
   const marketDevelopmentFactor = totalUltimate > 0 ? totalReportedY1 / totalUltimate : 1;
