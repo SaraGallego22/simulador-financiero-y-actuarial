@@ -7,6 +7,7 @@ import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
+import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { conceptosDia, scoreConcepto, GROUP_LABELS } from "@/domain/grading/concepts";
 import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
 import {
@@ -446,6 +447,7 @@ export default async function AdminDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
+          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance} />}
           {hasMinVariance && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -508,6 +510,13 @@ export default async function AdminDayPage({
                 {teams.map((team) => {
                   const weights = minVarWeightsByTeamId.get(team.id);
                   if (!weights) return null;
+                  // Displayed normalized to sum 100 — the same normalization
+                  // portfolioVariance()/portfolioExpectedReturn()/scoreMinVariance()
+                  // already apply internally before grading, so a submission
+                  // that didn't sum to exactly 100 isn't shown misleadingly
+                  // (e.g. as if 20% in one instrument were literally 20% of
+                  // the graded portfolio when the raw total was really 80).
+                  const totalW = INSTRUMENTS.reduce((s, ins) => s + (weights[ins.id] ?? 0), 0);
                   return (
                     <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
@@ -517,7 +526,7 @@ export default async function AdminDayPage({
                       <div className="flex flex-wrap gap-4 border-t border-[var(--color-brand-gray-light)] p-3 text-sm">
                         {INSTRUMENTS.map((ins) => (
                           <span key={ins.id}>
-                            <strong>{ins.id}:</strong> {(weights[ins.id] ?? 0).toFixed(1)}%
+                            <strong>{ins.id}:</strong> {(totalW > 0 ? ((weights[ins.id] ?? 0) / totalW) * 100 : 0).toFixed(1)}%
                           </span>
                         ))}
                       </div>
@@ -804,7 +813,7 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Equipo</th>
                     <th className="px-4 py-2">RT</th>
                     <th className="px-4 py-2">Tarifas</th>
-                    <th className="px-4 py-2">{day === 1 ? "Nota mín. varianza" : "Nota financiera"}</th>
+                    <th className="px-4 py-2">{day === 1 ? "Nota mín var" : "Nota financiera"}</th>
                     <th className="px-4 py-2">Nota objetiva</th>
                   </tr>
                 </thead>
@@ -832,7 +841,7 @@ export default async function AdminDayPage({
               </table>
               {day === 1 && (
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  &ldquo;Nota mín. varianza&rdquo; es la nota del ejercicio de mínima varianza (ver pestaña Entregables para el detalle por equipo) — es el
+                  &ldquo;Nota mín var&rdquo; es la nota del ejercicio de mínima varianza (ver pestaña Entregables para el detalle por equipo) — es el
                   único componente financiero de la nota objetiva de este día, ya que Día 1 no tiene reportes financieros propios.
                 </p>
               )}

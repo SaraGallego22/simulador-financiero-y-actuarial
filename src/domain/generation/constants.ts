@@ -48,6 +48,28 @@ export const CLAIMS_INFLATION_ANNUAL = 0.09;
  */
 export const CHILE_REAL_SEVERITY_GROWTH_ANNUAL = 0.03;
 
+/**
+ * Colombia's general (economy-wide) annual inflation, derived — not
+ * hand-typed — from the two constants above via the same Fisher-style
+ * multiplicative decomposition `displayYield()` uses for a real rate
+ * (`(1+nominal)/(1+inflación) - 1`), not a naive subtraction: nominal
+ * claims-cost growth compounds real cost growth *and* general inflation
+ * together, `(1+CLAIMS_INFLATION_ANNUAL) = (1+GENERAL_INFLATION_ANNUAL) ×
+ * (1+CHILE_REAL_SEVERITY_GROWTH_ANNUAL)`, so isolating the general-inflation
+ * side means dividing, not subtracting (≈5.83%, not the ≈6% a subtraction
+ * would give — close because both rates are small, but not the same
+ * number). This is exactly the same relationship the Chile transferability
+ * clue in README §1.1 already describes ("general inflation + this real
+ * trend should land close to CLAIMS_INFLATION_ANNUAL") — this constant just
+ * names the "general inflation" side of that equation instead of leaving it
+ * purely implicit. Used by `displayYield()` in
+ * `src/domain/finance/instruments.ts` to show TESUVR8's return net of
+ * inflation (it's UVR-indexed, so that's its genuine selling point) — never
+ * disclosed as a number anywhere in product copy, same as the two constants
+ * it's derived from.
+ */
+export const GENERAL_INFLATION_ANNUAL = (1 + CLAIMS_INFLATION_ANNUAL) / (1 + CHILE_REAL_SEVERITY_GROWTH_ANNUAL) - 1;
+
 /** Monthly claim-occurrence seasonality weights, ported from ESTAC (line ~2029). */
 export const MONTHLY_SEASONALITY = [
   1.25, 1.05, 1.15, 1.0, 0.9, 0.95, 1.2, 1.15, 0.95, 0.9, 0.95, 1.35,

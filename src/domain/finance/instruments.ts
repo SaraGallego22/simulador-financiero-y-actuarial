@@ -1,3 +1,5 @@
+import { GENERAL_INFLATION_ANNUAL } from "../generation/constants";
+
 export interface Instrument {
   id: string;
   nombre: string;
@@ -50,6 +52,29 @@ export const INSTRUMENTS: readonly Instrument[] = [
 export const INSTRUMENT_BY_ID: Record<string, Instrument> = Object.fromEntries(
   INSTRUMENTS.map((x) => [x.id, x])
 );
+
+/**
+ * Yield to show a team for a given instrument — identical to `ins.yield`
+ * for every instrument except TESUVR8, which displays net of
+ * `GENERAL_INFLATION_ANNUAL` instead of nominal: `(1+yield)/(1+inflación)
+ * - 1`. Presentation only — `ins.yield` itself, and every internal
+ * calculation that reads it (ALM, Markowitz, scoring), stays nominal and
+ * untouched; this function is never called from the simulation engine.
+ *
+ * Deliberate: TESUVR8 is UVR-indexed (see its `nota`), so a genuine
+ * above-inflation return is its real selling point — showing its nominal
+ * rate side by side with five nominally-quoted instruments would let a
+ * team compare it apples-to-apples without ever noticing it isn't the same
+ * basis. A team has to recognize that TESUVR8's headline number already
+ * strips out inflation and re-add it back before comparing fairly against
+ * the rest of the (nominal) menu. Not disclosed as a number anywhere in
+ * product copy — same pattern as CLAIMS_INFLATION_ANNUAL/
+ * GENERAL_INFLATION_ANNUAL themselves.
+ */
+export function displayYield(ins: Instrument): number {
+  if (ins.id !== "TESUVR8") return ins.yield;
+  return (1 + ins.yield) / (1 + GENERAL_INFLATION_ANNUAL) - 1;
+}
 
 export const YIELD_MIN = Math.min(...INSTRUMENTS.map((x) => x.yield));
 export const YIELD_MAX = Math.max(...INSTRUMENTS.map((x) => x.yield));

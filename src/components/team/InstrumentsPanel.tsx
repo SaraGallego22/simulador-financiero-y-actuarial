@@ -1,4 +1,7 @@
-import { INSTRUMENTS } from "@/domain/finance/instruments";
+import { INSTRUMENTS, displayYield } from "@/domain/finance/instruments";
+import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
+
+const IDS = INSTRUMENTS.map((i) => i.id);
 
 export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: boolean }) {
   return (
@@ -34,7 +37,7 @@ export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: 
               <tr key={ins.id} className="border-t border-[var(--color-brand-gray-light)]">
                 <td className="py-1 pr-4 font-mono">{ins.id}</td>
                 <td className="py-1 pr-4">{ins.nombre}</td>
-                <td className="py-1 pr-4">{(ins.yield * 100).toFixed(1)}%</td>
+                <td className="py-1 pr-4">{(displayYield(ins) * 100).toFixed(1)}%</td>
                 <td className="py-1 pr-4">{ins.plazoM >= 400 ? "sin venc." : `${ins.plazoM} meses`}</td>
                 <td className="py-1 pr-4 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>
               </tr>
@@ -42,6 +45,35 @@ export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: 
           </tbody>
         </table>
       </div>
+      {showCovariance && (
+        <div className="mt-4 overflow-x-auto">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">Matriz de covarianza</p>
+          <table className="text-xs">
+            <thead>
+              <tr>
+                <th className="px-2 py-1" />
+                {IDS.map((id) => (
+                  <th key={id} className="px-2 py-1 text-left font-semibold">
+                    {id}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {COVARIANCE_MATRIX.map((row, i) => (
+                <tr key={IDS[i]} className="border-t border-[var(--color-brand-gray-light)]">
+                  <td className="px-2 py-1 font-semibold">{IDS[i]}</td>
+                  {row.map((v, j) => (
+                    <td key={IDS[j]} className="px-2 py-1 text-[var(--color-brand-text-secondary)]">
+                      {v.toFixed(6)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

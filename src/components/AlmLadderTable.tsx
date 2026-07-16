@@ -20,15 +20,21 @@ function maturityLabel(action: MaturityDecision): string {
  */
 export function PortfolioTreeView({ tranches, depth = 0 }: { tranches: Tranche[]; depth?: number }) {
   if (depth > MAX_TRANCHE_DEPTH) return <li className="text-xs text-[var(--color-brand-text-secondary)]">…</li>;
+  // Displayed normalized to its own sibling group's total, not the raw
+  // submitted weight — the same normalization fundTranches() applies when
+  // actually funding this group (tranche.weight / totalW), so a sibling
+  // list that didn't sum to exactly 100 isn't shown misleadingly.
+  const totalW = tranches.reduce((s, t) => s + Math.max(0, t.weight), 0);
   return (
     <ul className={depth === 0 ? "flex flex-col gap-1" : "ml-4 flex flex-col gap-1 border-l border-[var(--color-brand-gray-light)] pl-3"}>
       {tranches.map((t, i) => {
         const ins = INSTRUMENT_BY_ID[t.instrumentId];
         const dur = trancheDurationM(t);
+        const normalizedWeight = totalW > 0 ? (Math.max(0, t.weight) / totalW) * 100 : 0;
         return (
           <li key={i} className="text-xs text-[var(--color-brand-text-secondary)]">
             <span className="font-semibold text-[var(--color-foreground)]">
-              {ins?.nombre ?? t.instrumentId} ({t.weight.toFixed(1)}%, vence a los {dur} {dur === 1 ? "mes" : "meses"})
+              {ins?.nombre ?? t.instrumentId} ({normalizedWeight.toFixed(1)}%, vence a los {dur} {dur === 1 ? "mes" : "meses"})
             </span>{" "}
             → {maturityLabel(t.onMaturity)}
             {t.onMaturity.action === "reallocate" && <PortfolioTreeView tranches={t.onMaturity.tranches} depth={depth + 1} />}
