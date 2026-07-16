@@ -1,4 +1,4 @@
-import { INSTRUMENTS } from "@/domain/finance/instruments";
+import { INSTRUMENTS, displayYield } from "@/domain/finance/instruments";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -280,7 +280,7 @@ export function GuiaPasanteDia2() {
                   <tr key={ins.id}>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-mono">{ins.id}</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.nombre}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(ins.yield * 100).toFixed(1)}%</td>
+                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(displayYield(ins) * 100).toFixed(1)}%</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(ins.volAnual * 100).toFixed(1)}%</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.plazoM >= 400 ? "sin venc. fijo" : `${ins.plazoM} meses`}</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>

@@ -2,11 +2,9 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { submitMinVarianceAction, type SubmitMinVarianceState } from "@/lib/teamActions";
-import { INSTRUMENTS } from "@/domain/finance/instruments";
-import { COVARIANCE_MATRIX, TARGET_RETURN } from "@/domain/finance/markowitz";
+import { INSTRUMENTS, displayYield } from "@/domain/finance/instruments";
+import { TARGET_RETURN } from "@/domain/finance/markowitz";
 import { Button } from "@/components/ui/button";
-
-const IDS = INSTRUMENTS.map((i) => i.id);
 
 function emptyWeights(): Record<string, number> {
   const w: Record<string, number> = {};
@@ -41,42 +39,12 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
         somete en Día 2 junto con tus cifras reales de prima y siniestros.
       </p>
 
-      <div className="mb-4 overflow-x-auto">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-          Matriz de covarianza (también descargable en la pestaña de instrumentos)
-        </p>
-        <table className="text-xs">
-          <thead>
-            <tr>
-              <th className="px-2 py-1" />
-              {IDS.map((id) => (
-                <th key={id} className="px-2 py-1 text-left font-semibold">
-                  {id}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {COVARIANCE_MATRIX.map((row, i) => (
-              <tr key={IDS[i]} className="border-t border-[var(--color-brand-gray-light)]">
-                <td className="px-2 py-1 font-semibold">{IDS[i]}</td>
-                {row.map((v, j) => (
-                  <td key={IDS[j]} className="px-2 py-1 text-[var(--color-brand-text-secondary)]">
-                    {v.toFixed(6)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {INSTRUMENTS.map((ins) => (
           <label key={ins.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
             {ins.id}{" "}
             <span className="font-normal">
-              (rendimiento {(ins.yield * 100).toFixed(1)}% · volatilidad {(ins.volAnual * 100).toFixed(1)}%)
+              (rendimiento {(displayYield(ins) * 100).toFixed(1)}% · volatilidad {(ins.volAnual * 100).toFixed(1)}%)
             </span>
             <input
               type="number"
