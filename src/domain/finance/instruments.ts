@@ -37,7 +37,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     yield: 0.12,
     volAnual: 0.06,
     plazoM: 96,
-    nota: "Alto rendimiento, indexado a inflación (menor riesgo real que un nominal del mismo plazo) — el mejor balance rentabilidad/riesgo del menú",
+    nota: "Alto rendimiento y duración, indexado a inflación",
   },
   {
     id: "ACC",
@@ -45,7 +45,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     yield: 0.14,
     volAnual: 0.2,
     plazoM: 999,
-    nota: "Mayor retorno esperado, sin flujo definido — muy volátil, penalizado en la nota y en el capital de solvencia",
+    nota: "Mayor retorno esperado, sin flujo definido, alto riesgo",
   },
 ];
 
@@ -74,6 +74,22 @@ export const INSTRUMENT_BY_ID: Record<string, Instrument> = Object.fromEntries(
 export function displayYield(ins: Instrument): number {
   if (ins.id !== "TESUVR8") return ins.yield;
   return (1 + ins.yield) / (1 + GENERAL_INFLATION_ANNUAL) - 1;
+}
+
+/**
+ * Formatted yield label for a reference/menu table — `displayYield()`
+ * rendered as a percentage, prefixed "Inflación + " for TESUVR8 so a team
+ * reads it as explicitly not-nominal (the whole point of the trap in
+ * `displayYield()`'s doc comment) without the prefix itself giving away
+ * what the inflation number actually is. Not used inside the interactive
+ * portfolio-building forms (PortfolioForm/MinVarianceForm) — those omit
+ * yield entirely, since showing it there alongside an aggregate expected-
+ * return figure computed from the true nominal `ins.yield` would let a
+ * team back out the exact inflation rate by comparing the two.
+ */
+export function displayYieldLabel(ins: Instrument): string {
+  const pct = `${(displayYield(ins) * 100).toFixed(1)}%`;
+  return ins.id === "TESUVR8" ? `Inflación + ${pct}` : pct;
 }
 
 export const YIELD_MIN = Math.min(...INSTRUMENTS.map((x) => x.yield));
