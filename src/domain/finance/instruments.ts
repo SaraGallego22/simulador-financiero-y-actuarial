@@ -25,8 +25,8 @@ export interface Instrument {
  * deliberate design goal, not an incidental side effect.
  */
 export const INSTRUMENTS: readonly Instrument[] = [
-  { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.08, volAnual: 0.01, plazoM: 0, nota: "Liquidez total, rendimiento bajo, riesgo mínimo" },
-  { id: "CDT90", nombre: "CDT 90 días", yield: 0.095, volAnual: 0.02, plazoM: 3, nota: "Corto plazo, baja liquidez intermedia, riesgo bajo" },
+  { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.05, volAnual: 0.01, plazoM: 0, nota: "Liquidez total, rendimiento bajo, riesgo mínimo" },
+  { id: "CDT90", nombre: "CDT 90 días", yield: 0.095, volAnual: 0.032, plazoM: 3, nota: "Corto plazo, baja liquidez intermedia, riesgo bajo" },
   { id: "TES1", nombre: "TES tasa fija 1 año", yield: 0.105, volAnual: 0.04, plazoM: 12, nota: "Cubre pasivos del primer año, riesgo de tasa moderado" },
   { id: "TES3", nombre: "TES tasa fija 3 años", yield: 0.115, volAnual: 0.07, plazoM: 36, nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración" },
   {

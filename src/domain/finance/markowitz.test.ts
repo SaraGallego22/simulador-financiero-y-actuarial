@@ -60,19 +60,19 @@ describe("solveLongOnlyMinVariance", () => {
 
   it("is a genuine multi-instrument blend, not a corner solution", () => {
     const nonZero = Object.values(solution).filter((w) => w > 1e-6).length;
-    expect(nonZero).toBeGreaterThanOrEqual(4);
+    expect(nonZero).toBeGreaterThanOrEqual(5);
   });
 
   it("matches the hand-derived reference weights (verified independently)", () => {
     // Hand-solved via the same active-set Lagrangian method — see the plan's
-    // derivation. TES3 excluded; the rest blend to hit exactly 10% return
-    // at (near-)minimum variance.
-    expect(solution.LIQ).toBeCloseTo(0.065, 2);
-    expect(solution.CDT90).toBeCloseTo(0.688, 2);
-    expect(solution.TES1).toBeCloseTo(0.061, 2);
+    // derivation. Only TES3 excluded; the rest blend to hit exactly 10%
+    // return at (near-)minimum variance.
+    expect(solution.LIQ).toBeCloseTo(0.084, 2);
+    expect(solution.CDT90).toBeCloseTo(0.445, 2);
+    expect(solution.TES1).toBeCloseTo(0.258, 2);
     expect(solution.TES3).toBeCloseTo(0, 2);
-    expect(solution.TESUVR8).toBeCloseTo(0.149, 2);
-    expect(solution.ACC).toBeCloseTo(0.037, 2);
+    expect(solution.TESUVR8).toBeCloseTo(0.169, 2);
+    expect(solution.ACC).toBeCloseTo(0.045, 2);
   });
 
   it("satisfies KKT stationarity: active assets have equal marginal risk-minus-return contribution, inactive assets have a non-negative reduced cost", () => {
@@ -157,14 +157,14 @@ describe("scoreMinVariance", () => {
   });
 
   it("gives high (but not perfect) credit to a genuinely reasoned multi-instrument attempt", () => {
-    const rough = { LIQ: 0.2, CDT90: 0.5, TES1: 0, TES3: 0, TESUVR8: 0.3, ACC: 0 };
+    const rough = { LIQ: 0, CDT90: 0.6, TES1: 0.2, TES3: 0, TESUVR8: 0.2, ACC: 0 };
     const score = scoreMinVariance(rough);
     expect(score).toBeGreaterThan(50);
     expect(score).toBeLessThan(100);
   });
 
   it("gives low credit to a naive 2-instrument pairing — guessing shouldn't score well", () => {
-    const naive = { LIQ: 0, CDT90: 1, TES1: 0, TES3: 0, TESUVR8: 1, ACC: 0 }; // 50/50 CDT90+TESUVR8
+    const naive = { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0.5, TESUVR8: 0.5, ACC: 0 }; // 50/50 TES3+TESUVR8
     const score = scoreMinVariance(naive);
     expect(score).toBeLessThan(50);
   });

@@ -17,9 +17,10 @@ const N = IDS.length;
  * genuine risk/diversification trade-off.
  *
  * 0.10 sits meaningfully above the unconstrained minimum-variance portfolio's
- * own return (~8.19%) but well below ACC's 14% — verified (by hand, then
+ * own return (~5%, essentially pure LIQ at its own nominal yield — see
+ * instruments.ts) but well below ACC's 14% — verified (by hand, then
  * cross-checked by this module's own solver in markowitz.test.ts) to produce
- * a 5-of-6-instrument solution (only TES3 excluded), not a corner.
+ * a genuine 5-of-6-instrument solution (only TES3 excluded), not a corner.
  */
 export const TARGET_RETURN = 0.1;
 
@@ -29,8 +30,15 @@ export const TARGET_RETURN = 0.1;
  * comparable volAnual — modeling that its UVR-indexation shields it from
  * nominal rate risk (see instruments.ts's own comment on TESUVR8). ACC's
  * small negative loading gives it a mild negative correlation with bonds.
+ *
+ * CDT90's loading (0.0256, 80% of its own 3.2% volAnual — see
+ * instruments.ts) puts its correlation to TES1/TES3 at 0.68/0.71, still
+ * below TES1↔TES3's own 0.75 — consistent with CDT90 sitting furthest from
+ * both on the term structure. A loading can never exceed an instrument's
+ * own volAnual (the remaining idiosyncratic variance, volAnual² − loading²,
+ * would go negative) — see buildCovarianceMatrix()'s doc comment.
  */
-const RATE_LOADING: Record<string, number> = { LIQ: 0.003, CDT90: 0.014, TES1: 0.034, TES3: 0.062, TESUVR8: 0.03, ACC: -0.01 };
+const RATE_LOADING: Record<string, number> = { LIQ: 0.003, CDT90: 0.0256, TES1: 0.034, TES3: 0.062, TESUVR8: 0.03, ACC: -0.01 };
 /** Equity factor loading — only ACC has any exposure to it. */
 const EQUITY_LOADING: Record<string, number> = { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 0.195 };
 
@@ -43,6 +51,13 @@ const EQUITY_LOADING: Record<string, number> = { LIQ: 0, CDT90: 0, TES1: 0, TES3
  * elsewhere (VOL_PENALTY_LAMBDA's ordering, finBench's rFin, VOL_MENU_AVG)
  * drifts. See markowitz.test.ts for the positive-definiteness/diagonal
  * checks and README for the resulting correlation matrix.
+ *
+ * This positive-definiteness guarantee depends on every instrument's own
+ * RATE_LOADING/EQUITY_LOADING never exceeding its volAnual — d_i is only a
+ * valid (non-negative) idiosyncratic variance up to that point; a loading
+ * beyond it silently produces an invalid Σ (a correlation above 1 between
+ * that instrument and whatever it's now over-loaded against). Not asserted
+ * at runtime since it only matters when hand-editing these two tables.
  */
 function buildCovarianceMatrix(): number[][] {
   const sigma: number[][] = Array.from({ length: N }, () => new Array(N).fill(0));
@@ -134,8 +149,8 @@ function gaussianElimination(a: number[][], b: number[]): number[] {
  * weight comes out negative, repeating until every active weight is >= 0
  * (or the active set is exhausted, which shouldn't happen for any
  * targetReturn between the safest and richest instrument's own yield).
- * Verified by hand for TARGET_RETURN=0.10 to converge to a genuine 5-of-6
- * blend (only TES3 excluded) — see markowitz.test.ts.
+ * Verified by hand for TARGET_RETURN=0.10 to converge to a genuine 4-of-6
+ * blend (LIQ and TES3 excluded) — see markowitz.test.ts.
  */
 export function solveLongOnlyMinVariance(targetReturn: number = TARGET_RETURN, sigma: number[][] = COVARIANCE_MATRIX): Allocation {
   let active = IDS.map((_, i) => i);

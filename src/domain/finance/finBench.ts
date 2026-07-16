@@ -160,8 +160,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // portfolio actually earned, only what its *nominal* yield would suggest.
   // Falls back to the old reserva×yield estimate only when there's no ALM
   // decision at all to simulate from.
-  const portYield = almYear1 ? almYear1.portYield : 0.08;
-  const rinv1 = almYear1 ? almYear1.income : reservas1 * 0.08;
+  const portYield = almYear1 ? almYear1.portYield : 0.05;
+  const rinv1 = almYear1 ? almYear1.income : reservas1 * 0.05;
   const p1 = pyg(year1.totalPremium, year1.claimsAmount, reservas1, rinv1);
 
   let p2: PnL | null = null;

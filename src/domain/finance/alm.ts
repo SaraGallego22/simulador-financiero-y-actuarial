@@ -11,14 +11,35 @@ export const W_VENTA_FORZADA = 0.2;
 export const W_LIQ = 0.1;
 
 /**
- * Risk-adjusted yield per instrument (yield - λ·volAnual, see
- * VOL_PENALTY_LAMBDA), used to normalize the "Rendimiento" ALM sub-score
- * the same way YIELD_MIN/YIELD_MAX normalize the raw yield — this is the
- * achievable range across the whole menu, now on a risk-adjusted basis.
+ * Floor/ceiling for the "Rendimiento" ALM sub-score's normalization —
+ * deliberately *not* `Math.min/max` over each instrument's own nominal
+ * `yield - λ×volAnual` (what this used to be). That nominal formula ignores
+ * everything the simulation actually does to a portfolio over 60 months —
+ * before the stepMonth() accrual-timing fix (see its doc comment), realized
+ * risk-adjusted yield for *any* portfolio came in far below nominal, so the
+ * old nominal-anchored band left almost everything scoring 0.
+ *
+ * These two constants are the *realized* risk-adjusted yield (`effYield -
+ * λ×avgVol`, same formula as below, just measured instead of assumed) of a
+ * 100%-single-instrument portfolio run through `almSim()`/`scoreFinanciero()`
+ * end to end, after that fix — the actual floor and ceiling this engine can
+ * produce, not a theoretical one:
+ * - MIN ≈ 0.046: 100% LIQ, `durationM=12`, "repeat" forever. LIQ's own 5%
+ *   nominal yield (see instruments.ts) makes it the menu's worst realized
+ *   risk-adjusted choice — pure safety has a real opportunity cost, exactly
+ *   the point this sub-score exists to make. (Before LIQ's yield was
+ *   lowered from 8% to 5%, ACC held this position instead — see README §5.)
+ * - MAX ≈ 0.098: 100% TESUVR8 (never matures within the 60-month horizon,
+ *   so it never eats the reinvestment-lag drag every rolling instrument
+ *   still has some of, post-fix). Matches its nominal figure almost exactly
+ *   (0.099), confirming the fix closed the nominal-vs-realized gap.
+ *
+ * Recompute both (same harness: 100% of one instrument, `repeat` forever,
+ * through `scoreFinanciero()`, read off `effYield - λ×avgVol`) if the
+ * instrument menu, `VOL_PENALTY_LAMBDA`, or the accrual mechanic ever change.
  */
-const RISK_ADJUSTED_YIELDS = INSTRUMENTS.map((i) => i.yield - VOL_PENALTY_LAMBDA * i.volAnual);
-export const RISK_ADJUSTED_YIELD_MIN = Math.min(...RISK_ADJUSTED_YIELDS);
-export const RISK_ADJUSTED_YIELD_MAX = Math.max(...RISK_ADJUSTED_YIELDS);
+export const RISK_ADJUSTED_YIELD_MIN = 0.046;
+export const RISK_ADJUSTED_YIELD_MAX = 0.098;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
@@ -164,17 +185,12 @@ function stepMonth(
 ): StepResult {
   const saldoInicialPortafolio = state.positions.reduce((s, p) => s + p.book, 0) - state.capitalComprometidoAcumulado;
 
-  // 1. Accrue yield on every still-open position.
-  let devengo = 0;
-  for (const p of state.positions) {
-    if (p.matM > t) {
-      const g = p.book * p.yM;
-      p.book += g;
-      devengo += g;
-    }
-  }
-
-  // 2. Route this month's maturities per each position's own onMaturity.
+  // 1. Route this month's maturities per each position's own onMaturity.
+  //    Runs before accrual (below) — a maturing position pays out its book
+  //    value as of last month's close, without earning further on its own
+  //    maturity month; its "repeat"/"reallocate" replacement is a brand-new
+  //    position that (correctly) hasn't earned anything yet either, until
+  //    the accrual step below runs.
   const remaining: Position[] = [];
   const maturingNow: Position[] = [];
   for (const p of state.positions) (p.matM === t ? maturingNow : remaining).push(p);
@@ -187,14 +203,14 @@ function stepMonth(
   }
   state.positions = remaining;
 
-  // 3. Compute the six cashflow-statement values for this month.
+  // 2. Compute the six cashflow-statement values for this month.
   const gastos = GASTOS_TOTAL_PCT * primaCobrada;
   const cajaMinima = FZ.cajaPct * (primaCobrada + pagoSiniestros);
   const cajaInicial = state.cajaFloat;
   const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
   const neededNeta = cajaMinima - cajaDisponible;
 
-  // 4. Execute. Caja Mínima is always met from here on.
+  // 3. Execute. Caja Mínima is always met from here on.
   let inversionNeta: number;
   let cajaFinal: number;
   let ventaForzada = 0;
@@ -225,6 +241,32 @@ function stepMonth(
     }
   }
   state.cajaFloat = cajaFinal;
+
+  // 4. Accrue yield on every position now open this month — including ones
+  //    funded moments ago in steps 1/3 above. Deliberately runs *after*
+  //    maturity-routing and new investment, not before: a position accrues
+  //    for every month it's actually held, from the month it's funded
+  //    through the month before it matures (inclusive on both ends is
+  //    wrong — see below). Running accrual first (the original order) made
+  //    every newly-created position skip its own first month entirely,
+  //    silently losing 1/duration of its yield — total for a 1-month
+  //    tranche, ~33% for a 3-month one (CDT90), ~8% for a 12-month one —
+  //    purely from how often it happened to roll over, unrelated to real
+  //    risk. Confirmed empirically: identical instrument, identical nominal
+  //    yield, realized return went from 0% (durationM=1) to within half a
+  //    point of nominal (durationM=60) purely by changing rollover
+  //    frequency. A position still doesn't accrue on its own maturity
+  //    month (it's paid out based on last month's book, not "topped up"
+  //    first) — that half of the asymmetry was always correct and is
+  //    unaffected by this reorder.
+  let devengo = 0;
+  for (const p of state.positions) {
+    if (p.matM > t) {
+      const g = p.book * p.yM;
+      p.book += g;
+      devengo += g;
+    }
+  }
 
   // realBookSum feeds avgPV/effYield/avgVol — those describe the actual
   // invested pool's size/composition/performance and must stay

@@ -8,20 +8,25 @@ describe("instrument risk/return calibration", () => {
     for (const ins of INSTRUMENTS) expect(ins.volAnual).toBeGreaterThan(0);
   });
 
-  it("TESUVR8 has the single best risk-adjusted yield of the whole menu, and ACC the worst", () => {
+  it("TESUVR8 has the single best risk-adjusted yield of the whole menu, and LIQ the worst", () => {
+    // LIQ, not ACC, is the worst since LIQ's nominal yield was lowered to
+    // 5% (see instruments.ts) — pure safety has a real opportunity cost,
+    // which is the point of a *risk-adjusted* yield metric. ACC's high
+    // nominal yield (14%) still doesn't fully compensate its volatility,
+    // but it's no longer the single worst choice on this basis.
     const riskAdjusted = (id: string) => {
       const ins = INSTRUMENTS.find((i) => i.id === id)!;
       return ins.yield - VOL_PENALTY_LAMBDA * ins.volAnual;
     };
     const uvr8 = riskAdjusted("TESUVR8");
-    const acc = riskAdjusted("ACC");
+    const liq = riskAdjusted("LIQ");
     for (const ins of INSTRUMENTS) {
       if (ins.id === "TESUVR8") continue;
       expect(uvr8).toBeGreaterThan(riskAdjusted(ins.id));
     }
     for (const ins of INSTRUMENTS) {
-      if (ins.id === "ACC") continue;
-      expect(acc).toBeLessThan(riskAdjusted(ins.id));
+      if (ins.id === "LIQ") continue;
+      expect(liq).toBeLessThan(riskAdjusted(ins.id));
     }
   });
 });
