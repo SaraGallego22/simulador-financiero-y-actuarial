@@ -112,7 +112,13 @@ export async function computeFinBenchBundlesForCohort(
     const alloc1 = alloc1ByTeamId.get(teamId);
     const realAlmYear1 = alloc1 ? almSimRealYear(1, liabilityYear1.payY1, alloc1, year1.totalPremium / BUILD_MONTHS) : null;
     const almYear1: AlmYearBenchInput | null = realAlmYear1
-      ? { portYield: realAlmYear1.portYield, income: realAlmYear1.income, capitalComprometido: realAlmYear1.capitalComprometidoAcumulado, avgVol: realAlmYear1.avgVol }
+      ? {
+          portYield: realAlmYear1.portYield,
+          income: realAlmYear1.income,
+          capitalComprometido: realAlmYear1.capitalComprometidoAcumulado,
+          avgVol: realAlmYear1.avgVol,
+          concentrationRatio: realAlmYear1.concentrationRatio,
+        }
       : null;
 
     const year2 = year2ByTeamId.get(teamId);
@@ -131,6 +137,7 @@ export async function computeFinBenchBundlesForCohort(
           income: realAlmYear2.income,
           capitalComprometido: realAlmYear2.capitalComprometidoAcumulado,
           avgVol: realAlmYear2.avgVol,
+          concentrationRatio: realAlmYear2.concentrationRatio,
           effectiveYield: realAlmYear2.effectiveYield,
         };
       }

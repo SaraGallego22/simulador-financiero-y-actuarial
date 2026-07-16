@@ -185,7 +185,7 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>Rendimiento ajustado por riesgo (35%)</strong> — tu rendimiento real simulado, descontado por la volatilidad de lo que mantuviste
-              invertido.
+              invertido y por qué tan concentrado quedó tu portafolio en un solo instrumento (ver sección 3).
             </li>
             <li>
               <strong>Venta forzada de portafolio (20%)</strong> — si tuviste que vender activos antes de tiempo bajo presión de caja, y qué tan
@@ -216,6 +216,14 @@ export function GuiaPasanteDia2() {
             <li>
               <strong>Relación rendimiento/riesgo, no solo rendimiento.</strong> Compara cuánto rendimiento adicional te da cada instrumento por cada
               punto extra de volatilidad que asumes frente a uno más conservador.
+            </li>
+            <li>
+              <strong>Concentrar todo en un solo instrumento tiene un costo aparte de su volatilidad.</strong> Aunque sea el instrumento con mejor
+              relación rendimiento/riesgo del menú, quedarte 100% en uno solo descuenta tu Rendimiento — repartir entre varios de los instrumentos con
+              plazo propio (CDT90/TES1/TES3/TESUVR8) baja ese descuento, incluso si tu volatilidad promedio termina siendo parecida. LIQ no cuenta para
+              este descuento (no es una apuesta concentrada, es tu colchón de liquidez). Este mismo criterio vuelve a aparecer el Día 4, dentro del
+              cálculo de tu capital de riesgo — entender por qué tu nota de hoy bajó es lo que te va a permitir reproducir correctamente ese cálculo
+              entonces.
             </li>
             <li>
               <strong>Nunca dependas de vender bajo presión.</strong> LIQ es el único instrumento que puedes retirar sin ninguna penalización — mantener
@@ -334,7 +342,11 @@ export function GuiaPasanteDia2() {
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <ScoreCard label="Cumplimiento de Caja Mínima" weight="35%" formula="100 × (1 − 0.5×[peor mes de capital comprometido ÷ Capital Social] − 0.5×[acumulado ÷ Capital Social])" />
-            <ScoreCard label="Rendimiento ajustado por riesgo" weight="35%" formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad promedio realizada)" />
+            <ScoreCard
+              label="Rendimiento ajustado por riesgo"
+              weight="35%"
+              formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad promedio realizada − 0.03 × concentración del portafolio [0 a 1, excluye LIQ])"
+            />
             <ScoreCard label="Venta forzada de portafolio" weight="20%" formula="100 × (1 − severidad de lo vendido bajo presión, ponderada por volatilidad)" />
             <ScoreCard label="Liquidez" weight="10%" formula="100 × min(1, líquido disponible ÷ pagos esperados en los próximos 6 meses)" />
           </div>

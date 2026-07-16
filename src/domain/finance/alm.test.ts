@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { almLadder, almNAV, almObjetivo, almSim, almSimRealYear, portfolioNominalYield, scoreFinanciero } from "./alm";
-import { FZ, CAPITAL_SOCIAL } from "./constants";
+import { almLadder, almNAV, almObjetivo, almSim, almSimRealYear, portfolioConcentrationRatio, portfolioNominalYield, scoreFinanciero } from "./alm";
+import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA } from "./constants";
 import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
 
 // A handful of claims spread across the Year-1 window, notified early enough
@@ -175,6 +175,49 @@ describe("almSim / scoreFinanciero", () => {
     expect(safe).not.toBeNull();
     expect(withUvr).not.toBeNull();
     expect(withUvr!.rendimiento).toBeGreaterThan(safe!.rendimiento);
+  });
+
+  describe("portfolioConcentrationRatio", () => {
+    it("is 1 for a single non-LIQ instrument, 0 for an even spread across every non-LIQ instrument, 0 for 100% LIQ", () => {
+      expect(portfolioConcentrationRatio([tranche("TES1", 100, { action: "cash" })])).toBeCloseTo(1, 6);
+      expect(
+        portfolioConcentrationRatio([
+          tranche("CDT90", 20, { action: "cash" }),
+          tranche("TES1", 20, { action: "cash" }),
+          tranche("TES3", 20, { action: "cash" }),
+          tranche("TESUVR8", 20, { action: "cash" }),
+          tranche("ACC", 20, { action: "cash" }, 24),
+        ])
+      ).toBeCloseTo(0, 6);
+      expect(portfolioConcentrationRatio([tranche("LIQ", 100, { action: "cash" }, 6)])).toBe(0);
+    });
+
+    it("ignores LIQ entirely — half LIQ + half of one risky instrument is exactly as concentrated as 100% of that instrument", () => {
+      const full = portfolioConcentrationRatio([tranche("ACC", 100, { action: "cash" }, 24)]);
+      const halfLiq = portfolioConcentrationRatio([tranche("LIQ", 50, { action: "cash" }, 12), tranche("ACC", 50, { action: "cash" }, 24)]);
+      expect(halfLiq).toBeCloseTo(full, 6);
+    });
+  });
+
+  it("a well-diversified portfolio can out-score concentrating fully in the single nominally-best instrument, thanks to the concentration discount", () => {
+    const concentrated = scoreFinanciero(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
+    const diversified = scoreFinanciero(
+      lib,
+      decision([
+        tranche("CDT90", 25, { action: "repeat" }),
+        tranche("TES1", 25, { action: "repeat" }),
+        tranche("TES3", 25, { action: "repeat" }),
+        tranche("TESUVR8", 25, { action: "repeat" }),
+      ])
+    );
+    expect(concentrated).not.toBeNull();
+    expect(diversified).not.toBeNull();
+    // Concentrated scores higher once only volatility is discounted...
+    expect(concentrated!.effYield - VOL_PENALTY_LAMBDA * concentrated!.avgVol).toBeGreaterThan(
+      diversified!.effYield - VOL_PENALTY_LAMBDA * diversified!.avgVol
+    );
+    // ...but the concentration discount flips the actual graded outcome.
+    expect(diversified!.rendimiento).toBeGreaterThan(concentrated!.rendimiento);
   });
 
   it("regression: a shortfall with no LIQ available force-sells the portfolio instead of leaving inversionNeta stuck at 0 with cajaFinal deeply negative", () => {

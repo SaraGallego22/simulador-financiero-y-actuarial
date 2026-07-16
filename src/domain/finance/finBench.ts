@@ -1,4 +1,4 @@
-import { FZ, CORR_MOD, CAPITAL_SOCIAL } from "./constants";
+import { FZ, CORR_MOD_CONCENTRACION, CAPITAL_SOCIAL } from "./constants";
 import { VOL_MENU_AVG } from "./instruments";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { DEV_FRAC } from "../reserving/constants";
@@ -21,6 +21,8 @@ export interface AlmYearBenchInput {
   capitalComprometido: number;
   /** This year's book-value-weighted average realized volatility — feeds rFin's volRatio. */
   avgVol: number;
+  /** Decision-only concentration ratio of the tree (see portfolioConcentrationRatio() in alm.ts) — feeds rConcentracion, independent of avgVol. */
+  concentrationRatio: number;
   /** Realized yield (income ÷ average invested balance) — see almSimRealYear()'s doc comment. Used to project Año 3's rinv off what the portfolio actually earned instead of its nominal `portYield`; undefined falls back to `portYield`. */
   effectiveYield?: number;
 }
@@ -78,6 +80,10 @@ export interface FinBenchResult {
   /** solRFin's realized-volatility-vs-menu-average ratio (1 = same as the menu's average instrument, >1 = a more volatile portfolio than average) — see rFin. */
   solVolRatio: number;
   solROp: number;
+  /** Solvency capital charge for portfolio concentration, independent of volatility — see rConcentracion. */
+  solRConc: number;
+  /** The concentrationRatio (0-1) rConcentracion is charged on — see portfolioConcentrationRatio(). */
+  solConcRatio: number;
   solRk: number;
   solFp: number;
   solMargen: number;
@@ -128,7 +134,8 @@ function balance(pygY: PnL | null, capital0: number, retenido: number, capitalCo
 /**
  * Central financial benchmark: builds the Year 1-3 P&L, a simplified balance
  * sheet, and Solvency-II-style capital requirement (underwriting + financial
- * + operational risk combined via a correlation matrix). Used both to
+ * + operational + concentration risk combined via a correlation matrix, see
+ * CORR_MOD_CONCENTRACION). Used both to
  * auto-grade uploaded financial deliverables (scoreConcepto) and to compute
  * solvency ratio / dividends (Day 4). Ported from finBench() in the legacy
  * prototype, line ~1113 — same formulas, but parameterized on plain inputs
@@ -300,9 +307,17 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const volRatio = almN ? almN.avgVol / VOL_MENU_AVG : 1;
   const rFin = FZ.finRiskPct * balN.inversiones * volRatio;
   const rOp = FZ.opPct * pygN.prima;
-  const R = [rSusc, rFin, rOp];
+  // Concentration risk, independent of volRatio above — see
+  // portfolioConcentrationRatio()'s doc comment on why a low-volatility
+  // single-instrument portfolio (e.g. 100% CDT90) still pays this even
+  // though it barely moves rFin. A team with no ALM decision at all falls
+  // back to 0 (no data to charge from), unlike volRatio's 1 — there's no
+  // pre-concentration legacy default this needs to match.
+  const concRatio = almN?.concentrationRatio ?? 0;
+  const rConc = FZ.concRiskPct * balN.inversiones * concRatio;
+  const R = [rSusc, rFin, rOp, rConc];
   let rk2 = 0;
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) rk2 += CORR_MOD[i][j] * R[i] * R[j];
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) rk2 += CORR_MOD_CONCENTRACION[i][j] * R[i] * R[j];
   const rk = Math.sqrt(rk2);
   const fondosPropios = balN.patrimonio;
   const margen = rk > 0 ? fondosPropios / rk : 0;
@@ -325,6 +340,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     solRFin: rFin,
     solVolRatio: volRatio,
     solROp: rOp,
+    solRConc: rConc,
+    solConcRatio: concRatio,
     solRk: rk,
     solFp: fondosPropios,
     solMargen: margen,

@@ -2,7 +2,7 @@ import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM } from "./instruments";
 import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
-import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CAPITAL_SOCIAL } from "./constants";
+import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
 
 export const W_CUMPL_CAJA = 0.35;
 export const W_REND = 0.35;
@@ -20,26 +20,35 @@ export const W_LIQ = 0.1;
  * old nominal-anchored band left almost everything scoring 0.
  *
  * These two constants are the *realized* risk-adjusted yield (`effYield -
- * λ×avgVol`, same formula as below, just measured instead of assumed) of a
- * 100%-single-instrument portfolio run through `almSim()`/`scoreFinanciero()`
- * end to end, after that fix — the actual floor and ceiling this engine can
- * produce, not a theoretical one:
+ * λ×avgVol - μ×concentrationRatio`, same formula as below, just measured
+ * instead of assumed) of a reference portfolio run through
+ * `almSim()`/`scoreFinanciero()` end to end — the actual floor and ceiling
+ * this engine can produce, not a theoretical one:
  * - MIN ≈ 0.046: 100% LIQ, `durationM=12`, "repeat" forever. LIQ's own 5%
  *   nominal yield (see instruments.ts) makes it the menu's worst realized
  *   risk-adjusted choice — pure safety has a real opportunity cost, exactly
- *   the point this sub-score exists to make. (Before LIQ's yield was
- *   lowered from 8% to 5%, ACC held this position instead — see README §5.)
- * - MAX ≈ 0.098: 100% TESUVR8 (never matures within the 60-month horizon,
- *   so it never eats the reinvestment-lag drag every rolling instrument
- *   still has some of, post-fix). Matches its nominal figure almost exactly
- *   (0.099), confirming the fix closed the nominal-vs-realized gap.
+ *   the point this sub-score exists to make. LIQ is excluded from
+ *   portfolioConcentrationRatio()'s weight base (see its doc comment), so
+ *   this reference is unaffected by μ — a single instrument that IS subject
+ *   to the concentration discount (e.g. 100% ACC) can score lower still,
+ *   which just clips to a Rendimiento of 0 rather than moving this floor.
+ * - MAX ≈ 0.089: an even 25%/25%/25%/25% split across CDT90/TES1/TES3/
+ *   TESUVR8 (ACC excluded — its volatility never pays for itself even
+ *   diluted), each "repeat" forever. Concentrating in any single instrument
+ *   scores lower than this even before its own volatility is considered
+ *   (e.g. 100% TESUVR8 alone: 0.098 nominal-realized, but 0.068 once its
+ *   concentrationRatio=1 is discounted at μ) — confirmed against a coarse
+ *   grid search over the 5-instrument simplex (same method as
+ *   markowitz.test.ts's cross-check), which found no blend beating this
+ *   reference by more than the grid's own discretization slack.
  *
- * Recompute both (same harness: 100% of one instrument, `repeat` forever,
- * through `scoreFinanciero()`, read off `effYield - λ×avgVol`) if the
- * instrument menu, `VOL_PENALTY_LAMBDA`, or the accrual mechanic ever change.
+ * Recompute both (same harness: run a reference allocation through
+ * `scoreFinanciero()`, read off `riskAdjustedYield`) if the instrument
+ * menu, `VOL_PENALTY_LAMBDA`, `CONCENTRATION_PENALTY_MU`, or the accrual
+ * mechanic ever change.
  */
 export const RISK_ADJUSTED_YIELD_MIN = 0.046;
-export const RISK_ADJUSTED_YIELD_MAX = 0.098;
+export const RISK_ADJUSTED_YIELD_MAX = 0.089;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
@@ -566,7 +575,9 @@ export interface FinancialScore {
   tranches: Tranche[];
   /** Book-value-weighted average volatility actually held over the horizon — see AlmSimResult.avgVol. */
   avgVol: number;
-  /** effYield - VOL_PENALTY_LAMBDA*avgVol — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile portfolio scores worse than a similar yield achieved safely. */
+  /** Decision-only concentration ratio of the submitted tree — see portfolioConcentrationRatio(). */
+  concentrationRatio: number;
+  /** effYield - VOL_PENALTY_LAMBDA*avgVol - CONCENTRATION_PENALTY_MU*concentrationRatio — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile or concentrated portfolio scores worse than a similar yield achieved safely and diversified. */
   riskAdjustedYield: number;
   /** Raw $ forced-liquidated across the horizon (see AlmSimResult.totalVentaForzada) — 0 for a team that never needed to sell early. */
   totalVentaForzada: number;
@@ -596,10 +607,45 @@ export function portfolioNominalYield(tranches: Tranche[]): number {
   }, 0);
 }
 
+/**
+ * Decision-only (no simulation) concentration ratio of a portfolio's
+ * top-level tranches, normalized to [0, 1] — 0 = risky exposure spread
+ * evenly across every non-LIQ instrument in the menu, 1 = concentrated in a
+ * single one. Feeds both the Día 2 "Rendimiento" sub-score's discount (see
+ * CONCENTRATION_PENALTY_MU in constants.ts) and Día 4's solvency
+ * concentration-risk capital charge (see rConcentracion in finBench.ts) —
+ * same measurement, two different consequences.
+ *
+ * LIQ is excluded from the weight base entirely, not just given a low
+ * score: it's a pooled liquidity fund, not a single-name credit/market
+ * exposure, so it carries no concentration risk in the Solvency-II sense
+ * this models (real-world concentration sub-modules exempt cash-equivalent
+ * holdings the same way). A team holding half LIQ and half ACC is exactly
+ * as concentrated as one holding 100% ACC — the LIQ half isn't
+ * "diversifying" the equity risk, it's just holding less of it, which the
+ * existing volatility-based rFin/riskAdjustedYield already price in
+ * separately. A team with no risky exposure at all (100% LIQ) returns 0 —
+ * there's nothing to be concentrated in.
+ *
+ * Normalized against the menu's 5 non-LIQ instruments: an even split
+ * across all 5 (HHI=1/5) maps to 0, a single instrument (HHI=1) maps to 1.
+ */
+export function portfolioConcentrationRatio(tranches: Tranche[]): number {
+  const risky = tranches.filter((t) => t.instrumentId !== "LIQ" && INSTRUMENT_BY_ID[t.instrumentId] && t.weight > 0);
+  const totalW = risky.reduce((s, t) => s + t.weight, 0);
+  if (totalW <= 0) return 0;
+  const hhi = risky.reduce((s, t) => s + (t.weight / totalW) ** 2, 0);
+  const nRisky = INSTRUMENTS.filter((i) => i.id !== "LIQ").length;
+  const minHhi = 1 / nRisky;
+  return Math.max(0, Math.min(1, (hhi - minHhi) / (1 - minHhi)));
+}
+
 export interface AlmRealYearResult {
   rows: AlmSimRow[];
   /** Decision-only, see portfolioNominalYield() — unrelated to this year's actual simulated performance. */
   portYield: number;
+  /** Decision-only, see portfolioConcentrationRatio() — unrelated to this year's actual simulated performance. */
+  concentrationRatio: number;
   /** Real investment income this specific 12-month year accrued (Σ rendimientoPortafolio) — what finBench() uses for that year's P&G "Resultado de inversiones" line. */
   income: number;
   /** Realized yield actually earned this year (income ÷ average invested book balance across the 12 months) — distinct from `portYield` (the tree's nominal, decision-only yield): a team that had to force-sell or commit capital gets a lower effectiveYield than its tree's nominal rate would suggest. Used to project Año 3's investment income off the *realized* rate instead of the nominal one — see finBench.ts's p3. */
@@ -688,6 +734,7 @@ export function almSimRealYear(
   return {
     rows,
     portYield: portfolioNominalYield(decision.tranches),
+    concentrationRatio: portfolioConcentrationRatio(decision.tranches),
     income,
     // sumPV is already accumulated per-month for avgVol above — reuse it
     // here as the average invested book balance (sumPV / 12 months).
@@ -718,12 +765,20 @@ export function almSimRealYear(
  * ends the horizon with negative patrimonioDisponible scores 0.
  *
  * rendimiento is risk-adjusted, not raw yield: it normalizes
- * riskAdjustedYield (effYield discounted by realized volatility, see
- * RISK_ADJUSTED_YIELD_MIN/MAX and VOL_PENALTY_LAMBDA in constants.ts)
- * instead of effYield directly — an "efficient frontier" trade-off where
- * chasing ACC's raw yield without regard for its volatility scores worse
- * than a portfolio that also leans on TESUVR8, the menu's best
- * risk-adjusted instrument by design.
+ * riskAdjustedYield (effYield discounted by both realized volatility and
+ * portfolio concentration, see RISK_ADJUSTED_YIELD_MIN/MAX,
+ * VOL_PENALTY_LAMBDA and CONCENTRATION_PENALTY_MU in constants.ts) instead
+ * of effYield directly — an "efficient frontier" trade-off where chasing
+ * ACC's raw yield without regard for its volatility scores worse than a
+ * portfolio that also leans on TESUVR8, the menu's best risk-adjusted
+ * instrument by design. The concentration discount (see
+ * portfolioConcentrationRatio()) means this isn't beaten by parking
+ * everything in that single best instrument either — a genuinely
+ * concentrated bet pays a discount here even when the instrument itself is
+ * a safe one, the same way Día 4's solvency capital charges a
+ * concentration risk independent of volatility (see rConcentracion in
+ * finBench.ts) — a team that understands why its Día 2 nota was discounted
+ * is exactly the team that reproduces the higher RK correctly on Día 4.
  *
  * ventaForzada penalizes being forced to sell portfolio holdings early to
  * cover a Caja Mínima shortfall LIQ alone couldn't meet — and does so with
@@ -762,7 +817,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const patrimonioDisponible = CAPITAL_SOCIAL - totalCapitalComprometido;
 
   const effYield = sim.effYield;
-  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol;
+  const concentrationRatio = portfolioConcentrationRatio(decision.tranches);
+  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol - CONCENTRATION_PENALTY_MU * concentrationRatio;
   const rendimiento = Math.max(
     0,
     Math.min(100, (100 * (riskAdjustedYield - RISK_ADJUSTED_YIELD_MIN)) / (RISK_ADJUSTED_YIELD_MAX - RISK_ADJUSTED_YIELD_MIN))
@@ -797,6 +853,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     totIncome: sim.totIncome,
     tranches: decision.tranches,
     avgVol,
+    concentrationRatio,
     riskAdjustedYield,
     totalVentaForzada,
     ventaForzadaSeveridad,
