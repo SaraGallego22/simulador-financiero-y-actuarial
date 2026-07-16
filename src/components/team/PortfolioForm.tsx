@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { submitPortfolioAction, type SubmitPortfolioState } from "@/lib/teamActions";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, displayYield, isBondLike, trancheDurationM } from "@/domain/finance/instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, isBondLike, trancheDurationM } from "@/domain/finance/instruments";
 import type { PortfolioDecisionV3, Tranche, MaturityDecision } from "@/domain/finance/instruments";
 import { BUILD_MONTHS, HORIZON } from "@/domain/reserving/constants";
 import { PortfolioTreeView } from "@/components/AlmLadderTable";
@@ -64,9 +64,7 @@ function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id:
           <div key={ins.id} className="flex flex-col gap-1">
             <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
               {ins.id}{" "}
-              <span className="font-normal">
-                (rendimiento {(displayYield(ins) * 100).toFixed(1)}% · volatilidad {(ins.volAnual * 100).toFixed(1)}%)
-              </span>
+              <span className="font-normal">(volatilidad {(ins.volAnual * 100).toFixed(1)}%)</span>
               <input
                 type="number"
                 min="0"

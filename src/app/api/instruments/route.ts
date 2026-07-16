@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { INSTRUMENTS, displayYield } from "@/domain/finance/instruments";
+import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
 import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
 
 /**
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     "instrumento_id,nombre,rendimiento_EA,plazo_meses,nota",
     ...INSTRUMENTS.map(
       (i) =>
-        `${i.id},"${i.nombre}",${(displayYield(i) * 100).toFixed(1)}%,${i.plazoM >= 400 ? "sin venc." : i.plazoM},"${i.nota}"`
+        `${i.id},"${i.nombre}","${displayYieldLabel(i)}",${i.plazoM >= 400 ? "sin venc." : i.plazoM},"${i.nota}"`
     ),
   ];
   return new Response(lines.join("\n"), {

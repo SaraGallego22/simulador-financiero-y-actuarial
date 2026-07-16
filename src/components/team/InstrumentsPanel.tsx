@@ -1,4 +1,4 @@
-import { INSTRUMENTS, displayYield } from "@/domain/finance/instruments";
+import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
 import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
 
 const IDS = INSTRUMENTS.map((i) => i.id);
@@ -37,7 +37,7 @@ export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: 
               <tr key={ins.id} className="border-t border-[var(--color-brand-gray-light)]">
                 <td className="py-1 pr-4 font-mono">{ins.id}</td>
                 <td className="py-1 pr-4">{ins.nombre}</td>
-                <td className="py-1 pr-4">{(displayYield(ins) * 100).toFixed(1)}%</td>
+                <td className="py-1 pr-4">{displayYieldLabel(ins)}</td>
                 <td className="py-1 pr-4">{ins.plazoM >= 400 ? "sin venc." : `${ins.plazoM} meses`}</td>
                 <td className="py-1 pr-4 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>
               </tr>
