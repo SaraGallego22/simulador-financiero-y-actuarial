@@ -10,8 +10,9 @@ interface SlotValue {
   valA: string;
   dimB: string;
   valB: string;
+  multiplier: string;
 }
-const EMPTY_SLOT: SlotValue = { dimA: "", valA: "", dimB: "", valB: "" };
+const EMPTY_SLOT: SlotValue = { dimA: "", valA: "", dimB: "", valB: "", multiplier: "" };
 const LISTS = [
   { key: "crecer", label: "Top 3 sectores para crecer" },
   { key: "disminuir", label: "Top 3 sectores para disminuir" },
@@ -94,6 +95,19 @@ function SectorSlotFields({
           ))}
         </select>
       </div>
+      <label className="flex shrink-0 flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
+        Multiplicador estimado
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          name={`${prefix}-multiplier`}
+          value={value.multiplier}
+          onChange={(e) => onChange({ ...value, multiplier: e.target.value })}
+          placeholder="ej. 1.35"
+          className="w-24 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+        />
+      </label>
     </div>
   );
 }
@@ -114,8 +128,10 @@ export function AnalyticsForm({ day, initialPicks }: { day: number; initialPicks
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Nombra hasta 3 <strong>sectores</strong> — cada uno cruzando dos variables (ej. Zona: urbana × Uso: comercial) — que priorizarías para{" "}
         <strong>crecer</strong>, en orden de prioridad, y hasta 3 para <strong>disminuir</strong>. Todo lo que no nombres queda implícitamente en
-        &ldquo;mantener&rdquo;. Se califica contra el ranking real de sectores del mercado completo, que no ves directamente — tu propia cartera y el CSV
-        público del universo son tu única evidencia.
+        &ldquo;mantener&rdquo;. Para cada sector que nombres, estima también su <strong>multiplicador</strong> (pérdida agregada del sector ÷ pérdida
+        agregada de todo el mercado — 1.0 es el promedio) — nombrar el sector correcto sin estimar su multiplicador solo te da la mitad del puntaje de
+        esa posición. Se califica contra el ranking real de sectores del mercado completo, que no ves directamente — tu propia cartera y el CSV público
+        del universo son tu única evidencia.
       </p>
       <div className="flex flex-col gap-5">
         {LISTS.map(({ key: list, label }) => (

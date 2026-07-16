@@ -11,7 +11,9 @@ import {
   isValidSectorPick,
   SECTOR_RANK_WINDOW,
 } from "./sectors";
-import type { Sector, SectorStat } from "./sectors";
+import type { Sector, SectorPick, SectorStat } from "./sectors";
+
+const TOLERANCE = { tolerancePerfect: 0.05, toleranceZero: 0.4 };
 
 describe("SECTOR_DIMENSIONS", () => {
   it("has 8 dimensions, each with at least 3 levels", () => {
@@ -130,33 +132,58 @@ describe("scoreSectorPicks", () => {
     aggregateLoss: 100,
     multiplier: 1 - i * 0.01,
   }));
-  const pickAt = (i: number): Sector => ({ dimA: "zona", valA: `v${i}`, dimB: "uso", valB: `w${i}` });
-
-  it("scores 100 when every pick lands exactly on its true rank", () => {
-    const picks = [pickAt(0), pickAt(1), pickAt(2)];
-    expect(scoreSectorPicks(picks, trueRanking)).toBeCloseTo(100, 6);
+  // Defaults to a perfect multiplier estimate (the true one for that index)
+  // so tests about rank behavior aren't also testing multiplier accuracy —
+  // pass an explicit override (e.g. null) to isolate the multiplier half
+  // instead.
+  const pickAt = (i: number, estimatedMultiplier: number | null = trueRanking[i]?.multiplier ?? null): SectorPick => ({
+    dimA: "zona",
+    valA: `v${i}`,
+    dimB: "uso",
+    valB: `w${i}`,
+    estimatedMultiplier,
   });
 
-  it("gives partial credit for a near-miss and decays with the gap", () => {
-    const oneOff = scoreSectorPicks([pickAt(1)], trueRanking); // stated rank 1, true rank 2
-    const twoOff = scoreSectorPicks([pickAt(2)], trueRanking); // stated rank 1, true rank 3
+  it("scores 100 when every pick lands exactly on its true rank and estimates its true multiplier", () => {
+    const picks = [pickAt(0), pickAt(1), pickAt(2)];
+    expect(scoreSectorPicks(picks, trueRanking, TOLERANCE)).toBeCloseTo(100, 6);
+  });
+
+  it("gives partial credit for a near-miss and decays with the gap (rank half, multiplier held perfect)", () => {
+    const oneOff = scoreSectorPicks([pickAt(1)], trueRanking, TOLERANCE); // stated rank 1, true rank 2
+    const twoOff = scoreSectorPicks([pickAt(2)], trueRanking, TOLERANCE); // stated rank 1, true rank 3
     expect(oneOff!).toBeLessThan(100);
     expect(oneOff!).toBeGreaterThan(twoOff!);
   });
 
-  it("scores 0 for a pick that isn't in the true ranking at all", () => {
-    const notReal: Sector = { dimA: "edad", valA: "mayor", dimB: "estrato", valB: "alto" };
-    expect(scoreSectorPicks([notReal], trueRanking)).toBe(0);
+  it("scores 0 for a pick that isn't in the true ranking at all, regardless of its estimated multiplier", () => {
+    const notReal: SectorPick = { dimA: "edad", valA: "mayor", dimB: "estrato", valB: "alto", estimatedMultiplier: 1.5 };
+    expect(scoreSectorPicks([notReal], trueRanking, TOLERANCE)).toBe(0);
   });
 
-  it("scores 0 once the gap reaches SECTOR_RANK_WINDOW, never negative", () => {
-    const farOff = scoreSectorPicks([pickAt(SECTOR_RANK_WINDOW)], trueRanking); // stated 1, true rank 11
-    expect(farOff).toBe(0);
+  it("once the rank gap reaches SECTOR_RANK_WINDOW, only the multiplier half can still contribute", () => {
+    // stated rank 1, true rank 11 — rank half scores 0, multiplier half is
+    // held perfect (100), so the blended slot score is exactly half of 100.
+    const farOff = scoreSectorPicks([pickAt(SECTOR_RANK_WINDOW)], trueRanking, TOLERANCE);
+    expect(farOff).toBe(50);
   });
 
   it("returns null for an empty pick list, and averages over only the filled slots", () => {
-    expect(scoreSectorPicks([], trueRanking)).toBeNull();
-    const twoSlots = scoreSectorPicks([pickAt(0), pickAt(1)], trueRanking);
-    expect(twoSlots!).toBeGreaterThan(90); // both very close to their true rank
+    expect(scoreSectorPicks([], trueRanking, TOLERANCE)).toBeNull();
+    const twoSlots = scoreSectorPicks([pickAt(0), pickAt(1)], trueRanking, TOLERANCE);
+    expect(twoSlots!).toBeGreaterThan(90); // both very close to their true rank, both estimate the true multiplier exactly
+  });
+
+  it("naming the right sector but leaving the multiplier blank only gives half credit", () => {
+    const rankOnly = scoreSectorPicks([pickAt(0, null)], trueRanking, TOLERANCE); // exact rank, no estimate
+    expect(rankOnly).toBe(50);
+  });
+
+  it("estimating the multiplier within tolerance scores as well as a perfect estimate; far outside it scores like no estimate at all", () => {
+    const trueMultiplier = trueRanking[0].multiplier;
+    const withinTolerance = scoreSectorPicks([pickAt(0, trueMultiplier * 1.02)], trueRanking, TOLERANCE); // 2% off, inside tolerancePerfect=5%
+    const wayOff = scoreSectorPicks([pickAt(0, trueMultiplier * 10)], trueRanking, TOLERANCE); // 900% off, past toleranceZero=40%
+    expect(withinTolerance).toBeCloseTo(100, 6);
+    expect(wayOff).toBeCloseTo(50, 6); // rank half still perfect, multiplier half floors at 0
   });
 });

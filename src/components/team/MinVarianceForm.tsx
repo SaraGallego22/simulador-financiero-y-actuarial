@@ -34,16 +34,15 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Antes de escribir una sola póliza, presenta al regulador el portafolio de <strong>menor varianza posible</strong>{" "}
         que aún alcance un rendimiento esperado de al menos <strong>{(TARGET_RETURN * 100).toFixed(0)}%</strong> anual —
-        usa la matriz de covarianza (pestaña de instrumentos) para razonar el trade-off, no solo la volatilidad
-        individual de cada instrumento. Este portafolio es una decisión aparte del árbol de inversión real, que se
-        somete en Día 2 junto con tus cifras reales de prima y siniestros.
+        la volatilidad de cada instrumento no se muestra aquí directamente, dedúcela de la diagonal de la matriz de
+        covarianza (pestaña de instrumentos, arriba). Este portafolio es una decisión aparte del árbol de inversión
+        real, que se somete en Día 2 junto con tus cifras reales de prima y siniestros.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {INSTRUMENTS.map((ins) => (
           <label key={ins.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-            {ins.id}{" "}
-            <span className="font-normal">(volatilidad {(ins.volAnual * 100).toFixed(1)}%)</span>
+            {ins.id}
             <input
               type="number"
               min="0"

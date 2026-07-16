@@ -1,5 +1,7 @@
 import type { ColombiaUniverse } from "../generation/generateColombia";
 import { VEHICLE_TYPES, ZONES, USAGE_TYPES, EDUCATION_LEVELS } from "../generation/generateColombia";
+import { toleranceBandScore } from "./concepts";
+import type { ConceptTolerance } from "./concepts";
 
 /**
  * The 8 categorical dimensions a team can cross to name a "sector" — up from
@@ -264,21 +266,37 @@ export function rankForDisminuir(stats: SectorStat[]): SectorStat[] {
 /** How many rank positions off a pick can be before it scores 0 — see scoreSectorPicks(). */
 export const SECTOR_RANK_WINDOW = 10;
 
+/** A named sector plus the team's own guess at its true multiplier — the second half of what a picked slot now grades on, see scoreSectorPicks(). */
+export interface SectorPick extends Sector {
+  estimatedMultiplier: number | null;
+}
+
 /**
  * Grades one ranked list (a team's "crecer" picks, or its "disminuir" picks)
  * against the true ranking for that direction (rankForCrecer/rankForDisminuir
- * output). Position i (1-indexed) scores 100 if the pick's real rank is
- * exactly i, decaying linearly to 0 once the gap reaches SECTOR_RANK_WINDOW
- * positions — naming a sector that isn't in the true ranking at all (wrong
- * direction, or didn't meet SECTOR_MIN_COUNT) scores 0 for that slot, same as
- * a real sector named far out of place. Missing slots (a team names fewer
- * than 3) simply don't contribute — the average is over what they filled in,
- * not padded with zeros for blanks. `picks` may be sparse (e.g. a team that
- * filled rank 1 and 3 but skipped 2) — array index (not compacted position)
- * is what's used as the stated rank, since a team that explicitly left a
- * slot blank didn't thereby promote a later pick to an earlier position.
+ * output). Each filled slot is worth two things, averaged 50/50:
+ * - **Position** (as before): 100 if the pick's real rank is exactly the
+ *   stated one, decaying linearly to 0 once the gap reaches
+ *   SECTOR_RANK_WINDOW positions — naming a sector that isn't in the true
+ *   ranking at all (wrong direction, or didn't meet SECTOR_MIN_COUNT) scores
+ *   0 here, same as a real sector named far out of place.
+ * - **Estimated multiplier**: the same tolerance-band formula every other
+ *   numeric estimate on this platform uses (toleranceBandScore(), see
+ *   concepts.ts), comparing `pick.estimatedMultiplier` against the true
+ *   sector's own `multiplier`. Scores 0 (not skipped) if the pick wasn't
+ *   found in the true ranking at all (no real multiplier to compare
+ *   against) or if the team left the estimate blank — naming a sector
+ *   without also estimating its multiplier is a genuinely incomplete
+ *   answer, not a smaller one.
+ *
+ * Missing slots (a team names fewer than 3) simply don't contribute — the
+ * average is over what they filled in, not padded with zeros for blanks.
+ * `picks` may be sparse (e.g. a team that filled rank 1 and 3 but skipped 2)
+ * — array index (not compacted position) is what's used as the stated rank,
+ * since a team that explicitly left a slot blank didn't thereby promote a
+ * later pick to an earlier position.
  */
-export function scoreSectorPicks(picks: (Sector | null | undefined)[], trueRanking: SectorStat[]): number | null {
+export function scoreSectorPicks(picks: (SectorPick | null | undefined)[], trueRanking: SectorStat[], tolerance: ConceptTolerance): number | null {
   let total = 0;
   let count = 0;
   for (let i = 0; i < picks.length; i++) {
@@ -290,14 +308,19 @@ export function scoreSectorPicks(picks: (Sector | null | undefined)[], trueRanki
     const trueRank = trueIndex === -1 ? Infinity : trueIndex + 1;
     const statedRank = i + 1;
     const gap = Math.abs(trueRank - statedRank);
-    total += Math.max(0, 100 * (1 - gap / SECTOR_RANK_WINDOW));
+    const rankScore = Math.max(0, 100 * (1 - gap / SECTOR_RANK_WINDOW));
+    const multiplierScore =
+      trueIndex !== -1 && pick.estimatedMultiplier != null
+        ? toleranceBandScore(pick.estimatedMultiplier, trueRanking[trueIndex].multiplier, tolerance)
+        : 0;
+    total += (rankScore + multiplierScore) / 2;
   }
   return count > 0 ? total / count : null;
 }
 
 export interface SectorPicks {
-  crecer: (Sector | null)[];
-  disminuir: (Sector | null)[];
+  crecer: (SectorPick | null)[];
+  disminuir: (SectorPick | null)[];
 }
 
 /** Shape of a raw AnalyticsRecommendation row — structural, not a Prisma import, so this stays framework-agnostic. */
@@ -309,6 +332,7 @@ export interface AnalyticsRecommendationRow {
   valA: string;
   dimB: string;
   valB: string;
+  estimatedMultiplier: number | null;
 }
 
 /**
@@ -324,16 +348,27 @@ export function groupSectorPicksByTeam(rows: AnalyticsRecommendationRow[]): Map<
     const entry = byTeamId.get(r.teamId)!;
     const list = r.list === "crecer" ? entry.crecer : entry.disminuir;
     if (r.rank >= 1 && r.rank <= list.length) {
-      list[r.rank - 1] = { dimA: r.dimA as SectorDimension, valA: r.valA, dimB: r.dimB as SectorDimension, valB: r.valB };
+      list[r.rank - 1] = {
+        dimA: r.dimA as SectorDimension,
+        valA: r.valA,
+        dimB: r.dimB as SectorDimension,
+        valB: r.valB,
+        estimatedMultiplier: r.estimatedMultiplier,
+      };
     }
   }
   return byTeamId;
 }
 
 /** Averages a team's crecer-list score and disminuir-list score into one Día 4 sector-analítica score. */
-export function scoreSectorRecommendation(picks: SectorPicks | undefined, trueCrecer: SectorStat[], trueDisminuir: SectorStat[]): number | null {
-  const crecerScore = scoreSectorPicks(picks?.crecer ?? [], trueCrecer);
-  const disminuirScore = scoreSectorPicks(picks?.disminuir ?? [], trueDisminuir);
+export function scoreSectorRecommendation(
+  picks: SectorPicks | undefined,
+  trueCrecer: SectorStat[],
+  trueDisminuir: SectorStat[],
+  tolerance: ConceptTolerance
+): number | null {
+  const crecerScore = scoreSectorPicks(picks?.crecer ?? [], trueCrecer, tolerance);
+  const disminuirScore = scoreSectorPicks(picks?.disminuir ?? [], trueDisminuir, tolerance);
   const parts = [crecerScore, disminuirScore].filter((s): s is number => s != null);
   return parts.length > 0 ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
 }
