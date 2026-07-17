@@ -259,12 +259,12 @@ Construido por `pyg(primaEmitida, rpndLiberada, costo, desarrollo, rinv, reserva
 | `rt` (Resultado Técnico, fórmula) | `primaDevengada − costo − gadq − gcom` — deliberadamente sin el gasto administrativo, que tiene su propia línea (ver `ri`). |
 | `gadm` (fórmula) | `6% × primaEmitida` (`FZ.gAdmin`, sin cambios). |
 | `ri` (Resultado Industrial, fórmula) | `rt − gadm` — dónde realmente aterriza el gasto administrativo, separado del resultado técnico puro de suscripción. |
-| `rinv` (resultado de inversiones) | El ingreso de inversión que el **ALM real** del Año 1 (§5.3) devengó en sus 12 meses — `AlmRealYearResult.income`, no una fórmula. Si el equipo nunca guardó un portafolio, cae a un valor de reserva por defecto (`reservas1 × 5%`, el mismo nominal de LIQ, un piso conservador, no una estimación real). |
+| `rinv` (resultado de inversiones) | El ingreso de inversión que el **ALM real** del Año 1 (§5.3) devengó en sus 12 meses, sobre el árbol de portafolio que el equipo sometió en Día 2 — `AlmRealYearResult.income`, no una fórmula. |
 | `uai` (fórmula) | `ri + rinv`. |
 | `imp` (fórmula) | `30% × max(0, uai)` (`FZ.tax` — nunca un impuesto negativo). |
 | `uneta` (fórmula) | `uai − imp`. |
 
-`reservas` (`resTotal`/`resRsa`/`resIbnr`, lo que alimenta `bal1.reservasTec` en §4.3) sigue igual: si ya existe desarrollo Año1→Año2 (Día 3+), `development.bookedReserveEndY1` (avisado + IBNR esperado, medido contra el patrón de desarrollo real del mercado, ver §3); si no (Día 1/2), `liabilityYear1.reserva` completa, partida 55/45 en IBNR/avisado como aproximación — un placeholder hasta que el desarrollo real esté disponible.
+El saldo de reserva del Año 1 se explica en detalle en §4.3, junto con el resto de la Reserva Técnica — es una cifra de Balance, no una línea que el equipo reporte en este P&G.
 
 #### 4.2 · P&G del Año 2 (`p2`) y proyección del Año 3 (`p3`)
 
@@ -283,12 +283,12 @@ Con desarrollo Año1→Año2 ya calculado (Día 3+, `computeDevelopment()` — v
 | `rt` (fórmula) | `primaDevengada − costo − desarrollo − gadq − gcom` — el desarrollo de reservas resta aquí, junto al costo, antes de llegar al resultado técnico. |
 | `gadm` (fórmula) | `6% × primaEmitida` del Año 2. |
 | `ri` (fórmula) | `rt − gadm`. |
-| `rinv` | El ingreso de inversión que el **ALM real** del Año 2 devengó en sus 12 meses — pero esta corrida no arranca de cero: continúa exactamente donde terminó el Año 1 real (mismas posiciones abiertas, mismo capital comprometido acumulado), financiada por el desarrollo del Año 1 que emerge en el Año 2 más los siniestros propios del Año 2 en su propio primer año (ver §5.3). Sin ALM, cae a `reservas2 × rendimiento nominal del árbol`. |
+| `rinv` | El ingreso de inversión que el **ALM real** del Año 2 devengó en sus 12 meses — esta corrida no arranca de cero: continúa exactamente donde terminó el Año 1 real (mismas posiciones abiertas, mismo capital comprometido acumulado), financiada por el desarrollo del Año 1 que emerge en el Año 2 más los siniestros propios del Año 2 en su propio primer año (ver §5.3). |
 | `uai` (fórmula) | `ri + rinv`. |
 | `imp` (fórmula) | `30% × max(0, uai)`. |
 | `uneta` (fórmula) | `uai − imp`. |
 
-`reservas` (`reservaFinY2`, lo que alimenta `bal2.reservasTec`) sigue igual: `development.osY1endY2 + development.osY2endY2` — lo que queda pendiente al cierre del Año 2, de ambos orígenes. Sin desarrollo calculado aún (fallback, cuando el Año 2 existe pero todavía no hay `TeamDevelopment`): `reservas2` se estima como `siniestros del Año 2 × (reservas1 / siniestros del Año 1)` — un ratio simple, no una medición — `costo=year2.claimsAmount` (también accidente-year puro, sin desarrollo — no había de dónde sacarlo sin `TeamDevelopment`), y `rinv`/`uai`/`uneta` se calculan igual sobre esa base aproximada.
+El saldo de reserva del Año 2 se explica en §4.3 junto al resto de la Reserva Técnica. Como fallback, cuando el Año 2 existe pero todavía no hay `TeamDevelopment` calculado, el `costo` de arriba usa `year2.claimsAmount` sin desarrollo (no hay de dónde sacarlo sin ese dato), y `rinv`/`uai`/`uneta` se calculan sobre esa misma base aproximada.
 
 El **Año 3 no se simula** — no hay un tercer mercado ni un tercer ALM. Cuando `development` trae los campos de cola de Año 3 (ver §3) y además hay `insuredCount` de Año 1/Año 2 y la retención real de Año 2 (`year2Retention`, de `TeamSimResult.extra`), `p3` se construye igual que `p2` pero sin línea de desarrollo (ver por qué, abajo):
 
@@ -303,7 +303,7 @@ El **Año 3 no se simula** — no hay un tercer mercado ni un tercer ALM. Cuando
 | `rinv` | `reservas3 × effectiveYield2`, donde `effectiveYield2` es el rendimiento **realmente devengado** por el ALM real de Año 2 (`income ÷ saldo invertido promedio de esos 12 meses`, no `portYield`, la tasa nominal del árbol) — un equipo que tuvo que vender forzado o comprometer capital en Año 2 arrastra esa consecuencia a su proyección de Año 3, en vez de que la proyección la "olvide". |
 | `uai` / `imp` / `uneta` (fórmula) | Mismas fórmulas que Año 1/Año 2. |
 
-`reservas` (lo que alimenta `bal3.reservasTec`) sigue igual: `development.osY1endY3 + development.osY2endY3` (las mismas colas reales de arriba, la parte que sigue sin pagarse — puramente un saldo de Balance ahora, ver el párrafo anterior) más lo que queda abierto del siniestro propio de Año 3 proyectado en su propio primer año de desarrollo (45% de `siniestrosNuevosAño3`, el mismo 1−`DEV_FRAC[0]` de §3).
+El saldo de reserva del Año 3 (proyectado) se explica en §4.3 junto al resto de la Reserva Técnica.
 
 Balance/capital comprometido de Año 3 no cambian: siguen las mismas fórmulas de caja/cxc/cxp/RPND (§4.3) y el mismo capital comprometido acumulado de Año 2 hacia adelante, sin asumir nueva erosión.
 
@@ -318,11 +318,17 @@ Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese 
 | `caja` / `cxc` / `cxp` (fórmula) | `15% / 7% / 10% × primaEmitida` de ese año (`FZ.cajaPct/cxcPct/cxpPct`) — porcentajes fijos, no simulados. Para Año 1, `primaEmitida` es la que se reportó un día antes, en Día 2 (§4.1) — la única otra fórmula (junto con `rpndLiberada` de Año 2) que cruza de un día a otro. |
 | `rpnd` (Reserva de Prima No Devengada, fórmula) | El mismo número que `rpndConstituida` del P&G de ese año (§4.1/4.2) — un pasivo aparte de las reservas técnicas, la parte de la prima que todavía no se ha ganado. |
 | `activos` (fórmula) | `caja + inversiones + cxc`. |
-| `reservasTec` | La `reservas` del P&G de ese año (§4.1/4.2) — un hecho/estimación primario, no una fórmula de otras líneas del Balance. |
+| `reservasTec` (Reserva Técnica) | La plata apartada para pagar siniestros que todavía no se han terminado de pagar — ver el detalle año por año justo debajo de esta tabla. Un hecho/estimación primario, no una fórmula de otras líneas del Balance. |
 | `pasivo` (fórmula) | `reservasTec + rpnd + cxp` — la RPND es un pasivo aparte, junto a las reservas técnicas y las cuentas por pagar. |
 | `patrimonio` | `CAPITAL_SOCIAL` (fijo, §5.1) `+ utilidades retenidas` (la suma acumulada de `uneta` hasta ese año) `− capital comprometido` acumulado hasta el cierre de ese año, tomado directamente del ALM real de ese año (`AlmRealYearResult.capitalComprometidoAcumulado` — el Año 3 no tiene ALM propio, así que carga el mismo corte del Año 2 hacia adelante). Un hecho/estimación primario — depende del ALM, no de otras líneas del Balance. |
 | `pasivoPatrim` (fórmula) | `pasivo + patrimonio` — debe cuadrar exactamente con `activos` (la identidad contable básica); es la razón por la que existe como concepto reportable aparte, no solo de lectura. |
 | `inversiones` (fórmula) | `reservasTec + rpnd + cxp + patrimonio − caja − cxc` — el residual que hace cuadrar el balance (activos = pasivos + patrimonio), no un valor de mercado del portafolio. |
+
+**Cómo se calcula la Reserva Técnica (`reservasTec`) de cada año.** Es plata que la aseguradora ya reconoció como comprometida — siniestros que ya ocurrieron y hay que pagar, avisados o no (RSA/IBNR, ver §3) — pero que a la fecha de corte todavía no se ha pagado en efectivo. No es una línea del P&G: es un saldo, vive solo en el Balance.
+
+- **Año 1**: antes de que exista desarrollo real (Día 1/2, todavía no ha pasado el Año 2), la reserva es la que calcula `computeLiabilitySchedules()` directamente sobre los siniestros reales del equipo — el mismo RSA + IBNR de §3 — repartida 55%/45% entre avisado e IBNR como una aproximación de presentación, no una medición. Desde que el Año 2 ya cerró y su desarrollo se calculó (Día 3+), esa aproximación se reemplaza por el valor real booked al cierre del Año 1 (`development.bookedReserveEndY1`), medido contra el patrón de desarrollo real del mercado en vez de la partición 55/45.
+- **Año 2**: lo que sigue pendiente de pago al cerrar el Año 2, sumando dos orígenes — la cola del Año 1 que todavía no se pagó, más lo que del Año 2 mismo sigue abierto. Si el desarrollo del Año 2 todavía no está calculado, se aproxima con un ratio simple: siniestros del Año 2 × (reserva del Año 1 ÷ siniestros del Año 1).
+- **Año 3 (proyectado)**: la misma suma de colas pendientes de Año 1 y Año 2, más el 45% de los siniestros propios de Año 3 que a esa fecha todavía estarían en su primer año de desarrollo (el mismo `1 − DEV_FRAC[0]` de §3). Sin los insumos necesarios para esta proyección, la reserva simplemente crece un 6% plano sobre la del Año 2, igual que el resto del P&G proyectado (§4.2).
 
 #### 4.4 · Solvencia (Día 4)
 
@@ -331,9 +337,9 @@ Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese 
 | `solRPrimas` | `primaEmitida del año vigente × 14.76%` (`FZ.primeVol`) — deliberadamente sobre Prima **Emitida**, no Devengada: el riesgo de prima es sobre el volumen de negocio suscrito, no sobre cuánto de ese volumen ya se ganó. Igual que los gastos (§4.1), que también se calculan sobre Emitida. |
 | `solRReservas` | `reservas del año vigente × 30%` (`FZ.resVol`). |
 | `solRSusc` (riesgo de suscripción) | `√(rPrimas² + rReservas² + 2×0.75×rPrimas×rReservas)` — 0.75 es la correlación prima-reserva (`FZ.corrPR`). |
-| `solRFin` (riesgo financiero) | `inversiones del balance vigente × 6.6% × volRatio` (`FZ.finRiskPct`) — `volRatio` es la volatilidad realizada del portafolio real de ese año dividida entre el promedio del menú (`avgVol/VOL_MENU_AVG`, ver §5.4); sin ALM, `volRatio=1` (el cargo plano). |
+| `solRFin` (riesgo financiero) | `inversiones del balance vigente × 6.6% × volRatio` (`FZ.finRiskPct`) — `volRatio` es la volatilidad realizada del portafolio real de ese año dividida entre el promedio del menú (`avgVol/VOL_MENU_AVG`, ver §5.4). |
 | `solROp` (riesgo operacional) | `primaEmitida del año vigente × 3%` (`FZ.opPct`) — misma base que `solRPrimas`. |
-| `solRConc` (riesgo de concentración) | `inversiones del balance vigente × 3% × concRatio` (`FZ.concRiskPct`) — `concRatio` es `portfolioConcentrationRatio()` del mismo árbol de Día 2 (0 = repartido entre los instrumentos con plazo propio, 1 = concentrado en uno solo; LIQ no cuenta, ver §5.2); sin ALM, `concRatio=0` (no hay árbol del que cobrar el cargo). Es independiente de `volRatio` — un equipo 100% en CDT90 (baja volatilidad) paga este cargo completo aunque `solRFin` apenas se mueva. |
+| `solRConc` (riesgo de concentración) | `inversiones del balance vigente × 3% × concRatio` (`FZ.concRiskPct`) — `concRatio` es `portfolioConcentrationRatio()` del mismo árbol de Día 2 (0 = repartido entre los instrumentos con plazo propio, 1 = concentrado en uno solo; LIQ no cuenta, ver §5.2). Es independiente de `volRatio` — un equipo 100% en CDT90 (baja volatilidad) paga este cargo completo aunque `solRFin` apenas se mueva. |
 | `solRk` (capital requerido) | `√(ΣΣ CORR_MOD_CONCENTRACION[i][j] × R[i] × R[j])` sobre `R = [rSusc, rFin, rOp, rConc]` — la matriz de correlación (`CORR_MOD_CONCENTRACION`) hace que suscripción-operacional y financiero-operacional/concentración-operacional estén perfectamente correlacionados (1.0), suscripción-financiero y suscripción-concentración parcialmente (0.75), y financiero-concentración solo débilmente (0.5, dos riesgos relacionados pero con drivers distintos — ver §5.2). |
 | `solFp` (fondos propios) | El `patrimonio` del balance vigente (§4.3) — ya neto de todo el capital comprometido acumulado hasta ese punto. |
 | `solMargen` | `solFp / solRk`. |
