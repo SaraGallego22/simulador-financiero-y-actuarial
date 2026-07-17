@@ -91,12 +91,15 @@ function StatementTemplate({ rowLabels, emphasizedLabels, note }: { rowLabels: s
 }
 
 const PYG_ROWS = [
+  "Prima emitida",
+  "RPND constituida",
   "Prima devengada",
   "Costo de siniestros",
   "Gastos de adquisición",
   "Comisiones",
+  "Resultado Técnico",
   "Gastos administrativos",
-  "Resultado técnico",
+  "Resultado Industrial",
   "Resultado de inversiones",
   "Utilidad antes de impuestos",
   "Impuesto",
@@ -149,9 +152,10 @@ export function GuiaPasanteDia2() {
             diferencia del portafolio de mínima varianza de Día 1 (un ejercicio aparte, ya calificado), este árbol es tu decisión de inversión real.
           </li>
           <li>
-            <strong>Financiero — estado de resultados completo del Año 1.</strong> Reportas las 10 líneas del P&G del Año 1 (prima devengada, costo de
-            siniestros, gastos, resultado técnico, resultado de inversiones, utilidad antes de impuestos, impuesto y utilidad neta), en el mismo orden
-            vertical de un estado de resultados real — ver sección 2.
+            <strong>Financiero — estado de resultados completo del Año 1.</strong> Reportas las 13 líneas del P&G del Año 1 (prima emitida, la Reserva de
+            Prima No Devengada que constituyes sobre ella, prima devengada, costo de siniestros, gastos, resultado técnico, resultado industrial,
+            resultado de inversiones, utilidad antes de impuestos, impuesto y utilidad neta), en el mismo orden vertical de un estado de resultados real —
+            ver sección 2.
           </li>
         </ul>
       </Section>
@@ -160,10 +164,21 @@ export function GuiaPasanteDia2() {
         <SubSection title="Estado de resultados Año 1" accent="fin">
           <p>
             Reporta cada línea del P&G del Año 1 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
-            mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real; los gastos de adquisición, comisión y
-            administración son porcentajes fijos sobre la prima (10%/4%/6%). El Resultado de inversiones es el ingreso real que tu árbol de portafolio
-            (abajo) devengó durante los 12 meses del Año 1 — no una fórmula, el resultado de la simulación mes a mes. Cada línea se califica por
-            separado, con una banda de tolerancia sobre el error relativo.
+            mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real, en base <strong>fecha de accidente</strong>: es
+            el costo total de lo ocurrido en el Año 1, sin importar cuándo se avise. Los gastos de adquisición y comisión son porcentajes fijos sobre la
+            prima <strong>emitida</strong> (4%/15%); el administrativo también (6%), pero ya no resta dentro del Resultado Técnico — tiene su propia línea
+            (Resultado Industrial, ver sección 4.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
+            Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
+            Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del Año 1 — no una fórmula, el
+            resultado de la simulación mes a mes.
+          </p>
+          <p>
+            No todas las líneas se califican igual. Las que son puramente una fórmula de otras líneas que ya reportaste (RPND constituida, prima
+            devengada, gastos, Resultado Técnico, Resultado Industrial, utilidad antes de impuestos, impuesto, utilidad neta) se califican contra lo que
+            <strong> tú mismo</strong> reportaste en esas otras líneas, no contra la cifra real del motor — un solo error (por ejemplo, en tu costo de
+            siniestros) no te va a costar puntos varias veces en cada línea que depende de él, siempre que hayas aplicado la fórmula correctamente sobre
+            tu propio número. Solo prima emitida, costo de siniestros y resultado de inversiones son hechos/estimaciones genuinos, calificados contra la
+            cifra real.
           </p>
         </SubSection>
         <SubSection title="Árbol de portafolio real (ALM)" accent="fin">
@@ -254,8 +269,8 @@ export function GuiaPasanteDia2() {
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Estado de resultados — Año 1</p>
           <StatementTemplate
             rowLabels={PYG_ROWS}
-            emphasizedLabels={["Resultado técnico", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="Gastos de adquisición/Comisiones/Gastos administrativos son 10%/4%/6% de la prima devengada. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 4.2-4.6), no de una fórmula aparte."
+            emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
+            note="RPND constituida = 20% × Prima emitida. Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — sí cambia a partir de Año 2, ver la guía de Día 3). Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la prima emitida. Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo). Resultado Industrial = Resultado Técnico − Gasto administrativo. Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 4.2-4.6), no de una fórmula aparte."
           />
         </div>
 

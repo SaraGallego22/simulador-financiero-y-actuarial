@@ -6,7 +6,7 @@ import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import { scoreMinVariance } from "@/domain/finance/markowitz";
-import { conceptosDia, scoreConcepto } from "@/domain/grading/concepts";
+import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
@@ -131,7 +131,17 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
   const allDeliverables = await prisma.deliverable.findMany({ where: { team: { cohortId: cohort.id } } });
   const deliverableValueByTeamDay = new Map<string, number>();
-  for (const d of allDeliverables) deliverableValueByTeamDay.set(`${d.teamId}:${d.day}:${d.conceptId}`, d.value);
+  // Per-team, keyed `${day}:${conceptId}` across EVERY day at once (not just
+  // the day being graded) — a "formula" concept's own inputs can live on an
+  // earlier day (see concepts.ts's ownValueKey()/FormulaTerm.day doc
+  // comments, e.g. Balance Año 1's %-of-premium lines need Día 2's own
+  // Prima Emitida).
+  const ownValuesByTeamId = new Map<string, Map<string, number>>();
+  for (const d of allDeliverables) {
+    deliverableValueByTeamDay.set(`${d.teamId}:${d.day}:${d.conceptId}`, d.value);
+    if (!ownValuesByTeamId.has(d.teamId)) ownValuesByTeamId.set(d.teamId, new Map());
+    ownValuesByTeamId.get(d.teamId)!.set(ownValueKey(`d${d.day}` as Dia, d.conceptId), d.value);
+  }
 
   // Subjective grading is person-level only, and only for Días 2-4 — Día 1
   // has no subjective grade at all (see MemberDayEvaluation's doc comment).
@@ -151,6 +161,7 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
       const actScores: number[] = [];
       const finScores: number[] = [];
+      const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
 
       if (day <= 2) {
         const tarifScore = tarifByDay.get(day)?.get(team.id);
@@ -158,7 +169,7 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
       }
       for (const c of reportConcepts) {
         const value = deliverableValueByTeamDay.get(`${team.id}:${day}:${c.id}`) ?? null;
-        const scored = scoreConcepto(c.id, value, bench, tolerance);
+        const scored = scoreConcepto(c.id, value, bench, tolerance, ownValues);
         if (scored?.score != null) (c.perfil === "act" ? actScores : finScores).push(scored.score);
       }
       if (day === 1) {
