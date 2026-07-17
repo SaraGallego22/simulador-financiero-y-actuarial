@@ -271,7 +271,12 @@ describe("almSim / scoreFinanciero", () => {
     // (finBench's bal1/bal2) are untouched — this is the part that matters
     // for "aplica bien para ambos años de siniestro".
     expect(score!.capitalComprometidoY1).toBe(0);
-    expect(score!.capitalComprometidoY2).toBe(0);
+    // toBeCloseTo, not toBe(0) exactly — 60 months of floating-point cash-flow
+    // accumulation (gastos included) can leave a sub-cent residual here
+    // depending on the exact expense ratio; see the next assertion for the
+    // real tolerance that matters (a fraction of a rounding error against
+    // Capital Social, not a real erosion).
+    expect(score!.capitalComprometidoY2).toBeCloseTo(0, 6);
     // Some lumpy month past Year 2 may still nick a negligible amount —
     // this fixture's 3-claim horizon isn't perfectly smooth — but it stays
     // a rounding error against Capital Social, not a real erosion.

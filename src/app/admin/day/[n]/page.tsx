@@ -8,7 +8,7 @@ import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/d
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
-import { conceptosDia, scoreConcepto, GROUP_LABELS } from "@/domain/grading/concepts";
+import { conceptosDia, scoreConcepto, ownValueKey, GROUP_LABELS } from "@/domain/grading/concepts";
 import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
 import {
   rankForCrecer,
@@ -136,8 +136,11 @@ export default async function AdminDayPage({
         })
       : Promise.resolve([]),
     // Deliverables: teams self-report numeric concepts, graded against
-    // finBench's computed benchmark within a tolerance band.
-    reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { day, team: { cohortId: cohort.id } } }) : Promise.resolve([]),
+    // finBench's computed benchmark within a tolerance band — fetched across
+    // ALL days (not just this one), since a "formula" concept can reference a
+    // prior day's own submission (e.g. Día 3's Balance Año 1 lines need Día
+    // 2's own Prima Emitida — see concepts.ts's FormulaTerm.day doc comment).
+    reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { team: { cohortId: cohort.id } } }) : Promise.resolve([]),
     prisma.rubricConfig.findUnique({ where: { cohortId: cohort.id } }),
     // Just the seed — the universe-wide sector "true answer" (see
     // sectors.ts) is computed below, after `universe` (already being
@@ -212,10 +215,11 @@ export default async function AdminDayPage({
 
   // This day's final "nota objetiva" per team, read straight off
   // computeConsolidado() rather than re-derived here — Día 2's real blend
-  // also folds in report-concept scores (reservas, gastos, utilidad neta A1;
-  // see concepts.ts's "d2" entries), not just the tariff/ALM scores shown
-  // alongside it below, so recomputing it by hand here would drift from
-  // what's actually graded.
+  // also folds in the full Año 1 P&G's report-concept scores (see
+  // concepts.ts's "d2" entries — Prima Emitida through Utilidad Neta, no
+  // reserves line, those live in Día 3's Balance), not just the
+  // tariff/ALM scores shown alongside it below, so recomputing it by hand
+  // here would drift from what's actually graded.
   const objectiveByTeamId = new Map<string, number>();
   for (const row of consolidadoRows ?? []) {
     const objective = row.perDay[day - 1]?.objective;
@@ -295,9 +299,14 @@ export default async function AdminDayPage({
   const minVarReferenceVariance = portfolioVariance(minVarReferenceWeights);
 
   const deliverablesByTeamId = new Map<string, Record<string, number>>();
+  // Per-team, keyed `${day}:${conceptId}` — what scoreConcepto()'s formula
+  // concepts read their own inputs from (see concepts.ts's ownValueKey()).
+  const ownValuesByTeamId = new Map<string, Map<string, number>>();
   for (const d of deliverables) {
     if (!deliverablesByTeamId.has(d.teamId)) deliverablesByTeamId.set(d.teamId, {});
     deliverablesByTeamId.get(d.teamId)![d.conceptId] = d.value;
+    if (!ownValuesByTeamId.has(d.teamId)) ownValuesByTeamId.set(d.teamId, new Map());
+    ownValuesByTeamId.get(d.teamId)!.set(ownValueKey(`d${d.day}` as Dia, d.conceptId), d.value);
   }
 
   // Día 2's finAvg component of the objective grade — averages the
@@ -311,8 +320,9 @@ export default async function AdminDayPage({
     for (const team of teams) {
       const values = deliverablesByTeamId.get(team.id) ?? {};
       const bench = finBenchByTeamId.get(team.id) ?? null;
+      const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
       const finScores = finConcepts
-        .map((c) => scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance)?.score)
+        .map((c) => scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues)?.score)
         .filter((s): s is number => s != null);
       const avg = notaPerfilDia(finScores);
       if (avg != null) finReportScoreByTeamId.set(team.id, avg);
@@ -585,7 +595,8 @@ export default async function AdminDayPage({
                 {teams.map((team) => {
                   const values = deliverablesByTeamId.get(team.id) ?? {};
                   const bench = finBenchByTeamId.get(team.id) ?? null;
-                  const rows = reportConcepts.map((c) => ({ c, result: scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance) }));
+                  const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
+                  const rows = reportConcepts.map((c) => ({ c, result: scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues) }));
                   const scored = rows.filter((r) => r.result?.score != null);
                   const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.result!.score!, 0) / scored.length : null;
                   const fmt = (v: number | null, unit: string) =>
@@ -855,11 +866,11 @@ export default async function AdminDayPage({
               )}
               {day === 2 && (
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  &ldquo;Nota financiera&rdquo; es el promedio de gastos/resultado de inversiones/utilidad neta A1 reportados (pestaña Entregables) —{" "}
+                  &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del Año 1 reportadas (pestaña Entregables) —{" "}
                   <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM
                   (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el árbol de
-                  portafolio se movió a este día. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: la parte actuarial real también promedia las
-                  reservas reportadas (RSA/IBNR) ese mismo día.
+                  portafolio se movió a este día. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: Día 2 no tiene ningún reporte actuarial
+                  aparte — las reservas técnicas de Año 1 se reportan hasta Día 3, como línea del Balance.
                 </p>
               )}
             </div>
@@ -946,9 +957,9 @@ export default async function AdminDayPage({
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
-                    <th className="px-4 py-2">Reservas A1</th>
-                    <th className="px-4 py-2">Utilidad neta A1</th>
-                    <th className="px-4 py-2">Utilidad neta A2</th>
+                    <th className="px-4 py-2">Reservas técnicas A1 (Balance)</th>
+                    <th className="px-4 py-2">Utilidad neta A1 (P&G)</th>
+                    <th className="px-4 py-2">Utilidad neta A2 (P&G)</th>
                     <th className="px-4 py-2">Riesgo Fin. (volatilidad)</th>
                     <th className="px-4 py-2">Capital (RK)</th>
                     <th className="px-4 py-2">Margen solvencia</th>

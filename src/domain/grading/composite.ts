@@ -1,17 +1,22 @@
-import { GASTOS_TOTAL_PCT } from "../finance/constants";
+import { RT_EXPENSE_PCT } from "../finance/constants";
 
 export type ObjectiveMode = "relative" | "ranking";
 
 /**
- * RT (resultado técnico) — premium minus claims minus the standard
- * acquisition/commission/administration expense load (GASTOS_TOTAL_PCT).
- * Same shape as finBench()'s own `rt` (see finance/finBench.ts) — kept as
- * one shared definition so "RT" means the same thing everywhere it's
- * computed or displayed (grading here, the P&L there, the admin panel),
- * instead of two similarly-named but different numbers.
+ * RT (resultado técnico) — premium minus claims minus the acquisition/
+ * commission expense load (RT_EXPENSE_PCT — deliberately NOT gasto
+ * administrativo, which lands on its own line, Resultado Industrial, see
+ * finBench.ts's pyg()). Same shape as finBench()'s own `rt` — kept as one
+ * shared definition so "RT" means the same thing everywhere it's computed
+ * or displayed (grading here, the P&L there, the admin panel), instead of
+ * two similarly-named but different numbers. Deliberately built from raw
+ * `totalPremium` (Prima Emitida), not Prima Devengada — this score is about
+ * pricing/underwriting quality (premium vs. claims vs. acquisition cost),
+ * not the unearned-premium accounting timing that's specific to the full
+ * financial-statement model (see README §4.1's RPND roll-forward).
  */
 export function computeRt(r: { totalPremium: number; claimsAmount: number }): number {
-  return r.totalPremium * (1 - GASTOS_TOTAL_PCT) - r.claimsAmount;
+  return r.totalPremium * (1 - RT_EXPENSE_PCT) - r.claimsAmount;
 }
 
 /**
@@ -60,20 +65,22 @@ export function notaTarifacionAnio(
 
 /**
  * Target net technical margin (RT as a fraction of premium, *after* both
- * claims and the standard GASTOS_TOTAL_PCT expense load) that counts as
- * "good performance" for notaTarifacionAbsoluta(). This can't reuse
- * analytics.ts's LR_BAJO (0.85, the "grow" threshold) directly the way an
- * earlier version of this function did: once RT already subtracts
- * GASTOS_TOTAL_PCT (20%), a team merely hitting LR_BAJO on claims alone
- * (0.85 + 0.20 > 1.0 of premium) is still running a net technical loss —
- * realistic (many insurers run an underwriting loss offset by investment
- * income, graded separately via ALM), but not what "good performance"
- * should mean for this specific, underwriting-only score.
+ * claims and the RT_EXPENSE_PCT expense load) that counts as "good
+ * performance" for notaTarifacionAbsoluta(). This can't reuse analytics.ts's
+ * LR_BAJO (0.85, the "grow" threshold) directly the way an earlier version
+ * of this function did: once RT already subtracts RT_EXPENSE_PCT (19%), a
+ * team merely hitting LR_BAJO on claims alone (0.85 + 0.19 > 1.0 of premium)
+ * is still running a net technical loss — realistic (many insurers run an
+ * underwriting loss offset by investment income, graded separately via ALM),
+ * but not what "good performance" should mean for this specific,
+ * underwriting-only score.
  *
- * 20% (not a thinner margin like 10%) is deliberate: since GASTOS_TOTAL_PCT
- * is a fixed 20% of premium regardless of how a team prices, RT swings by a
- * lot for perfectly ordinary changes in loss ratio — anchoring "good" to too
- * thin a margin made the reference RT small, which (per notaTarifacionAbsoluta's
+ * 20% (not a thinner margin like 10%) is deliberate, and coincidentally
+ * close to but distinct from RT_EXPENSE_PCT (19%) — the two are unrelated
+ * constants that happen to land near each other: since RT_EXPENSE_PCT is a
+ * fixed expense load regardless of how a team prices, RT swings by a lot for
+ * perfectly ordinary changes in loss ratio — anchoring "good" to too thin a
+ * margin made the reference RT small, which (per notaTarifacionAbsoluta's
  * comment below) also sets how *steeply* the score reacts to RT, and made
  * merely-mediocre (not actually bad) results score in the single digits.
  * 20% widens that reference so a genuinely bad result still reads as clearly
@@ -108,10 +115,10 @@ const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMA
  * have been* had it priced its own actual book of claims (claimsAmount,
  * already known — not a population estimate) to land exactly at
  * GOOD_PERFORMANCE_MARGIN_PCT net technical margin, after also covering the
- * same GASTOS_TOTAL_PCT expense load every team pays. Solving
- * `premium*(1-GASTOS_TOTAL_PCT) - claims = premium*MARGIN` for premium and
+ * same RT_EXPENSE_PCT expense load every team pays. Solving
+ * `premium*(1-RT_EXPENSE_PCT) - claims = premium*MARGIN` for premium and
  * substituting back into RT gives `goodRt = claims * MARGIN / (1 -
- * GASTOS_TOTAL_PCT - MARGIN)`. That reference RT scales with each team's
+ * RT_EXPENSE_PCT - MARGIN)`. That reference RT scales with each team's
  * own claims volume, so a small and a large book are judged on the same
  * relative bar, not on who racked up more absolute COP of technical result
  * by writing more policies.
@@ -127,7 +134,7 @@ export function notaTarifacionAbsoluta(
   results: { teamId: number; totalPremium: number; claimsAmount: number }[]
 ): Map<number, number> {
   const map = new Map<number, number>();
-  const goodMarginDenominator = 1 - GASTOS_TOTAL_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
+  const goodMarginDenominator = 1 - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
   for (const r of results) {
     const rt = computeRt(r);
     if (r.totalPremium <= 0 && r.claimsAmount <= 0) {

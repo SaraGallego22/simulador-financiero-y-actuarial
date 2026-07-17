@@ -1,7 +1,7 @@
 /** Financial engine constants, ported verbatim from FZ in the legacy prototype, line ~1065. */
 export const FZ = {
-  gAdq: 0.1,
-  gCom: 0.04,
+  gAdq: 0.04,
+  gCom: 0.15,
   gAdmin: 0.06,
   tax: 0.3,
   primeVol: 0.1476,
@@ -16,6 +16,8 @@ export const FZ = {
   cxcPct: 0.07,
   cxpPct: 0.1,
   growth3: 0.06,
+  /** Reserva de Prima No Devengada (RPND): the fraction of each year's own Prima Emitida held back as unearned — see PnL's rpndConstituida/rpndLiberada in finBench.ts. A 1-year unearned-premium model: what's held back this year is fully released next year, so the Balance's RPND liability at any year's close is simply this same 20% of that year's own Prima Emitida. */
+  rpndPct: 0.2,
 };
 
 /** Correlation matrix between underwriting/financial/operational risk. Ported from CORR_MOD, line ~1071. Stays 3x3 (Susc/Fin/Op) — capacity.ts's market-share cap reuses this exact matrix and assumes that shape; the concentration risk charge (Día 4 only, not part of capacity sizing) has its own extended matrix below instead of reshaping this one. */
@@ -67,6 +69,9 @@ export const CONCENTRATION_PENALTY_MU = 0.03;
  * monthly granularity in the ALM ladder — same ratios finBench's pyg() uses
  * annually on the full-year premium. */
 export const GASTOS_TOTAL_PCT = FZ.gAdq + FZ.gCom + FZ.gAdmin;
+
+/** Expense ratio Resultado Técnico (RT) actually subtracts — adquisición + comisión only, deliberately excluding gAdmin (which now lands on its own line, Resultado Industrial = RT − gadm, see finBench.ts's pyg()). Kept apart from GASTOS_TOTAL_PCT (used by the ALM's cash-flow "Gastos" line, which still consumes all three) so the two ratios can't silently drift into meaning different things under the same name. */
+export const RT_EXPENSE_PCT = FZ.gAdq + FZ.gCom;
 
 /**
  * How much a portfolio's realized volatility discounts its "Rendimiento"

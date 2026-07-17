@@ -35,25 +35,39 @@ export interface YearResult {
 }
 
 export interface PnL {
-  prima: number;
+  /** What was actually collected/written this year — the raw fact, never itself a formula of other lines. */
+  primaEmitida: number;
+  /** 20% of the PRIOR year's own primaEmitida, released this year (0 for Año 1 — no prior year to release). */
+  rpndLiberada: number;
+  /** 20% of THIS year's own primaEmitida, held back as unearned (Reserva de Prima No Devengada) — same number as this year's Balance `rpnd`. */
+  rpndConstituida: number;
+  /** primaEmitida − rpndConstituida + rpndLiberada — a genuine roll-forward of a 1-year unearned-premium reserve, not a flat 80% of primaEmitida (the two only coincide in Año 1, or when premium is flat year over year). This is the revenue RT is built from, not primaEmitida. */
+  primaDevengada: number;
+  /** Accident-year ultimate of THIS year's own claims only — never touched by a prior year's late emergence/development (see finBench()'s doc comment on why that used to leak in). */
   costo: number;
+  /** Prior-year reserve development gain/loss (0 except Año 2, where Año 1's booked reserve was a market-wide IBNR *estimate* later checked against reality — see development.ts's `development` field). A genuine P&G item, distinct from `costo` (which stays purely this year's own accident year) and distinct from the Balance's reserve *balance* (this is the income-statement effect of that estimate having been wrong, not the reserve itself). */
+  desarrollo: number;
   gadq: number;
   gcom: number;
   gadm: number;
+  /** Resultado Técnico = primaDevengada − costo − desarrollo − gadq − gcom. Deliberately excludes gadm — see `ri`. */
   rt: number;
+  /** Resultado Industrial = rt − gadm. The line gadm actually lands on, separated from the underwriting-only `rt`. */
+  ri: number;
   rinv: number;
+  /** uai = ri + rinv (was rt + rinv). */
   uai: number;
   imp: number;
   uneta: number;
   reservas: number;
-  ultAcc?: number;
-  desarrollo?: number;
   pagos?: number | null;
   portYield2?: number;
 }
 
 export interface BalanceSheet {
   reservasTec: number;
+  /** Reserva de Prima No Devengada — same number as this year's PnL.rpndConstituida, a liability alongside reservasTec. */
+  rpnd: number;
   patrimonio: number;
   caja: number;
   cxc: number;
@@ -101,14 +115,41 @@ export interface FinBenchInput {
   year2Retention?: { retainedCount: number; newCount: number };
 }
 
-function pyg(prima: number, sin: number, reservas: number, rinv: number): PnL {
-  const gadq = FZ.gAdq * prima;
-  const gcom = FZ.gCom * prima;
-  const gadm = FZ.gAdmin * prima;
-  const rt = prima - sin - gadq - gcom - gadm;
-  const uai = rt + rinv;
+/**
+ * Builds one year's P&L from primaEmitida down to uneta. `rpndLiberada` is
+ * the one input that can't be derived from this year's own data — the
+ * prior year's own 20% holdback, passed in by the caller (0 for Año 1).
+ * `desarrollo` is 0 for every year except Año 2 (see PnL.desarrollo's doc
+ * comment).
+ */
+function pyg(primaEmitida: number, rpndLiberada: number, costo: number, desarrollo: number, rinv: number, reservas: number): PnL {
+  const rpndConstituida = FZ.rpndPct * primaEmitida;
+  const primaDevengada = primaEmitida - rpndConstituida + rpndLiberada;
+  const gadq = FZ.gAdq * primaEmitida;
+  const gcom = FZ.gCom * primaEmitida;
+  const gadm = FZ.gAdmin * primaEmitida;
+  const rt = primaDevengada - costo - desarrollo - gadq - gcom;
+  const ri = rt - gadm;
+  const uai = ri + rinv;
   const imp = FZ.tax * Math.max(0, uai);
-  return { prima, costo: sin, gadq, gcom, gadm, rt, rinv, uai, imp, uneta: uai - imp, reservas };
+  return {
+    primaEmitida,
+    rpndLiberada,
+    rpndConstituida,
+    primaDevengada,
+    costo,
+    desarrollo,
+    gadq,
+    gcom,
+    gadm,
+    rt,
+    ri,
+    rinv,
+    uai,
+    imp,
+    uneta: uai - imp,
+    reservas,
+  };
 }
 
 /**
@@ -123,12 +164,13 @@ function pyg(prima: number, sin: number, reservas: number, rinv: number): PnL {
 function balance(pygY: PnL | null, capital0: number, retenido: number, capitalComprometido: number): BalanceSheet | null {
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
+  const rpnd = pygY.rpndConstituida;
   const patrimonio = capital0 + retenido - capitalComprometido;
-  const caja = FZ.cajaPct * pygY.prima;
-  const cxc = FZ.cxcPct * pygY.prima;
-  const cxp = FZ.cxpPct * pygY.prima;
-  const inversiones = reservasTec + cxp + patrimonio - caja - cxc;
-  return { reservasTec, patrimonio, caja, cxc, cxp, inversiones, activos: caja + inversiones + cxc };
+  const caja = FZ.cajaPct * pygY.primaEmitida;
+  const cxc = FZ.cxcPct * pygY.primaEmitida;
+  const cxp = FZ.cxpPct * pygY.primaEmitida;
+  const inversiones = reservasTec + rpnd + cxp + patrimonio - caja - cxc;
+  return { reservasTec, rpnd, patrimonio, caja, cxc, cxp, inversiones, activos: caja + inversiones + cxc };
 }
 
 /**
@@ -169,7 +211,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // decision at all to simulate from.
   const portYield = almYear1 ? almYear1.portYield : 0.05;
   const rinv1 = almYear1 ? almYear1.income : reservas1 * 0.05;
-  const p1 = pyg(year1.totalPremium, year1.claimsAmount, reservas1, rinv1);
+  // Año 1 has no prior year to release RPND from, and nothing to develop yet.
+  const p1 = pyg(year1.totalPremium, 0, year1.claimsAmount, 0, rinv1, reservas1);
 
   let p2: PnL | null = null;
   let reservas2 = 0;
@@ -177,41 +220,28 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const alm2 = almYear2 ?? almYear1;
     const portYield2 = alm2 ? alm2.portYield : portYield;
     reservas2 = development.reservaFinY2;
-    const costoCal = development.ultY2 + development.development;
     const rinv2 = alm2 ? alm2.income : reservas2 * portYield2;
-    const gadq = FZ.gAdq * year2.totalPremium;
-    const gcom = FZ.gCom * year2.totalPremium;
-    const gadm = FZ.gAdmin * year2.totalPremium;
-    const rt2 = year2.totalPremium - costoCal - gadq - gcom - gadm;
-    const uai2 = rt2 + rinv2;
-    const imp2 = FZ.tax * Math.max(0, uai2);
-    p2 = {
-      prima: year2.totalPremium,
-      costo: costoCal,
-      ultAcc: development.ultY2,
-      desarrollo: development.development,
-      pagos: development.pagosY2,
-      gadq,
-      gcom,
-      gadm,
-      rt: rt2,
-      rinv: rinv2,
-      uai: uai2,
-      imp: imp2,
-      uneta: uai2 - imp2,
-      reservas: reservas2,
-      portYield2,
-    };
+    // Releases Año 1's own RPND holdback; costo is Año 2's own accident-year
+    // ultimate only (development.ultY2) — Año 1's late-emerging claims were
+    // already recognized in Año 1's own costo (see liability.ts/development.ts:
+    // severity is fixed at generation time regardless of notice lag, so
+    // year1.claimsAmount was already the true full ultimate, IBNR included).
+    // What genuinely belongs to Año 2 is the *development* gain/loss — the
+    // gap between what Año 1's reserve *estimated* (bookedReserveEndY1, a
+    // market-wide IBNR proxy) and what actually emerged.
+    const rpndLiberada2 = FZ.rpndPct * year1.totalPremium;
+    p2 = pyg(year2.totalPremium, rpndLiberada2, development.ultY2, development.development, rinv2, reservas2);
+    p2.pagos = development.pagosY2;
+    p2.portYield2 = portYield2;
   } else if (year2) {
     const alm2 = almYear2 ?? almYear1;
     const portYield2 = alm2 ? alm2.portYield : portYield;
     const ratio = year1.claimsAmount > 0 ? reservas1 / year1.claimsAmount : 0.4;
     reservas2 = year2.claimsAmount * ratio;
     const rinv2 = alm2 ? alm2.income : reservas2 * portYield2;
-    p2 = pyg(year2.totalPremium, year2.claimsAmount, reservas2, rinv2);
-    p2.desarrollo = 0;
+    const rpndLiberada2 = FZ.rpndPct * year1.totalPremium;
+    p2 = pyg(year2.totalPremium, rpndLiberada2, year2.claimsAmount, 0, rinv2, reservas2);
     p2.pagos = null;
-    p2.ultAcc = year2.claimsAmount;
     p2.portYield2 = portYield2;
   }
 
@@ -236,22 +266,26 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     const retainedPolicies3 = retentionRate * year2.insuredCount;
     const newPolicies3 = year2Retention.newCount;
     const insuredCount3 = retainedPolicies3 + newPolicies3;
-    const avgPremiumPerPolicy2 = p2.prima / year2.insuredCount;
+    const avgPremiumPerPolicy2 = p2.primaEmitida / year2.insuredCount;
     const prima3 = insuredCount3 * avgPremiumPerPolicy2;
 
-    // Costo: Año 1's 3rd (final) and Año 2's 2nd development-year tails are
-    // exact, real numbers (same claim-level data computeDevelopment() already
-    // has, one kernel step further — see TeamDevelopment's devTailY1InY3/
-    // devTailY2InY3). Only Año 3's own accident-year claims are projected:
-    // frequency held at Año 2's observed rate, severity inflated by
-    // CLAIMS_INFLATION_ANNUAL — the same rate the engine already uses for
-    // Año1->Año2, reused as-is (see that constant's doc comment for why this
-    // isn't double-counted against the Chile real-trend clue).
+    // Costo: only Año 3's own (projected) accident-year claims — frequency
+    // held at Año 2's observed rate, severity inflated by
+    // CLAIMS_INFLATION_ANNUAL (the same rate the engine already uses for
+    // Año1->Año2, reused as-is — see that constant's doc comment for why
+    // this isn't double-counted against the Chile real-trend clue).
+    // devTailY1InY3/devTailY2InY3 (Año 1's/Año 2's real, exact final
+    // payment tranches landing in calendar Año 3) are deliberately NOT added
+    // here anymore — that money was already recognized as incurred cost in
+    // its own accident year's P&G (Año 1's/Año 2's `costo`, both already
+    // true ultimates — see liability.ts/development.ts). Including it again
+    // in Año 3 would double-count it; it's purely a Balance-side reserve
+    // run-off from here (see reservas3 below), with no further P&G effect.
     const frecuencia2 = development.claimCountY2 / year2.insuredCount;
     const severidad2 = development.ultY2 / development.claimCountY2;
     const severidad3 = severidad2 * (1 + CLAIMS_INFLATION_ANNUAL);
     const siniestrosNuevosAño3 = insuredCount3 * frecuencia2 * severidad3;
-    const costo3 = development.devTailY1InY3 + development.devTailY2InY3 + siniestrosNuevosAño3;
+    const costo3 = siniestrosNuevosAño3;
 
     // Reservas: the matching outstanding tails (same real data) plus the
     // projected Año3 claims' own first development-year outstanding balance
@@ -266,13 +300,19 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     // the nominal portYield if no real ALM ran for Año 2.
     const rinv3 = reservas3 * (almYear2?.effectiveYield ?? portYield);
 
-    p3 = pyg(prima3, costo3, reservas3, rinv3);
+    // Releases Año 2's own RPND holdback — no development line here (see
+    // PnL.desarrollo's doc comment: there's no Año-2-equivalent estimation
+    // gap to true up, since Año 2's own reserve was never a market-wide
+    // proxy the way Año 1's was).
+    const rpndLiberada3 = FZ.rpndPct * year2.totalPremium;
+    p3 = pyg(prima3, rpndLiberada3, costo3, 0, rinv3, reservas3);
   } else if (p2) {
     // Fallback: the flat growth-rate projection, unchanged, for whenever the
     // richer inputs above aren't available yet.
     const g = 1 + FZ.growth3;
     reservas3 = reservas2 * g;
-    p3 = pyg(p2.prima * g, p2.costo * g, reservas3, reservas3 * portYield);
+    const rpndLiberada3 = p2.rpndConstituida;
+    p3 = pyg(p2.primaEmitida * g, rpndLiberada3, p2.costo * g, 0, reservas3 * portYield, reservas3);
   }
 
   // Every team starts from the same fixed Capital Social (see constants.ts)
@@ -293,7 +333,11 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const balN = bal2 || bal1;
   const pygN = p2 || p1;
   const reservasN = pygN.reservas;
-  const rPrimas = pygN.prima * FZ.primeVol;
+  // Premium risk (rSusc) and rOp are sized off primaEmitida, not
+  // primaDevengada — the same base gastos use (see PnL.primaEmitida's doc
+  // comment): premium risk is about the volume of business written, not
+  // how much of it has earned out yet.
+  const rPrimas = pygN.primaEmitida * FZ.primeVol;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
   // Financial risk scales with the team's *own* realized portfolio
@@ -306,7 +350,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const almN = almYear2 ?? almYear1;
   const volRatio = almN ? almN.avgVol / VOL_MENU_AVG : 1;
   const rFin = FZ.finRiskPct * balN.inversiones * volRatio;
-  const rOp = FZ.opPct * pygN.prima;
+  const rOp = FZ.opPct * pygN.primaEmitida;
   // Concentration risk, independent of volRatio above — see
   // portfolioConcentrationRatio()'s doc comment on why a low-volatility
   // single-instrument portfolio (e.g. 100% CDT90) still pays this even
