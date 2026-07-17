@@ -22,29 +22,9 @@ function fakeAlmYear(
   return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield };
 }
 
-/** A realistic Año1(100 claims)/Año2(80 claims) development schedule, for exercising finBench()'s Año3 "rich data" path. All of team 1's Año-1 claims are reported within Año 1 itself here, which — with only one team in the market — makes `development.development` come out exactly 0 (the "market-wide" factor always exactly retrodicts a single team's own experience). Fine for the Año3-projection tests below, which don't depend on that value; see fakeDevelopmentWithGap() for a fixture that exercises a genuine nonzero development gap. */
+/** A realistic Año1(100 claims)/Año2(80 claims) development schedule, for exercising finBench()'s Año3 "rich data" path. */
 function fakeDevelopment() {
   const year1Claims = Array.from({ length: 100 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 }));
-  const year2Claims = Array.from({ length: 80 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 }));
-  return computeDevelopment(year1Claims, year2Claims, [1]).byTeam.get(1)!;
-}
-
-/**
- * A second team (team 2, all claims reported within Año 1) sets a
- * "healthier" market-wide reporting factor than team 1's own experience (30
- * of team 1's 100 Año-1 claims report late) — the only way to get a
- * genuinely nonzero `development.development`: with just one team in the
- * market, that team's own late-reporting rate always exactly equals the
- * "market-wide" factor derived from itself, so `development` comes out
- * exactly 0 by construction (see fakeDevelopment()'s doc comment).
- */
-function fakeDevelopmentWithGap() {
-  const team1Y1 = [
-    ...Array.from({ length: 70 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 })),
-    ...Array.from({ length: 30 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 6), ultimate: 1_000_000 })),
-  ];
-  const team2Y1 = Array.from({ length: 100 }, (_, i) => ({ teamId: 2, noticeMonth: i % 12, ultimate: 1_000_000 }));
-  const year1Claims = [...team1Y1, ...team2Y1];
   const year2Claims = Array.from({ length: 80 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 }));
   return computeDevelopment(year1Claims, year2Claims, [1]).byTeam.get(1)!;
 }
@@ -54,16 +34,6 @@ const richYear3Input = (): FinBenchInput => ({
   year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
   liabilityYear1,
   development: fakeDevelopment(),
-  almYear1: fakeAlmYear(0.05),
-  almYear2: fakeAlmYear(0.05, 0, 2_718_281, 0.1, 0.07),
-  year2Retention: { retainedCount: 800, newCount: 200 },
-});
-
-const gapDevelopmentInput = (): FinBenchInput => ({
-  year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000, insuredCount: 1000 },
-  year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
-  liabilityYear1,
-  development: fakeDevelopmentWithGap(),
   almYear1: fakeAlmYear(0.05),
   almYear2: fakeAlmYear(0.05, 0, 2_718_281, 0.1, 0.07),
   year2Retention: { retainedCount: 800, newCount: 200 },
@@ -310,28 +280,28 @@ describe("finBench", () => {
   });
 
   describe("Costo de siniestros stays on an accident-year basis (no prior-year development mixed in)", () => {
-    it("Año 2's costo is exactly its own accident-year ultimate (development.ultY2), never ultY2 + development.development", () => {
-      const dev = fakeDevelopmentWithGap();
-      expect(dev.development).not.toBe(0); // fixture must actually exercise a nonzero development gap, or this test proves nothing
-      const bench = finBench(gapDevelopmentInput());
-      expect(bench.p2!.costo).toBeCloseTo(dev.ultY2, 6);
-      expect(bench.p2!.costo).not.toBeCloseTo(dev.ultY2 + dev.development, 6);
-    });
-
-    it("development.development shows up as its own P&G line (desarrollo), feeding RT directly — not folded into costo", () => {
-      const dev = fakeDevelopmentWithGap();
-      const bench = finBench(gapDevelopmentInput());
-      expect(bench.p2!.desarrollo).toBeCloseTo(dev.development, 6);
-      expect(bench.p2!.rt).toBeCloseTo(
-        bench.p2!.primaDevengada - bench.p2!.costo - bench.p2!.desarrollo - bench.p2!.gadq - bench.p2!.gcom,
-        4
-      );
-    });
-
-    it("Año 1 and Año 3 (projected) never carry a development line — it's specific to Año 2's known re-estimation gap", () => {
+    it("Año 2's costo is exactly its own accident-year ultimate (development.ultY2), never mixed with Año 1's tail", () => {
+      const dev = fakeDevelopment();
       const bench = finBench(richYear3Input());
-      expect(bench.p1.desarrollo).toBe(0);
-      expect(bench.p3!.desarrollo).toBe(0);
+      expect(bench.p2!.costo).toBeCloseTo(dev.ultY2, 6);
+    });
+
+    it("rt is a uniform formula for every year (primaDevengada − costo − gadq − gcom) — there's no separate 'desarrollo' term inside the true bench P&G", () => {
+      const bench = finBench(richYear3Input());
+      for (const p of [bench.p1, bench.p2!, bench.p3!]) {
+        expect(p.rt).toBeCloseTo(p.primaDevengada - p.costo - p.gadq - p.gcom, 6);
+      }
+    });
+
+    it("reservas1 (feeding bal1.reservasTec) is always liabilityYear1.reserva — the true unpaid ultimate — never a market-wide estimate, whether or not Año 2's development has been computed yet", () => {
+      const withoutDevelopment = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: null,
+      });
+      const withDevelopment = finBench(richYear3Input());
+      expect(withoutDevelopment.resTotal).toBeCloseTo(liabilityYear1.reserva, 6);
+      expect(withDevelopment.resTotal).toBeCloseTo(liabilityYear1.reserva, 6);
     });
 
     it("Año 3's projected costo is only its own new accident-year claims — no prior-year development tails added in", () => {

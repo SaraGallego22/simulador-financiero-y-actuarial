@@ -70,7 +70,7 @@ const PYG_A2_ROWS = [
   "RPND constituida",
   "Prima devengada",
   "Costo de siniestros",
-  "Desarrollo de reservas (A1)",
+  "Ajuste de siniestralidad (A1)",
   "Gastos de adquisición",
   "Comisiones",
   "Resultado Técnico",
@@ -82,9 +82,9 @@ const PYG_A2_ROWS = [
   "Utilidad neta",
 ];
 
-// Año 3 no tiene línea de Desarrollo de reservas — a diferencia de Año 1, la
-// reserva de Año 2 nunca fue una estimación tipo-mercado que "desmentir" un
-// año después (ver sección 3).
+// Año 3 no tiene línea de Ajuste de siniestralidad — esa línea corrige el
+// propio Costo de Siniestros A1 que reportaste en Día 2, y no hay un día
+// posterior a Día 3 donde corregir un eventual error de Día 3 (ver sección 3).
 const PYG_A3_ROWS = [
   "Prima emitida (proy.)",
   "RPND liberada (A2)",
@@ -132,18 +132,19 @@ export function GuiaPasanteDia3() {
 
       <Section n="1" title="Contexto del día">
         <p>
-          Ya conoces cómo emergió el desarrollo de siniestros del Año 1 durante el Año 2 — cuánto de lo que esperabas como IBNR realmente se convirtió en
-          siniestros avisados. Con eso, cierras el ciclo financiero completo de los dos años simulados y proyectas un tercero.
+          Ya conoces cuánto pagaste durante el Año 2 de los siniestros del Año 1 y cuánto sigue pendiente. Con eso, cierras el ciclo financiero completo
+          de los dos años simulados y proyectas un tercero.
         </p>
         <ul className="list-disc pl-5">
           <li>
-            <strong>Actuarial — reservas técnicas de Año 1 y Año 2.</strong> Ya no se reportan aparte (eso era Día 2/3 en versiones anteriores del
-            ejercicio) — hoy las calculas y las entregas como la línea &ldquo;Reservas técnicas&rdquo; del Balance de cada año.
+            <strong>Actuarial — reservas técnicas de Año 1 y Año 2.</strong> Las calculas y las entregas como la línea &ldquo;Reservas técnicas&rdquo;
+            del Balance de cada año — siempre el saldo real de siniestralidad menos lo pagado hasta ese punto, nunca una estimación de mercado.
           </li>
           <li>
             <strong>Financiero — estados de resultados completos de Año 2 (15 líneas) y Año 3 proyectado (14 líneas).</strong> La misma estructura que
             reportaste para el Año 1 en Día 2, con dos diferencias: cada año libera la Reserva de Prima No Devengada que el año anterior constituyó
-            (además de constituir la propia), y Año 2 además carga el desarrollo de reservas de Año 1 como su propia línea — Año 3 no tiene esa última.
+            (además de constituir la propia), y Año 2 además carga &ldquo;Ajuste de siniestralidad&rdquo; — la corrección de tu propio Costo de
+            Siniestros A1 de Día 2 contra el costo real del Año 1 — como su propia línea; Año 3 no tiene esa última.
           </li>
           <li>
             <strong>Financiero — Balance de Año 1, Año 2 y Año 3.</strong> El mismo balance simplificado (caja, inversiones, cuentas por cobrar/pagar,
@@ -158,10 +159,10 @@ export function GuiaPasanteDia3() {
           <p>
             El costo de siniestros del Año 2 es, en <strong>base fecha de accidente</strong>, únicamente lo ocurrido dentro del Año 2 — nunca se mezcla
             con lo del Año 1 (eso ya se reconoció como costo en el P&G del Año 1 mismo, sin importar cuándo se avisara). Lo que sí es propio de este año
-            es una línea aparte: <strong>Desarrollo de reservas (A1)</strong>, cuánto más (o menos) de lo esperado como IBNR del Año 1 terminó emergiendo
-            realmente durante el Año 2 — puede ser positivo (te faltó reservar) o negativo (reservaste de más). Resta junto al costo antes de llegar al
-            Resultado Técnico, pero es conceptualmente distinto: no es costo de siniestros de Año 2, es la corrección de una estimación de reservas del
-            Año 1.
+            es una línea aparte: <strong>Ajuste de siniestralidad (A1)</strong>, la diferencia entre el costo real del Año 1 y lo que tú mismo reportaste
+            como Costo de Siniestros A1 en Día 2 — puede ser positivo (subestimaste tu propia siniestralidad) o negativo (la sobreestimaste). Resta junto
+            al costo antes de llegar al Resultado Técnico, pero es conceptualmente distinto: no es costo de siniestros de Año 2, es la corrección de tu
+            propia estimación de Día 2.
           </p>
           <p>
             Tu prima devengada del Año 2 tampoco es un 80% plano de tu prima emitida de este año: liberas el 100% de la Reserva de Prima No Devengada que
@@ -182,7 +183,7 @@ export function GuiaPasanteDia3() {
           <p>
             La prima depende de cuántas pólizas conservas (retención) y cuántas ganas de nuevo — no de crecer el peso total de la prima de Año 2 por un
             porcentaje. El costo de siniestros de Año 3, a diferencia del de Año 2, es <strong>solo</strong> el siniestro propio de Año 3 proyectado —
-            sin ninguna línea de desarrollo: lo que sigue pagándose de siniestros de Año 1/Año 2 ya se reconoció como costo en su propio año de
+            sin ninguna línea de ajuste de siniestralidad: lo que sigue pagándose de siniestros de Año 1/Año 2 ya se reconoció como costo en su propio año de
             accidente, así que no vuelve a aparecer aquí (sí sigue existiendo como saldo de reserva en el Balance, ver sección 4.3). Y el Resultado de
             inversiones ya no puede salir de una fórmula plana sobre la reserva: piensa en qué te dice tu propio ALM real de Año 2 sobre lo que tu
             portafolio efectivamente rindió, más allá de lo que su rendimiento nominal prometía. Ver sección 3 para cómo razonar cada pieza.
@@ -198,8 +199,8 @@ export function GuiaPasanteDia3() {
             cuadrar exactamente con Activos totales — es la identidad contable básica, y una forma de verificar tu propio trabajo antes de enviarlo.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-            Las reservas técnicas de cada año son la misma cifra actuarial que ya viste en el motor (RSA + IBNR para el Año 1; lo pendiente de ambos
-            orígenes al cierre del Año 2) — solo que ahora se reportan como una línea del Balance, no como un entregable aparte.
+            Las reservas técnicas de cada año son siempre el saldo real por pagar (RSA + IBNR para el Año 1; lo pendiente de ambos orígenes al cierre
+            del Año 2) — nunca una estimación de mercado, así que se reportan como una línea del Balance, no como un entregable aparte.
           </p>
         </SubSection>
       </Section>
@@ -218,9 +219,9 @@ export function GuiaPasanteDia3() {
             </li>
             <li>
               <strong>El costo de siniestros de cada año es siempre en base fecha de accidente — nunca mezcla años.</strong> El Costo de siniestros del
-              Año 2 es únicamente lo ocurrido en el Año 2; el ajuste por lo que realmente emergió del Año 1 (frente a lo que esperabas como IBNR) es una
-              línea aparte, Desarrollo de reservas, no un componente del costo. Son dos ideas distintas: cuánto costó lo que pasó este año, y qué tan
-              buena fue tu estimación de reservas de un año anterior.
+              Año 2 es únicamente lo ocurrido en el Año 2; la corrección de tu propio Costo de Siniestros A1 de Día 2 es una línea aparte, Ajuste de
+              siniestralidad, no un componente del costo de Año 2. Son dos ideas distintas: cuánto costó lo que pasó este año, y qué tan buena fue tu
+              propia estimación de siniestralidad del año anterior.
             </li>
           </ul>
         </SubSection>
@@ -236,10 +237,11 @@ export function GuiaPasanteDia3() {
               misma tasa de retención que ya observaste de Año 1 a Año 2) más pólizas nuevas — no como un porcentaje aplicado al total de prima de Año 2.
             </li>
             <li>
-              <strong>El costo de siniestros de Año 3 es solo el siniestro propio de Año 3 — sin desarrollo.</strong> A diferencia del Año 2, no hay una
-              línea de Desarrollo de reservas aquí: lo que sigue pagándose de siniestros de Año 1 y Año 2 (cada siniestro tiene 3 años de desarrollo, no
-              2 — repasa la sección 3 de la guía de Día 2 si no la tienes fresca) ya se reconoció como costo en el P&G de su propio año de accidente, así
-              que no se cuenta otra vez aquí — solo sigue existiendo como saldo de reserva en el Balance.
+              <strong>El costo de siniestros de Año 3 es solo el siniestro propio de Año 3 — sin ajuste de siniestralidad.</strong> A diferencia del
+              Año 2, no hay una línea de Ajuste de siniestralidad aquí: no hay un día posterior a Día 3 donde corregir un eventual error de esta
+              proyección. Y lo que sigue pagándose de siniestros de Año 1 y Año 2 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 3
+              de la guía de Día 2 si no la tienes fresca) ya se reconoció como costo en el P&G de su propio año de accidente, así que no se cuenta otra
+              vez aquí — solo sigue existiendo como saldo de reserva en el Balance.
             </li>
             <li>
               <strong>Para proyectar el siniestro propio de Año 3, separa frecuencia de severidad.</strong> La frecuencia (cuántas pólizas de tu libro
@@ -281,7 +283,7 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A2_ROWS}
             columns={["Año 2"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2). RPND constituida = 20% × Prima emitida A2. Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año. Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la Prima emitida A2. Resultado Técnico = Prima devengada − Costo − Desarrollo de reservas − Gadq − Gcom. Resultado Industrial = Resultado Técnico − Gasto administrativo. Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo."
+            note="RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2). RPND constituida = 20% × Prima emitida A2. Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año. Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la Prima emitida A2. Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom. Resultado Industrial = Resultado Técnico − Gasto administrativo. Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo."
           />
         </div>
 
@@ -291,7 +293,7 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A3_ROWS}
             columns={["Año 3 (proy.)"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="Misma estructura que Año 2, pero sin línea de Desarrollo de reservas (ver sección 3 para por qué) — RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2."
+            note="Misma estructura que Año 2, pero sin línea de Ajuste de siniestralidad (ver sección 3 para por qué) — RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2."
           />
         </div>
 
@@ -319,9 +321,9 @@ export function GuiaPasanteDia3() {
         <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
           <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · El camino completo, de tus decisiones a tu reporte</p>
           <p className="text-sm">
-            El desarrollo real de siniestros (3) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del Año 2 (4.1) → que junto con la
-            retención real de Año 2 y el rendimiento realmente devengado por tu ALM real, te da la proyección del Año 3 (4.1b, sin línea de desarrollo) →
-            cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (4.3).
+            El costo real de siniestros del Año 1 (3) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del Año 2 (4.1) → que junto
+            con la retención real de Año 2 y el rendimiento realmente devengado por tu ALM real, te da la proyección del Año 3 (4.1b, sin línea de Ajuste
+            de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (4.3).
           </p>
           <p className="mt-2 text-sm">
             Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) son las que alimentan la Solvencia y los dividendos que vas a
