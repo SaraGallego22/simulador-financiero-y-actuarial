@@ -16,11 +16,12 @@ export const GROUP_LABELS: Record<ConceptGroup, string> = {
   bal_a3: "Balance — Año 3 (proyectado)",
 };
 
-/** One term of a linear FormulaSpec: `coeff × (the team's own submitted value for conceptId)`. `day` defaults to the referencing concept's own `dia` — set explicitly only for a genuine cross-day reference (Balance Año 1's %-of-premium lines and Año 2's RPND-liberada both need Día 2's own Prima Emitida, submitted a day earlier). */
+/** One term of a linear FormulaSpec: `coeff × (the team's own submitted value for conceptId)`. `day` defaults to the referencing concept's own `dia` — set explicitly only for a genuine cross-day reference (Balance Año 1's %-of-premium lines and Año 2's RPND-liberada both need Día 2's own Prima Emitida, submitted a day earlier). `useTrueValue` swaps that lookup for the concept's own true bench value (via its `get()`) instead of the team's submission — for the rare formula that needs a true engine fact alongside what the team reported (e.g. Ajuste de siniestralidad: true Año-1 claims minus the team's own reported Costo de Siniestros A1). */
 export interface FormulaTerm {
   conceptId: string;
   coeff: number;
   day?: Dia;
+  useTrueValue?: boolean;
 }
 
 /**
@@ -70,23 +71,26 @@ export interface Concepto {
  * of the PRIOR year's own holdback and constitutes a new 20% on its own
  * Prima Emitida (Año 1 has no prior year, so it only constitutes). Costo
  * de siniestros is always that year's own accident-year ultimate only —
- * Año 2 alone carries an extra "Desarrollo de reservas" line (Año 1's
- * booked reserve was a market-wide IBNR *estimate*, later checked against
- * reality — see development.ts). RT excludes Gasto Administrativo, which
- * lands on its own line feeding a new "Resultado Industrial" (RI) instead;
- * UAI = RI + Rendimiento de Inversiones (not RT + Rinv).
+ * Año 2 alone carries an extra "Ajuste de siniestralidad" line, correcting
+ * the team's own Día 2 Costo de Siniestros A1 guess against the true Año-1
+ * claims (see p2_ajusteSiniestralidad's own comment, below). RT excludes
+ * Gasto Administrativo, which lands on its own line feeding a new
+ * "Resultado Industrial" (RI) instead; UAI = RI + Rendimiento de
+ * Inversiones (not RT + Rinv).
  *
  * Every line that's a pure formula of OTHER already-reported lines (RPND
- * constituida/liberada, Prima Devengada, the three expense lines, RT, RI,
- * UAI, Impuesto, Utilidad Neta, and on the Balance side Activos/Pasivo/
- * Pasivo+Patrimonio/Inversiones) carries a `formula` spec and is graded via
- * scoreFormulaConcepto() against the team's OWN other submitted values —
+ * constituida/liberada, Prima Devengada, the three expense lines, Ajuste de
+ * siniestralidad, RT, RI, UAI, Impuesto, Utilidad Neta, and on the Balance
+ * side Activos/Pasivo/Pasivo+Patrimonio/Inversiones) carries a `formula`
+ * spec and is graded via scoreFormulaConcepto() against the team's OWN
+ * other submitted values (Ajuste de siniestralidad is the one exception
+ * that also mixes in a true bench fact — see FormulaTerm.useTrueValue) —
  * never against the true bench directly. This means one upstream mistake
  * (e.g. a wrong Costo) costs points exactly once, not once per downstream
  * line that algebraically depends on it. Only genuine primary facts/
- * estimates (Prima Emitida, Costo de Siniestros, Desarrollo de Reservas,
- * Resultado de Inversiones, Reservas Técnicas, Patrimonio) are graded
- * straight against the true finBench() value.
+ * estimates (Prima Emitida, Costo de Siniestros, Resultado de Inversiones,
+ * Reservas Técnicas, Patrimonio) are graded straight against the true
+ * finBench() value.
  */
 export const CONCEPTOS: Concepto[] = [
   { id: "minvar", dia: "d1", perfil: "fin", tipo: "auto_minvar", label: "Portafolio de mínima varianza", unit: "score" },
@@ -239,7 +243,7 @@ export const CONCEPTOS: Concepto[] = [
   },
   { id: "alm_calce", dia: "d2", perfil: "fin", tipo: "auto_alm", label: "Calce ALM del portafolio", unit: "score" },
 
-  // Día 3 — Estado de resultados Año 2 (15 líneas — libera la RPND de Año 1, constituye la propia, y carga el desarrollo de reservas de Año 1)
+  // Día 3 — Estado de resultados Año 2 (15 líneas — libera la RPND de Año 1, constituye la propia, y carga el ajuste de siniestralidad de Año 1)
   { id: "p2_primaEmitida", dia: "d3", perfil: "fin", tipo: "reporte", label: "Prima emitida A2", unit: "COP", group: "pyg_a2", get: (b) => b.p2?.primaEmitida ?? null },
   {
     id: "p2_rpndLiberada",
@@ -283,14 +287,26 @@ export const CONCEPTOS: Concepto[] = [
   },
   { id: "p2_costo", dia: "d3", perfil: "fin", tipo: "reporte", label: "Costo de siniestros A2", unit: "COP", group: "pyg_a2", get: (b) => b.p2?.costo ?? null },
   {
-    id: "p2_desarrollo",
+    id: "p2_ajusteSiniestralidad",
     dia: "d3",
     perfil: "fin",
     tipo: "reporte",
-    label: "Desarrollo de reservas A1",
+    label: "Ajuste de siniestralidad A1",
     unit: "COP",
     group: "pyg_a2",
-    get: (b) => b.p2?.desarrollo ?? null,
+    // Corrects the team's own Día 2 guess: true Año-1 claims (p1_costo's own
+    // true value) minus what the team itself reported for p1_costo back on
+    // Día 2. Underestimating A1's siniestralidad costs the team here;
+    // overestimating it hands some profit back — a genuine do-over, not a
+    // fixed fact independent of what they submitted, so there's no plain
+    // `get()` for it (see FormulaTerm.useTrueValue).
+    formula: {
+      kind: "linear",
+      terms: [
+        { conceptId: "p1_costo", coeff: 1, day: "d2", useTrueValue: true },
+        { conceptId: "p1_costo", coeff: -1, day: "d2" },
+      ],
+    },
   },
   {
     id: "p2_gadq",
@@ -328,7 +344,7 @@ export const CONCEPTOS: Concepto[] = [
       terms: [
         { conceptId: "p2_primaDevengada", coeff: 1 },
         { conceptId: "p2_costo", coeff: -1 },
-        { conceptId: "p2_desarrollo", coeff: -1 },
+        { conceptId: "p2_ajusteSiniestralidad", coeff: -1 },
         { conceptId: "p2_gadq", coeff: -1 },
         { conceptId: "p2_gcom", coeff: -1 },
       ],
@@ -410,10 +426,10 @@ export const CONCEPTOS: Concepto[] = [
   },
   // Nota de auditoría actuarial, no una línea del P&G — ver README §4: caja
   // efectivamente pagada durante el Año 2 (flujo de caja), distinto del
-  // costo incurrido (base contable, ya recogido en p2_costo/p2_desarrollo).
+  // costo incurrido (base contable, ya recogido en p2_costo/p2_ajusteSiniestralidad).
   { id: "p2_pagos", dia: "d3", perfil: "fin", tipo: "reporte", label: "Siniestros pagados en A2 (caja, no se suma al P&G)", unit: "COP", get: (b) => b.p2?.pagos ?? null },
 
-  // Día 3 — Estado de resultados Año 3 (proyectado, 14 líneas — libera la RPND de Año 2, constituye la propia; sin línea de desarrollo, ver README §4)
+  // Día 3 — Estado de resultados Año 3 (proyectado, 14 líneas — libera la RPND de Año 2, constituye la propia; sin línea de ajuste de siniestralidad, ver README §4)
   { id: "p3_primaEmitida", dia: "d3", perfil: "fin", tipo: "reporte", label: "Prima emitida A3 (proy.)", unit: "COP", group: "pyg_a3", get: (b) => b.p3?.primaEmitida ?? null },
   {
     id: "p3_rpndLiberada",
@@ -989,7 +1005,7 @@ export function ownValueKey(day: Dia, conceptId: string): string {
   return `${day}:${conceptId}`;
 }
 
-function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, number>): number | null {
+function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, number>, bench: FinBenchResult | null): number | null {
   if (spec.kind === "taxOnUai") {
     const uai = ownValues.get(ownValueKey(ownDay, spec.uaiConceptId));
     if (uai == null) return null;
@@ -997,7 +1013,7 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
   }
   let total = spec.constant ?? 0;
   for (const term of spec.terms) {
-    const v = ownValues.get(ownValueKey(term.day ?? ownDay, term.conceptId));
+    const v = term.useTrueValue ? (bench ? (CONCEPTO_BY_ID[term.conceptId]?.get?.(bench) ?? null) : null) : ownValues.get(ownValueKey(term.day ?? ownDay, term.conceptId)) ?? null;
     if (v == null) return null;
     total += term.coeff * v;
   }
@@ -1009,18 +1025,21 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
  * other submitted lines (via its FormulaSpec) instead of the true bench —
  * see scoreConcepto()'s doc comment for why. Returns `{ score: null }` (not
  * a 0) when any required input is missing from `ownValues` — ungradable,
- * doesn't count, same convention as a blank submission elsewhere.
+ * doesn't count, same convention as a blank submission elsewhere. `bench` is
+ * only needed for formulas with a `useTrueValue` term (e.g. Ajuste de
+ * siniestralidad) — pass `null` for formulas that don't have one.
  */
 export function scoreFormulaConcepto(
   conceptoId: string,
   submittedValue: number | null,
   ownValues: Map<string, number>,
-  tolerance: ConceptTolerance
+  tolerance: ConceptTolerance,
+  bench: FinBenchResult | null = null
 ): ConceptScoreResult | null {
   const c = CONCEPTO_BY_ID[conceptoId];
   if (!c || !c.formula) return null;
   if (submittedValue == null) return { val: null, bench: null, score: null };
-  const expected = evalFormula(c.formula, c.dia, ownValues);
+  const expected = evalFormula(c.formula, c.dia, ownValues, bench);
   if (expected == null) return { val: submittedValue, bench: null, score: null };
   return { val: submittedValue, bench: expected, score: toleranceBandScore(submittedValue, expected, tolerance) };
 }
@@ -1063,7 +1082,7 @@ export function scoreConcepto(
 
   if (c.formula) {
     if (submittedValue == null) return { val: null, bench: b, score: null };
-    const expected = evalFormula(c.formula, c.dia, ownValues ?? new Map());
+    const expected = evalFormula(c.formula, c.dia, ownValues ?? new Map(), bench);
     if (expected == null) return { val: submittedValue, bench: b, score: null };
     return { val: submittedValue, bench: b, score: toleranceBandScore(submittedValue, expected, tolerance) };
   }
