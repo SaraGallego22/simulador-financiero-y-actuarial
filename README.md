@@ -253,18 +253,18 @@ Construido por `pyg(primaEmitida, rpndLiberada, costo, rinv, reservas)`, con est
 | `primaEmitida` | `year1.totalPremium` — la prima real que el equipo efectivamente cobró en el mercado del Año 1 (§2), no la que tarificó: es la suma de las primas de las pólizas que realmente ganó, después del racionamiento por capital/solvencia (§2.1). |
 | `rpndConstituida` (fórmula) | `20% × primaEmitida` (`FZ.rpndPct`) — la Reserva de Prima No Devengada que se constituye sobre la prima de este mismo año. |
 | `primaDevengada` (fórmula) | `primaEmitida − rpndConstituida` — para Año 1 esto equivale a un 80% plano de la prima emitida, precisamente porque no hay RPND de un año anterior que liberar (ver Año 2, donde deja de ser un 80% plano). |
-| `costo` | `year1.claimsAmount` — la severidad real incurrida de las pólizas que ese equipo ganó y tuvieron siniestro, tomada directamente del universo generado (no una estimación), en base **fecha de accidente**: es el costo total de los siniestros ocurridos en el Año 1, sin importar cuándo se avisen — nunca se mezcla con costos de otros años (ver Año 2/Año 3 más abajo, donde antes sí ocurría esa mezcla). |
+| `costo` | `year1.claimsAmount` — la severidad real incurrida de las pólizas que ese equipo ganó y tuvieron siniestro, tomada directamente del universo generado, en base **fecha de accidente**: es el costo total de los siniestros ocurridos en el Año 1, sin importar cuándo se avisen. |
 | `gadq` (fórmula) | `4% × primaEmitida` (`FZ.gAdq`). |
 | `gcom` (fórmula) | `15% × primaEmitida` (`FZ.gCom`). |
 | `rt` (Resultado Técnico, fórmula) | `primaDevengada − costo − gadq − gcom` — deliberadamente sin el gasto administrativo, que tiene su propia línea (ver `ri`). |
-| `gadm` (fórmula) | `6% × primaEmitida` (`FZ.gAdmin`, sin cambios). |
+| `gadm` (fórmula) | `6% × primaEmitida` (`FZ.gAdmin`). |
 | `ri` (Resultado Industrial, fórmula) | `rt − gadm` — dónde realmente aterriza el gasto administrativo, separado del resultado técnico puro de suscripción. |
 | `rinv` (resultado de inversiones) | El ingreso de inversión que el **ALM real** del Año 1 (§5.3) devengó en sus 12 meses, sobre el árbol de portafolio que el equipo sometió en Día 2 — `AlmRealYearResult.income`, no una fórmula. |
 | `uai` (fórmula) | `ri + rinv`. |
 | `imp` (fórmula) | `30% × max(0, uai)` (`FZ.tax` — nunca un impuesto negativo). |
 | `uneta` (fórmula) | `uai − imp`. |
 
-El saldo de reserva del Año 1 se explica en detalle en §4.3, junto con el resto de la Reserva Técnica — es una cifra de Balance, no una línea que el equipo reporte en este P&G.
+El saldo de reserva del Año 1 se explica en detalle en §4.3, junto con el resto de la Reserva Técnica.
 
 #### 4.2 · P&G del Año 2 (`p2`) y proyección del Año 3 (`p3`)
 
@@ -307,7 +307,7 @@ El saldo de reserva del Año 3 (proyectado) se explica en §4.3 junto al resto d
 
 Balance/capital comprometido de Año 3 no cambian: siguen las mismas fórmulas de caja/cxc/cxp/RPND (§4.3) y el mismo capital comprometido acumulado de Año 2 hacia adelante, sin asumir nueva erosión.
 
-**Fallback** (cuando falta cualquiera de los insumos de arriba — `development` sin los campos de Año 3, o sin `insuredCount`/`year2Retention`): `p3` cae de vuelta a la proyección plana original, sin cambios — `primaEmitida3 = primaEmitida2 × 1.06`, `costo3 = costo2 × 1.06`, `reservas3 = reservas2 × 1.06`, `rinv3 = reservas3 × portYield`, `rpndLiberada3 = rpndConstituida2` (`FZ.growth3 = 6%`).
+**Fallback** (cuando falta cualquiera de los insumos de arriba — `development` sin los campos de Año 3, o sin `insuredCount`/`year2Retention`): `p3` cae de vuelta a una proyección plana — `primaEmitida3 = primaEmitida2 × 1.06`, `costo3 = costo2 × 1.06`, `reservas3 = reservas2 × 1.06`, `rinv3 = reservas3 × portYield`, `rpndLiberada3 = rpndConstituida2` (`FZ.growth3 = 6%`).
 
 #### 4.3 · Balance (`bal1`/`bal2`/`bal3`)
 
@@ -441,9 +441,9 @@ Todo lo anterior corre sobre una **hipótesis deliberadamente irreal**: que la P
 
 El ALM real (`almSimRealYear()` en `alm.ts`) es un motor **genuinamente distinto** del ficticio, no el mismo motor con un número distinto. Las diferencias son deliberadas:
 
-- **El ALM real solo corre 12 meses por año, nunca 60.** Su único propósito es alimentar el P&G/Balance real de *ese* año — no tiene sentido simular 48 meses de más cuando nada los va a usar. El ALM ficticio, en cambio, sigue corriendo 60 meses completos por año (12 de fondeo + 48 de corrida) porque eso es lo que su propia nota (§5.2) necesita evaluar — esto **no cambió**.
-- **El Año 2 real es una continuación genuina del Año 1 real, no una corrida independiente desde cero.** El motor recibe el estado exacto con el que terminó el Año 1 (las mismas posiciones abiertas — que siguen devengando rendimiento y venciendo según su propia regla — y el mismo capital comprometido acumulado, que nunca se repone solo) y sigue simulando 12 meses más a partir de ahí, con la prima real del Año 2 y el mismo árbol de decisión que el equipo sometió en Día 2 — es el único árbol que existe, no hay una segunda oportunidad de someter uno distinto para el Año 2. El ALM ficticio, en contraste, sigue tratando cada año como una hipótesis independiente ("qué habría pasado si este árbol hubiera corrido desde el mes 0") — eso también **sigue igual**, a propósito.
-- **El siniestro que financia cada año real es distinto al del ficticio.** El Año 1 real se financia contra los siniestros propios del Año 1 (`liabilityYear1.payY1`, los mismos 12 meses que usa el ficticio en su propia fase de fondeo). El Año 2 real se financia contra la **suma de dos cosas**: el desarrollo del Año 1 que emerge en el Año 2 (los primeros 12 meses de `liabilityYear1.L[]` — la misma reserva que el ficticio arrastra indefinidamente, aquí usada solo por 12 meses) *más* los siniestros propios del Año 2 en su propio primer año (una `LiabilitySchedule` nueva, calculada igual que la del Año 1 pero sobre los siniestros de `generateYear2Claims()`). El ALM ficticio nunca mezcló esto — solo usó siempre la reserva del Año 1 para todo su horizonte de 48 meses, y eso sigue siendo cierto para él.
+- **El ALM real solo corre 12 meses por año, nunca 60.** Su único propósito es alimentar el P&G/Balance real de *ese* año — no tiene sentido simular 48 meses de más cuando nada los va a usar. El ALM ficticio, en cambio, corre 60 meses completos por año (12 de fondeo + 48 de corrida) porque eso es lo que su propia nota (§5.2) necesita evaluar.
+- **El Año 2 real es una continuación genuina del Año 1 real, no una corrida independiente desde cero.** El motor recibe el estado exacto con el que terminó el Año 1 (las mismas posiciones abiertas — que siguen devengando rendimiento y venciendo según su propia regla — y el mismo capital comprometido acumulado, que nunca se repone solo) y sigue simulando 12 meses más a partir de ahí, con la prima real del Año 2 y el mismo árbol de decisión que el equipo sometió en Día 2 — es el único árbol que existe, no hay una segunda oportunidad de someter uno distinto para el Año 2. El ALM ficticio, en contraste, trata cada año como una hipótesis independiente ("qué habría pasado si este árbol hubiera corrido desde el mes 0").
+- **El siniestro que financia cada año real es distinto al del ficticio.** El Año 1 real se financia contra los siniestros propios del Año 1 (`liabilityYear1.payY1`, los mismos 12 meses que usa el ficticio en su propia fase de fondeo). El Año 2 real se financia contra la **suma de dos cosas**: el desarrollo del Año 1 que emerge en el Año 2 (los primeros 12 meses de `liabilityYear1.L[]` — la misma reserva que el ficticio arrastra indefinidamente, aquí usada solo por 12 meses) *más* los siniestros propios del Año 2 en su propio primer año (una `LiabilitySchedule` nueva, calculada igual que la del Año 1 pero sobre los siniestros de `generateYear2Claims()`). El ALM ficticio, en cambio, usa siempre la reserva del Año 1 para todo su horizonte de 48 meses.
 
 Esto es **exclusivo del panel de admin** (`AlmPnlBreakdown`, dentro de `admin/day/[n]`), como cruce de referencia para el evaluador, no algo que el equipo pueda consultar. La razón es deliberada: el ejercicio es que el equipo **razone** cómo se vería su ALM con su propia prima, no que lea la respuesta de una pantalla — el ALM real automático existe para que el evaluador pueda verificar qué tan cerca estuvo el número que el equipo reportó, no para resolvérselo de antemano.
 
