@@ -288,7 +288,7 @@ Con desarrollo Año1→Año2 ya calculado (Día 3+, `computeDevelopment()` — v
 | `imp` (fórmula) | `30% × max(0, uai)`. |
 | `uneta` (fórmula) | `uai − imp`. |
 
-El saldo de reserva del Año 2 se explica en §4.3 junto al resto de la Reserva Técnica. Como fallback, cuando el Año 2 existe pero todavía no hay `TeamDevelopment` calculado, el `costo` de arriba usa `year2.claimsAmount` sin desarrollo (no hay de dónde sacarlo sin ese dato), y `rinv`/`uai`/`uneta` se calculan sobre esa misma base aproximada.
+El saldo de reserva del Año 2 se explica en §4.3 junto al resto de la Reserva Técnica.
 
 El **Año 3 no se simula** — no hay un tercer mercado ni un tercer ALM. Cuando `development` trae los campos de cola de Año 3 (ver §3) y además hay `insuredCount` de Año 1/Año 2 y la retención real de Año 2 (`year2Retention`, de `TeamSimResult.extra`), `p3` se construye igual que `p2` pero sin línea de Ajuste de siniestralidad (ver por qué, abajo):
 
