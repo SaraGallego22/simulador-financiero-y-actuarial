@@ -26,9 +26,9 @@ function SubSection({ title, accent, children }: { title: string; accent: "act" 
 }
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
-function StatementTemplate({ rowLabels, columns, emphasizedLabels, note }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; note?: string }) {
+function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-3">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
           <thead>
@@ -61,7 +61,20 @@ function StatementTemplate({ rowLabels, columns, emphasizedLabels, note }: { row
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {formulaNotes && <FormulaNotes lines={formulaNotes} />}
+    </div>
+  );
+}
+
+/** Formula reference notes, one per line with real spacing between them — replaces cramming every formula into one dense paragraph. */
+function FormulaNotes({ lines }: { lines: string[] }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/40 p-3">
+      {lines.map((line, i) => (
+        <p key={i} className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">
+          {line}
+        </p>
+      ))}
     </div>
   );
 }
@@ -343,7 +356,15 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A2_ROWS}
             columns={["2028"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2). RPND constituida = 20% × Prima emitida A2. Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año. Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la Prima emitida A2. Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom. Resultado Industrial = Resultado Técnico − Gasto administrativo. Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo."
+            formulaNotes={[
+              "RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2).",
+              "RPND constituida = 20% × Prima emitida A2.",
+              "Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año.",
+              "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la Prima emitida A2.",
+              "Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom.",
+              "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
+              "Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo.",
+            ]}
           />
         </FlowStep>
 
@@ -352,7 +373,10 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A3_ROWS}
             columns={["2029 (proy.)"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="Misma estructura que 2028, pero sin línea de Ajuste de siniestralidad (ver sección 4 para por qué) — RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2."
+            formulaNotes={[
+              "Misma estructura que 2028, pero sin línea de Ajuste de siniestralidad (ver sección 4 para por qué).",
+              "RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2.",
+            ]}
           />
         </FlowStep>
 
@@ -371,7 +395,11 @@ export function GuiaPasanteDia3() {
             rowLabels={BALANCE_ROWS}
             columns={["2027", "2028", "2029 (proy.)"]}
             emphasizedLabels={["Activos totales", "Pasivo + Patrimonio"]}
-            note="Caja/Cuentas por cobrar/Cuentas por pagar/RPND son 15%/7%/10%/20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2). Pasivo total = Reservas técnicas + RPND + Cuentas por pagar. Pasivo + Patrimonio debe ser exactamente igual a Activos totales."
+            formulaNotes={[
+              "Caja / Cuentas por cobrar / Cuentas por pagar / RPND = 15% / 7% / 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
+              "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar.",
+              "Pasivo + Patrimonio debe ser exactamente igual a Activos totales.",
+            ]}
           />
         </FlowStep>
 
