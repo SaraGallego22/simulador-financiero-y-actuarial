@@ -149,14 +149,12 @@ export function GuiaPasanteDia1() {
           <li>
             <strong>Actuarial — la tarifa del Año 1.</strong> Fijas el precio de cada póliza. Al cerrar el día, todos los equipos entran a un mercado
             simultáneo: cada asegurado elige la aseguradora que más le conviene, y el resultado (cuántas pólizas ganaste, con qué nivel de riesgo) queda
-            fijado para el resto del ejercicio — es la base del estado de resultados que vas a reportar desde el Día 2 y de las reservas técnicas que vas
-            a calcular como parte del Balance en el Día 3.
+            fijado para el resto del ejercicio — es la base de todo lo que vas a reportar el resto del ejercicio.
           </li>
           <li>
             <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
-            menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte del árbol de inversión real, que vas a construir en el
-            Día 2 una vez conozcas tus cifras reales de prima y siniestros. Este portafolio de mínima varianza también alimenta tu tope de cuota de
-            mercado del Año 1 (ver sección 3).
+            menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte de cómo inviertas tu presupuesto real más adelante en el
+            ejercicio. Este portafolio de mínima varianza también alimenta tu tope de cuota de mercado del Año 1 (ver sección 3).
           </li>
         </ul>
         <p>
@@ -380,7 +378,7 @@ export function GuiaPasanteDia1() {
           <p>
             Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 5) buscando el <strong>menor riesgo posible</strong>{" "}
             — medido como la varianza del portafolio, usando la matriz de covarianza que se te da en el formulario — sujeto a alcanzar al menos un{" "}
-            <strong>rendimiento esperado objetivo</strong>. No es un árbol de decisiones de vencimientos como el del Día 2: es una asignación de pesos, de
+            <strong>rendimiento esperado objetivo</strong>. No es un árbol de decisiones con vencimientos y reinversión: es una asignación de pesos, de
             una sola vez, sin reinversión ni horizonte temporal — una fotografía de cómo invertirías el capital hoy mismo, antes de saber cuánta prima vas
             a cobrar o cuántos siniestros vas a pagar.
           </p>
@@ -390,8 +388,7 @@ export function GuiaPasanteDia1() {
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Este portafolio también determina qué tan volátil se considera tu perfil de inversión para efectos del tope de cuota de mercado del Año 1: un
-            portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un margen de solvencia saludable (el mismo mecanismo que
-            vas a ver en detalle en el Día 4).
+            portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un margen de solvencia saludable.
           </p>
         </SubSection>
       </Section>
@@ -500,7 +497,7 @@ export function GuiaPasanteDia1() {
           <BlankTable
             headers={["Instrumento (del menú de 5.1)", "% asignado"]}
             rows={INSTRUMENTS.length}
-            note="A diferencia del árbol de Día 2, aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) se te muestra en vivo en el formulario y también es descargable en CSV desde la pestaña de instrumentos — no se repite aquí por ser demasiado extensa para una plantilla en papel."
+            note="Aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) se te muestra en vivo en el formulario y también es descargable en CSV desde la pestaña de instrumentos — no se repite aquí por ser demasiado extensa para una plantilla en papel."
           />
           <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
@@ -532,8 +529,8 @@ export function GuiaPasanteDia1() {
               objetivo → la cercanía entre tu varianza lograda y esa varianza mínima real es tu nota de hoy.
             </p>
             <p className="mt-2 text-sm">
-              Este portafolio no se vuelve a usar en el P&G ni en el Balance — es un ejercicio aparte del árbol de inversión real, que vas a construir en el
-              Día 2 una vez conozcas tus cifras reales de prima y siniestros de este año.
+              Este portafolio no se vuelve a usar más adelante en el ejercicio — es un ejercicio aparte de tu decisión de inversión real, que tomarás
+              una vez conozcas tus cifras reales de prima y siniestros de este año.
             </p>
           </div>
         </FlowStep>

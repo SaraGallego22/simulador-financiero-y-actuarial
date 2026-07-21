@@ -303,11 +303,9 @@ export function GuiaPasanteDia3() {
               las mezcles en una sola tasa de crecimiento.
             </li>
             <li>
-              <strong>¿Qué tasa de inflación de siniestros usar?</strong> No está publicada, pero es reconstruible: el dataset de Chile (Día 1) ahora
-              tiene una tendencia real de severidad año a año, en UF — una unidad ya libre de inflación chilena, así que ese crecimiento es puro costo
-              real (repuestos/mano de obra), no inflación disfrazada. Súmale tu propia estimación de la inflación general de Colombia (dato público) y
-              deberías acercarte a la inflación de siniestros que el motor ya usó para llevar tu propio libro de Año 1 a Año 2 — compara la severidad
-              promedio de tus siniestros reales entre esos dos años para verificarlo.
+              <strong>¿Qué tasa de inflación de siniestros usar?</strong> Ya la conoces — el mismo 9% anual que usaste para ajustar tu severidad de
+              Año 2 aplica otra vez para proyectar Año 3. Puedes verificar que tu propia cartera se movió a ese ritmo comparando la severidad promedio
+              de tus siniestros reales entre Año 1 y Año 2.
             </li>
             <li>
               <strong>El Resultado de inversiones ya no puede salir de una fórmula plana sobre la reserva.</strong> Piensa en lo que tu ALM real de Año 2
@@ -385,8 +383,8 @@ export function GuiaPasanteDia3() {
               de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (5.3).
             </p>
             <p className="mt-2 text-sm">
-              Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) son las que alimentan la Solvencia y los dividendos que vas a
-              reportar mañana en Día 4 — ver esa guía para el detalle completo.
+              Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) siguen siendo relevantes en las etapas siguientes del
+              ejercicio.
             </p>
           </div>
         </FlowStep>
