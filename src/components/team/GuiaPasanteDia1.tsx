@@ -207,7 +207,7 @@ export function GuiaPasanteDia1() {
               { col: "antiguedad_vehiculo", desc: "Antigüedad del vehículo", rango: "0 a 20 años" },
               { col: "kilometraje_anual", desc: "Kilometraje anual", rango: "5.000 a 120.000 km" },
               { col: "siniestros_previos", desc: "Historial de siniestros previos", rango: "0 a 5" },
-              { col: "valor_comercial_uf", desc: "Valor comercial del vehículo, en UF", rango: "≈ 50 a 8.000 UF" },
+              { col: "valor_comercial_uf", desc: "Valor comercial del vehículo, en UF", rango: "≈ 50 a 2.250 UF" },
               { col: "uso_vehiculo", desc: "Uso del vehículo", rango: "particular, comercial, taxi, uber" },
               { col: "caja_automatica", desc: "Si el vehículo tiene caja automática", rango: "si, no" },
               { col: "seguro_complementario", desc: "Si la póliza incluye un seguro complementario", rango: "si, no" },
@@ -219,6 +219,28 @@ export function GuiaPasanteDia1() {
               { col: "monto_uf_2021 / _2022 / _2023", desc: "Monto del siniestro, en UF (vacío si no hubo)", rango: "> 0 UF" },
             ]}
           />
+          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+            <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-blue-accent)]">El desafío de transferibilidad</p>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              Este dataset está en UF y corresponde a 2021-2023 — varios años antes del Año 1 de este ejercicio (2027). Usarlo como
+              referencia de severidad para tu propia tarifa exige resolver dos brechas distintas, no solo convertir unidades:
+            </p>
+            <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-brand-text-secondary)]">
+              <li>
+                <strong>Brecha temporal, dentro de Chile mismo.</strong> La UF ya está indexada a la inflación chilena — por diseño, su
+                poder adquisitivo real se mantiene constante en el tiempo, así que no existe una &ldquo;inflación real de la UF&rdquo;
+                que investigar ahí. Lo que sí cambia año a año es el costo real de reparar un vehículo (repuestos, mano de obra), medido
+                en UF — compara la severidad promedio de 2021, 2022 y 2023 en el CSV para estimar esa tendencia, y proyéctala los años
+                que faltan hasta 2027.
+              </li>
+              <li>
+                <strong>Brecha de moneda, entre Chile y Colombia.</strong> Una vez tengas esa severidad proyectada a 2027 en UF, sigue en
+                la unidad equivocada — te falta convertirla a pesos colombianos para que sea comparable con tu propio modelo de
+                severidad. Esa tasa de conversión es información pública que puedes investigar, igual que un actuario real lo haría
+                antes de usar un dataset de otro país como referencia.
+              </li>
+            </ul>
+          </div>
         </SubSection>
 
         <SubSection title="De la prima pura a la prima comercial" accent="act">

@@ -224,8 +224,9 @@ export function GuiaPasanteDia2() {
             esto, sistemáticamente subestima lo que en realidad va a pagar.
           </p>
           <p>
-            Este ejercicio asume una inflación de costo de siniestros del <strong>9% anual</strong> entre el Año 1 y el Año 2 — tenla de referencia al
-            ajustar tu severidad para la tarifa de este año.
+            La inflación general esperada entre el Año 1 y el Año 2 es del <strong>6% anual</strong> — tenla de referencia. La inflación del costo de
+            siniestros específicamente es <strong>mayor</strong> a esa inflación general (por las presiones propias del sector que ya mencionamos):
+            no se te da el número exacto, es parte de lo que se evalúa que tu equipo estime al ajustar su severidad para la tarifa de este año.
           </p>
         </SubSection>
 

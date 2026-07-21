@@ -12,9 +12,14 @@ describe("generateChile", () => {
     // Golden values produced by running generarChile()'s exact loop body
     // (copied verbatim, including the local calcLamCL()) from
     // Pasantia_SURA_v3_inversiones_dinamicas.html with seed=42, N_CHL=500 —
-    // except montoUf for 2022/2023 claims, deliberately adjusted from the
-    // legacy values by CHILE_REAL_SEVERITY_GROWTH_ANNUAL (see that constant's
-    // doc comment); claim counts/dates/2021 severities are still untouched.
+    // except: (a) montoUf for 2022/2023 claims, deliberately adjusted from
+    // the legacy values by CHILE_REAL_SEVERITY_GROWTH_ANNUAL (see that
+    // constant's doc comment); (b) valorComercialUf (and, downstream, every
+    // montoUf), deliberately recalibrated to a lower UF range so that
+    // chileSeverityToColombia2027Cop() lands in Colombia's own severity
+    // scale (see generateChile.ts's valorUf comment) — claim
+    // occurrence/dates are still untouched, since only the value transform
+    // applied to the same random draw changed, not the draw sequence itself.
     const policies = generateChile(42, 500);
 
     let claimCount = 0;
@@ -31,7 +36,7 @@ describe("generateChile", () => {
       antiguedadVehiculo: 11,
       kilometrajeAnual: 34911,
       siniestrosPrevios: 1,
-      valorComercialUf: 4339,
+      valorComercialUf: 1237,
       usoVehiculo: "uber",
       cajaAutomatica: false,
       seguroComplementario: true,
@@ -69,14 +74,13 @@ describe("generateChile", () => {
       siniestro: 1,
       fechaSiniestro: "2021-03-22",
       fechaAviso: "2021-04-16",
-      montoUf: 197,
+      montoUf: 61,
     });
     expect(last.years[2022]).toEqual({
       siniestro: 1,
       fechaSiniestro: "2022-08-11",
       fechaAviso: "2022-08-12",
-      // 199 pre-CHILE_REAL_SEVERITY_GROWTH_ANNUAL (199 * 1.03^1 ≈ 205).
-      montoUf: 205,
+      montoUf: 64,
     });
     expect(last.years[2023]).toEqual({ siniestro: 0, fechaSiniestro: "", fechaAviso: "", montoUf: "" });
   });
