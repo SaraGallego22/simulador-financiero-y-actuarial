@@ -303,9 +303,9 @@ export function GuiaPasanteDia3() {
               las mezcles en una sola tasa de crecimiento.
             </li>
             <li>
-              <strong>¿Qué tasa de inflación de siniestros usar?</strong> Ya la conoces — el mismo 9% anual que usaste para ajustar tu severidad de
-              Año 2 aplica otra vez para proyectar Año 3. Puedes verificar que tu propia cartera se movió a ese ritmo comparando la severidad promedio
-              de tus siniestros reales entre Año 1 y Año 2.
+              <strong>¿Qué tasa de inflación de siniestros usar?</strong> La misma que ya estimaste y aplicaste para tarificar el Año 2 (recuerda:
+              mayor a la inflación general de referencia del 6%, ver la guía de Día 2) aplica otra vez para proyectar Año 3. Puedes verificar qué tan
+              bien le atinaste comparando la severidad promedio de tus propios siniestros reales entre Año 1 y Año 2.
             </li>
             <li>
               <strong>El Resultado de inversiones ya no puede salir de una fórmula plana sobre la reserva.</strong> Piensa en lo que tu ALM real de Año 2
