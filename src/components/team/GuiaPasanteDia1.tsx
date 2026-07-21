@@ -58,6 +58,61 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
   );
 }
 
+/** Read-only reference table for a dataset's columns — unlike BlankTable, these rows are filled in (a data dictionary), not inputs to complete. */
+function DataDictTable({ rows }: { rows: { col: string; desc: string; rango: string }[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+        <thead>
+          <tr>
+            {["Columna", "Descripción", "Valores / rango"].map((h) => (
+              <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.col}>
+              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-mono">{r.col}</td>
+              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{r.desc}</td>
+              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{r.rango}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Two-column term/definition reference table — same read-only pattern as DataDictTable, different shape. */
+function GlossaryTable({ rows }: { rows: { term: string; def: string }[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+        <thead>
+          <tr>
+            {["Término", "Definición"].map((h) => (
+              <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.term}>
+              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">{r.term}</td>
+              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{r.def}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function GuiaPasanteDia1() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
@@ -113,24 +168,130 @@ export function GuiaPasanteDia1() {
 
       <Section n="2" title="Teoría necesaria">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-          El modelo exacto (parámetros, pesos, tasas) no se revela — eso es lo que se evalúa que tu equipo estime. Esta sección explica el marco
-          conceptual sobre el que se construye cualquier estimación razonable, para que no partas de cero.
+          El modelo exacto (qué variables usar, con qué forma funcional, con qué parámetros) no se revela ni se prescribe — es una decisión de tu
+          equipo, y distintos enfoques razonables pueden llegar a tarifas distintas. Esta sección te da los datos y el marco conceptual sobre el que
+          se construye cualquier estimación razonable, no la respuesta.
         </p>
+
+        <SubSection title="Diccionario de datos — universo Colombia" accent="act">
+          <p>Las 1.000.000 exposiciones del universo público llegan en un CSV con estas columnas (ninguna incluye resultados de siniestralidad):</p>
+          <DataDictTable
+            rows={[
+              { col: "id_expuesto", desc: "Identificador único de la exposición", rango: "1 a 1.000.000" },
+              { col: "edad", desc: "Edad del conductor", rango: "18 a 75 años" },
+              { col: "tipo", desc: "Tipo de vehículo", rango: "sedan, suv, pickup, deportivo, compacto, van" },
+              { col: "zona", desc: "Zona de circulación", rango: "urbana, suburbana, rural" },
+              { col: "antig", desc: "Antigüedad del vehículo", rango: "0 a 20 años" },
+              { col: "km", desc: "Kilometraje anual", rango: "5.000 a 120.000 km" },
+              { col: "hist", desc: "Historial de siniestros previos (antes de este ejercicio)", rango: "0 a 5" },
+              { col: "valor", desc: "Valor asegurado del vehículo", rango: "≈ $8.000.000 a $300.000.000 COP" },
+              { col: "uso", desc: "Uso del vehículo", rango: "personal, comercial, mixto" },
+              { col: "parq", desc: "Tipo de parqueadero", rango: "si, no" },
+              { col: "edu", desc: "Nivel educativo del conductor", rango: "basica, tecnica, universitaria, posgrado" },
+              { col: "estrato", desc: "Estrato socioeconómico", rango: "1 a 6" },
+              { col: "genero", desc: "Género del conductor", rango: "M, F" },
+              { col: "marca", desc: "Marca del vehículo", rango: "chevrolet, renault, mazda, toyota, nissan, hyundai, kia, ford" },
+            ]}
+          />
+        </SubSection>
+
+        <SubSection title="Diccionario de datos — dataset Chile (referencia)" accent="act">
+          <p>
+            100.000 pólizas con 3 años de siniestros reales (2021-2023) — a diferencia del universo Colombia, este sí trae resultados. Sus valores
+            monetarios están en <strong>UF</strong> (Unidad de Fomento, la unidad chilena indexada a la inflación), no en pesos colombianos.
+          </p>
+          <DataDictTable
+            rows={[
+              { col: "id_poliza", desc: "Identificador único de la póliza", rango: "1 a 100.000" },
+              { col: "edad_conductor", desc: "Edad del conductor", rango: "18 a 75 años" },
+              { col: "tipo_vehiculo", desc: "Tipo de vehículo", rango: "sedan, suv, pickup, station_wagon, furgon, compacto" },
+              { col: "zona", desc: "Zona de circulación", rango: "metropolitana, norte, centro, sur, austral" },
+              { col: "antiguedad_vehiculo", desc: "Antigüedad del vehículo", rango: "0 a 20 años" },
+              { col: "kilometraje_anual", desc: "Kilometraje anual", rango: "5.000 a 120.000 km" },
+              { col: "siniestros_previos", desc: "Historial de siniestros previos", rango: "0 a 5" },
+              { col: "valor_comercial_uf", desc: "Valor comercial del vehículo, en UF", rango: "≈ 50 a 8.000 UF" },
+              { col: "uso_vehiculo", desc: "Uso del vehículo", rango: "particular, comercial, taxi, uber" },
+              { col: "caja_automatica", desc: "Si el vehículo tiene caja automática", rango: "si, no" },
+              { col: "seguro_complementario", desc: "Si la póliza incluye un seguro complementario", rango: "si, no" },
+              { col: "genero", desc: "Género del conductor", rango: "M, F" },
+              { col: "comuna_tipo", desc: "Tipo de comuna donde circula el vehículo", rango: "gran_ciudad, ciudad_media, rural" },
+              { col: "siniestro_2021 / _2022 / _2023", desc: "Si la póliza tuvo un siniestro ese año", rango: "1 (sí), 0 (no)" },
+              { col: "fecha_siniestro_2021 / _2022 / _2023", desc: "Fecha en que ocurrió el siniestro (vacío si no hubo)", rango: "AAAA-MM-DD" },
+              { col: "fecha_aviso_2021 / _2022 / _2023", desc: "Fecha en que se avisó el siniestro a la aseguradora (vacío si no hubo)", rango: "AAAA-MM-DD" },
+              { col: "monto_uf_2021 / _2022 / _2023", desc: "Monto del siniestro, en UF (vacío si no hubo)", rango: "> 0 UF" },
+            ]}
+          />
+        </SubSection>
+
+        <SubSection title="De la prima pura a la prima comercial" accent="act">
+          <p>
+            La <strong>prima pura</strong> (o prima de riesgo) es el costo esperado puro de un riesgo — frecuencia esperada × severidad esperada —
+            sin ningún cargo comercial todavía. La <strong>prima comercial</strong> es lo que efectivamente le cobras al cliente: la prima pura,
+            cargada para cubrir los gastos de operar el negocio y dejar un margen de utilidad.
+          </p>
+          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+            <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
+              Prima Comercial = Prima Pura ÷ (1 − % Gastos − % Utilidad)
+            </p>
+          </div>
+          <p>Los conceptos que componen ese denominador, con los valores reales que usa este ejercicio:</p>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+              <thead>
+                <tr>
+                  {["Concepto", "% de la prima comercial", "Qué es"].map((h) => (
+                    <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Gasto de adquisición</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">4%</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Costo de originar la póliza: estudio del riesgo, emisión, documentación.</td>
+                </tr>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Comisiones</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">15%</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Pago al canal o intermediario que vendió la póliza.</td>
+                </tr>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Gasto administrativo</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">6%</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Costos de operar la aseguradora, no ligados a una póliza en particular: nómina, sistemas, oficinas.</td>
+                </tr>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Margen de utilidad de referencia</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">20%</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">
+                    Rentabilidad que la aseguradora espera obtener sobre la prima, antes de conocer el resultado real del año — el mismo 20% que
+                    reaparece en la sección 3 como el margen técnico de referencia de un &ldquo;buen desempeño&rdquo; (nota 75).
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Con estos valores, el denominador de la fórmula es 1 − 25% − 20% = 0.55. Esto carga tu prima pura de forma pareja para todo el libro —
+            no resuelve cuánto debe pagar cada póliza individual frente a otra, que es lo que decide tu propio modelo de frecuencia/severidad, abajo.
+          </p>
+        </SubSection>
 
         <SubSection title="Frecuencia × severidad: el costo esperado de un riesgo" accent="act">
           <p>
             La forma clásica de tarificar un riesgo asegurable descompone su costo esperado en dos preguntas independientes: ¿qué tan probable es que
-            ocurra un siniestro? (frecuencia) y, si ocurre, ¿cuánto cuesta? (severidad). El costo esperado — la prima de riesgo — es el producto de las
+            ocurra un siniestro? (frecuencia) y, si ocurre, ¿cuánto cuesta? (severidad). El costo esperado — la prima pura — es el producto de las
             dos: <code className="rounded bg-black/5 px-1">E[costo] = E[frecuencia] × E[severidad]</code>, nunca un solo número agregado, porque
             frecuencia y severidad responden a mecanismos distintos y pueden moverse en direcciones opuestas (un conductor más joven puede tener mayor
             frecuencia de siniestro sin que eso diga nada sobre cuánto cuesta cada uno).
           </p>
           <p>
-            En la práctica actuarial esto se modela con un modelo lineal generalizado (GLM): se parte de una tasa base y se ajusta multiplicativamente
-            por cada característica de riesgo mediante relatividades — factores que suben o bajan la tasa base según cuánto se aleje esa característica
-            del promedio del libro. La prima de riesgo relativa de una póliza es la multiplicación de las relatividades de todas sus variables. No todas
-            las variables disponibles necesariamente cargan señal real de riesgo — parte del trabajo actuarial es distinguir cuáles sí y cuáles son
-            ruido, antes de dejarlas participar en el modelo.
+            Cómo pasar de esa idea general a un precio distinto por póliza — qué variables usar, con qué forma funcional, cómo combinarlas — es una
+            decisión de modelamiento de tu equipo, no una receta que debas reproducir. No todas las variables del diccionario de datos de arriba
+            necesariamente cargan señal real de riesgo — parte del trabajo actuarial es distinguir cuáles sí y cuáles son ruido, antes de dejarlas
+            influir en tu estimación.
           </p>
         </SubSection>
 
@@ -148,6 +309,29 @@ export function GuiaPasanteDia1() {
             rendimiento que te piden, tiene la menor varianza posible — un problema de optimización cuadrática (minimizar w<sup>T</sup>Σw sujeto a que
             los pesos sumen 100% y el rendimiento esperado ponderado alcance el objetivo, con Σ la matriz de covarianza).
           </p>
+        </SubSection>
+
+        <SubSection title="Glosario de términos actuariales" accent="act">
+          <GlossaryTable
+            rows={[
+              { term: "Exposición", def: "Unidad de riesgo asegurada durante un período — aquí, una póliza-año dentro del universo." },
+              { term: "Siniestro", def: "La ocurrencia de un evento cubierto por la póliza que genera una reclamación." },
+              { term: "Frecuencia", def: "Probabilidad (o tasa esperada) de que una exposición tenga al menos un siniestro en el período." },
+              { term: "Severidad", def: "Costo esperado de un siniestro, dado que ya ocurrió." },
+              { term: "Prima pura (o de riesgo)", def: "Costo esperado de un riesgo — frecuencia × severidad — sin ningún cargo comercial." },
+              { term: "Prima comercial", def: "Prima pura cargada con gastos y margen de utilidad — lo que efectivamente se cobra al cliente." },
+              {
+                term: "Relatividad",
+                def: "Factor que ajusta la tasa base de un riesgo según una característica particular (p. ej., 1.2 si esa característica sube el riesgo un 20% sobre el promedio del libro).",
+              },
+              {
+                term: "Selección adversa",
+                def: "Cuando una tarifa mal segmentada atrae desproporcionadamente a los riesgos que más le convienen al asegurado y menos a la aseguradora.",
+              },
+              { term: "Tarificar", def: "Fijar el precio de una póliza a partir de su riesgo esperado." },
+              { term: "Cuota de mercado", def: "Porción del total de exposiciones del mercado que termina asegurando un equipo." },
+            ]}
+          />
         </SubSection>
       </Section>
 
