@@ -259,9 +259,10 @@ export function GuiaPasanteDia2() {
           <p>
             Reporta cada línea del P&G del 2027 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
             mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real, en base <strong>fecha de accidente</strong>: es
-            el costo total de lo ocurrido en el 2027, sin importar cuándo se avise. Los gastos de adquisición y comisión son porcentajes fijos sobre la
-            prima <strong>emitida</strong> (4%/15%); el administrativo también (6%), pero ya no resta dentro del Resultado Técnico — tiene su propia línea
-            (Resultado Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
+            el costo total de lo ocurrido en el 2027, sin importar cuándo se avise. Los gastos de adquisición y comisión son los mismos porcentajes
+            fijos sobre la prima <strong>emitida</strong> que ya usaste para calcular tu prima comercial en Día 1; el administrativo también, pero ya
+            no resta dentro del Resultado Técnico — tiene su propia línea (Resultado Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que
+            tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
             Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
             resultado de la simulación mes a mes.
@@ -371,7 +372,7 @@ export function GuiaPasanteDia2() {
             formulaNotes={[
               "RPND constituida = 20% × Prima emitida.",
               "Prima devengada = Prima emitida − RPND constituida (80% exacto en 2027, porque no hay un año anterior del que liberar nada — esto cambia a partir del 2028).",
-              "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la prima emitida.",
+              "Gastos de adquisición / Comisiones / administrativos = los mismos porcentajes de la prima emitida que usaste para tu prima comercial en Día 1.",
               "Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo).",
               "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
               "Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones.",
