@@ -1,4 +1,5 @@
 import { SECTOR_DIMENSIONS } from "@/domain/grading/sectors";
+import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -84,6 +85,18 @@ export function GuiaPasanteDia4() {
         </p>
       </header>
 
+      <InsumosEntregables
+        insumos={[
+          "Balance de cada año (Día 3): reservas, RPND, cuentas por cobrar/pagar y patrimonio.",
+          "Volatilidad realizada y concentración de tu árbol de portafolio (Día 2).",
+          "Tu propia cartera (parcial, sesgada) y el CSV público del universo, para la recomendación sectorial.",
+        ]}
+        entregables={[
+          "Requerimiento de Capital (RK), Fondos propios, Margen de solvencia y Dividendo posible.",
+          "Hasta 3 sectores a crecer y hasta 3 a disminuir, cada uno con su multiplicador estimado.",
+        ]}
+      />
+
       <Section n="1" title="Contexto del día">
         <p>
           Es el último día del ejercicio. Todo lo que reportaste en los días anteriores — tu Balance de cada año, la volatilidad de tu portafolio, tu
@@ -101,7 +114,47 @@ export function GuiaPasanteDia4() {
         </ul>
       </Section>
 
-      <Section n="2" title="Qué se te va a calificar">
+      <Section n="2" title="Teoría necesaria">
+        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          Los sectores reales del mercado y los pesos exactos del modelo de solvencia no se revelan — esta sección explica el marco conceptual, no la
+          respuesta.
+        </p>
+
+        <SubSection title="Segmentación de mercado y rentabilidad por segmento" accent="act">
+          <p>
+            Tarificar bien a nivel de póliza individual (Día 1) no es lo mismo que entender cómo se comporta el negocio a nivel de segmento de mercado.
+            Un segmento (o &ldquo;sector&rdquo;) agrupa pólizas que comparten una combinación de características de negocio — no es lo mismo que una
+            sola variable de riesgo aislada: cruzar dos dimensiones (por ejemplo, zona × uso del vehículo) revela interacciones que una variable sola
+            diluye, porque mezcla combinaciones buenas y malas de esa misma variable.
+          </p>
+          <p>
+            El indicador más directo para comparar la rentabilidad relativa de un segmento frente al resto del mercado es un multiplicador de
+            siniestralidad — cuánto por encima o por debajo del promedio general queda la pérdida agregada (frecuencia × severidad) de ese segmento,
+            normalizado a 1.0 como el promedio. Es la misma lógica de relatividades de un GLM (Día 1) pero aplicada como herramienta de dirección
+            estratégica de portafolio, no de precio individual: decidir qué segmentos crecer y cuáles evitar con evidencia parcial y sesgada (tu propia
+            cartera, que ya sobrerrepresenta los riesgos que subvaloraste) es un problema estadístico real que enfrenta cualquier aseguradora al planear
+            su book de negocio.
+          </p>
+        </SubSection>
+
+        <SubSection title="Capital de solvencia y el beneficio de la diversificación" accent="fin">
+          <p>
+            Un marco de solvencia basado en riesgo (como el que sigue este ejercicio, inspirado en el estándar de Solvencia II europeo) no exige
+            mantener capital igual a la suma de todo lo que podría salir mal — exige mantener capital suficiente para el escenario adverso combinado,
+            reconociendo que no todos los riesgos se materializan al mismo tiempo ni en la misma dirección. Cada módulo de riesgo (suscripción,
+            financiero, operacional, concentración) se calcula por separado y luego se agregan mediante una matriz de correlación: cuanto menor la
+            correlación asumida entre dos riesgos, menor el capital combinado que exige el modelo frente a sumarlos linealmente — ese ahorro de capital
+            es, literalmente, el beneficio de estar diversificado en distintas fuentes de riesgo, no solo en instrumentos financieros.
+          </p>
+          <p>
+            El resultado — el Requerimiento de Capital, o RK — se compara contra los fondos propios reales de la aseguradora (su patrimonio) para
+            obtener el margen de solvencia. Un margen por encima de 100% indica que hay más capital del mínimo exigido; ese excedente, descontado un
+            margen de seguridad objetivo, es lo que queda disponible para repartir como dividendo sin comprometer la solvencia futura de la compañía.
+          </p>
+        </SubSection>
+      </Section>
+
+      <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Solvencia y dividendos" accent="fin">
           <p>
             Reportas 4 líneas: el <strong>Requerimiento de Capital (RK)</strong>, tus <strong>Fondos propios</strong>, el{" "}
@@ -114,7 +167,7 @@ export function GuiaPasanteDia4() {
             tus inversiones: se escala por qué tan volátil resultó realmente tu portafolio frente al promedio del menú de instrumentos. El riesgo de
             concentración es independiente de eso — se escala por qué tan repartido quedó tu árbol entre los instrumentos con plazo propio
             (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo
-            nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 4 para las fórmulas completas.
+            nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 5 para las fórmulas completas.
           </p>
         </SubSection>
 
@@ -135,7 +188,7 @@ export function GuiaPasanteDia4() {
         </SubSection>
       </Section>
 
-      <Section n="3" title="Conceptos que debes aplicar">
+      <Section n="4" title="Conceptos que debes aplicar">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — identificar qué variables realmente definen un sector, y cómo tu portafolio afecta tu propia
           solvencia, es parte de lo que se evalúa que tu equipo descubra.
@@ -186,11 +239,19 @@ export function GuiaPasanteDia4() {
             </li>
           </ul>
         </SubSection>
+
+        <PreguntasAbiertas>
+          <li>¿Qué pasaría con tu RK si el regulador exigiera un margen de seguridad objetivo más alto que 1.5×?</li>
+          <li>¿Cómo cambiaría tu recomendación sectorial si tuvieras acceso a la cartera completa del mercado, no solo la tuya?</li>
+          <li>
+            ¿Qué le dirías a la junta directiva de tu aseguradora sobre la relación entre la volatilidad de tu portafolio de Día 2 y el dividendo que
+            pueden repartir hoy?
+          </li>
+        </PreguntasAbiertas>
       </Section>
 
-      <Section n="4" title="Plantillas — cómo se construye y cómo alimenta el resultado">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Solvencia — fórmulas</p>
+      <Section n="5" title="Plantillas — cómo se construye y cómo alimenta el resultado">
+        <FlowStep n="1" title="5.1 · Solvencia — fórmulas">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√((prima×14.76%)² + (reservas×30%)² + 2×0.75×(prima×14.76%)×(reservas×30%))" />
             <ScoreCard label="Riesgo financiero (rFin)" formula="6.6% × inversiones × (tu volatilidad realizada ÷ volatilidad promedio del menú)" />
@@ -210,11 +271,10 @@ export function GuiaPasanteDia4() {
             &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; son los mismos números de tu Balance del año
             vigente (Día 3) — no hay que recalcularlos desde cero.
           </p>
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Recomendación sectorial — plantilla en blanco</p>
-          <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
+        <FlowStep n="2" title="5.2 · Recomendación sectorial — plantilla en blanco">
+          <p className="text-xs text-[var(--color-brand-text-secondary)]">
             Variables disponibles para cruzar: {SECTOR_DIMENSIONS.map((d) => d.label).join(", ")}.
           </p>
           <BlankTable
@@ -222,23 +282,24 @@ export function GuiaPasanteDia4() {
             rows={3}
             note="Repite esta tabla para tu lista de crecer y tu lista de disminuir (hasta 3 posiciones cada una). Un sector siempre cruza dos dimensiones distintas."
           />
-          <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">
             Nota de calificación: cada posición nombrada vale por dos mitades, 50/50. La primera mitad es la posición — acertar la posición exacta del
             sector real da 100 puntos, decayendo linealmente hasta 0 conforme la diferencia de posición crece; nombrar un sector que ni siquiera
             aparece en el ranking real también da 0. La segunda mitad es el multiplicador estimado — se califica con la misma banda de tolerancia
             sobre el error relativo que el resto de tus entregables numéricos, y da 0 si el sector nombrado no está en el ranking real o si dejaste el
             multiplicador en blanco. Las posiciones que dejes en blanco por completo simplemente no cuentan, ni para bien ni para mal.
           </p>
-        </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · El camino completo, de tus decisiones a tu nota</p>
-          <p className="text-sm">
-            Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu árbol de portafolio (Día 2, la misma concentración que ya
-            descontó tu nota de Rendimiento entonces) → alimentan el RK y tu margen de solvencia (4.1). En paralelo, tu lectura del mercado a través de
-            tu propia cartera y el CSV público → tu recomendación sectorial (4.2), calificada contra el ranking real que nunca ves directamente.
-          </p>
-        </div>
+        <FlowStep n="3" title="5.3 · El camino completo, de tus decisiones a tu nota" last>
+          <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+            <p className="text-sm">
+              Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu árbol de portafolio (Día 2, la misma concentración que ya
+              descontó tu nota de Rendimiento entonces) → alimentan el RK y tu margen de solvencia (5.1). En paralelo, tu lectura del mercado a través de
+              tu propia cartera y el CSV público → tu recomendación sectorial (5.2), calificada contra el ranking real que nunca ves directamente.
+            </p>
+          </div>
+        </FlowStep>
       </Section>
     </div>
   );

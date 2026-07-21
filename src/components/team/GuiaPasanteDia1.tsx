@@ -1,4 +1,5 @@
 import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
+import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -72,6 +73,15 @@ export function GuiaPasanteDia1() {
         </p>
       </header>
 
+      <InsumosEntregables
+        insumos={[
+          "Universo público de 1.000.000 exposiciones (13 variables de riesgo, sin resultados) — pestaña Simulación.",
+          "Dataset de referencia Chile (100.000 pólizas con siniestros reales) — misma pestaña.",
+          "Matriz de covarianza de los 6 instrumentos financieros y el rendimiento esperado objetivo de tu portafolio — formulario del portafolio.",
+        ]}
+        entregables={["CSV de tarifa: id_expuesto, prima — una fila por cada exposición del universo.", "Portafolio de mínima varianza: un peso (%) por instrumento, que sume 100%."]}
+      />
+
       <Section n="1" title="Contexto del día">
         <p>
           El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo compite contra los demás equipos del
@@ -91,7 +101,7 @@ export function GuiaPasanteDia1() {
             <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
             menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte del árbol de inversión real, que vas a construir en el
             Día 2 una vez conozcas tus cifras reales de prima y siniestros. Este portafolio de mínima varianza también alimenta tu tope de cuota de
-            mercado del Año 1 (ver sección 2).
+            mercado del Año 1 (ver sección 3).
           </li>
         </ul>
         <p>
@@ -101,7 +111,47 @@ export function GuiaPasanteDia1() {
         </p>
       </Section>
 
-      <Section n="2" title="Qué se te va a calificar">
+      <Section n="2" title="Teoría necesaria">
+        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          El modelo exacto (parámetros, pesos, tasas) no se revela — eso es lo que se evalúa que tu equipo estime. Esta sección explica el marco
+          conceptual sobre el que se construye cualquier estimación razonable, para que no partas de cero.
+        </p>
+
+        <SubSection title="Frecuencia × severidad: el costo esperado de un riesgo" accent="act">
+          <p>
+            La forma clásica de tarificar un riesgo asegurable descompone su costo esperado en dos preguntas independientes: ¿qué tan probable es que
+            ocurra un siniestro? (frecuencia) y, si ocurre, ¿cuánto cuesta? (severidad). El costo esperado — la prima de riesgo — es el producto de las
+            dos: <code className="rounded bg-black/5 px-1">E[costo] = E[frecuencia] × E[severidad]</code>, nunca un solo número agregado, porque
+            frecuencia y severidad responden a mecanismos distintos y pueden moverse en direcciones opuestas (un conductor más joven puede tener mayor
+            frecuencia de siniestro sin que eso diga nada sobre cuánto cuesta cada uno).
+          </p>
+          <p>
+            En la práctica actuarial esto se modela con un modelo lineal generalizado (GLM): se parte de una tasa base y se ajusta multiplicativamente
+            por cada característica de riesgo mediante relatividades — factores que suben o bajan la tasa base según cuánto se aleje esa característica
+            del promedio del libro. La prima de riesgo relativa de una póliza es la multiplicación de las relatividades de todas sus variables. No todas
+            las variables disponibles necesariamente cargan señal real de riesgo — parte del trabajo actuarial es distinguir cuáles sí y cuáles son
+            ruido, antes de dejarlas participar en el modelo.
+          </p>
+        </SubSection>
+
+        <SubSection title="Portafolio de mínima varianza (teoría de Markowitz)" accent="fin">
+          <p>
+            El marco de Markowitz parte de una idea poco intuitiva a primera vista: el riesgo (varianza) de un portafolio no es el promedio ponderado de
+            la varianza de cada instrumento que lo compone — depende de cómo covarían entre sí. Combinar instrumentos con correlación baja, o negativa,
+            puede reducir la varianza total del portafolio por debajo de la de cualquiera de sus componentes individuales, sin sacrificar rendimiento
+            esperado — ese es, en esencia, el beneficio de diversificar.
+          </p>
+          <p>
+            Para cada nivel de rendimiento esperado que te propongas alcanzar existe una combinación de pesos que minimiza la varianza resultante — el
+            conjunto de esos puntos (uno por cada rendimiento posible) se llama la frontera eficiente. Un &ldquo;portafolio de mínima varianza sujeto a
+            un rendimiento objetivo&rdquo; es exactamente un punto sobre esa frontera: la combinación de pesos que, entre todas las que alcanzan el
+            rendimiento que te piden, tiene la menor varianza posible — un problema de optimización cuadrática (minimizar w<sup>T</sup>Σw sujeto a que
+            los pesos sumen 100% y el rendimiento esperado ponderado alcance el objetivo, con Σ la matriz de covarianza).
+          </p>
+        </SubSection>
+      </Section>
+
+      <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Tarifa Año 1" accent="act">
           <p>
             Debes subir un CSV con dos columnas — <code className="rounded bg-black/5 px-1">id_expuesto,prima</code> — con una prima para cada una de las
@@ -144,7 +194,7 @@ export function GuiaPasanteDia1() {
 
         <SubSection title="Portafolio de mínima varianza" accent="fin">
           <p>
-            Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 4) buscando el <strong>menor riesgo posible</strong>{" "}
+            Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 5) buscando el <strong>menor riesgo posible</strong>{" "}
             — medido como la varianza del portafolio, usando la matriz de covarianza que se te da en el formulario — sujeto a alcanzar al menos un{" "}
             <strong>rendimiento esperado objetivo</strong>. No es un árbol de decisiones de vencimientos como el del Día 2: es una asignación de pesos, de
             una sola vez, sin reinversión ni horizonte temporal — una fotografía de cómo invertirías el capital hoy mismo, antes de saber cuánta prima vas
@@ -162,7 +212,7 @@ export function GuiaPasanteDia1() {
         </SubSection>
       </Section>
 
-      <Section n="3" title="Conceptos que debes aplicar">
+      <Section n="4" title="Conceptos que debes aplicar">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — el modelo exacto de riesgo y la asignación óptima del portafolio son parte de lo que se
           evalúa que tu equipo descubra.
@@ -173,7 +223,7 @@ export function GuiaPasanteDia1() {
           <ul className="list-disc pl-5">
             <li>
               <strong>¿Qué tan probable es que cada póliza tenga un siniestro, y qué tan costoso sería si lo tiene?</strong> El universo público te da 13
-              variables de riesgo por póliza, pero sin resultados — para eso está el dataset Chile (sección 2), que trae sus propios retos de
+              variables de riesgo por póliza, pero sin resultados — para eso está el dataset Chile (sección 3), que trae sus propios retos de
               transferibilidad hacia Colombia. No todas las variables pesan igual — parte de tu trabajo es identificar cuáles combinan señal real de
               riesgo y cuáles no. El modelo exacto de frecuencia/severidad no se revela: se espera que lo estimes con criterio actuarial (frecuencia
               esperada × severidad esperada ≈ costo esperado por póliza), no que lo adivines a ciegas.
@@ -213,17 +263,25 @@ export function GuiaPasanteDia1() {
             </li>
           </ul>
         </SubSection>
+
+        <PreguntasAbiertas>
+          <li>
+            ¿Qué otras variables, si estuvieran disponibles, podrían mejorar tu estimación de frecuencia/severidad más allá de las 13 que tienes en el
+            universo público?
+          </li>
+          <li>¿Cómo cambiaría tu estrategia de precio si el mercado no tuviera un tope de cuota por equipo?</li>
+          <li>Si el rendimiento objetivo de tu portafolio subiera considerablemente, ¿qué instrumentos esperarías que ganen peso, y por qué?</li>
+        </PreguntasAbiertas>
       </Section>
 
-      <Section n="4" title="Plantilla de mínima varianza — cómo se construye y cómo alimenta el resultado">
+      <Section n="5" title="Plantilla de mínima varianza — cómo se construye y cómo alimenta el resultado">
         <p>
           Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tus pesos en papel antes
           de enviarlos en el formulario (que además te muestra la matriz de covarianza completa en vivo). Las fórmulas de calificación que aparecen aquí
           son las mismas que vas a ver, ya resueltas con tus números, en los resultados objetivos después de guardar tu portafolio.
         </p>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Instrumentos disponibles</p>
+        <FlowStep n="1" title="5.1 · Instrumentos disponibles">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
               <thead>
@@ -252,28 +310,25 @@ export function GuiaPasanteDia1() {
               </tbody>
             </table>
           </div>
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Tus pesos — plantilla en blanco</p>
+        <FlowStep n="2" title="5.2 · Tus pesos — plantilla en blanco">
           <BlankTable
-            headers={["Instrumento (del menú de 4.1)", "% asignado"]}
+            headers={["Instrumento (del menú de 5.1)", "% asignado"]}
             rows={INSTRUMENTS.length}
             note="A diferencia del árbol de Día 2, aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) se te muestra en vivo en el formulario y también es descargable en CSV desde la pestaña de instrumentos — no se repite aquí por ser demasiado extensa para una plantilla en papel."
           />
-        </div>
+          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Restricción — </span>
+              tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que
+              no lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
+              retroalimentación mientras ajustas tus pesos.
+            </p>
+          </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
-          <p className="text-xs text-[var(--color-brand-text-secondary)]">
-            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Restricción — </span>
-            tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que no
-            lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
-            retroalimentación mientras ajustas tus pesos.
-          </p>
-        </div>
-
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · La nota — plantilla de calificación</p>
+        <FlowStep n="3" title="5.3 · La nota — plantilla de calificación">
           <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota del portafolio de mínima varianza</p>
             <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
@@ -284,19 +339,20 @@ export function GuiaPasanteDia1() {
               decae linealmente hasta 0 en la tolerancia cero (ambas configurables por el evaluador, mismas bandas que el resto de entregables numéricos).
             </p>
           </div>
-        </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · El camino completo, de tu decisión a tu nota</p>
-          <p className="text-sm">
-            Tus pesos (4.2), sujetos a la restricción de retorno (4.3) → se comparan contra el portafolio de mínima varianza real al mismo retorno
-            objetivo → la cercanía entre tu varianza lograda y esa varianza mínima real es tu nota de hoy.
-          </p>
-          <p className="mt-2 text-sm">
-            Este portafolio no se vuelve a usar en el P&G ni en el Balance — es un ejercicio aparte del árbol de inversión real, que vas a construir en el
-            Día 2 una vez conozcas tus cifras reales de prima y siniestros de este año.
-          </p>
-        </div>
+        <FlowStep n="4" title="5.4 · El camino completo, de tu decisión a tu nota" last>
+          <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+            <p className="text-sm">
+              Tus pesos (5.2), sujetos a la restricción de retorno (5.3) → se comparan contra el portafolio de mínima varianza real al mismo retorno
+              objetivo → la cercanía entre tu varianza lograda y esa varianza mínima real es tu nota de hoy.
+            </p>
+            <p className="mt-2 text-sm">
+              Este portafolio no se vuelve a usar en el P&G ni en el Balance — es un ejercicio aparte del árbol de inversión real, que vas a construir en el
+              Día 2 una vez conozcas tus cifras reales de prima y siniestros de este año.
+            </p>
+          </div>
+        </FlowStep>
       </Section>
     </div>
   );

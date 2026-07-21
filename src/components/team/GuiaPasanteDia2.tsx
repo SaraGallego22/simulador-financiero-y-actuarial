@@ -1,4 +1,5 @@
 import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
+import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -130,10 +131,23 @@ export function GuiaPasanteDia2() {
           Día 2 — P&G Año 1, retarifación Año 2 y portafolio real
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu árbol de portafolio: te explica exactamente qué se va
-          a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
+          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu árbol de portafolio: te explica exactamente qué se
+          va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
         </p>
       </header>
+
+      <InsumosEntregables
+        insumos={[
+          "Resultado real del mercado del Año 1: pólizas ganadas, prima cobrada y siniestralidad de tu propia cartera.",
+          "Historial de siniestros por póliza (si tuvo o no, y de qué magnitud) — insumo nuevo para la retarifación de Año 2.",
+          "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu árbol de portafolio real.",
+        ]}
+        entregables={[
+          "Tarifa Año 2 (mismo formato CSV que Día 1: id_expuesto, prima).",
+          "Árbol de decisión de portafolio real (instrumento, % asignado, vencimiento/reasignación).",
+          "Estado de resultados completo del Año 1 (13 líneas).",
+        ]}
+      />
 
       <Section n="1" title="Contexto del día">
         <p>
@@ -146,7 +160,7 @@ export function GuiaPasanteDia2() {
             póliza como variable adicional. Las reservas técnicas del Año 1 no se reportan hoy — van como una línea del Balance que entregas en Día 3.
           </li>
           <li>
-            <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 4)
+            <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5)
             y, para cada uno, decides qué pasa cuando venza. Esta decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente
             tu nota de ALM de hoy y, más adelante, el Resultado de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A
             diferencia del portafolio de mínima varianza de Día 1 (un ejercicio aparte, ya calificado), este árbol es tu decisión de inversión real.
@@ -155,19 +169,59 @@ export function GuiaPasanteDia2() {
             <strong>Financiero — estado de resultados completo del Año 1.</strong> Reportas las 13 líneas del P&G del Año 1 (prima emitida, la Reserva de
             Prima No Devengada que constituyes sobre ella, prima devengada, costo de siniestros, gastos, resultado técnico, resultado industrial,
             resultado de inversiones, utilidad antes de impuestos, impuesto y utilidad neta), en el mismo orden vertical de un estado de resultados real —
-            ver sección 2.
+            ver sección 3.
           </li>
         </ul>
       </Section>
 
-      <Section n="2" title="Qué se te va a calificar">
+      <Section n="2" title="Teoría necesaria">
+        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          El ajuste exacto de tu tarifa y la asignación óptima de tu árbol no se revelan — esta sección explica el marco conceptual, no la respuesta.
+        </p>
+
+        <SubSection title="Tarificación con experiencia propia (credibilidad)" accent="act">
+          <p>
+            Cuando ya tienes un año de experiencia real por póliza (si tuvo un siniestro o no, y de qué magnitud), la pregunta actuarial cambia: ¿cuánto
+            debo confiar en la experiencia individual de esa póliza frente al promedio de su clase de riesgo? La teoría de credibilidad formaliza esa
+            mezcla: la prima ajustada es un promedio ponderado entre la experiencia propia del asegurado y la media de su clase, donde el peso de la
+            experiencia propia (el &ldquo;factor de credibilidad&rdquo;, entre 0 y 1) crece cuanto mayor sea el volumen de experiencia real acumulada y
+            menor su varianza frente a la varianza entre clases. Un solo año de historial por póliza es poca información — cuánta credibilidad le
+            asignes frente a tu modelo de clase ya calibrado en Día 1 es una decisión de criterio, no una regla mecánica.
+          </p>
+        </SubSection>
+
+        <SubSection title="P&G de una aseguradora" accent="fin">
+          <p>
+            El estado de resultados de una aseguradora se parece al de cualquier empresa, pero con ajustes que reflejan cómo funciona el negocio de
+            seguros: la prima no se &ldquo;gana&rdquo; toda de inmediato (una póliza a 12 meses todavía debe cubrir riesgo en los meses que faltan del
+            año, así que una parte se aparta como Reserva de Prima No Devengada — un pasivo, no un ingreso todavía), y el resultado se separa en capas:
+            Resultado Técnico (la rentabilidad pura de suscribir riesgo: prima devengada menos siniestros y gastos de adquisición/comercialización),
+            Resultado Industrial (Resultado Técnico menos gastos administrativos) y, sumando el Resultado de Inversiones, la Utilidad Neta. Esa
+            separación por capas no es cosmética: permite diagnosticar si un mal resultado viene de suscribir mal el riesgo, de gastos administrativos
+            altos, o de un mal año de inversiones — tres causas con remedios distintos.
+          </p>
+        </SubSection>
+
+        <SubSection title="Gestión ALM: calce de activos y pasivos" accent="fin">
+          <p>
+            Una aseguradora recibe efectivo por adelantado (la prima) y paga obligaciones inciertas en el tiempo (los siniestros) — el rol de la gestión
+            ALM (Asset-Liability Management) es invertir ese efectivo de forma que esté disponible cuando esas obligaciones vencen, sin sacrificar más
+            rendimiento del necesario por mantenerlo todo líquido. La tensión central es de plazo: los instrumentos de mayor plazo suelen rendir más,
+            pero inmovilizan el capital — si los siniestros llegan antes de que esa inversión venza, hay que vender antes de tiempo (con penalización) o,
+            en el peor caso, recurrir a capital propio para cubrir el faltante. Un portafolio bien calzado no es el de mayor rendimiento nominal, sino el
+            que balancea rendimiento con la certeza de tener caja disponible cuando se necesita.
+          </p>
+        </SubSection>
+      </Section>
+
+      <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Estado de resultados Año 1" accent="fin">
           <p>
             Reporta cada línea del P&G del Año 1 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
             mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real, en base <strong>fecha de accidente</strong>: es
             el costo total de lo ocurrido en el Año 1, sin importar cuándo se avise. Los gastos de adquisición y comisión son porcentajes fijos sobre la
             prima <strong>emitida</strong> (4%/15%); el administrativo también (6%), pero ya no resta dentro del Resultado Técnico — tiene su propia línea
-            (Resultado Industrial, ver sección 4.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
+            (Resultado Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
             Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del Año 1 — no una fórmula, el
             resultado de la simulación mes a mes.
@@ -183,7 +237,7 @@ export function GuiaPasanteDia2() {
         </SubSection>
         <SubSection title="Árbol de portafolio real (ALM)" accent="fin">
           <p>
-            Construyes un árbol de decisiones de inversión: repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 4) y, para cada
+            Construyes un árbol de decisiones de inversión: repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5) y, para cada
             uno, decides qué pasa cuando venza — dejarlo en caja, repetirlo indefinidamente, o reasignarlo entre nuevos instrumentos (que a su vez tienen
             su propia decisión). El sistema simula, mes a mes durante 60 meses, cómo tu árbol enfrenta el flujo de caja real: primas que entran, siniestros
             y gastos que salen, vencimientos que regresan como caja, y lo que queda se reinvierte según tu árbol.
@@ -200,7 +254,7 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>Rendimiento ajustado por riesgo (35%)</strong> — tu rendimiento real simulado, descontado por la volatilidad de lo que mantuviste
-              invertido y por qué tan concentrado quedó tu portafolio en un solo instrumento (ver sección 3).
+              invertido y por qué tan concentrado quedó tu portafolio en un solo instrumento (ver sección 4).
             </li>
             <li>
               <strong>Venta forzada de portafolio (20%)</strong> — si tuviste que vender activos antes de tiempo bajo presión de caja, y qué tan
@@ -211,20 +265,20 @@ export function GuiaPasanteDia2() {
             </li>
           </ul>
           <p>
-            La sección 4 te da la plantilla exacta y las fórmulas de cada componente, para que puedas anticipar tu nota antes de enviar tu árbol, no solo
+            La sección 5 te da la plantilla exacta y las fórmulas de cada componente, para que puedas anticipar tu nota antes de enviar tu árbol, no solo
             leerla después.
           </p>
         </SubSection>
       </Section>
 
-      <Section n="3" title="Conceptos que debes aplicar">
+      <Section n="4" title="Conceptos que debes aplicar">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — la asignación óptima del portafolio es parte de lo que se evalúa que tu equipo descubra.
         </p>
 
         <SubSection title="Para el portafolio" accent="fin">
           <p>
-            El menú de instrumentos (sección 4.2) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
+            El menú de instrumentos (sección 5.2) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
             rendimiento nominal más alto es la mejor opción una vez ajustas por riesgo. Antes de construir tu árbol, considera:
           </p>
           <ul className="list-disc pl-5">
@@ -256,26 +310,30 @@ export function GuiaPasanteDia2() {
             </li>
           </ul>
         </SubSection>
+
+        <PreguntasAbiertas>
+          <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de Año 2 de la de Año 1?</li>
+          <li>¿Cómo cambiaría tu árbol de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
+          <li>¿Qué le pasaría a tu Resultado de Inversiones si una recesión bajara el rendimiento de los instrumentos más riesgosos del menú?</li>
+        </PreguntasAbiertas>
       </Section>
 
-      <Section n="4" title="Plantillas — cómo se construyen y cómo alimentan el resultado">
+      <Section n="5" title="Plantillas — cómo se construyen y cómo alimentan el resultado">
         <p>
           Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tu estado de resultados
           y tu árbol en papel antes de construirlos en los formularios. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya
           resueltas con tus números, en los resultados objetivos después de guardar cada entregable.
         </p>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Estado de resultados — Año 1</p>
+        <FlowStep n="1" title="5.1 · Estado de resultados — Año 1">
           <StatementTemplate
             rowLabels={PYG_ROWS}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="RPND constituida = 20% × Prima emitida. Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — sí cambia a partir de Año 2, ver la guía de Día 3). Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la prima emitida. Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo). Resultado Industrial = Resultado Técnico − Gasto administrativo. Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 4.2-4.6), no de una fórmula aparte."
+            note="RPND constituida = 20% × Prima emitida. Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — sí cambia a partir de Año 2, ver la guía de Día 3). Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la prima emitida. Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo). Resultado Industrial = Resultado Técnico − Gasto administrativo. Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 5.2-5.6), no de una fórmula aparte."
           />
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.2 · Instrumentos disponibles</p>
+        <FlowStep n="2" title="5.2 · Instrumentos disponibles">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
               <thead>
@@ -304,31 +362,27 @@ export function GuiaPasanteDia2() {
               </tbody>
             </table>
           </div>
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · Tu árbol de decisión — plantilla en blanco</p>
+        <FlowStep n="3" title="5.3 · Tu árbol de decisión — plantilla en blanco">
           <BlankTable
-            headers={["Instrumento (del menú de 4.2)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
+            headers={["Instrumento (del menú de 5.2)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
             rows={5}
             note='Si en "Al vencer, ¿qué haces?" elegiste reasignar, repite esta misma tabla para esa porción — el vencimiento de la nueva línea se cuenta desde el mes en que venció la anterior, no desde el mes 0. Los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8) siempre vencen en su propio plazo; el vencimiento personalizado solo aplica a LIQ y ACC.'
           />
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-            4.4 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja
-          </p>
+        <FlowStep n="4" title="5.4 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja">
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 4.3."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 5.3."
           />
           <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
             <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
             primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
             compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
-            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según tu árbol de la sección 4.3 — nunca es la Prima Cobrada cruda.
+            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según tu árbol de la sección 5.3 — nunca es la Prima Cobrada cruda.
             La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
             cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
             lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
@@ -342,10 +396,9 @@ export function GuiaPasanteDia2() {
             nota de ALM peor). Cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la plataforma no te lo
             resuelve, aunque te muestra ambas corridas lado a lado en los resultados objetivos.
           </p>
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.5 · Las 4 notas — plantilla de calificación</p>
+        <FlowStep n="5" title="5.5 · Las 4 notas — plantilla de calificación">
           <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
             <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
@@ -365,21 +418,22 @@ export function GuiaPasanteDia2() {
             <ScoreCard label="Venta forzada de portafolio" weight="20%" formula="100 × (1 − severidad de lo vendido bajo presión, ponderada por volatilidad)" />
             <ScoreCard label="Liquidez" weight="10%" formula="100 × min(1, líquido disponible ÷ pagos esperados en los próximos 6 meses)" />
           </div>
-        </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.6 · El camino completo, de tu decisión a tu nota</p>
-          <p className="text-sm">
-            Tu árbol (4.3) → se simula mes a mes contra la caja real (4.4) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
-            alimentan las 4 notas (4.5) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
-          </p>
-          <p className="mt-2 text-sm">
-            Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en tu P&G — para ese entregable necesitas volver a
-            razonar tu árbol, esta vez con tu prima real (la que ya conoces) en vez del supuesto de fondeo perfecto de esta plantilla. El objetivo de esta
-            guía es que entiendas la mecánica completa desde ahora, para que ese siguiente paso sea un ajuste sobre algo que ya entiendes, no un ejercicio
-            desde cero.
-          </p>
-        </div>
+        <FlowStep n="6" title="5.6 · El camino completo, de tu decisión a tu nota" last>
+          <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+            <p className="text-sm">
+              Tu árbol (5.3) → se simula mes a mes contra la caja real (5.4) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
+              alimentan las 4 notas (5.5) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
+            </p>
+            <p className="mt-2 text-sm">
+              Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en tu P&G — para ese entregable necesitas volver a
+              razonar tu árbol, esta vez con tu prima real (la que ya conoces) en vez del supuesto de fondeo perfecto de esta plantilla. El objetivo de esta
+              guía es que entiendas la mecánica completa desde ahora, para que ese siguiente paso sea un ajuste sobre algo que ya entiendes, no un ejercicio
+              desde cero.
+            </p>
+          </div>
+        </FlowStep>
       </Section>
     </div>
   );
