@@ -69,7 +69,14 @@ export function generateChile(seed = 42, n: number = N_CHILE): ChilePolicy[] {
     const antig = Math.floor(r() * 21);
     const km = 5000 + Math.floor(r() * 115001);
     const hist = Math.min(Math.floor(Math.pow(r() * 2.2, 2)), 5);
-    const valorUf = Math.round(50 + r() * 7950);
+    // Range recalibrated (50-2250 UF, mean ~1150) so that, once converted to
+    // COP via chileSeverityToColombia2027Cop() (constants.ts), Chile's
+    // realized severities land in the same order of magnitude as Colombia's
+    // own (~COP 30-40M average) — the original 50-8000 UF range (mean 4025)
+    // priced an "average" Chilean vehicle at a implausible premium once
+    // converted, ~3.5x Colombia's own average severity. See that function's
+    // doc comment for the full transferability formula.
+    const valorUf = Math.round(50 + r() * 2200);
     const uso = USAGE_CL[Math.floor(r() * USAGE_CL.length)];
     const cajaAuto = r() < 0.45;
     const segComp = r() < 0.6;

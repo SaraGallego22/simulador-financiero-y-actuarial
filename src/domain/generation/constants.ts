@@ -70,6 +70,55 @@ export const CHILE_REAL_SEVERITY_GROWTH_ANNUAL = 0.03;
  */
 export const GENERAL_INFLATION_ANNUAL = (1 + CLAIMS_INFLATION_ANNUAL) / (1 + CHILE_REAL_SEVERITY_GROWTH_ANNUAL) - 1;
 
+/**
+ * Reference UF -> CLP value behind the Día 1 "reto de transferibilidad" (see
+ * chileSeverityToColombia2027Cop() below) — 1 UF ≈ 40,845 CLP, the real rate
+ * as of jul-2026 (when this exercise was authored; source: valoruf.cl). A
+ * snapshot, not a forecast for 2027 — see that function's doc comment for
+ * why a fixed reference point is used instead of projecting the rate itself.
+ */
+export const UF_CLP_REFERENCE_VALUE = 40_845;
+
+/**
+ * Reference CLP -> COP exchange rate, same rationale/date as
+ * UF_CLP_REFERENCE_VALUE — 1 CLP ≈ 3.5 COP as of jul-2026 (source:
+ * valutafx.com/morsemoney.com, which put it in the 3.47-3.58 range that
+ * week).
+ */
+export const CLP_COP_REFERENCE_RATE = 3.5;
+
+/**
+ * Converts a Chile severity (in UF, as observed in one of Chile's own years —
+ * 2021/2022/2023, see generateChile.ts's YEARS_CL) into its COP-equivalent
+ * for Colombia's Año 1 (ANIO_BASE_A1 = 2027) — the concrete formula behind
+ * the transferability challenge the Día 1 guide references (README §1.1).
+ * Two steps:
+ *
+ * 1. Real growth adjustment: the UF itself has ~0% real growth *by
+ *    construction* (it's reindexed daily against Chilean CPI specifically so
+ *    its real purchasing power stays flat) — there's no separate "real
+ *    growth of the UF" to research or apply. The only real adjustment needed
+ *    is extending the *severity* growth trend already measured within
+ *    Chile's own dataset (CHILE_REAL_SEVERITY_GROWTH_ANNUAL, genuine repair/
+ *    labor cost growth) forward from `fromYear` to 2027 — e.g. 4 years for a
+ *    2023 observation, 6 for a 2021 one.
+ * 2. Currency conversion: the resulting UF amount converts to COP via a
+ *    snapshot CLP/COP reference (UF_CLP_REFERENCE_VALUE ×
+ *    CLP_COP_REFERENCE_RATE above), not a 2027 forecast — FX rates that far
+ *    out aren't reliably predictable, so this transfers the *real* cost at
+ *    today's monetary reference point instead of pretending to forecast one.
+ *
+ * Not used by generateColombia()'s own calcMediaSev(), which is
+ * independently calibrated in COP — this exists purely so the
+ * transferability challenge referenced in the Día 1 guide has one concrete,
+ * checkable answer instead of only a narrative description.
+ */
+export function chileSeverityToColombia2027Cop(severityUf: number, fromYear: number): number {
+  const yearsToProject = ANIO_BASE_A1 - fromYear;
+  const projectedUf = severityUf * (1 + CHILE_REAL_SEVERITY_GROWTH_ANNUAL) ** yearsToProject;
+  return projectedUf * UF_CLP_REFERENCE_VALUE * CLP_COP_REFERENCE_RATE;
+}
+
 /** Monthly claim-occurrence seasonality weights, ported from ESTAC (line ~2029). */
 export const MONTHLY_SEASONALITY = [
   1.25, 1.05, 1.15, 1.0, 0.9, 0.95, 1.2, 1.15, 0.95, 0.9, 0.95, 1.35,
