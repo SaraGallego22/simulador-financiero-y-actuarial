@@ -59,9 +59,9 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
 }
 
 /** Vertical financial-statement template with real row labels, matching how DeliverablesForm groups/renders these same lines. */
-function StatementTemplate({ rowLabels, emphasizedLabels, note }: { rowLabels: string[]; emphasizedLabels?: string[]; note?: string }) {
+function StatementTemplate({ rowLabels, emphasizedLabels, formulaNotes }: { rowLabels: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-3">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
           <thead>
@@ -86,7 +86,20 @@ function StatementTemplate({ rowLabels, emphasizedLabels, note }: { rowLabels: s
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {formulaNotes && <FormulaNotes lines={formulaNotes} />}
+    </div>
+  );
+}
+
+/** Formula reference notes, one per line with real spacing between them — replaces cramming every formula into one dense paragraph. */
+function FormulaNotes({ lines }: { lines: string[] }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/40 p-3">
+      {lines.map((line, i) => (
+        <p key={i} className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">
+          {line}
+        </p>
+      ))}
     </div>
   );
 }
@@ -109,14 +122,14 @@ const PYG_ROWS = [
 
 function ScoreCard({ label, weight, formula }: { label: string; weight: string; formula: string }) {
   return (
-    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+    <div className="flex flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3">
       <p className="text-xs text-[var(--color-brand-text-secondary)]">
         {label} <span className="font-semibold">({weight})</span>
       </p>
-      <p className="my-1 flex h-8 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+      <p className="flex h-9 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
         &nbsp;
       </p>
-      <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+      <p className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">{formula}</p>
     </div>
   );
 }
@@ -157,7 +170,7 @@ export function GuiaPasanteDia2() {
         <ul className="list-disc pl-5">
           <li>
             <strong>Actuarial — retarifación Año 2.</strong> Ajustas tu modelo de tarificación para el Año 2, ahora con el historial de siniestros de cada
-            póliza como variable adicional. Las reservas técnicas del Año 1 no se reportan hoy — van como una línea del Balance que entregas en Día 3.
+            póliza como variable adicional. Las reservas técnicas del Año 1 no se reportan hoy — se calculan y reportan más adelante en el ejercicio.
           </li>
           <li>
             <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5)
@@ -179,14 +192,40 @@ export function GuiaPasanteDia2() {
           El ajuste exacto de tu tarifa y la asignación óptima de tu árbol no se revelan — esta sección explica el marco conceptual, no la respuesta.
         </p>
 
-        <SubSection title="Tarificación con experiencia propia (credibilidad)" accent="act">
+        <SubSection title="Retarifar con un año de experiencia real" accent="act">
           <p>
-            Cuando ya tienes un año de experiencia real por póliza (si tuvo un siniestro o no, y de qué magnitud), la pregunta actuarial cambia: ¿cuánto
-            debo confiar en la experiencia individual de esa póliza frente al promedio de su clase de riesgo? La teoría de credibilidad formaliza esa
-            mezcla: la prima ajustada es un promedio ponderado entre la experiencia propia del asegurado y la media de su clase, donde el peso de la
-            experiencia propia (el &ldquo;factor de credibilidad&rdquo;, entre 0 y 1) crece cuanto mayor sea el volumen de experiencia real acumulada y
-            menor su varianza frente a la varianza entre clases. Un solo año de historial por póliza es poca información — cuánta credibilidad le
-            asignes frente a tu modelo de clase ya calibrado en Día 1 es una decisión de criterio, no una regla mecánica.
+            Ya no estás tarificando a ciegas: tienes un año completo de experiencia real por póliza (si tuvo un siniestro o no, y de qué magnitud) que
+            no tenías antes. Hay más de un camino razonable para aprovechar esa información, y ninguno es obligatorio:
+          </p>
+          <ul className="list-disc pl-5">
+            <li>
+              <strong>Revisar y corregir tu propio modelo de tarifa.</strong> Compara tu frecuencia/severidad estimada contra lo que realmente ocurrió
+              — si alguna variable no predijo bien, o si tu tarifa quedó sistemáticamente alta o baja frente a la siniestralidad real, este es el
+              momento de mejorar esa misma estimación con evidencia real, sin necesariamente cambiar de método.
+            </li>
+            <li>
+              <strong>Incorporar la experiencia individual de cada póliza, no solo la de su clase de riesgo.</strong> Aquí es donde entra la teoría de
+              credibilidad: formaliza cómo mezclar la experiencia propia de un asegurado con el promedio de su clase — la prima ajustada es un
+              promedio ponderado entre las dos, donde el peso de la experiencia propia (el &ldquo;factor de credibilidad&rdquo;, entre 0 y 1) crece
+              cuanto mayor sea el volumen de experiencia acumulada y menor su varianza frente a la varianza entre clases. Es un camino más
+              sofisticado, no el único válido — un solo año de historial por póliza es poca información, y cuánta credibilidad le asignes es una
+              decisión de criterio.
+            </li>
+          </ul>
+          <p>
+            Cualquiera de los dos caminos (o una combinación de ambos) es una respuesta legítima — lo que se evalúa es que tu retarifación use la
+            información real que ya tienes, no que sigas un método específico.
+          </p>
+          <p>
+            <strong>Inflación del costo de siniestros.</strong> Además de tu propia experiencia, hay un factor que cualquier aseguradora real enfrenta
+            año a año: reparar un vehículo o reemplazar sus partes cuesta más en términos nominales con el paso del tiempo — por inflación general de
+            la economía, y por presiones propias del sector (repuestos, mano de obra especializada, disponibilidad de talleres) que pueden moverse a
+            un ritmo distinto de esa inflación general. Una aseguradora que tarifica un año con el costo promedio del año anterior, sin ajustar por
+            esto, sistemáticamente subestima lo que en realidad va a pagar.
+          </p>
+          <p>
+            Este ejercicio asume una inflación de costo de siniestros del <strong>9% anual</strong> entre el Año 1 y el Año 2 — tenla de referencia al
+            ajustar tu severidad para la tarifa de este año.
           </p>
         </SubSection>
 
@@ -290,9 +329,8 @@ export function GuiaPasanteDia2() {
               <strong>Concentrar todo en un solo instrumento tiene un costo aparte de su volatilidad.</strong> Aunque sea el instrumento con mejor
               relación rendimiento/riesgo del menú, quedarte 100% en uno solo descuenta tu Rendimiento — repartir entre varios de los instrumentos con
               plazo propio (CDT90/TES1/TES3/TESUVR8) baja ese descuento, incluso si tu volatilidad promedio termina siendo parecida. LIQ no cuenta para
-              este descuento (no es una apuesta concentrada, es tu colchón de liquidez). Este mismo criterio vuelve a aparecer el Día 4, dentro del
-              cálculo de tu capital de riesgo — entender por qué tu nota de hoy bajó es lo que te va a permitir reproducir correctamente ese cálculo
-              entonces.
+              este descuento (no es una apuesta concentrada, es tu colchón de liquidez). Este mismo criterio de concentración vuelve a ser relevante
+              más adelante en el ejercicio — entender por qué tu nota de hoy bajó te va a servir después.
             </li>
             <li>
               <strong>Nunca dependas de vender bajo presión.</strong> LIQ es el único instrumento que puedes retirar sin ninguna penalización — mantener
@@ -329,7 +367,16 @@ export function GuiaPasanteDia2() {
           <StatementTemplate
             rowLabels={PYG_ROWS}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="RPND constituida = 20% × Prima emitida. Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — sí cambia a partir de Año 2, ver la guía de Día 3). Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la prima emitida. Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo). Resultado Industrial = Resultado Técnico − Gasto administrativo. Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones. Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo. Resultado de inversiones sale de tu árbol de portafolio (secciones 5.2-5.6), no de una fórmula aparte."
+            formulaNotes={[
+              "RPND constituida = 20% × Prima emitida.",
+              "Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — esto cambia a partir del Año 2).",
+              "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la prima emitida.",
+              "Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo).",
+              "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
+              "Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones.",
+              "Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo.",
+              "Resultado de inversiones sale de tu árbol de portafolio (secciones 5.2-5.6), no de una fórmula aparte.",
+            ]}
           />
         </FlowStep>
 
@@ -399,16 +446,16 @@ export function GuiaPasanteDia2() {
         </FlowStep>
 
         <FlowStep n="5" title="5.5 · Las 4 notas — plantilla de calificación">
-          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+          <div className="flex flex-col gap-3 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
-            <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+            <p className="flex h-10 w-32 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
               &nbsp;
             </p>
-            <p className="text-xs italic text-[var(--color-brand-text-secondary)]">
+            <p className="text-sm leading-relaxed text-[var(--color-brand-text-secondary)]">
               = 35% × Cumplimiento de Caja + 35% × Rendimiento ajustado + 20% × Venta forzada + 10% × Liquidez
             </p>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ScoreCard label="Cumplimiento de Caja Mínima" weight="35%" formula="100 × (1 − 0.5×[peor mes de capital comprometido ÷ Capital Social] − 0.5×[acumulado ÷ Capital Social])" />
             <ScoreCard
               label="Rendimiento ajustado por riesgo"
