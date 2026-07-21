@@ -6,21 +6,21 @@ import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 const DAYS = [
   {
     n: 1,
-    label: "Día 1 — Tarifación Año 1",
-    actuarial: "Tarificas cada póliza del Año 1 antes de que el mercado se cierre.",
+    label: "Día 1 — Tarifación 2027",
+    actuarial: "Tarificas cada póliza del 2027 antes de que el mercado se cierre.",
     financiero: "Presentas un portafolio de mínima varianza sujeto a un rendimiento objetivo.",
   },
   {
     n: 2,
-    label: "Día 2 — P&G Año 1 y retarifación Año 2",
-    actuarial: "Retarificas para el Año 2 (con retención de clientes) y reportas el estado de resultados del Año 1.",
+    label: "Día 2 — P&G 2027 y retarifación 2028",
+    actuarial: "Retarificas para el 2028 (con retención de clientes) y reportas el estado de resultados del 2027.",
     financiero: "Armas el árbol de decisiones de tu portafolio de inversión real.",
   },
   {
     n: 3,
-    label: "Día 3 — P&G Año 2 y Balance",
-    actuarial: "Reportas las reservas técnicas de Año 1 y Año 2.",
-    financiero: "Reportas el estado de resultados del Año 2, la proyección del Año 3 y el Balance completo.",
+    label: "Día 3 — P&G 2028 y Balance",
+    actuarial: "Reportas las reservas técnicas de 2027 y 2028.",
+    financiero: "Reportas el estado de resultados del 2028, la proyección del 2029 y el Balance completo.",
   },
   {
     n: 4,

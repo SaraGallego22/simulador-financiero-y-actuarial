@@ -2,6 +2,7 @@ import { INSTRUMENT_BY_ID, MAX_TRANCHE_DEPTH, trancheDurationM } from "@/domain/
 import type { Tranche, MaturityDecision } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow, AlmRealYearResult } from "@/domain/finance/alm";
 import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
+import { SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 function maturityLabel(action: MaturityDecision): string {
   if (action.action === "cash") return "mantener en caja";
@@ -152,8 +153,8 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <InfoTile label="Reserva" value={money(score.reserva)} />
           <InfoTile label="Rendimiento portafolio (nominal)" value={pct(score.portYield, 2)} formula="promedio ponderado de los rendimientos elegidos, sin simular" />
-          <InfoTile label="Ingreso de inversión — Año 1 (ficticio)" value={money(score.incomeY1)} formula="suma de Rendimiento (meses 1-12) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
-          <InfoTile label="Ingreso de inversión — Año 2 (ficticio)" value={money(score.incomeY2)} formula="suma de Rendimiento (meses 13-24) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
+          <InfoTile label="Ingreso de inversión — 2027 (ficticio)" value={money(score.incomeY1)} formula="suma de Rendimiento (meses 1-12) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
+          <InfoTile label="Ingreso de inversión — 2028 (ficticio)" value={money(score.incomeY2)} formula="suma de Rendimiento (meses 13-24) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
           <InfoTile label="Ingreso total simulado (60 meses)" value={money(score.totIncome)} />
           <InfoTile
             label="Patrimonio disponible al final"
@@ -321,12 +322,12 @@ export function AlmPnlBreakdown({
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-4">
       <h4 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        De dónde sale el Resultado de Inversiones del P&G real — Año {year}
+        De dónde sale el Resultado de Inversiones del P&G real — {SIMULATED_YEAR_LABEL[year]}
       </h4>
       <p className="mb-2 text-sm text-[var(--color-foreground)]">
         El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo, no una fórmula aproximada: el ingreso de inversión que el
         portafolio realmente generó, mes a mes, durante los 12 meses de este año{" "}
-        {year === 2 && "— continuando exactamente donde quedó el Año 1, mismas posiciones abiertas, mismo capital comprometido acumulado — "}
+        {year === 2 && "— continuando exactamente donde quedó el 2027, mismas posiciones abiertas, mismo capital comprometido acumulado — "}
         corrido con la prima real de este equipo. No incluye el capital comprometido (eso ya se resta aparte, directamente del patrimonio).
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -353,7 +354,7 @@ export function AlmPnlBreakdown({
         </p>
         <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">
           Capital Social − capital comprometido acumulado ({money(realYear.capitalComprometidoAcumulado)}
-          {year === 2 ? " — acumulado desde el Año 1, nunca se repone solo" : ""}). Esto es lo mismo que finBench() usa para restar directamente del
+          {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Esto es lo mismo que finBench() usa para restar directamente del
           patrimonio en el Balance real de este año.
         </p>
       </div>

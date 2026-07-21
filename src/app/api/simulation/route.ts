@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       if (day === 2 && year2Claims) {
         const previousAssignment = await getPreviousAssignmentNumeric(cohort.id, 1, numericIdByTeamId, universe.n);
         if (!previousAssignment) {
-          throw new Error("Corre la simulación del Día 1 primero — el Día 2 necesita saber quién aseguró a quién en el Año 1.");
+          throw new Error("Corre la simulación del Día 1 primero — el Día 2 necesita saber quién aseguró a quién en el 2027.");
         }
         const result = runSimulationYear2(universe, year2Claims, previousAssignment, tariffsByTeam, teamInfos, {
           seed,
