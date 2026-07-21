@@ -130,8 +130,9 @@ export function GuiaPasanteDia4() {
           <p>
             El indicador más directo para comparar la rentabilidad relativa de un segmento frente al resto del mercado es un multiplicador de
             siniestralidad — cuánto por encima o por debajo del promedio general queda la pérdida agregada (frecuencia × severidad) de ese segmento,
-            normalizado a 1.0 como el promedio. Es la misma lógica de relatividades de un GLM (Día 1) pero aplicada como herramienta de dirección
-            estratégica de portafolio, no de precio individual: decidir qué segmentos crecer y cuáles evitar con evidencia parcial y sesgada (tu propia
+            normalizado a 1.0 como el promedio. Es la misma lógica de relatividades que ya usaste para tarificar en Día 1 (ver su glosario de
+            términos), pero aplicada como herramienta de dirección estratégica de portafolio, no de precio individual: decidir qué segmentos crecer y
+            cuáles evitar con evidencia parcial y sesgada (tu propia
             cartera, que ya sobrerrepresenta los riesgos que subvaloraste) es un problema estadístico real que enfrenta cualquier aseguradora al planear
             su book de negocio.
           </p>
