@@ -26,7 +26,7 @@ import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
-import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
+import { DAY_TITLES, DAY_DESCRIPTIONS, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
@@ -546,7 +546,7 @@ export default async function AdminDayPage({
                 })}
               </div>
               <p className="mt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                Este portafolio también alimenta el tope de cuota de mercado del Año 1 — ver pestaña Simulación.
+                Este portafolio también alimenta el tope de cuota de mercado del 2027 — ver pestaña Simulación.
               </p>
             </div>
           )}
@@ -866,11 +866,11 @@ export default async function AdminDayPage({
               )}
               {day === 2 && (
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-                  &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del Año 1 reportadas (pestaña Entregables) —{" "}
+                  &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Entregables) —{" "}
                   <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM
                   (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el árbol de
                   portafolio se movió a este día. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: Día 2 no tiene ningún reporte actuarial
-                  aparte — las reservas técnicas de Año 1 se reportan hasta Día 3, como línea del Balance.
+                  aparte — las reservas técnicas de 2027 se reportan hasta Día 3, como línea del Balance.
                 </p>
               )}
             </div>
@@ -879,7 +879,7 @@ export default async function AdminDayPage({
           {hasPortfolioTree && bookYear && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                ALM — calce del portafolio vs. reservas de Año {bookYear}
+                ALM — calce del portafolio vs. reservas de {SIMULATED_YEAR_LABEL[bookYear]}
               </h3>
               <div className="flex flex-col gap-3">
                 {teams.map((team) => {
@@ -927,7 +927,7 @@ export default async function AdminDayPage({
                           {realAlmYear && (
                             <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
                               <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                                ALM real — con la prima real de este equipo, solo los 12 meses de Año {bookYear} (esto es lo que finBench usa para
+                                ALM real — con la prima real de este equipo, solo los 12 meses de {SIMULATED_YEAR_LABEL[bookYear]} (esto es lo que finBench usa para
                                 el Resultado de Inversiones/Balance/Solvencia reales; el ALM ficticio de arriba solo califica la nota de ALM de este día)
                               </p>
                               <div className="flex flex-col gap-3">
@@ -950,7 +950,7 @@ export default async function AdminDayPage({
             <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Financiero (finBench) — Año 1 / Año 2
+                  Financiero (finBench) — 2027 / 2028
                 </h3>
               </div>
               <table className="w-full text-sm">
@@ -1016,7 +1016,7 @@ export default async function AdminDayPage({
               </table>
               <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
                 El límite de cuota A2 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
-                Año 1 — un equipo con Margen de solvencia bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en A2.
+                2027 — un equipo con Margen de solvencia bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en A2.
               </p>
             </div>
           )}
@@ -1025,7 +1025,7 @@ export default async function AdminDayPage({
             <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Balance y proyección Año 3
+                  Balance y proyección 2029
                 </h3>
               </div>
               <table className="w-full text-sm">

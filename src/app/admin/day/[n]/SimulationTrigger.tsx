@@ -66,7 +66,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
         </label>
         {day === 2 && (
           <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-            Retención de clientes (Año 1→2)
+            Retención de clientes (2027→2)
             <input
               type="number"
               step="0.5"
@@ -82,7 +82,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
         Este ya no es el límite que normalmente rechaza pólizas — es solo el techo absoluto que ningún equipo puede superar sin importar su capital. Lo que
         realmente limita a cada equipo es su propio capital disponible y el riesgo de su portafolio (calculado con el mismo modelo de solvencia del Día 4 —
         ver README). Con 1 equipo con tarifa completa, ese equipo recibe el 100% automáticamente (no hay competencia que simular).
-        {day === 2 && " La retención controla qué tan difícil es para un equipo perder un cliente que ya tenía en el Año 1."}
+        {day === 2 && " La retención controla qué tan difícil es para un equipo perder un cliente que ya tenía en el 2027."}
       </p>
       {error && <p className="mb-3 text-sm text-[var(--color-brand-red)]">{error}</p>}
       <button

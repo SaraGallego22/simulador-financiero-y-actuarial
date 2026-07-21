@@ -120,7 +120,7 @@ export function GuiaPasanteDia1() {
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 1 — Tarificación Año 1 y portafolio de mínima varianza
+          Día 1 — Tarificación 2027 y portafolio de mínima varianza
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
           Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de subir tu tarifa o construir tu portafolio: te explica exactamente
@@ -147,14 +147,14 @@ export function GuiaPasanteDia1() {
         <p>Hoy tomas dos decisiones independientes que definen el punto de partida de todo lo que sigue:</p>
         <ul className="list-disc pl-5">
           <li>
-            <strong>Actuarial — la tarifa del Año 1.</strong> Fijas el precio de cada póliza. Al cerrar el día, todos los equipos entran a un mercado
+            <strong>Actuarial — la tarifa del 2027.</strong> Fijas el precio de cada póliza. Al cerrar el día, todos los equipos entran a un mercado
             simultáneo: cada asegurado elige la aseguradora que más le conviene, y el resultado (cuántas pólizas ganaste, con qué nivel de riesgo) queda
             fijado para el resto del ejercicio — es la base de todo lo que vas a reportar el resto del ejercicio.
           </li>
           <li>
             <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
             menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte de cómo inviertas tu presupuesto real más adelante en el
-            ejercicio. Este portafolio de mínima varianza también alimenta tu tope de cuota de mercado del Año 1 (ver sección 3).
+            ejercicio. Este portafolio de mínima varianza también alimenta tu tope de cuota de mercado del 2027 (ver sección 3).
           </li>
         </ul>
         <p>
@@ -222,7 +222,7 @@ export function GuiaPasanteDia1() {
           <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-blue-accent)]">El desafío de transferibilidad</p>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              Este dataset está en UF y corresponde a 2021-2023 — varios años antes del Año 1 de este ejercicio (2027). Usarlo como
+              Este dataset está en UF y corresponde a 2021-2023 — varios años antes de 2027, el año de este ejercicio. Usarlo como
               referencia de severidad para tu propia tarifa exige resolver dos brechas distintas, no solo convertir unidades:
             </p>
             <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-brand-text-secondary)]">
@@ -356,7 +356,7 @@ export function GuiaPasanteDia1() {
       </Section>
 
       <Section n="3" title="Qué se te va a calificar">
-        <SubSection title="Tarifa Año 1" accent="act">
+        <SubSection title="Tarifa 2027" accent="act">
           <p>
             Debes subir un CSV con dos columnas — <code className="rounded bg-black/5 px-1">id_expuesto,prima</code> — con una prima para cada una de las
             1.000.000 exposiciones del universo público (descargable desde la pestaña de Simulación de este día).
@@ -387,7 +387,7 @@ export function GuiaPasanteDia1() {
             Si tu equipo no alcanza a completar su tarifa a tiempo, la pestaña de Simulación tiene una opción de emergencia — &ldquo;Tercerizar
             tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir
             participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
-            revela una vez se publiquen los resultados de ese día. Aplica igual en el Año 2.
+            revela una vez se publiquen los resultados de ese día. Aplica igual en el 2028.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Para calibrar tu propio modelo de frecuencia y severidad tienes disponible, además del universo público, un dataset de referencia con
@@ -409,7 +409,7 @@ export function GuiaPasanteDia1() {
             rendimiento objetivo) — mientras más cerca de esa varianza mínima, mejor tu nota.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-            Este portafolio también determina qué tan volátil se considera tu perfil de inversión para efectos del tope de cuota de mercado del Año 1: un
+            Este portafolio también determina qué tan volátil se considera tu perfil de inversión para efectos del tope de cuota de mercado del 2027: un
             portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un margen de solvencia saludable.
           </p>
         </SubSection>

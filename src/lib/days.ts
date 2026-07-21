@@ -1,7 +1,10 @@
+/** Maps the simulated book-year index (1/2/3) to its calendar-year label — used wherever a dynamic year number needs the same "2027/2028/2029" treatment as the rest of the product's copy (instead of "Año 1/2/3"). */
+export const SIMULATED_YEAR_LABEL: Record<number, string> = { 1: "2027", 2: "2028", 3: "2029" };
+
 export const DAY_TITLES: Record<number, string> = {
-  1: "Tarificación Año 1 y mínima varianza",
-  2: "Estado de resultados Año 1, retarifación Año 2 y portafolio",
-  3: "Estado de resultados Año 2/3 (proy.) y Balance",
+  1: "Tarificación 2027 y mínima varianza",
+  2: "Estado de resultados 2027, retarifación 2028 y portafolio",
+  3: "Estado de resultados 2028/2029 (proy.) y Balance",
   4: "Solvencia, dividendos y analítica",
 };
 
@@ -10,10 +13,10 @@ export const DAY_TITLES: Record<number, string> = {
 // portafolio ALM movido a Día 2 (ver README's market-clearing section) y
 // el reporte financiero reestructurado en estados completos (ver README §4).
 export const DAY_DESCRIPTIONS: Record<number, string> = {
-  1: "Actuarial: tarifica el Año 1 (el dataset Chile es tu única referencia con siniestros y severidad para calibrar el modelo). Financiero: encuentra el portafolio de mínima varianza sujeto a un retorno objetivo. Al cierre del día se corre la simulación.",
-  2: "Actuarial: retarifica el Año 2. Financiero: entrega el estado de resultados completo del Año 1 (sin reservas por separado — esas van en el Balance de Día 3) y arma el árbol de decisión de tu portafolio real (ya conoces tus cifras reales de Año 1). Al cierre del día se corre la simulación del Año 2.",
-  3: "Actuarial: calcula las reservas técnicas de Año 1 y Año 2 como parte del Balance. Financiero: entrega el estado de resultados del Año 2 y la proyección de Año 3, y el Balance completo de los tres años.",
-  4: "Financiero: calcula solvencia, RK, fondos propios y dividendos. Actuarial: entrega la analítica sectorial para el eventual Año 3.",
+  1: "Actuarial: tarifica el 2027 (el dataset Chile es tu única referencia con siniestros y severidad para calibrar el modelo). Financiero: encuentra el portafolio de mínima varianza sujeto a un retorno objetivo. Al cierre del día se corre la simulación.",
+  2: "Actuarial: retarifica el 2028. Financiero: entrega el estado de resultados completo del 2027 (sin reservas por separado — esas van en el Balance de Día 3) y arma el árbol de decisión de tu portafolio real (ya conoces tus cifras reales de 2027). Al cierre del día se corre la simulación del 2028.",
+  3: "Actuarial: calcula las reservas técnicas de 2027 y 2028 como parte del Balance. Financiero: entrega el estado de resultados del 2028 y la proyección de 2029, y el Balance completo de los tres años.",
+  4: "Financiero: calcula solvencia, RK, fondos propios y dividendos. Actuarial: entrega la analítica sectorial para el eventual 2029.",
 };
 
 // Indicaciones puntuales por pestaña, complementarias al texto que ya
@@ -32,13 +35,13 @@ export const TAB_NOTES: Record<
       "Este portafolio de mínima varianza es una decisión aparte del árbol de inversión real (que se somete en Día 2, junto con tus cifras reales de prima y siniestros) — es tu presentación al regulador antes de escribir una sola póliza.",
   },
   2: {
-    sim: "Ya conoces el resultado y el calce del Año 1. Ajusta tu modelo de tarificación con tu propio historial de siniestros —ahora es una variable adicional— y sube un nuevo CSV con id_expuesto,prima para los mismos 10.000.000 de expuestos.",
+    sim: "Ya conoces el resultado y el calce del 2027. Ajusta tu modelo de tarificación con tu propio historial de siniestros —ahora es una variable adicional— y sube un nuevo CSV con id_expuesto,prima para los mismos 10.000.000 de expuestos.",
     portfolio:
-      "Ahora que ya conoces tus cifras reales de prima y siniestros del Año 1, arma el árbol de decisión de tu portafolio real — esta es la decisión que se califica como Nota ALM.",
+      "Ahora que ya conoces tus cifras reales de prima y siniestros del 2027, arma el árbol de decisión de tu portafolio real — esta es la decisión que se califica como Nota ALM.",
   },
   3: {
     deliverables:
-      "Recalcula las reservas del Año 2 con la emergencia de siniestros del Año 1 (casos avisados durante 2028, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año — no hay un reporte de reservas aparte. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de Año 1, Año 2 y Año 3 (proyectado), línea por línea.",
+      "Recalcula las reservas del 2028 con la emergencia de siniestros del 2027 (casos avisados durante ese año, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año — no hay un reporte de reservas aparte. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de 2027, 2028 y 2029 (proyectado), línea por línea.",
   },
   4: {
     analytics:

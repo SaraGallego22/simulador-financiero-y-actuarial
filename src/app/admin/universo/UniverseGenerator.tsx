@@ -144,7 +144,7 @@ export function UniverseGenerator({
       />
       <DatasetCard
         title="Dataset Chile"
-        description="100,000 pólizas de referencia con 3 años de exposición (2021-2023) — cada equipo la usa para calibrar su modelo de frecuencia/severidad antes de tarificar el Año 1, con retos deliberados de transferibilidad (variables, moneda UF, brecha temporal) entre Chile y Colombia."
+        description="100,000 pólizas de referencia con 3 años de exposición (2021-2023) — cada equipo la usa para calibrar su modelo de frecuencia/severidad antes de tarificar el 2027, con retos deliberados de transferibilidad (variables, moneda UF, brecha temporal) entre Chile y Colombia."
         latest={initialChile}
         onGenerate={() => generate("chile")}
         loading={loadingKind === "chile"}

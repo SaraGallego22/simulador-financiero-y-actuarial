@@ -70,7 +70,7 @@ function StatementTemplate({ rowLabels, emphasizedLabels, formulaNotes }: { rowL
                 Línea
               </th>
               <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                Año 1
+                2027
               </th>
             </tr>
           </thead>
@@ -141,7 +141,7 @@ export function GuiaPasanteDia2() {
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 2 — P&G Año 1, retarifación Año 2 y portafolio real
+          Día 2 — P&G 2027, retarifación 2028 y portafolio real
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
           Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu árbol de portafolio: te explica exactamente qué se
@@ -151,26 +151,26 @@ export function GuiaPasanteDia2() {
 
       <InsumosEntregables
         insumos={[
-          "Resultado real del mercado del Año 1: pólizas ganadas, prima cobrada y siniestralidad de tu propia cartera.",
-          "Historial de siniestros por póliza (si tuvo o no, y de qué magnitud) — insumo nuevo para la retarifación de Año 2.",
+          "Resultado real del mercado del 2027: pólizas ganadas, prima cobrada y siniestralidad de tu propia cartera.",
+          "Historial de siniestros por póliza (si tuvo o no, y de qué magnitud) — insumo nuevo para la retarifación de 2028.",
           "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu árbol de portafolio real.",
         ]}
         entregables={[
-          "Tarifa Año 2 (mismo formato CSV que Día 1: id_expuesto, prima).",
+          "Tarifa 2028 (mismo formato CSV que Día 1: id_expuesto, prima).",
           "Árbol de decisión de portafolio real (instrumento, % asignado, vencimiento/reasignación).",
-          "Estado de resultados completo del Año 1 (13 líneas).",
+          "Estado de resultados completo del 2027 (13 líneas).",
         ]}
       />
 
       <Section n="1" title="Contexto del día">
         <p>
-          Ya conoces el resultado real del Año 1 — cuántas pólizas ganaste, con qué siniestralidad, y cuánta prima realmente cobraste. Hoy tomas el árbol
+          Ya conoces el resultado real del 2027 — cuántas pólizas ganaste, con qué siniestralidad, y cuánta prima realmente cobraste. Hoy tomas el árbol
           de decisión de tu portafolio de inversión real, ahora con esas cifras reales en la mano en vez de la incertidumbre del Día 1.
         </p>
         <ul className="list-disc pl-5">
           <li>
-            <strong>Actuarial — retarifación Año 2.</strong> Ajustas tu modelo de tarificación para el Año 2, ahora con el historial de siniestros de cada
-            póliza como variable adicional. Las reservas técnicas del Año 1 no se reportan hoy — se calculan y reportan más adelante en el ejercicio.
+            <strong>Actuarial — retarifación 2028.</strong> Ajustas tu modelo de tarificación para el 2028, ahora con el historial de siniestros de cada
+            póliza como variable adicional. Las reservas técnicas del 2027 no se reportan hoy — se calculan y reportan más adelante en el ejercicio.
           </li>
           <li>
             <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5)
@@ -179,7 +179,7 @@ export function GuiaPasanteDia2() {
             diferencia del portafolio de mínima varianza de Día 1 (un ejercicio aparte, ya calificado), este árbol es tu decisión de inversión real.
           </li>
           <li>
-            <strong>Financiero — estado de resultados completo del Año 1.</strong> Reportas las 13 líneas del P&G del Año 1 (prima emitida, la Reserva de
+            <strong>Financiero — estado de resultados completo del 2027.</strong> Reportas las 13 líneas del P&G del 2027 (prima emitida, la Reserva de
             Prima No Devengada que constituyes sobre ella, prima devengada, costo de siniestros, gastos, resultado técnico, resultado industrial,
             resultado de inversiones, utilidad antes de impuestos, impuesto y utilidad neta), en el mismo orden vertical de un estado de resultados real —
             ver sección 3.
@@ -224,7 +224,7 @@ export function GuiaPasanteDia2() {
             esto, sistemáticamente subestima lo que en realidad va a pagar.
           </p>
           <p>
-            La inflación general esperada entre el Año 1 y el Año 2 es del <strong>6% anual</strong> — tenla de referencia. La inflación del costo de
+            La inflación general esperada entre el 2027 y el 2028 es del <strong>6% anual</strong> — tenla de referencia. La inflación del costo de
             siniestros específicamente es <strong>mayor</strong> a esa inflación general (por las presiones propias del sector que ya mencionamos):
             no se te da el número exacto, es parte de lo que se evalúa que tu equipo estime al ajustar su severidad para la tarifa de este año.
           </p>
@@ -255,15 +255,15 @@ export function GuiaPasanteDia2() {
       </Section>
 
       <Section n="3" title="Qué se te va a calificar">
-        <SubSection title="Estado de resultados Año 1" accent="fin">
+        <SubSection title="Estado de resultados 2027" accent="fin">
           <p>
-            Reporta cada línea del P&G del Año 1 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
+            Reporta cada línea del P&G del 2027 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
             mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real, en base <strong>fecha de accidente</strong>: es
-            el costo total de lo ocurrido en el Año 1, sin importar cuándo se avise. Los gastos de adquisición y comisión son porcentajes fijos sobre la
+            el costo total de lo ocurrido en el 2027, sin importar cuándo se avise. Los gastos de adquisición y comisión son porcentajes fijos sobre la
             prima <strong>emitida</strong> (4%/15%); el administrativo también (6%), pero ya no resta dentro del Resultado Técnico — tiene su propia línea
             (Resultado Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
-            Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del Año 1 — no una fórmula, el
+            Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
             resultado de la simulación mes a mes.
           </p>
           <p>
@@ -283,8 +283,8 @@ export function GuiaPasanteDia2() {
             y gastos que salen, vencimientos que regresan como caja, y lo que queda se reinvierte según tu árbol.
           </p>
           <p>
-            Este es tu único árbol para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del Año 2 más adelante — no
-            vas a tener una segunda oportunidad de someter uno distinto. Piensa tu árbol pensando en ambos años, no solo en el Año 1.
+            Este es tu único árbol para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más adelante — no
+            vas a tener una segunda oportunidad de someter uno distinto. Piensa tu árbol pensando en ambos años, no solo en el 2027.
           </p>
           <p>Tu nota (&ldquo;Calce ALM del portafolio&rdquo;) tiene 4 componentes, con estos pesos:</p>
           <ul className="list-disc pl-5">
@@ -351,7 +351,7 @@ export function GuiaPasanteDia2() {
         </SubSection>
 
         <PreguntasAbiertas>
-          <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de Año 2 de la de Año 1?</li>
+          <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de 2028 de la de 2027?</li>
           <li>¿Cómo cambiaría tu árbol de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
           <li>¿Qué le pasaría a tu Resultado de Inversiones si una recesión bajara el rendimiento de los instrumentos más riesgosos del menú?</li>
         </PreguntasAbiertas>
@@ -364,13 +364,13 @@ export function GuiaPasanteDia2() {
           resueltas con tus números, en los resultados objetivos después de guardar cada entregable.
         </p>
 
-        <FlowStep n="1" title="5.1 · Estado de resultados — Año 1">
+        <FlowStep n="1" title="5.1 · Estado de resultados — 2027">
           <StatementTemplate
             rowLabels={PYG_ROWS}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
             formulaNotes={[
               "RPND constituida = 20% × Prima emitida.",
-              "Prima devengada = Prima emitida − RPND constituida (80% exacto en Año 1, porque no hay un año anterior del que liberar nada — esto cambia a partir del Año 2).",
+              "Prima devengada = Prima emitida − RPND constituida (80% exacto en 2027, porque no hay un año anterior del que liberar nada — esto cambia a partir del 2028).",
               "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la prima emitida.",
               "Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo).",
               "Resultado Industrial = Resultado Técnico − Gasto administrativo.",

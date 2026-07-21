@@ -18,7 +18,7 @@ import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
-import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES } from "@/lib/days";
+import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
@@ -333,7 +333,7 @@ export default async function TeamDayPage({
         {day === 4 && capacityHistory.length > 0 && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
             <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              Tu límite de cuota, Año 1 vs. Año 2
+              Tu límite de cuota, 2027 vs. 2028
             </h3>
             <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
               Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si tu capital se
@@ -344,7 +344,7 @@ export default async function TeamDayPage({
                 const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
                 return (
                   <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
-                    <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Año {r.simulationRun.day}</p>
+                    <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[r.simulationRun.day]}</p>
                     <p className="mt-1 text-sm">
                       Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
                     </p>
@@ -402,7 +402,7 @@ export default async function TeamDayPage({
         {hasPortfolioTree && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
             <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              ALM — tu portafolio vs. tus reservas de Año {bookYear}
+              ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[bookYear ?? 1]}
             </h3>
             {almScore ? (
               <div className="flex flex-col gap-3">
