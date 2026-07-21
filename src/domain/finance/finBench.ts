@@ -310,9 +310,15 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1)!;
   const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2) : null;
   // Year 3 is a projection, not an independently ALM-simulated year (see
-  // README §5) — it carries Year 2's already-committed capital forward
-  // rather than assuming any new erosion.
-  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY2) : null;
+  // README §5) — there's no third ALM run to measure a real erosion from,
+  // so capitalComprometido is projected off the Año1->Año2 trend instead of
+  // just carrying Año 2's checkpoint flat forward. capitalComprometido is
+  // cumulative and never repays itself on its own (see alm.ts), so the
+  // Y1->Y2 delta is always >= 0; projecting the same delta forward is the
+  // same "no new erosion assumed" outcome in the common case (delta = 0)
+  // but continues a real trend when one exists.
+  const capitalComprometidoY3 = capitalComprometidoY2 + (capitalComprometidoY2 - capitalComprometidoY1);
+  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY3) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;

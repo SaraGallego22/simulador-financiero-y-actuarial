@@ -305,7 +305,7 @@ El **Año 3 no se simula** — no hay un tercer mercado ni un tercer ALM. Cuando
 
 El saldo de reserva del Año 3 (proyectado) se explica en §4.3 junto al resto de la Reserva Técnica.
 
-Balance/capital comprometido de Año 3 no cambian: siguen las mismas fórmulas de caja/cxc/cxp/RPND (§4.3) y el mismo capital comprometido acumulado de Año 2 hacia adelante, sin asumir nueva erosión.
+Balance de Año 3: mismas fórmulas de caja/cxc/cxp/RPND que Año 1/2 (§4.3). El capital comprometido de Año 3, en cambio, sí se proyecta — no se limita a cargar el mismo corte de Año 2 hacia adelante — extrapolando la tendencia Año1→Año2 (`capitalComprometidoY2 + (capitalComprometidoY2 − capitalComprometidoY1)`): como ese acumulado nunca se repone solo (§5.1), el delta Y1→Y2 nunca es negativo, así que en el caso más común (sin erosión en ningún año) el resultado sigue siendo el mismo corte de Año 2 sin cambios, pero un equipo que ya venía comprometiendo capital adicional en Año 2 arrastra esa misma tendencia a su proyección de Año 3.
 
 **Fallback** (cuando falta cualquiera de los insumos de arriba — `development` sin los campos de Año 3, o sin `insuredCount`/`year2Retention`): `p3` cae de vuelta a una proyección plana — `primaEmitida3 = primaEmitida2 × 1.06`, `costo3 = costo2 × 1.06`, `reservas3 = reservas2 × 1.06`, `rinv3 = reservas3 × portYield`, `rpndLiberada3 = rpndConstituida2` (`FZ.growth3 = 6%`).
 
@@ -320,7 +320,7 @@ Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese 
 | `activos` (fórmula) | `caja + inversiones + cxc`. |
 | `reservasTec` (Reserva Técnica) | La plata apartada para pagar siniestros que todavía no se han terminado de pagar — ver el detalle año por año justo debajo de esta tabla. Un hecho/estimación primario, no una fórmula de otras líneas del Balance. |
 | `pasivo` (fórmula) | `reservasTec + rpnd + cxp` — la RPND es un pasivo aparte, junto a las reservas técnicas y las cuentas por pagar. |
-| `patrimonio` | `CAPITAL_SOCIAL` (fijo, §5.1) `+ utilidades retenidas` (la suma acumulada de `uneta` hasta ese año) `− capital comprometido` acumulado hasta el cierre de ese año, tomado directamente del ALM real de ese año (`AlmRealYearResult.capitalComprometidoAcumulado` — el Año 3 no tiene ALM propio, así que carga el mismo corte del Año 2 hacia adelante). Un hecho/estimación primario — depende del ALM, no de otras líneas del Balance. |
+| `patrimonio` | `CAPITAL_SOCIAL` (fijo, §5.1) `+ utilidades retenidas` (la suma acumulada de `uneta` hasta ese año, incluida la `uneta` proyectada de Año 3 — ver §4.2) `− capital comprometido` acumulado hasta el cierre de ese año. Para Año 1/2 viene directo del ALM real de ese año (`AlmRealYearResult.capitalComprometidoAcumulado`); Año 3 no tiene ALM propio, así que lo proyecta extrapolando la tendencia Año1→Año2 (ver §4.2). Un hecho/estimación primario — depende del ALM, no de otras líneas del Balance. |
 | `pasivoPatrim` (fórmula) | `pasivo + patrimonio` — debe cuadrar exactamente con `activos` (la identidad contable básica); es la razón por la que existe como concepto reportable aparte, no solo de lectura. |
 | `inversiones` (fórmula) | `reservasTec + rpnd + cxp + patrimonio − caja − cxc` — el residual que hace cuadrar el balance (activos = pasivos + patrimonio), no un valor de mercado del portafolio. |
 
