@@ -1,3 +1,5 @@
+import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
+
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
@@ -84,7 +86,7 @@ const PYG_A2_ROWS = [
 
 // Año 3 no tiene línea de Ajuste de siniestralidad — esa línea corrige el
 // propio Costo de Siniestros A1 que reportaste en Día 2, y no hay un día
-// posterior a Día 3 donde corregir un eventual error de Día 3 (ver sección 3).
+// posterior a Día 3 donde corregir un eventual error de Día 3 (ver sección 4).
 const PYG_A3_ROWS = [
   "Prima emitida (proy.)",
   "RPND liberada (A2)",
@@ -130,6 +132,19 @@ export function GuiaPasanteDia3() {
         </p>
       </header>
 
+      <InsumosEntregables
+        insumos={[
+          "Pagos reales del Año 2 sobre los siniestros del Año 1 (desarrollo) y los siniestros propios del Año 2.",
+          "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de Año 1/Año 2.",
+          "Retención real de pólizas de Año 1 a Año 2, para proyectar el Año 3.",
+        ]}
+        entregables={[
+          "Estado de resultados completo del Año 2 (15 líneas) y proyección del Año 3 (14 líneas).",
+          "Balance de Año 1, Año 2 y Año 3 (10 líneas cada uno).",
+          "Siniestros pagados en Año 2 (desglose de caja, no una línea del P&G).",
+        ]}
+      />
+
       <Section n="1" title="Contexto del día">
         <p>
           Ya conoces cuánto pagaste durante el Año 2 de los siniestros del Año 1 y cuánto sigue pendiente. Con eso, cierras el ciclo financiero completo
@@ -154,7 +169,46 @@ export function GuiaPasanteDia3() {
         </ul>
       </Section>
 
-      <Section n="2" title="Qué se te va a calificar">
+      <Section n="2" title="Teoría necesaria">
+        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          El desarrollo exacto de tu propia cartera no se revela por adelantado — esta sección explica el método con el que se estima, no tu resultado.
+        </p>
+
+        <SubSection title="Reservas técnicas y desarrollo de siniestros (Chain Ladder / IBNR)" accent="act">
+          <p>
+            Un siniestro no se paga todo de una vez el día que ocurre — hay un proceso de aviso, ajuste y pago que puede tomar varios años, y una
+            aseguradora necesita saber, en cualquier corte contable, cuánto le queda pendiente por pagar de lo que ya ocurrió (avisado o no). Esa
+            estimación se llama reserva técnica, y el problema de estimarla se conoce como <em>reserving</em>.
+          </p>
+          <p>
+            La familia de métodos más usada — Chain Ladder — organiza los pagos en un triángulo de desarrollo: filas por año de ocurrencia (el año en
+            que pasó el siniestro), columnas por año de desarrollo (cuántos años han pasado desde que ocurrió) y cada celda es lo pagado acumulado de
+            ese año de ocurrencia hasta ese punto de desarrollo. Con años de ocurrencia ya completamente desarrollados se calculan factores de
+            desarrollo — cuánto crece típicamente lo pagado de un año de desarrollo al siguiente — y esos factores se aplican a los años todavía
+            incompletos para proyectar cuánto falta por pagar. Lo que falta por pagar de siniestros que ya ocurrieron pero que la aseguradora todavía no
+            conoce en detalle (o ni siquiera sabe que existen) se llama IBNR (<em>Incurred But Not Reported</em>) — la reserva total es la suma de lo ya
+            avisado pendiente de pago más ese IBNR.
+          </p>
+        </SubSection>
+
+        <SubSection title="Loss Ratio y por qué el Balance necesita reservas" accent="fin">
+          <p>
+            El Loss Ratio (siniestralidad sobre prima devengada) es el indicador más básico para juzgar si un libro de negocio es rentable en su
+            actividad de suscripción, antes de gastos — un Loss Ratio consistentemente por encima de lo que la prima puede cubrir después de gastos y
+            margen es la señal más temprana de que una tarifa está mal calibrada. Pero el Loss Ratio de un año no está completo hasta que se conoce el
+            desarrollo final de sus siniestros: un año que parece rentable con los pagos conocidos a la fecha puede dejar de serlo si el desarrollo
+            (Chain Ladder, arriba) revela que faltaba una porción importante por pagar.
+          </p>
+          <p>
+            Esa es la razón por la que las reservas técnicas viven en el Balance, no en el estado de resultados: representan una obligación ya
+            incurrida (afecta el costo de siniestros del año en que ocurrió el siniestro) pero todavía no pagada en efectivo — un pasivo, junto a la
+            Reserva de Prima No Devengada y las cuentas por pagar. La identidad contable Activos = Pasivo + Patrimonio debe cumplirse en cada corte, y
+            es también la forma más simple de verificar que las reservas se calcularon de forma consistente con el resto del Balance.
+          </p>
+        </SubSection>
+      </Section>
+
+      <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Estado de resultados Año 2" accent="fin">
           <p>
             El costo de siniestros del Año 2 es, en <strong>base fecha de accidente</strong>, únicamente lo ocurrido dentro del Año 2 — nunca se mezcla
@@ -184,9 +238,9 @@ export function GuiaPasanteDia3() {
             La prima depende de cuántas pólizas conservas (retención) y cuántas ganas de nuevo — no de crecer el peso total de la prima de Año 2 por un
             porcentaje. El costo de siniestros de Año 3, a diferencia del de Año 2, es <strong>solo</strong> el siniestro propio de Año 3 proyectado —
             sin ninguna línea de ajuste de siniestralidad: lo que sigue pagándose de siniestros de Año 1/Año 2 ya se reconoció como costo en su propio año de
-            accidente, así que no vuelve a aparecer aquí (sí sigue existiendo como saldo de reserva en el Balance, ver sección 4.3). Y el Resultado de
+            accidente, así que no vuelve a aparecer aquí (sí sigue existiendo como saldo de reserva en el Balance, ver sección 5.3). Y el Resultado de
             inversiones ya no puede salir de una fórmula plana sobre la reserva: piensa en qué te dice tu propio ALM real de Año 2 sobre lo que tu
-            portafolio efectivamente rindió, más allá de lo que su rendimiento nominal prometía. Ver sección 3 para cómo razonar cada pieza.
+            portafolio efectivamente rindió, más allá de lo que su rendimiento nominal prometía. Ver sección 4 para cómo razonar cada pieza.
           </p>
         </SubSection>
 
@@ -205,7 +259,7 @@ export function GuiaPasanteDia3() {
         </SubSection>
       </Section>
 
-      <Section n="3" title="Conceptos que debes aplicar">
+      <Section n="4" title="Conceptos que debes aplicar">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — reconstruir la relación exacta entre estos conceptos es parte de lo que se evalúa que tu
           equipo entienda.
@@ -239,7 +293,7 @@ export function GuiaPasanteDia3() {
             <li>
               <strong>El costo de siniestros de Año 3 es solo el siniestro propio de Año 3 — sin ajuste de siniestralidad.</strong> A diferencia del
               Año 2, no hay una línea de Ajuste de siniestralidad aquí: no hay un día posterior a Día 3 donde corregir un eventual error de esta
-              proyección. Y lo que sigue pagándose de siniestros de Año 1 y Año 2 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 3
+              proyección. Y lo que sigue pagándose de siniestros de Año 1 y Año 2 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 4
               de la guía de Día 2 si no la tienes fresca) ya se reconoció como costo en el P&G de su propio año de accidente, así que no se cuenta otra
               vez aquí — solo sigue existiendo como saldo de reserva en el Balance.
             </li>
@@ -269,67 +323,73 @@ export function GuiaPasanteDia3() {
             cuadra, el error está en cómo calculaste alguna de las líneas anteriores — no en la línea final.
           </p>
         </SubSection>
+
+        <PreguntasAbiertas>
+          <li>¿Qué pasaría con tu Balance si el desarrollo real de los siniestros del Año 1 hubiera sido más lento de lo esperado?</li>
+          <li>¿Qué factores además de la retención de pólizas podrían justificar una proyección de Año 3 distinta a la que hiciste?</li>
+          <li>
+            Si tuvieras que explicarle a un inversionista por qué la utilidad neta y el flujo de caja de un mismo año pueden diferir tanto, ¿qué le
+            dirías?
+          </li>
+        </PreguntasAbiertas>
       </Section>
 
-      <Section n="4" title="Plantillas — cómo se construye y cómo alimenta el resultado">
+      <Section n="5" title="Plantillas — cómo se construye y cómo alimenta el resultado">
         <p>
           Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tus estados en papel
           antes de subirlos en el formulario. Las líneas y su orden son las mismas que vas a ver en el formulario de entregables.
         </p>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1 · Estado de resultados — Año 2</p>
+        <FlowStep n="1" title="5.1 · Estado de resultados — Año 2">
           <StatementTemplate
             rowLabels={PYG_A2_ROWS}
             columns={["Año 2"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
             note="RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2). RPND constituida = 20% × Prima emitida A2. Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año. Gastos de adquisición/Comisiones/administrativos son 4%/15%/6% de la Prima emitida A2. Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom. Resultado Industrial = Resultado Técnico − Gasto administrativo. Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo."
           />
-        </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.1b · Estado de resultados — Año 3 (proyectado)</p>
+        <FlowStep n="2" title="5.1b · Estado de resultados — Año 3 (proyectado)">
           <StatementTemplate
             rowLabels={PYG_A3_ROWS}
             columns={["Año 3 (proy.)"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            note="Misma estructura que Año 2, pero sin línea de Ajuste de siniestralidad (ver sección 3 para por qué) — RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2."
+            note="Misma estructura que Año 2, pero sin línea de Ajuste de siniestralidad (ver sección 4 para por qué) — RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba, no la de Día 2."
           />
-        </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-            4.2 · Nota — siniestros pagados (no es una línea del P&G)
-          </p>
-          <p className="text-xs text-[var(--color-brand-text-secondary)]">
-            Además del estado de resultados, reportas una cifra más para el Año 2: <strong>Siniestros pagados en A2</strong> (la caja efectivamente
-            pagada durante el año, de ambos orígenes). No se suma ni se resta en el estado de resultados — es un desglose/auditoría de flujo de caja,
-            distinto del costo incurrido (base contable) que ya reportaste en la sección 4.1.
-          </p>
-        </div>
+        <FlowStep n="3" title="5.2 · Nota — siniestros pagados (no es una línea del P&G)">
+          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              Además del estado de resultados, reportas una cifra más para el Año 2: <strong>Siniestros pagados en A2</strong> (la caja efectivamente
+              pagada durante el año, de ambos orígenes). No se suma ni se resta en el estado de resultados — es un desglose/auditoría de flujo de caja,
+              distinto del costo incurrido (base contable) que ya reportaste en la sección 5.1.
+            </p>
+          </div>
+        </FlowStep>
 
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.3 · Balance — Año 1, Año 2 y Año 3 (proy.)</p>
+        <FlowStep n="4" title="5.3 · Balance — Año 1, Año 2 y Año 3 (proy.)">
           <StatementTemplate
             rowLabels={BALANCE_ROWS}
             columns={["Año 1", "Año 2", "Año 3 (proy.)"]}
             emphasizedLabels={["Activos totales", "Pasivo + Patrimonio"]}
             note="Caja/Cuentas por cobrar/Cuentas por pagar/RPND son 15%/7%/10%/20% de la Prima emitida de ese año (la de Año 1 la reportaste en Día 2). Pasivo total = Reservas técnicas + RPND + Cuentas por pagar. Pasivo + Patrimonio debe ser exactamente igual a Activos totales."
           />
-        </div>
+        </FlowStep>
 
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">4.4 · El camino completo, de tus decisiones a tu reporte</p>
-          <p className="text-sm">
-            El costo real de siniestros del Año 1 (3) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del Año 2 (4.1) → que junto
-            con la retención real de Año 2 y el rendimiento realmente devengado por tu ALM real, te da la proyección del Año 3 (4.1b, sin línea de Ajuste
-            de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (4.3).
-          </p>
-          <p className="mt-2 text-sm">
-            Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) son las que alimentan la Solvencia y los dividendos que vas a
-            reportar mañana en Día 4 — ver esa guía para el detalle completo.
-          </p>
-        </div>
+        <FlowStep n="5" title="5.4 · El camino completo, de tus decisiones a tu reporte" last>
+          <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+            <p className="text-sm">
+              El costo real de siniestros del Año 1 (4) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del Año 2 (5.1) → que junto
+              con la retención real de Año 2 y el rendimiento realmente devengado por tu ALM real, te da la proyección del Año 3 (5.1b, sin línea de Ajuste
+              de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (5.3).
+            </p>
+            <p className="mt-2 text-sm">
+              Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) son las que alimentan la Solvencia y los dividendos que vas a
+              reportar mañana en Día 4 — ver esa guía para el detalle completo.
+            </p>
+          </div>
+        </FlowStep>
       </Section>
     </div>
   );

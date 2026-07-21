@@ -191,6 +191,28 @@ describe("finBench", () => {
     expect(eroded.solMargen).toBeLessThan(noErosion.solMargen);
   });
 
+  it("projects Año 3's capital comprometido off the Año1->Año2 trend instead of flat-carrying Año 2's checkpoint", () => {
+    const noTrend = finBench({
+      ...richYear3Input(),
+      almYear1: fakeAlmYear(0.05, 10_000_000_000),
+      almYear2: fakeAlmYear(0.05, 10_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 0
+    });
+    const trending = finBench({
+      ...richYear3Input(),
+      almYear1: fakeAlmYear(0.05, 10_000_000_000),
+      almYear2: fakeAlmYear(0.05, 25_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 15B
+    });
+    // capitalComprometido never touches the P&L (see the "never double-counted" test above) —
+    // p3.uneta is identical between the two scenarios, isolating the balance-sheet-only effect.
+    expect(trending.p3!.uneta).toBeCloseTo(noTrend.p3!.uneta, 4);
+    // capComY3 - capComY2, backed out from patrimonio (bal3.patrimonio = bal2.patrimonio + p3.uneta - (capComY3 - capComY2)).
+    const projectedDelta = (b: typeof noTrend) => b.bal2!.patrimonio - b.bal3!.patrimonio + b.p3!.uneta;
+    // No Y1->Y2 trend: Y3's committed capital stays at Y2's own checkpoint, same as the old flat-carry behavior.
+    expect(projectedDelta(noTrend)).toBeCloseTo(0, 4);
+    // 15B of Y1->Y2 erosion: Y3 continues that same trend, landing 15B beyond Y2's own checkpoint.
+    expect(projectedDelta(trending)).toBeCloseTo(15_000_000_000, 4);
+  });
+
   it("every team starts capital0 from the same fixed Capital Social, independent of its own premium", () => {
     const smallPremium = finBench({
       year1: { totalPremium: 100_000_000, claimsAmount: 60_000_000 },
