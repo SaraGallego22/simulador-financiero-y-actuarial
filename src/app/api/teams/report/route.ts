@@ -138,8 +138,13 @@ export async function GET(request: Request) {
   }
 
   // day === 2: needs Year 1's assignment (was this exposure mine last year?)
-  // and Year 1's claim amount (fully known by now, Year 1 is closed) plus
-  // Year 2's own IBNR-censored claims.
+  // and Year 1's own claims — IBNR-censored exactly like Día 1's own report
+  // (same visible rule below, not "fully known by now"): a team must
+  // estimate Año 1's true ultimate cost from what's been reported so far
+  // plus an Expected Loss Ratio anchored on their own Día 1 pricing, not read
+  // it off directly — the same reason Chain Ladder isn't available yet
+  // (there's no development triangle with only one immature accident year).
+  // Plus Year 2's own IBNR-censored claims.
   const year1Run = await prisma.simulationRun.findFirst({
     where: { cohortId: cohort.id, day: 1, status: "DONE" },
     orderBy: { createdAt: "desc" },
@@ -175,7 +180,17 @@ export async function GET(request: Request) {
           const e = getExposure(universe, k);
           const premium2 = Math.round(myTariff[k] || myMeanPremium);
           const eraA1 = wasMineYear1[k];
-          const sinMontoA1 = eraA1 && universe.siniestro[k] ? universe.sev[k] : 0;
+          const claimedA1 = !!universe.siniestro[k];
+          // Same IBNR-censoring rule as Día 1's own report (`visible` above)
+          // — a claim occurring in 2027 only counts as "known" here if it was
+          // also reported within 2027 itself. Nothing new becomes visible
+          // about Año 1 between Día 1 and Día 2's reports; what changes is
+          // that Día 2 asks the team to estimate the remaining (IBNR) part.
+          const visibleA1 =
+            claimedA1 &&
+            epochDayYear(universe.fechaSinEpochDay[k]) === ANIO_BASE_A1 &&
+            epochDayYear(universe.fechaAvisoEpochDay[k]) === ANIO_BASE_A1;
+          const sinMontoA1 = eraA1 && visibleA1 ? universe.sev[k] : 0;
           const claimed2 = !!year2Claims.siniestro[k];
           const visible2 =
             claimed2 &&

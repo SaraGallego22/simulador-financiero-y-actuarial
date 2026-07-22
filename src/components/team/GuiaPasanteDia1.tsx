@@ -215,7 +215,6 @@ export function GuiaPasanteDia1() {
               { col: "comuna_tipo", desc: "Tipo de comuna donde circula el vehículo", rango: "gran_ciudad, ciudad_media, rural" },
               { col: "siniestro_2021 / _2022 / _2023", desc: "Si la póliza tuvo un siniestro ese año", rango: "1 (sí), 0 (no)" },
               { col: "fecha_siniestro_2021 / _2022 / _2023", desc: "Fecha en que ocurrió el siniestro (vacío si no hubo)", rango: "AAAA-MM-DD" },
-              { col: "fecha_aviso_2021 / _2022 / _2023", desc: "Fecha en que se avisó el siniestro a la aseguradora (vacío si no hubo)", rango: "AAAA-MM-DD" },
               { col: "monto_uf_2021 / _2022 / _2023", desc: "Monto del siniestro, en UF (vacío si no hubo)", rango: "> 0 UF" },
             ]}
           />

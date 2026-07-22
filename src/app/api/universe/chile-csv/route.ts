@@ -11,7 +11,7 @@ export const maxDuration = 60;
 
 const CSV_HEADER =
   "id_poliza,edad_conductor,tipo_vehiculo,zona,antiguedad_vehiculo,kilometraje_anual,siniestros_previos,valor_comercial_uf,uso_vehiculo,caja_automatica,seguro_complementario,genero,comuna_tipo," +
-  YEARS_CL.map((y) => `siniestro_${y},fecha_siniestro_${y},fecha_aviso_${y},monto_uf_${y}`).join(",") +
+  YEARS_CL.map((y) => `siniestro_${y},fecha_siniestro_${y},monto_uf_${y}`).join(",") +
   "\n";
 
 const BATCH_SIZE = 5_000;
@@ -60,7 +60,7 @@ export async function GET() {
         ];
         for (const year of YEARS_CL) {
           const claim = p.years[year];
-          fields.push(claim.siniestro, claim.fechaSiniestro, claim.fechaAviso, claim.montoUf);
+          fields.push(claim.siniestro, claim.fechaSiniestro, claim.montoUf);
         }
         text += fields.join(",") + "\n";
         if ((i + 1) % BATCH_SIZE === 0) {
