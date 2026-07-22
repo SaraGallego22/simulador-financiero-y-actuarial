@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { generateColombia, getExposure } from "./generateColombia";
+import { ANIO_BASE_A1 } from "./constants";
+import { CHAIN_LADDER_TAIL_FACTOR } from "../reserving/constants";
 
 const MS_PER_DAY = 86_400_000;
 function epochDayToIso(day: number): string | null {
   if (day < 0) return null;
   return new Date(day * MS_PER_DAY).toISOString().slice(0, 10);
+}
+function epochDayYear(day: number): number | null {
+  if (day < 0) return null;
+  return new Date(day * MS_PER_DAY).getFullYear();
 }
 
 describe("generateColombia", () => {
@@ -77,5 +83,24 @@ describe("generateColombia", () => {
     const row999 = getExposure(u, 999);
     expect(row999).toMatchObject({ id: 1000, edad: 73, tipo: "suv", zona: "rural", genero: "M" });
     expect(u.siniestro[999]).toBe(0);
+  });
+
+  it("CHAIN_LADDER_TAIL_FACTOR matches the real ratio of true ultimate severity to severity reported within 24 months", () => {
+    // Verifies src/domain/reserving/constants.ts's CHAIN_LADDER_TAIL_FACTOR
+    // (given directly to teams in the Día 3 guide) against actual generation
+    // — not just trusting the doc comment's claim. 200k exposures is enough
+    // to be stable (the real check used 1M across 5 seeds, see that
+    // constant's doc comment); this just guards against silent drift.
+    const u = generateColombia(42, 200_000);
+    let totalUltimate = 0;
+    let reportedBy24Months = 0;
+    for (let i = 0; i < u.n; i++) {
+      if (!u.siniestro[i]) continue;
+      totalUltimate += u.sev[i];
+      const noticeYear = epochDayYear(u.fechaAvisoEpochDay[i]);
+      if (noticeYear != null && noticeYear <= ANIO_BASE_A1 + 1) reportedBy24Months += u.sev[i];
+    }
+    const actualTailFactor = totalUltimate / reportedBy24Months;
+    expect(actualTailFactor).toBeCloseTo(CHAIN_LADDER_TAIL_FACTOR, 2);
   });
 });

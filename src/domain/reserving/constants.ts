@@ -37,3 +37,21 @@ export function cumulativeKernelAt(daysAfterNotice: number): number {
   if (daysAfterNotice >= CUMULATIVE_KERNEL.length) return 1;
   return CUMULATIVE_KERNEL[daysAfterNotice];
 }
+
+/**
+ * Chain Ladder tail factor a team is given directly in the Día 3 guide (§2)
+ * to take its own 24-month-developed (avisado en su año o el siguiente)
+ * claims total to true ultimate. Unlike the age-to-age factor (12→24
+ * months), which a team must compute from its own two-diagonal triangle,
+ * this can't be derived from a team's own report — it depends on the
+ * reporting-lag tail beyond the report's own cutoff, which a team has no
+ * visibility into. Verified empirically (not derived analytically) by
+ * generating the full 1M-exposure Colombia universe and comparing true
+ * ultimate severity against severity reported by notice year <= año de
+ * ocurrencia + 1, across 5 seeds (42, 1, 7, 123, 999): consistently 1.0029-
+ * 1.0039, reflecting sampleReportingLag()'s lognormal(mu=3.0, sigma=1.2)
+ * distribution (median ~20 days) clamped to [1, 730] days — the vast
+ * majority of claims are reported well within 24 months, so only a small
+ * sliver remains genuinely unreported even at that point.
+ */
+export const CHAIN_LADDER_TAIL_FACTOR = 1.003;

@@ -25,6 +25,14 @@ const HEADER_YEAR1 =
   "id_expuesto,edad_conductor,tipo_vehiculo,zona,antiguedad_vehiculo,usos_anuales_km,historial_siniestros,valor_vehiculo,uso_vehiculo,parqueadero,nivel_educativo,estrato,genero,marca_vehiculo,prima_cobrada,fecha_siniestro,fecha_aviso,monto_siniestro\n";
 const HEADER_YEAR2 =
   "id_expuesto,edad_conductor,tipo_vehiculo,zona,antiguedad_vehiculo,usos_anuales_km,historial_siniestros,valor_vehiculo,uso_vehiculo,parqueadero,nivel_educativo,estrato,genero,marca_vehiculo,prima_cobrada_a2,asegurado_a1,siniestros_a1_monto,fecha_siniestro,fecha_aviso,monto_siniestro\n";
+// Año 1 fields carry BOTH claims already known from Día 2 (avisado en 2027)
+// and newly-visible ones (avisado en 2028) under one wider visibility rule —
+// see the day===3 branch below. fecha_siniestro_a1/fecha_aviso_a1 (never
+// exposed before Día 3) are what let a team bucket each claim into its own
+// development year (año(fecha_aviso_a1) − año(fecha_siniestro_a1)) to build
+// its own Chain Ladder triangle, instead of only ever seeing one lump sum.
+const HEADER_YEAR3 =
+  "id_expuesto,edad_conductor,tipo_vehiculo,zona,antiguedad_vehiculo,usos_anuales_km,historial_siniestros,valor_vehiculo,uso_vehiculo,parqueadero,nivel_educativo,estrato,genero,marca_vehiculo,prima_cobrada_a2,asegurado_a1,siniestros_a1_monto,fecha_siniestro_a1,fecha_aviso_a1,siniestros_a2_monto,fecha_siniestro_a2,fecha_aviso_a2\n";
 
 const BATCH_SIZE = 20_000;
 
@@ -54,17 +62,21 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const day = Number(searchParams.get("day"));
-  if (day !== 1 && day !== 2) {
-    return new Response("day debe ser 1 o 2", { status: 400 });
+  if (day !== 1 && day !== 2 && day !== 3) {
+    return new Response("day debe ser 1, 2 o 3", { status: 400 });
   }
+  // Día 3 has no market of its own (Año 3 is never simulated) — its report
+  // reuses Día 2's own simulation run/tariff for "who's mine right now" and
+  // "what did I charge," same as the guide's Balance/proyección already do.
+  const simDay = day === 3 ? 2 : day;
 
   const cohort = await getOrCreateActiveCohort();
 
   const run = await prisma.simulationRun.findFirst({
-    where: { cohortId: cohort.id, day, status: "DONE" },
+    where: { cohortId: cohort.id, day: simDay, status: "DONE" },
     orderBy: { createdAt: "desc" },
   });
-  if (!run) return new Response(`Aún no hay una simulación completa para el día ${day}.`, { status: 404 });
+  if (!run) return new Response(`Aún no hay una simulación completa para el día ${simDay}.`, { status: 404 });
 
   const universeRun = await prisma.universeRun.findFirst({
     where: { cohortId: cohort.id, kind: "colombia", status: "DONE" },
@@ -91,7 +103,7 @@ export async function GET(request: Request) {
     myNumericId = 1;
   }
 
-  const myTariffRow = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } } });
+  const myTariffRow = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day: simDay } } });
   if (!myTariffRow || myTariffRow.meanPremium == null) {
     return new Response("Tu equipo no tiene una tarifa completa para este día.", { status: 404 });
   }
@@ -169,9 +181,70 @@ export async function GET(request: Request) {
 
   const year2Claims = getYear2ClaimsForSeed(universeRun.seed, universe);
 
+  if (day === 2) {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(HEADER_YEAR2));
+        for (let i = 0; i < universe.n; i += BATCH_SIZE) {
+          const end = Math.min(i + BATCH_SIZE, universe.n);
+          let text = "";
+          for (let k = i; k < end; k++) {
+            if (myAssignment[k] !== myNumericId) continue;
+            const e = getExposure(universe, k);
+            const premium2 = Math.round(myTariff[k] || myMeanPremium);
+            const eraA1 = wasMineYear1[k];
+            const claimedA1 = !!universe.siniestro[k];
+            // Same IBNR-censoring rule as Día 1's own report (`visible` above)
+            // — a claim occurring in 2027 only counts as "known" here if it was
+            // also reported within 2027 itself. Nothing new becomes visible
+            // about Año 1 between Día 1 and Día 2's reports; what changes is
+            // that Día 2 asks the team to estimate the remaining (IBNR) part.
+            const visibleA1 =
+              claimedA1 &&
+              epochDayYear(universe.fechaSinEpochDay[k]) === ANIO_BASE_A1 &&
+              epochDayYear(universe.fechaAvisoEpochDay[k]) === ANIO_BASE_A1;
+            const sinMontoA1 = eraA1 && visibleA1 ? universe.sev[k] : 0;
+            const claimed2 = !!year2Claims.siniestro[k];
+            const visible2 =
+              claimed2 &&
+              epochDayYear(year2Claims.fechaSinEpochDay[k]) === ANIO_BASE_A1 + 1 &&
+              epochDayYear(year2Claims.fechaAvisoEpochDay[k]) === ANIO_BASE_A1 + 1;
+            const fechaSin2 = visible2 ? epochDayIso(year2Claims.fechaSinEpochDay[k]) : "";
+            const fechaAviso2 = visible2 ? epochDayIso(year2Claims.fechaAvisoEpochDay[k]) : "";
+            const monto2 = visible2 ? year2Claims.sev[k] : "";
+            const fields = [
+              e.id, e.edad, e.tipo, e.zona, e.antig + 1, e.km, e.hist + (universe.siniestro[k] ? 1 : 0),
+              e.valor, e.uso, e.parq, e.edu, e.estrato, e.genero, e.marca,
+            ];
+            for (const row of dirtyRow(universeRun.seed, k, fields, DIRTY_COLUMNS)) {
+              text += [...row, premium2, eraA1, sinMontoA1, fechaSin2, fechaAviso2, monto2].join(",") + "\n";
+            }
+          }
+          controller.enqueue(encoder.encode(text));
+        }
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": "attachment; filename=reporte_dia2.csv",
+      },
+    });
+  }
+
+  // day === 3: same Año 1 assignment/claims and Año 2 claims as Día 2's
+  // report, but Año 1's own visibility widens from "avisado en 2027 only" to
+  // "avisado en 2027 O 2028" — the second diagonal a Chain Ladder triangle
+  // needs. Exposes fecha_siniestro_a1/fecha_aviso_a1 (never given before) so
+  // a team can bucket each now-visible Año 1 claim into its own development
+  // year (año(aviso) − año(siniestro) = 0 o 1) instead of only ever seeing
+  // one lump sum. Año 2's own claims stay exactly as narrow as Día 2's
+  // report (avisado en 2028 only) — it's still only 12 months into that
+  // accident year, same as Año 1 was at Día 2's own report time.
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(encoder.encode(HEADER_YEAR2));
+      controller.enqueue(encoder.encode(HEADER_YEAR3));
       for (let i = 0; i < universe.n; i += BATCH_SIZE) {
         const end = Math.min(i + BATCH_SIZE, universe.n);
         let text = "";
@@ -181,30 +254,28 @@ export async function GET(request: Request) {
           const premium2 = Math.round(myTariff[k] || myMeanPremium);
           const eraA1 = wasMineYear1[k];
           const claimedA1 = !!universe.siniestro[k];
-          // Same IBNR-censoring rule as Día 1's own report (`visible` above)
-          // — a claim occurring in 2027 only counts as "known" here if it was
-          // also reported within 2027 itself. Nothing new becomes visible
-          // about Año 1 between Día 1 and Día 2's reports; what changes is
-          // that Día 2 asks the team to estimate the remaining (IBNR) part.
+          const noticeYearA1 = epochDayYear(universe.fechaAvisoEpochDay[k]);
           const visibleA1 =
             claimedA1 &&
             epochDayYear(universe.fechaSinEpochDay[k]) === ANIO_BASE_A1 &&
-            epochDayYear(universe.fechaAvisoEpochDay[k]) === ANIO_BASE_A1;
+            (noticeYearA1 === ANIO_BASE_A1 || noticeYearA1 === ANIO_BASE_A1 + 1);
           const sinMontoA1 = eraA1 && visibleA1 ? universe.sev[k] : 0;
+          const fechaSinA1 = eraA1 && visibleA1 ? epochDayIso(universe.fechaSinEpochDay[k]) : "";
+          const fechaAvisoA1 = eraA1 && visibleA1 ? epochDayIso(universe.fechaAvisoEpochDay[k]) : "";
           const claimed2 = !!year2Claims.siniestro[k];
           const visible2 =
             claimed2 &&
             epochDayYear(year2Claims.fechaSinEpochDay[k]) === ANIO_BASE_A1 + 1 &&
             epochDayYear(year2Claims.fechaAvisoEpochDay[k]) === ANIO_BASE_A1 + 1;
+          const monto2 = visible2 ? year2Claims.sev[k] : "";
           const fechaSin2 = visible2 ? epochDayIso(year2Claims.fechaSinEpochDay[k]) : "";
           const fechaAviso2 = visible2 ? epochDayIso(year2Claims.fechaAvisoEpochDay[k]) : "";
-          const monto2 = visible2 ? year2Claims.sev[k] : "";
           const fields = [
             e.id, e.edad, e.tipo, e.zona, e.antig + 1, e.km, e.hist + (universe.siniestro[k] ? 1 : 0),
             e.valor, e.uso, e.parq, e.edu, e.estrato, e.genero, e.marca,
           ];
           for (const row of dirtyRow(universeRun.seed, k, fields, DIRTY_COLUMNS)) {
-            text += [...row, premium2, eraA1, sinMontoA1, fechaSin2, fechaAviso2, monto2].join(",") + "\n";
+            text += [...row, premium2, eraA1, sinMontoA1, fechaSinA1, fechaAvisoA1, monto2, fechaSin2, fechaAviso2].join(",") + "\n";
           }
         }
         controller.enqueue(encoder.encode(text));
@@ -215,7 +286,7 @@ export async function GET(request: Request) {
   return new Response(stream, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": "attachment; filename=reporte_dia2.csv",
+      "Content-Disposition": "attachment; filename=reporte_dia3.csv",
     },
   });
 }
