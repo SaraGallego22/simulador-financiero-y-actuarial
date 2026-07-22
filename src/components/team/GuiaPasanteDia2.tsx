@@ -151,8 +151,8 @@ export function GuiaPasanteDia2() {
 
       <InsumosEntregables
         insumos={[
-          "Resultado real del mercado del 2027: pólizas ganadas, prima cobrada y siniestralidad de tu propia cartera.",
-          "Historial de siniestros por póliza (si tuvo o no, y de qué magnitud) — insumo nuevo para la retarifación de 2028.",
+          "Resultado real del mercado del 2027: pólizas ganadas y prima cobrada de tu propia cartera.",
+          "Historial de siniestros por póliza avisados hasta la fecha (algunos siniestros de 2027 todavía no se han avisado — la misma opacidad de IBNR de Día 1) — insumo para la retarifación de 2028 y para estimar tu Costo de Siniestros A1.",
           "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu árbol de portafolio real.",
         ]}
         entregables={[
@@ -169,8 +169,10 @@ export function GuiaPasanteDia2() {
         </p>
         <ul className="list-disc pl-5">
           <li>
-            <strong>Actuarial — retarifación 2028.</strong> Ajustas tu modelo de tarificación para el 2028, ahora con el historial de siniestros de cada
-            póliza como variable adicional. Las reservas técnicas del 2027 no se reportan hoy — se calculan y reportan más adelante en el ejercicio.
+            <strong>Actuarial — retarifación 2028 y costo de siniestros 2027.</strong> Ajustas tu modelo de tarificación para el 2028, ahora con el
+            historial de siniestros avisados de cada póliza como variable adicional. También estimas el costo de siniestros del 2027 para tu P&G — no
+            todos esos siniestros se han avisado todavía, así que no es una simple suma (ver sección 2). Las reservas técnicas del 2027 no se
+            reportan hoy — se calculan y reportan más adelante en el ejercicio.
           </li>
           <li>
             <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5)
@@ -194,8 +196,10 @@ export function GuiaPasanteDia2() {
 
         <SubSection title="Retarifar con un año de experiencia real" accent="act">
           <p>
-            Ya no estás tarificando a ciegas: tienes un año completo de experiencia real por póliza (si tuvo un siniestro o no, y de qué magnitud) que
-            no tenías antes. Hay más de un camino razonable para aprovechar esa información, y ninguno es obligatorio:
+            Ya no estás tarificando a ciegas: tienes un año de experiencia real por póliza — los siniestros ya avisados, con su magnitud — que no
+            tenías antes. No es la foto completa todavía (algunos siniestros del 2027 siguen sin avisarse, la misma opacidad de IBNR que ya viste en
+            Día 1), pero sigue siendo información real que no tenías al tarificar por primera vez. Hay más de un camino razonable para aprovecharla,
+            y ninguno es obligatorio:
           </p>
           <ul className="list-disc pl-5">
             <li>
@@ -230,6 +234,57 @@ export function GuiaPasanteDia2() {
           </p>
         </SubSection>
 
+        <SubSection title="Estimar el costo de siniestros de 2027: Expected Loss Ratio" accent="act">
+          <p>
+            El costo de siniestros que reportas en tu P&G del 2027 (sección 3) ya no es una simple suma de lo que ves en tu reporte — igual que en
+            Día 1, solo ves los siniestros que ya se avisaron a la fecha; el resto sigue siendo IBNR (Incurred But Not Reported). Con un solo año de
+            experiencia todavía no existe un triángulo de desarrollo real que triangular (eso solo aparece a partir de Día 3, cuando ya hay pagos del
+            2027 dentro del 2028) — así que Chain Ladder no es una opción todavía. El método apropiado para esta madurez es el{" "}
+            <strong>Expected Loss Ratio (ELR)</strong>.
+          </p>
+          <p>
+            El método ELR estima el costo <strong>último</strong> — no solo lo avisado — como un porcentaje asumido de la prima, en vez de partir de
+            tu propia experiencia real, precisamente porque un solo año inmaduro no es lo bastante creíble por sí solo:
+          </p>
+          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+            <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
+              Costo Último = Loss Ratio Esperado × Prima Devengada
+            </p>
+          </div>
+          <p>
+            <strong>¿De dónde sale tu propio Loss Ratio Esperado?</strong> No de una fórmula genérica igual para todo el cohorte — de tu propio
+            modelo de frecuencia × severidad de Día 1, aplicado a las pólizas que <strong>realmente ganaste</strong> (no al universo completo): ya
+            estimaste una prima pura para cada una de ellas cuando tarificaste. La razón entre esa prima pura que tú mismo estimaste para tu
+            propio libro y la prima que realmente cobraste por él es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no
+            un número compartido por todo el cohorte:
+          </p>
+          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold text-[var(--color-brand-blue-accent)] sm:text-base">
+              Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima cobrada (pólizas ganadas)
+            </p>
+          </div>
+          <p>
+            Si tarificaste con la fórmula de referencia de Día 1 de forma uniforme para todo tu libro (Prima Comercial = Prima Pura ÷ (1 − %
+            Gastos − % Utilidad), con 25% de gastos y 20% de margen), esa fórmula por sí sola <strong>no</strong> te garantiza un loss ratio del
+            55% — ese número es lo que la aritmética de la fórmula asume, no lo que el riesgo real produce. Esta metodología (comparar tu propia
+            prima pura contra tu prima cobrada) solo es tan buena como tu propio modelo de frecuencia × severidad: si ese modelo subestima el
+            riesgo real de tus pólizas, tu Loss Ratio Esperado hereda ese sesgo, y tu costo último estimado con él también.
+          </p>
+          <p>
+            Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
+            prima real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por equipo) — visible arriba, en la
+            pestaña Entregables de este día. No es un número teórico como el 55% de la fórmula de referencia: es lo que el mercado real produjo. Si
+            tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55% &ldquo;de libro&rdquo; sin ajustar), es
+            una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de tu cartera — vale la pena revisarlo antes
+            de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en Colombia) es una tercera referencia útil,
+            aunque no reemplaza tu propio cálculo.
+          </p>
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+            Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso
+            subestima sistemáticamente el verdadero costo último, exactamente el error que el método ELR está diseñado para evitar.
+          </p>
+        </SubSection>
+
         <SubSection title="P&G de una aseguradora" accent="fin">
           <p>
             El estado de resultados de una aseguradora se parece al de cualquier empresa, pero con ajustes que reflejan cómo funciona el negocio de
@@ -258,11 +313,12 @@ export function GuiaPasanteDia2() {
         <SubSection title="Estado de resultados 2027" accent="fin">
           <p>
             Reporta cada línea del P&G del 2027 — no solo el resultado final. El motor ya conoce tu prima real (lo que efectivamente cobraste en el
-            mercado, después del racionamiento por capital/solvencia si aplicó) y tu siniestralidad real, en base <strong>fecha de accidente</strong>: es
-            el costo total de lo ocurrido en el 2027, sin importar cuándo se avise. Los gastos de adquisición y comisión son los mismos porcentajes
-            fijos sobre la prima <strong>emitida</strong> que ya usaste para calcular tu prima comercial en Día 1; el administrativo también, pero ya
-            no resta dentro del Resultado Técnico — tiene su propia línea (Resultado Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que
-            tu prima devengada: reservas un 20% como Reserva de Prima No
+            mercado, después del racionamiento por capital/solvencia si aplicó). Tu costo de siniestros, en cambio, ya no es un hecho que puedas leer
+            directamente: solo ves los siniestros del 2027 ya avisados (la misma opacidad de IBNR de Día 1) — tu Costo de Siniestros A1 es tu propia
+            estimación del costo <strong>último</strong>, vía el método Expected Loss Ratio (sección 2), no una suma de lo avisado. Los gastos de
+            adquisición y comisión son los mismos porcentajes fijos sobre la prima <strong>emitida</strong> que ya usaste para calcular tu prima
+            comercial en Día 1; el administrativo también, pero ya no resta dentro del Resultado Técnico — tiene su propia línea (Resultado
+            Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
             Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
             resultado de la simulación mes a mes.
@@ -272,8 +328,10 @@ export function GuiaPasanteDia2() {
             devengada, gastos, Resultado Técnico, Resultado Industrial, utilidad antes de impuestos, impuesto, utilidad neta) se califican contra lo que
             <strong> tú mismo</strong> reportaste en esas otras líneas, no contra la cifra real del motor — un solo error (por ejemplo, en tu costo de
             siniestros) no te va a costar puntos varias veces en cada línea que depende de él, siempre que hayas aplicado la fórmula correctamente sobre
-            tu propio número. Solo prima emitida, costo de siniestros y resultado de inversiones son hechos/estimaciones genuinos, calificados contra la
-            cifra real.
+            tu propio número. Prima emitida, costo de siniestros y resultado de inversiones sí se califican contra la cifra real del motor — pero con
+            una banda de tolerancia sobre el error relativo, no exigiendo un acierto exacto: tu costo de siniestros en particular es una estimación
+            genuina (ver sección 2), y si quedó lejos del valor real todavía tienes una segunda oportunidad de corregirlo en Día 3
+            (&ldquo;Ajuste de siniestralidad&rdquo;).
           </p>
         </SubSection>
         <SubSection title="Árbol de portafolio real (ALM)" accent="fin">
@@ -316,6 +374,30 @@ export function GuiaPasanteDia2() {
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — la asignación óptima del portafolio es parte de lo que se evalúa que tu equipo descubra.
         </p>
+
+        <SubSection title="Para estimar el costo de siniestros (ELR)" accent="act">
+          <ul className="list-disc pl-5">
+            <li>
+              <strong>Tu siniestralidad avisada es un piso, no la respuesta.</strong> Es información real y útil (para contrastar tu ELR, no para
+              reemplazarlo) — pero tomarla como el costo final ignora el IBNR que todavía no se avisa, y sistemáticamente subestima tu costo
+              verdadero.
+            </li>
+            <li>
+              <strong>Tu propio modelo de Día 1 ya trae un Loss Ratio Esperado implícito — no lo inventes desde cero.</strong> Compara la prima
+              pura que tú mismo estimaste para las pólizas que ganaste contra lo que realmente cobraste por ellas; esa razón es tu ELR propio.
+            </li>
+            <li>
+              <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
+              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado (pestaña Entregables,
+              sección 2) es el dato real para contrastar. Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de
+              frecuencia/severidad antes de reservar con ese número.
+            </li>
+            <li>
+              <strong>Prima Devengada, no Prima Emitida.</strong> El costo último se relaciona con la prima que efectivamente cubrió riesgo durante
+              el año, no con toda la prima facturada (parte de la cual todavía no se ha &ldquo;ganado&rdquo; — ver RPND en la sección 3).
+            </li>
+          </ul>
+        </SubSection>
 
         <SubSection title="Para el portafolio" accent="fin">
           <p>

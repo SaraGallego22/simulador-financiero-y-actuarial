@@ -17,7 +17,7 @@ import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVari
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { computeConsolidado } from "@/lib/consolidado";
+import { computeConsolidado, computeMarketLossRatio } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
@@ -66,6 +66,10 @@ export default async function TeamDayPage({
 
   const topRows =
     activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
+  // Real market-wide loss ratio for the closed 2027 market — reference for a
+  // team's own Expected Loss Ratio estimate (Día 2's guide §2), not any
+  // individual team's figures. See computeMarketLossRatio's doc comment.
+  const marketLossRatio = day === 2 ? await computeMarketLossRatio((await getOrCreateActiveCohort()).id, 1) : null;
 
   const [submission, publishedResult, allocation, deliverables, analyticsRecs] = await Promise.all([
     teamId
@@ -226,6 +230,14 @@ export default async function TeamDayPage({
           {reportConcepts.length > 0 && (
             <>
               {TAB_NOTES[day]?.deliverables && <TabNote>{TAB_NOTES[day].deliverables}</TabNote>}
+              {marketLossRatio && (
+                <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                  <span className="font-semibold text-[var(--color-brand-blue-accent)]">Referencia — </span>
+                  Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima real, sumados entre los {marketLossRatio.teamCount} equipos
+                  con resultado publicado, nunca desglosado por equipo): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo para
+                  contrastar tu propio Loss Ratio Esperado (ver la guía de este día, sección 2).
+                </div>
+              )}
               <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
             </>
           )}
