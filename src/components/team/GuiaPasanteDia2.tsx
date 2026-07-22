@@ -252,12 +252,32 @@ export function GuiaPasanteDia2() {
             </p>
           </div>
           <p>
-            ¿De dónde sale un Loss Ratio Esperado razonable? El más directo es el que ya calculaste tú mismo: si tarificaste con la fórmula de
-            referencia de Día 1 (Prima Comercial = Prima Pura ÷ (1 − % Gastos − % Utilidad), con 25% de gastos y 20% de margen), el loss ratio que
-            asumiste al fijar tu propio precio es 1 − 25% − 20% = 55% — el mismo número que ya usaste para tarificar, reutilizado ahora para
-            reservar. Es el mismo razonamiento que un actuario real aplicaría al primer corte de un negocio nuevo: parte del supuesto de
-            tarificación, no de una experiencia real todavía demasiado inmadura para ser creíble. Un benchmark público del sector (loss ratios
-            típicos de auto en Colombia) es una segunda fuente razonable, si quieres contrastar o ajustar ese punto de partida.
+            <strong>¿De dónde sale tu propio Loss Ratio Esperado?</strong> No de una fórmula genérica igual para todo el cohorte — de tu propio
+            modelo de frecuencia × severidad de Día 1, aplicado a las pólizas que <strong>realmente ganaste</strong> (no al universo completo): ya
+            estimaste una prima pura para cada una de ellas cuando tarificaste. La razón entre esa prima pura que tú mismo estimaste para tu
+            propio libro y la prima que realmente cobraste por él es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no
+            un número compartido por todo el cohorte:
+          </p>
+          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold text-[var(--color-brand-blue-accent)] sm:text-base">
+              Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima cobrada (pólizas ganadas)
+            </p>
+          </div>
+          <p>
+            Si tarificaste con la fórmula de referencia de Día 1 de forma uniforme para todo tu libro (Prima Comercial = Prima Pura ÷ (1 − %
+            Gastos − % Utilidad), con 25% de gastos y 20% de margen), esa fórmula por sí sola <strong>no</strong> te garantiza un loss ratio del
+            55% — ese número es lo que la aritmética de la fórmula asume, no lo que el riesgo real produce. Esta metodología (comparar tu propia
+            prima pura contra tu prima cobrada) solo es tan buena como tu propio modelo de frecuencia × severidad: si ese modelo subestima el
+            riesgo real de tus pólizas, tu Loss Ratio Esperado hereda ese sesgo, y tu costo último estimado con él también.
+          </p>
+          <p>
+            Como referencia para contrastar: el loss ratio real de <strong>todo el mercado</strong> — siniestros reales sobre la prima comercial
+            que resultaría de tarificar con la fórmula de referencia — es de aproximadamente <strong>63%</strong>, moderadamente más alto que el
+            55% que esa misma fórmula asume en teoría (la diferencia es por los siniestros catastróficos ocasionales que hacen la severidad más
+            asimétrica de lo que un promedio simple sugiere). Si tu propio Loss Ratio Esperado queda muy por debajo de ese ~63% (por ejemplo,
+            pegado al 55% &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el
+            riesgo real de tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios
+            típicos de auto en Colombia) es una tercera referencia útil, aunque no reemplaza tu propio cálculo.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso
@@ -363,8 +383,14 @@ export function GuiaPasanteDia2() {
               verdadero.
             </li>
             <li>
-              <strong>Tu propia tarifa ya trae un Loss Ratio Esperado implícito.</strong> Si tarificaste pensando en la fórmula de referencia de
-              Día 1, ya sabes qué loss ratio asumiste al fijar tu precio — no necesitas inventar un número nuevo desde cero.
+              <strong>Tu propio modelo de Día 1 ya trae un Loss Ratio Esperado implícito — no lo inventes desde cero.</strong> Compara la prima
+              pura que tú mismo estimaste para las pólizas que ganaste contra lo que realmente cobraste por ellas; esa razón es tu ELR propio.
+            </li>
+            <li>
+              <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
+              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado ronda el 63% (sección 2).
+              Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de frecuencia/severidad antes de reservar con ese
+              número.
             </li>
             <li>
               <strong>Prima Devengada, no Prima Emitida.</strong> El costo último se relaciona con la prima que efectivamente cubrió riesgo durante
