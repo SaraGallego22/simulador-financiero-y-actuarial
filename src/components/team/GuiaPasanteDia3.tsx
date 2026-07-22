@@ -322,24 +322,46 @@ export function GuiaPasanteDia3() {
             porque en Día 2 no existía ninguno. Chain Ladder, en cambio, no necesita ni prima ni ningún supuesto de loss ratio: proyecta el costo
             último completamente a partir de cómo se desarrolló tu propia experiencia real. Son dos filosofías distintas — una asume un resultado
             externo cuando no hay suficiente experiencia propia; la otra confía por completo en la experiencia propia una vez esta ya tiene forma de
-            desarrollarse. Un año más maduro (el 2027, hoy) puede reservarse con Chain Ladder; un año recién nacido (el 2027 en Día 2, o el 2028
-            mismo hoy, que solo tiene una diagonal) todavía necesita ELR.
+            desarrollarse. Lo que cambió no es el año en sí, sino cuántas columnas de tu triángulo existen: en Día 2 tu reporte solo daba una
+            columna (12 meses) para el 2027 completo, sin ninguna otra edad con la que calcular un factor — ahí sí hacía falta ELR. Hoy tu triángulo
+            mensual cubre 2027 y 2028 a la vez, evaluados en el mismo corte (fin de 2028): tus meses de 2027 más maduros te dan los factores edad a
+            edad, y esos mismos factores encadenados también proyectan tus meses de 2028 más recientes — no necesitas ELR para ninguno de los dos.
           </p>
         </SubSection>
 
-        <SubSection title="Loss Ratio y por qué el Balance necesita reservas" accent="fin">
+        <SubSection title="El Balance: qué es y cómo se arma" accent="fin">
           <p>
-            El Loss Ratio (siniestralidad sobre prima devengada) es el indicador más básico para juzgar si un libro de negocio es rentable en su
-            actividad de suscripción, antes de gastos — un Loss Ratio consistentemente por encima de lo que la prima puede cubrir después de gastos y
-            margen es la señal más temprana de que una tarifa está mal calibrada. Pero el Loss Ratio de un año no está completo hasta que se conoce el
-            desarrollo final de sus siniestros: un año que parece rentable con los pagos conocidos a la fecha puede dejar de serlo si el desarrollo
-            (Chain Ladder, arriba) revela que faltaba una porción importante por pagar.
+            El estado de resultados mide un <strong>flujo</strong>: todo lo que entró y salió durante un periodo (el 2028, por ejemplo). El Balance
+            mide algo distinto — una <strong>foto fija</strong> de lo que la aseguradora tiene y debe en un instante preciso, al cierre de cada año
+            (2027, 2028 y 2029). No se suma periodo a periodo como una línea del P&G: cada año tiene su propio Balance, aunque el patrimonio de un
+            año arrastra el del anterior más lo que ese año generó.
           </p>
           <p>
-            Esa es la razón por la que las reservas técnicas viven en el Balance, no en el estado de resultados: representan una obligación ya
-            incurrida (afecta el costo de siniestros del año en que ocurrió el siniestro) pero todavía no pagada en efectivo — un pasivo, junto a la
-            Reserva de Prima No Devengada y las cuentas por pagar. La identidad contable Activos = Pasivo + Patrimonio debe cumplirse en cada corte, y
-            es también la forma más simple de verificar que las reservas se calcularon de forma consistente con el resto del Balance.
+            Toda esa foto se organiza alrededor de una identidad que siempre debe cumplirse exactamente: <strong>Activos = Pasivo + Patrimonio</strong>.
+            Activos es todo lo que la aseguradora posee o tiene derecho a cobrar; Pasivo es todo lo que le debe a terceros (asegurados incluidos);
+            Patrimonio es lo que le queda al dueño del negocio una vez se descuentan esas obligaciones — por construcción, nunca es un número libre,
+            sino lo que cierra la ecuación.
+          </p>
+          <p>
+            <strong>Activos:</strong> Caja (efectivo disponible de inmediato), Inversiones (el valor de mercado hoy de tu árbol de portafolio — no
+            lo que costó comprarlo) y Cuentas por cobrar (prima ya emitida que todavía no se ha recibido en efectivo). Activos totales es la suma de
+            esas tres.
+          </p>
+          <p>
+            <strong>Pasivo:</strong> Reservas técnicas (lo que falta por pagar de siniestros ya incurridos — RSA + IBNR, siempre el saldo real
+            pendiente, nunca una estimación de mercado), RPND (la parte de la prima ya cobrada que corresponde a cobertura de un periodo futuro
+            todavía no transcurrido — es una obligación de seguir cubriendo el riesgo, no plata que ya se ganó) y Cuentas por pagar (otras
+            obligaciones operativas pendientes). Pasivo total es la suma de esas tres.
+          </p>
+          <p>
+            <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: activos menos pasivo. No se calcula desde cero cada año — es el
+            patrimonio del año anterior más la utilidad neta que ese año generó en el P&G (más cualquier otro movimiento patrimonial, si lo hubiera).
+            Es el punto exacto donde el estado de resultados (un flujo) termina alimentando al Balance (una foto).
+          </p>
+          <p>
+            La última línea, <strong>Pasivo + Patrimonio</strong>, no es una fila más — es la verificación de que toda la foto es consistente:
+            debe coincidir exactamente con Activos totales. Si no cuadra, el error no está ahí, está en cómo se calculó alguna de las líneas
+            anteriores.
           </p>
         </SubSection>
       </Section>
