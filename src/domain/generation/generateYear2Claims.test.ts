@@ -13,26 +13,29 @@ describe("generateYear2Claims", () => {
     expect(Array.from(a.sev)).toEqual(Array.from(b.sev));
   });
 
-  it("matches golden values from the legacy prototype (seed=42, n=1000)", () => {
-    // Golden values produced by running generarSiniestrosA2()'s exact loop
-    // body (copied verbatim) from Pasantia_SURA_v3_inversiones_dinamicas.html
-    // on top of the same seed=42, N_COL=1000 Colombia universe.
+  it("matches golden values regenerated after fixing gammaRand()'s proposal-distribution bug (seed=42, n=1000)", () => {
+    // Originally pinned to generarSiniestrosA2()'s exact loop body from
+    // Pasantia_SURA_v3_inversiones_dinamicas.html — but that depends on the
+    // same seed=42, N_COL=1000 Colombia universe generateColombia.test.ts
+    // pins, which reseeds downstream of gammaRand()'s bug fix (see rng.ts's
+    // doc comment and that test's comment). Regenerated from the corrected
+    // TS port itself, not hand-adjusted.
     const universe = generateColombia(42, 1000);
     const year2 = generateYear2Claims(universe, 42);
 
     let claimCount = 0;
     for (let i = 0; i < universe.n; i++) claimCount += year2.siniestro[i];
-    expect(claimCount).toBe(95);
+    expect(claimCount).toBe(109);
 
-    expect(year2.lam[0]).toBeCloseTo(0.08961200282888053, 6);
+    expect(year2.lam[0]).toBeCloseTo(0.0896120027, 6);
     expect(year2.siniestro[0]).toBe(0);
 
-    expect(year2.lam[1]).toBeCloseTo(0.10684070865262082, 6);
+    expect(year2.lam[1]).toBeCloseTo(0.1068407074, 6);
     expect(year2.siniestro[1]).toBe(0);
 
-    expect(year2.lam[8]).toBeCloseTo(0.04730982187586054, 6);
-    expect(year2.lam[500]).toBeCloseTo(0.018071966360448003, 6);
-    expect(year2.lam[999]).toBeCloseTo(0.06133846568850001, 6);
+    expect(year2.lam[8]).toBeCloseTo(0.0524064675, 6);
+    expect(year2.lam[500]).toBeCloseTo(0.0186264217, 6);
+    expect(year2.lam[999]).toBeCloseTo(0.0441009402, 6);
   });
 
   it("applies one year of claims-cost inflation to Year-2 severity", () => {
