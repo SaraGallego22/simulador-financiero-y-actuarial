@@ -11,6 +11,43 @@ import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
 
+/** Below this many published teams, the aggregate below could let a team back-solve a specific competitor's real totalPremium/claimsAmount from the combined total — so it's withheld instead of shown. */
+const MARKET_LOSS_RATIO_MIN_TEAMS = 4;
+
+export interface MarketLossRatio {
+  lossRatio: number;
+  teamCount: number;
+}
+
+/**
+ * Real, aggregate (never per-team) loss ratio across every team's published
+ * result for a given day — siniestros reales de todo el mercado ÷ prima real
+ * de todo el mercado, both summed across teams, never broken out. Used as an
+ * external reference for a team's own Expected Loss Ratio estimate (Día 2's
+ * guide §2) — deliberately the real market outcome, not a theoretical
+ * benchmark, and gated on a minimum team count (see
+ * MARKET_LOSS_RATIO_MIN_TEAMS) so a small cohort can't reverse-engineer an
+ * individual competitor's figures from the combined total.
+ */
+export async function computeMarketLossRatio(cohortId: string, day: number): Promise<MarketLossRatio | null> {
+  const results = await prisma.teamSimResult.findMany({
+    where: { simulationRun: { cohortId, day, status: "DONE" }, published: true },
+    orderBy: { simulationRun: { createdAt: "desc" } },
+  });
+  const seen = new Set<string>();
+  let totalPremium = 0;
+  let totalClaims = 0;
+  for (const r of results) {
+    if (seen.has(r.teamId)) continue; // keep only the latest run per team
+    seen.add(r.teamId);
+    totalPremium += r.totalPremium;
+    totalClaims += r.claimsAmount;
+  }
+  const teamCount = seen.size;
+  if (teamCount < MARKET_LOSS_RATIO_MIN_TEAMS || totalPremium <= 0) return null;
+  return { lossRatio: totalClaims / totalPremium, teamCount };
+}
+
 export interface TeamConsolidado {
   teamId: string;
   teamName: string;

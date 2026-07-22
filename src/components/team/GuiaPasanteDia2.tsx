@@ -271,13 +271,13 @@ export function GuiaPasanteDia2() {
             riesgo real de tus pólizas, tu Loss Ratio Esperado hereda ese sesgo, y tu costo último estimado con él también.
           </p>
           <p>
-            Como referencia para contrastar: el loss ratio real de <strong>todo el mercado</strong> — siniestros reales sobre la prima comercial
-            que resultaría de tarificar con la fórmula de referencia — es de aproximadamente <strong>63%</strong>, moderadamente más alto que el
-            55% que esa misma fórmula asume en teoría (la diferencia es por los siniestros catastróficos ocasionales que hacen la severidad más
-            asimétrica de lo que un promedio simple sugiere). Si tu propio Loss Ratio Esperado queda muy por debajo de ese ~63% (por ejemplo,
-            pegado al 55% &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el
-            riesgo real de tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios
-            típicos de auto en Colombia) es una tercera referencia útil, aunque no reemplaza tu propio cálculo.
+            Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
+            prima real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por equipo) — visible arriba, en la
+            pestaña Entregables de este día. No es un número teórico como el 55% de la fórmula de referencia: es lo que el mercado real produjo. Si
+            tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55% &ldquo;de libro&rdquo; sin ajustar), es
+            una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de tu cartera — vale la pena revisarlo antes
+            de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en Colombia) es una tercera referencia útil,
+            aunque no reemplaza tu propio cálculo.
           </p>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso
@@ -388,9 +388,9 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
-              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado ronda el 63% (sección 2).
-              Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de frecuencia/severidad antes de reservar con ese
-              número.
+              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado (pestaña Entregables,
+              sección 2) es el dato real para contrastar. Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de
+              frecuencia/severidad antes de reservar con ese número.
             </li>
             <li>
               <strong>Prima Devengada, no Prima Emitida.</strong> El costo último se relaciona con la prima que efectivamente cubrió riesgo durante
