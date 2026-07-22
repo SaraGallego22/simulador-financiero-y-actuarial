@@ -148,7 +148,7 @@ export function GuiaPasanteDia3() {
 
       <InsumosEntregables
         insumos={[
-          "Siniestros propios del 2027 avisados en 2027 y en 2028 (dos años de desarrollo), más siniestros propios del 2028 avisados en 2028 — con fecha de siniestro y fecha de aviso, para tu propio triángulo de desarrollo (Chain Ladder, sección 2).",
+          "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028 — con fecha exacta de siniestro y de aviso, para armar tu propio triángulo de desarrollo mensual (Chain Ladder, sección 2).",
           "Pagos reales del 2028 sobre los siniestros del 2027 (desarrollo) y los siniestros propios del 2028.",
           "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027/2028.",
           "Retención real de pólizas de 2027 a 2028, para proyectar el 2029.",
@@ -196,111 +196,125 @@ export function GuiaPasanteDia3() {
             estimación se llama reserva técnica, y el problema de estimarla se conoce como <em>reserving</em>.
           </p>
           <p>
-            La familia de métodos más usada — Chain Ladder — organiza los siniestros en un triángulo de desarrollo: filas por año de ocurrencia (el
-            año en que pasó el siniestro), columnas por año de desarrollo (cuántos años han pasado desde que ocurrió) y cada celda es el monto
-            acumulado — avisado o pagado, según qué dato se tenga — de ese año de ocurrencia hasta ese punto de desarrollo. Con años de ocurrencia ya
-            completamente desarrollados se calculan factores de desarrollo (&ldquo;edad a edad&rdquo;) — cuánto crece típicamente el monto acumulado
-            de un año de desarrollo al siguiente — y esos factores se aplican a los años todavía incompletos para proyectar cuánto falta por
-            reconocer. Lo que falta de siniestros que ya ocurrieron pero que la aseguradora todavía no conoce en detalle (o ni siquiera sabe que
-            existen) se llama IBNR (<em>Incurred But Not Reported</em>) — el costo <strong>último</strong> es la suma de lo ya avisado más ese IBNR.
-            Este ejercicio usa un triángulo de <strong>avisados</strong>, no de pagos: la severidad de un siniestro queda fija desde el momento en
-            que se avisa, así que el monto avisado acumulado ya es una base de desarrollo directa.
+            La familia de métodos más usada — Chain Ladder — organiza los siniestros en un triángulo de desarrollo: filas por periodo de
+            ocurrencia (puede ser año, trimestre o mes — cuanto más fino el periodo, más filas y más factores para encadenar), columnas por
+            periodo de desarrollo (cuántos periodos han pasado desde que ocurrió) y cada celda es el monto acumulado — avisado o pagado, según qué
+            dato se tenga — de ese periodo de ocurrencia hasta ese punto de desarrollo. Con periodos de ocurrencia ya completamente desarrollados se
+            calculan factores de desarrollo (&ldquo;edad a edad&rdquo;) — cuánto crece típicamente el monto acumulado de un periodo de desarrollo al
+            siguiente — y esos factores se encadenan y se aplican a los periodos todavía incompletos para proyectar cuánto falta por reconocer (de
+            ahí el nombre: cada edad se apalanca en la anterior, como los peldaños de una escalera). Lo que falta de siniestros que ya ocurrieron
+            pero que la aseguradora todavía no conoce en detalle (o ni siquiera sabe que existen) se llama IBNR (<em>Incurred But Not Reported</em>)
+            — el costo <strong>último</strong> es la suma de lo ya avisado más ese IBNR. Este ejercicio usa un triángulo de <strong>avisados</strong>,
+            no de pagos: la severidad de un siniestro queda fija desde el momento en que se avisa, así que el monto avisado acumulado ya es una
+            base de desarrollo directa.
           </p>
         </SubSection>
 
         <SubSection title="Construye tu propio triángulo de desarrollo" accent="act">
           <p>
-            Tu reporte de hoy te da lo que necesitas para armar un triángulo real, no solo para entenderlo en abstracto: los siniestros propios del
-            2027 avisados tanto en 2027 (los mismos que ya conocías desde Día 2) como en 2028 (recién visibles, con su propia fecha de siniestro y
-            fecha de aviso), más los siniestros propios del 2028 avisados en 2028. Eso arma un triángulo de 2×2 — dos años de ocurrencia, dos años
-            de desarrollo:
+            Tu reporte de hoy trae la fecha exacta de siniestro y de aviso de cada uno de tus siniestros propios del 2027 (ahora visibles los 12
+            meses del año, gracias a la ventana ampliada) y del 2028. Eso alcanza para algo más fino que dos puntos anuales: un triángulo{" "}
+            <strong>mensual</strong> — filas por mes de ocurrencia (enero 2027 a diciembre 2028, 24 meses posibles) y columnas por mes de desarrollo
+            transcurrido hasta el aviso (columna 0 = avisado el mismo mes del siniestro, columna 1 = un mes después, y así sucesivamente).
+          </p>
+          <p>
+            Tu reporte refleja un único momento en el tiempo (fin de 2028), así que cada mes de ocurrencia ha tenido un tiempo distinto para
+            desarrollarse: enero 2027 lleva ya cerca de 24 meses madurando, mientras que diciembre 2028 apenas lleva 0-1 mes. Eso arma la forma de
+            escalera típica de un triángulo — los meses de ocurrencia más antiguos tienen muchas columnas conocidas, los más recientes casi
+            ninguna. Un fragmento ilustrativo de 4 de tus 24 filas posibles (números inventados, no los tuyos):
           </p>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
               <thead>
                 <tr>
                   <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Año de ocurrencia
+                    Mes de ocurrencia
                   </th>
                   <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo a 12 meses (avisado en su propio año)
+                    Desarrollo 0
                   </th>
                   <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo a 24 meses (avisado en su año o el siguiente)
+                    Desarrollo 1
+                  </th>
+                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                    Desarrollo 2
+                  </th>
+                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                    Desarrollo 3
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">2027</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Σ monto avisado en 2027 (ya lo sabías desde Día 2)</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Σ monto avisado en 2027 o 2028 (tu reporte de hoy)</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Oct 2027</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$40</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$55</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$62</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$65</td>
                 </tr>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">2028</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">Σ monto avisado en 2028 (tu reporte de hoy)</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Nov 2027</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$38</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$52</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$59</td>
                   <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ? — todavía no existe (2029 no ha pasado); es lo que proyectas
+                    ?
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Dic 2027</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$42</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$57</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
+                    ?
+                  </td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
+                    ?
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Ene 2028</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$45</td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
+                    ?
+                  </td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
+                    ?
+                  </td>
+                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
+                    ?
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p>
-            La única celda con las dos columnas completas es la fila 2027 — de ahí sale tu factor de desarrollo edad a edad (12→24 meses): columna
-            de 24 meses ÷ columna de 12 meses, para esa misma fila. Aplicas ese mismo factor a la columna de 12 meses de la fila 2028 para proyectar
-            su desarrollo a 24 meses — la celda con el signo de interrogación de arriba. Un ejemplo ilustrativo (números inventados, no los tuyos):
+            Con más de dos columnas hay más de un factor edad a edad: 0→1 (promediando las filas que ya tienen ambas edades: Oct, Nov y Dic ≈ 1.37),
+            1→2 (Oct y Nov ≈ 1.13) y 2→3 (solo Oct ≈ 1.05). Para proyectar una fila incompleta se <strong>encadenan</strong> tantos factores como
+            haga falta — Nov solo necesita el último (59 × 1.05 ≈ 62), pero Ene 2028 necesita los tres seguidos (45 × 1.37 × 1.13 × 1.05 ≈ 73). Esa
+            cadena de factores sucesivos es justo lo que le da su nombre al método — con solo dos columnas (como en un triángulo anual) nunca se ve
+            más que un único eslabón.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Año de ocurrencia
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    12 meses
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    24 meses
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">2027 (ejemplo)</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$80</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$95</td>
-                </tr>
-                <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">2028 (ejemplo)</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$90</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold text-[var(--color-brand-blue-accent)]">
-                    90 × (95÷80) = $106.9
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
           <p>
             Ese factor edad a edad lo calculas tú, con tus propios datos — no hay un número de referencia para eso, es justamente lo que Chain
-            Ladder te pide estimar.
+            Ladder te pide estimar. Encadenándolos puedes llevar cualquiera de tus filas hasta la edad más madura que alcances con tu propia
+            información: cerca de 24 meses para tus meses de ocurrencia de comienzos del 2027.
           </p>
           <p>
-            Ni 24 meses de desarrollo es &ldquo;lo último&rdquo; todavía: con un rezago de aviso que puede llegar hasta 730 días (~2 años) desde la
+            Ni esa edad más madura es &ldquo;lo último&rdquo; todavía: con un rezago de aviso que puede llegar hasta 730 días (~2 años) desde la
             ocurrencia, sigue quedando un remanente muy pequeño de siniestros del 2027 sin avisar incluso a estas alturas. Ese remanente se cubre
-            con un factor de cola — este, a diferencia del edad a edad, sí te lo damos, porque no hay forma de estimarlo solo con tus propios datos
-            (no tienes visibilidad de lo que pasa después del corte de tu reporte):
+            con un factor de cola — este, a diferencia de los edad a edad, sí te lo damos, porque no hay forma de estimarlo solo con tus propios
+            datos (no tienes visibilidad de lo que pasa después del corte de tu reporte):
           </p>
           <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
-              Costo Último = Monto desarrollado a 24 meses × {CHAIN_LADDER_TAIL_FACTOR}
+              Costo Último = Monto desarrollado a tu edad más madura observable (~24 meses) × {CHAIN_LADDER_TAIL_FACTOR}
             </p>
           </div>
           <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Un factor pequeño (~0.3%) a propósito: con esta distribución de rezago de aviso, la enorme mayoría de los siniestros ya se conoce a los
             24 meses. No es cero — por eso Chain Ladder real siempre incluye un factor de cola, aunque sea modesto — pero tampoco es el ajuste
-            dominante de tu estimación; el factor edad a edad que calculas tú mismo pesa mucho más.
+            dominante de tu estimación; los factores edad a edad que calculas tú mismo, encadenados, pesan mucho más.
           </p>
           <p>
             <strong>Esta es una forma de estimar distinta a la que usaste en Día 2.</strong> El método Expected Loss Ratio parte de un supuesto
