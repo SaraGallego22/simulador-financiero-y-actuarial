@@ -48,6 +48,10 @@ export default async function TeamDayPage({
   // README's market-clearing section.
   const hasMinVariance = day === 1;
   const hasPortfolioTree = day === 2;
+  // Día 3 has its own report (/api/teams/report?day=3) — Año 1's claims
+  // widen to a second development diagonal (see that route) — but no tariff
+  // of its own, so it stays outside includeSim.
+  const hasReport = day <= 3;
   const { tab } = await searchParams;
   // "subj" isn't a team-facing tab (see DayTabBar's includeSubj) — never
   // rendered below, but guard the fallback so a hand-typed ?tab=subj doesn't
@@ -325,7 +329,7 @@ export default async function TeamDayPage({
                   </div>
                 );
               })()}
-              {includeSim && (
+              {hasReport && (
                 <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
                   <a
                     href={`/api/teams/report?day=${day}`}
