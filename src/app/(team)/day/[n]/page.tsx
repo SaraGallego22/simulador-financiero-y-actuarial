@@ -64,8 +64,10 @@ export default async function TeamDayPage({
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
+  // Also needed on "obj" (not just "top") to show this team's own rank
+  // alongside its published objective results — see the "obj" section below.
   const topRows =
-    activeTab === "top" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
+    activeTab === "top" || activeTab === "obj" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
   // Real market-wide loss ratio for the closed 2027 market — reference for a
   // team's own Expected Loss Ratio estimate (Día 2's guide §2), not any
   // individual team's figures. See computeMarketLossRatio's doc comment.
@@ -85,6 +87,20 @@ export default async function TeamDayPage({
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
   ]);
+
+  // This team's own rank by objective score for this day — ranked
+  // separately from the "top" tab's combined nota (subjective grading
+  // often isn't published yet when objective results first are).
+  let myObjectiveRank: number | null = null;
+  let objectiveRankedCount = 0;
+  if (topRows) {
+    const ranked = topRows
+      .filter((r) => r.perDay[day - 1]?.objective != null)
+      .sort((a, b) => (b.perDay[day - 1]!.objective ?? 0) - (a.perDay[day - 1]!.objective ?? 0));
+    objectiveRankedCount = ranked.length;
+    const idx = ranked.findIndex((r) => r.teamId === teamId);
+    myObjectiveRank = idx >= 0 ? idx + 1 : null;
+  }
 
   // Día 4 retrospective: both years' capital-derived market-share limits
   // side by side, so a team whose growth was capped can connect it to the
@@ -270,29 +286,9 @@ export default async function TeamDayPage({
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Prima total</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  ${Math.round(publishedResult.totalPremium).toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
                 <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Siniestros</p>
                 <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
                   {publishedResult.claimsCount.toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Monto siniestros</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  ${Math.round(publishedResult.claimsAmount).toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Loss ratio</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  {publishedResult.totalPremium > 0
-                    ? `${((publishedResult.claimsAmount / publishedResult.totalPremium) * 100).toFixed(1)}%`
-                    : "—"}
                 </p>
               </div>
               <div>
@@ -301,6 +297,12 @@ export default async function TeamDayPage({
                   className={`font-[family-name:var(--font-condensed)] text-xl font-bold ${publishedResult.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
                 >
                   {publishedResult.rejectedCount.toLocaleString("es-CO")}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Posición en el top</p>
+                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+                  {myObjectiveRank != null ? `${myObjectiveRank} / ${objectiveRankedCount}` : "—"}
                 </p>
               </div>
               {(() => {
