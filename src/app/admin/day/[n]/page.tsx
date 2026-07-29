@@ -24,6 +24,7 @@ import { computeConsolidado } from "@/lib/consolidado";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
+import { DeleteMemberButton } from "./DeleteMemberButton";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { DAY_TITLES, DAY_DESCRIPTIONS, SIMULATED_YEAR_LABEL } from "@/lib/days";
@@ -1114,7 +1115,10 @@ export default async function AdminDayPage({
                         );
                         return (
                           <div key={member.id} className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                              <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
+                            </div>
 
                             {hasHistorial && (
                               <details className="rounded border border-[var(--color-brand-gray-light)]">

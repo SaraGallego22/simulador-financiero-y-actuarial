@@ -246,3 +246,18 @@ export async function deleteMemberCommentAction(commentId: string, day: number):
   await prisma.memberComment.delete({ where: { id: commentId } });
   revalidatePath(`/admin/day/${day}`);
 }
+
+/**
+ * Removes a participant who dropped out of the challenge. Deletes the
+ * TeamMember row, cascading to their MemberDayEvaluation and MemberComment
+ * rows (see schema's onDelete: Cascade) — since notaSubjetivaEquipo
+ * (consolidado.ts) averages live over `team.members` on every read, this is
+ * enough for them to stop being counted in the team's subjective grade, for
+ * every day, immediately.
+ */
+export async function deleteTeamMemberAction(teamMemberId: string, day: number): Promise<void> {
+  await requireAdmin();
+  await prisma.teamMember.delete({ where: { id: teamMemberId } });
+  revalidatePath(`/admin/day/${day}`);
+  revalidatePath("/admin/config");
+}
