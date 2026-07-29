@@ -41,6 +41,19 @@ export default async function TeamDayPage({
 }) {
   const { n } = await params;
   const day = Number(n);
+  const cohort = await getOrCreateActiveCohort();
+  if (day > cohort.openDay) {
+    return (
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+          Día {day} — {DAY_TITLES[day]}
+        </h1>
+        <p className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+          🔒 Este día todavía no está disponible. El evaluador lo habilita a medida que avanza el reto.
+        </p>
+      </main>
+    );
+  }
   const includeSim = day <= 2;
   // Día 1 hosts the minimum-variance exercise (a flat weight map, not a
   // tree); the real ALM tree is submitted once, on Día 2 — decoupled from

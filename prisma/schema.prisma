@@ -38,6 +38,12 @@ model Cohort {
   name      String   @unique
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+  // Highest day (1-4) teams can currently see, admin-controlled — teams start
+  // scoped to Día 1 only and the admin advances this as the challenge
+  // progresses (see updateOpenDayAction). Distinct from a day's own
+  // TeamSimResult.published/MemberDayEvaluation.published: this gates whether
+  // a day's tabs are reachable at all, not whether that day's results are out.
+  openDay   Int      @default(1)
 
   teams          Team[]
   universeRuns   UniverseRun[]

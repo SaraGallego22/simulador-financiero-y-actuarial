@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
+import { getOrCreateActiveCohort } from "@/lib/cohort";
 
 const DAYS = [
   {
@@ -34,11 +35,12 @@ export default async function TeamDashboard() {
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
-  const [team, submissions] = await Promise.all([
+  const [team, submissions, cohort] = await Promise.all([
     teamId ? prisma.team.findUnique({ where: { id: teamId } }) : null,
     teamId
       ? prisma.tariffSubmission.findMany({ where: { teamId }, select: { day: true, meanPremium: true } })
       : [],
+    getOrCreateActiveCohort(),
   ]);
   const completeByDay = new Map(submissions.map((s) => [s.day, s.meanPremium != null]));
 
@@ -56,28 +58,43 @@ export default async function TeamDashboard() {
       </p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {DAYS.map((d) => (
-          <Link
-            key={d.n}
-            href={`/day/${d.n}`}
-            className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-4 hover:shadow-sm"
-          >
-            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              {d.label}
-            </p>
-            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Actuarial — </span>
-              {d.actuarial}
-            </p>
-            <p className="mt-1 text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Financiero — </span>
-              {d.financiero}
-            </p>
-            <p className="mt-2 text-xs italic text-[var(--color-brand-text-secondary)]">
-              {completeByDay.get(d.n) ? "Tarifa cargada" : "Tarifa pendiente"}
-            </p>
-          </Link>
-        ))}
+        {DAYS.map((d) => {
+          const locked = d.n > cohort.openDay;
+          const card = (
+            <>
+              <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                {d.label}
+              </p>
+              <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
+                <span className="font-semibold text-[var(--color-brand-blue-accent)]">Actuarial — </span>
+                {d.actuarial}
+              </p>
+              <p className="mt-1 text-xs text-[var(--color-brand-text-secondary)]">
+                <span className="font-semibold text-[var(--color-brand-blue-accent)]">Financiero — </span>
+                {d.financiero}
+              </p>
+              <p className="mt-2 text-xs italic text-[var(--color-brand-text-secondary)]">
+                {locked ? "🔒 Aún no disponible" : completeByDay.get(d.n) ? "Tarifa cargada" : "Tarifa pendiente"}
+              </p>
+            </>
+          );
+          return locked ? (
+            <div
+              key={d.n}
+              className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4 opacity-60"
+            >
+              {card}
+            </div>
+          ) : (
+            <Link
+              key={d.n}
+              href={`/day/${d.n}`}
+              className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-4 hover:shadow-sm"
+            >
+              {card}
+            </Link>
+          );
+        })}
       </div>
 
       <InstrumentsPanel />
