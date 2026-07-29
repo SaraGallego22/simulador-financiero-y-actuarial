@@ -1,6 +1,6 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { updateRubricWeightsAction } from "@/lib/adminActions";
+import { updateRubricWeightsAction, updateOpenDayAction } from "@/lib/adminActions";
 import { CreateTeamForm } from "./CreateTeamForm";
 import { DeleteTeamButton } from "./DeleteTeamButton";
 import { RosterUpload } from "./RosterUpload";
@@ -72,6 +72,33 @@ export default async function ConfigPage() {
 
         <CreateTeamForm />
         <RosterUpload />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+          Progreso del reto
+        </h2>
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
+          Los equipos solo ven los días hasta este número. Súbelo a medida que avanza el reto.
+        </p>
+
+        <form action={updateOpenDayAction} className="flex items-end gap-3 rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
+            Día visible para los equipos
+            <select name="openDay" defaultValue={cohort.openDay} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm">
+              <option value={1}>Día 1</option>
+              <option value={2}>Día 2</option>
+              <option value={3}>Día 3</option>
+              <option value={4}>Día 4</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)]"
+          >
+            Guardar
+          </button>
+        </form>
       </section>
 
       <section className="flex flex-col gap-4">

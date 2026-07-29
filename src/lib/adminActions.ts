@@ -94,6 +94,21 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
   revalidatePath("/admin/config");
 }
 
+/**
+ * Sets how many days teams can currently see (Cohort.openDay, 1-4) — the
+ * gate TeamNav/dashboard/day pages check before rendering a day's content
+ * for a TEAM session, independent of that day's own published results.
+ */
+export async function updateOpenDayAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const cohort = await getOrCreateActiveCohort();
+  const openDay = Math.max(1, Math.min(4, Number(formData.get("openDay")) || 1));
+  await prisma.cohort.update({ where: { id: cohort.id }, data: { openDay } });
+  revalidatePath("/admin/config");
+  revalidatePath("/dashboard");
+  revalidatePath("/day/[n]", "page");
+}
+
 export async function togglePublishedAction(teamSimResultId: string, day: number): Promise<void> {
   await requireAdmin();
   const current = await prisma.teamSimResult.findUnique({ where: { id: teamSimResultId } });
