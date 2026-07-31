@@ -92,7 +92,7 @@ export function GuiaPasanteDia4() {
           "Tu propia cartera (parcial, sesgada) y el CSV público del universo, para la recomendación sectorial.",
         ]}
         entregables={[
-          "Requerimiento de Capital (RK), Fondos propios, Margen de solvencia y Dividendo posible.",
+          "σ de tu siniestralidad (volatilidad de prima/siniestralidad de Año 1, 2 y 3), Requerimiento de Capital (RK), Fondos propios, Margen de solvencia, Dividendo posible y EVA (Valor Económico Agregado).",
           "Hasta 3 sectores a crecer y hasta 3 a disminuir, cada uno con su multiplicador estimado.",
         ]}
       />
@@ -138,6 +138,16 @@ export function GuiaPasanteDia4() {
           </p>
         </SubSection>
 
+        <SubSection title="Volatilidad de tu propia siniestralidad" accent="fin">
+          <p>
+            El riesgo de prima (parte del Requerimiento de Capital) no se calcula sobre un supuesto de volatilidad plano, igual para los 12 equipos —
+            se calcula sobre <strong>tu propia</strong> volatilidad de siniestralidad realizada: qué tan dispersa quedó tu relación siniestros/prima
+            (loss ratio) de un año a otro a lo largo de tus 3 años. Un equipo cuyo loss ratio se mantuvo estable entre Año 1, Año 2 y Año 3 tiene una
+            operación más predecible — y por tanto un riesgo de prima más bajo — que uno cuyo loss ratio saltó de un año a otro, aunque ambos hayan
+            terminado con la misma siniestralidad promedio.
+          </p>
+        </SubSection>
+
         <SubSection title="Capital de solvencia y el beneficio de la diversificación" accent="fin">
           <p>
             Un marco de solvencia basado en riesgo (como el que sigue este ejercicio, inspirado en el estándar de Solvencia II europeo) no exige
@@ -153,22 +163,42 @@ export function GuiaPasanteDia4() {
             margen de seguridad objetivo, es lo que queda disponible para repartir como dividendo sin comprometer la solvencia futura de la compañía.
           </p>
         </SubSection>
+
+        <SubSection title="Creación de valor económico (EVA)" accent="fin">
+          <p>
+            Utilidad neta positiva no significa, por sí sola, que una aseguradora creó valor: el patrimonio invertido en el negocio tiene un costo de
+            oportunidad — lo que ese mismo capital habría podido rendir en un uso alternativo de riesgo comparable — y una utilidad que no supera ese
+            costo destruye valor aunque el signo del resultado contable sea positivo. El EVA (Valor Económico Agregado) formaliza esa comparación:
+            utilidad neta menos un cargo por costo de capital sobre los fondos propios.
+          </p>
+        </SubSection>
       </Section>
 
       <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Solvencia y dividendos" accent="fin">
           <p>
-            Reportas 4 líneas: el <strong>Requerimiento de Capital (RK)</strong>, tus <strong>Fondos propios</strong>, el{" "}
-            <strong>Margen de solvencia</strong> (fondos propios ÷ RK) y el <strong>Dividendo posible</strong> — cada una calificada por separado con una
-            banda de tolerancia sobre el error relativo, igual que el resto de tus entregables numéricos.
+            Reportas 6 líneas: tu <strong>σ de siniestralidad</strong>, el <strong>Requerimiento de Capital (RK)</strong>, tus{" "}
+            <strong>Fondos propios</strong>, el <strong>Margen de solvencia</strong> (fondos propios ÷ RK), el <strong>Dividendo posible</strong> y el{" "}
+            <strong>EVA (Valor Económico Agregado)</strong> — cada una calificada por separado con una banda de tolerancia sobre el error relativo, igual
+            que el resto de tus entregables numéricos.
           </p>
           <p>
-            El RK combina cuatro riesgos (suscripción, financiero, operacional y concentración) — los dos que conectan directamente con tu árbol de
-            portafolio de Día 2 son el financiero y el de concentración, y son dos cosas distintas. El riesgo financiero no es un porcentaje plano sobre
-            tus inversiones: se escala por qué tan volátil resultó realmente tu portafolio frente al promedio del menú de instrumentos. El riesgo de
-            concentración es independiente de eso — se escala por qué tan repartido quedó tu árbol entre los instrumentos con plazo propio
-            (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo
-            nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 5 para las fórmulas completas.
+            Tu <strong>σ de siniestralidad</strong> no se compara contra un valor del motor calculado aparte: se recalcula a partir de tus propias otras
+            líneas ya reportadas — tu Costo de Siniestros y Prima Emitida de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, usa tu propio Costo{" "}
+            <strong>corregido</strong> por tu propio Ajuste de siniestralidad A1 (la misma corrección que ya reportaste en el Estado de resultados de
+            Año 2, Día 3) — no tu cifra original de Día 2, que puede haber estado equivocada. El EVA tampoco se compara contra un valor del motor: se
+            recalcula a partir de tu Utilidad Neta del año vigente de Día 3 y tus Fondos propios de hoy. En ambos casos, un error previo en alguna de
+            esas líneas solo te penaliza una vez, no también aquí.
+          </p>
+          <p>
+            El RK combina cuatro riesgos (suscripción, financiero, operacional y concentración) — los que conectan directamente con tus propias
+            decisiones anteriores son el de prima (tu propia σ de siniestralidad, arriba), el financiero y el de concentración, y los tres son cosas
+            distintas. El riesgo de prima escala con tu propia volatilidad de siniestralidad, no con un porcentaje plano. El riesgo financiero tampoco
+            es un porcentaje plano sobre tus inversiones: se escala por qué tan volátil resultó realmente tu portafolio frente al promedio del menú de
+            instrumentos. El riesgo de concentración es independiente de eso — se escala por qué tan repartido quedó tu árbol entre los instrumentos con
+            plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era volátil o no. Un equipo que puso todo en un solo CDT90
+            (bajo riesgo nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 5 para las fórmulas
+            completas.
           </p>
         </SubSection>
 
@@ -198,6 +228,12 @@ export function GuiaPasanteDia4() {
         <SubSection title="Para la solvencia" accent="fin">
           <ul className="list-disc pl-5">
             <li>
+              <strong>Tu loss ratio de Año 1, para la σ de siniestralidad, no es tu Costo de Siniestros A1 original de Día 2.</strong> Es ese mismo
+              Costo <strong>corregido</strong> por tu propio Ajuste de siniestralidad A1 (reportado en el Estado de resultados de Año 2, Día 3) — si
+              olvidas aplicar esa corrección, tu σ (y por tanto tu riesgo de prima y tu RK) queda calculada sobre una siniestralidad de Año 1 que tú
+              mismo ya sabes que era incorrecta.
+            </li>
+            <li>
               <strong>El riesgo financiero no es gratis, aunque el rendimiento haya sido bueno.</strong> Dos equipos con el mismo patrimonio pueden tener
               un RK muy distinto si uno concentró su portafolio en el instrumento más volátil del menú — revisa tu propia volatilidad realizada, no solo
               tu rendimiento, antes de reportar.
@@ -212,6 +248,11 @@ export function GuiaPasanteDia4() {
               <strong>El patrimonio que usas es el del año vigente, no un acumulado de todos los años.</strong> Si tuviste que comprometer Capital
               Social en algún año para cubrir una brecha de caja, eso ya redujo tu patrimonio en el Balance de ese año — revisa tu Balance de Día 3 antes
               de calcular tu solvencia.
+            </li>
+            <li>
+              <strong>Una utilidad neta positiva no implica un EVA positivo.</strong> Si tu utilidad neta apenas superó (o quedó por debajo de) el 10%
+              de tus fondos propios, tu EVA será bajo o negativo aunque tu Utilidad Neta A2 haya sido positiva — reporta el cálculo completo, no solo el
+              signo de la utilidad.
             </li>
           </ul>
         </SubSection>
@@ -254,7 +295,12 @@ export function GuiaPasanteDia4() {
       <Section n="5" title="Plantillas — cómo se construye y cómo alimenta el resultado">
         <FlowStep n="1" title="5.1 · Solvencia — fórmulas">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√((prima×14.76%)² + (reservas×30%)² + 2×0.75×(prima×14.76%)×(reservas×30%))" />
+            <ScoreCard
+              label="σ de siniestralidad (sol_sigmaLR)"
+              formula="desviación estándar muestral (÷2, no ÷3) de [Costo A1 corregido ÷ Prima A1, Costo A2 ÷ Prima A2, Costo A3 ÷ Prima A3] — Costo A1 corregido = tu Costo de Siniestros A1 (Día 2) + tu Ajuste de siniestralidad A1 (Día 3)"
+            />
+            <ScoreCard label="Riesgo de prima (rPrimas)" formula="prima × tu propia σ de siniestralidad (sol_sigmaLR, arriba)" />
+            <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√(rPrimas² + (reservas×30%)² + 2×0.75×rPrimas×(reservas×30%))" />
             <ScoreCard label="Riesgo financiero (rFin)" formula="6.6% × inversiones × (tu volatilidad realizada ÷ volatilidad promedio del menú)" />
             <ScoreCard label="Riesgo operacional (rOp)" formula="3% × prima" />
             <ScoreCard
@@ -267,10 +313,12 @@ export function GuiaPasanteDia4() {
             />
             <ScoreCard label="Margen de solvencia" formula="Fondos propios (patrimonio) ÷ RK" />
             <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
+            <ScoreCard label="EVA (Valor Económico Agregado)" formula="Utilidad Neta (año vigente, Día 3) − 10% × Fondos propios" />
           </div>
           <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
-            &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; son los mismos números de tu Balance del año
-            vigente (Día 3) — no hay que recalcularlos desde cero.
+            &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; (fuera de la fórmula de σ) son los mismos
+            números de tu Balance del año vigente (Día 3) — no hay que recalcularlos desde cero. La σ de siniestralidad es la única línea que mira los 3
+            años a la vez en lugar de solo el año vigente.
           </p>
         </FlowStep>
 

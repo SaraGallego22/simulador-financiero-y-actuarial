@@ -1,4 +1,6 @@
 import type { FinBenchResult } from "../finance/finBench";
+import { FZ } from "../finance/constants";
+import { sampleStdev } from "../finance/stats";
 
 export type Perfil = "act" | "fin";
 export type Dia = "d1" | "d2" | "d3" | "d4";
@@ -25,14 +27,42 @@ export interface FormulaTerm {
 }
 
 /**
+ * One year's term of `sol_sigmaLR`'s "sampleStdevLossRatio" FormulaSpec:
+ * that year's loss ratio is `(costConceptId's own value [+ adjustmentConceptId's
+ * own value, if present]) / premiumConceptId's own value`. `day` (both for
+ * the cost/premium pair and, separately, for the adjustment) defaults to the
+ * referencing concept's own `dia`, same convention as FormulaTerm.day —
+ * `sol_sigmaLR` lives on d4 but every year's own P&G lines live on d2/d3, so
+ * every entry sets it explicitly in practice. `adjustmentConceptId` exists
+ * only for Año 1: its Día-2 Costo de Siniestros guess gets corrected by Año
+ * 2's own "Ajuste de siniestralidad" line (`p2_ajusteSiniestralidad`), so
+ * Año 1's loss ratio here uses the team's own CORRECTED Año-1 claims, not
+ * their original (possibly wrong) Día-2 guess — the same self-correction
+ * the P&G's own Resultado Técnico A2 formula already applies.
+ */
+export interface LossRatioYearSpec {
+  costConceptId: string;
+  premiumConceptId: string;
+  day?: Dia;
+  adjustmentConceptId?: string;
+  adjustmentDay?: Dia;
+}
+
+/**
  * How a "formula" concept's expected value is derived from the team's OWN
  * other submitted values (never from the true finBench() bench) — see
  * scoreConcepto()'s doc comment for why. `"linear"` covers every formula
  * line except Impuesto, which needs a `max(0, ·)` clamp before applying the
  * tax rate — `"taxOnUai"` is a dedicated small case for that one shape
  * rather than generalizing the whole spec for a single non-linear formula.
+ * `"sampleStdevLossRatio"` is `sol_sigmaLR`'s own dedicated shape, for the
+ * same reason: a 3-year sample standard deviation of a ratio isn't
+ * expressible as a linear combination of other concepts' values.
  */
-export type FormulaSpec = { kind: "linear"; terms: FormulaTerm[]; constant?: number } | { kind: "taxOnUai"; uaiConceptId: string; rate: number };
+export type FormulaSpec =
+  | { kind: "linear"; terms: FormulaTerm[]; constant?: number }
+  | { kind: "taxOnUai"; uaiConceptId: string; rate: number }
+  | { kind: "sampleStdevLossRatio"; years: LossRatioYearSpec[] };
 
 export interface Concepto {
   id: string;
@@ -954,10 +984,56 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
 
+  {
+    id: "sol_sigmaLR",
+    dia: "d4",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "σ Siniestralidad (volatilidad de prima)",
+    unit: "x",
+    // True value: sample stdev of costo/primaEmitida across Año 1/2/3, computed
+    // once inside finBench() itself (same number driving its own rPrimas — see
+    // FinBenchResult.solSigmaLR) — never recomputed separately here, so the
+    // reported concept and the engine's own RK calculation can't drift apart.
+    get: (b) => b.solSigmaLR,
+    // Graded against the team's OWN P&G lines, not the truth directly: Año 1's
+    // loss ratio uses its own reported Costo/Prima A1 CORRECTED by its own
+    // Día-3 Ajuste de siniestralidad (see LossRatioYearSpec's doc comment),
+    // Año 2 and Año 3 use their own reported Costo/Prima as-is.
+    formula: {
+      kind: "sampleStdevLossRatio",
+      years: [
+        { costConceptId: "p1_costo", premiumConceptId: "p1_primaEmitida", day: "d2", adjustmentConceptId: "p2_ajusteSiniestralidad", adjustmentDay: "d3" },
+        { costConceptId: "p2_costo", premiumConceptId: "p2_primaEmitida", day: "d3" },
+        { costConceptId: "p3_costo", premiumConceptId: "p3_primaEmitida", day: "d3" },
+      ],
+    },
+  },
   { id: "sol_rk", dia: "d4", perfil: "fin", tipo: "reporte", label: "Requerimiento de Capital", unit: "COP", get: (b) => b.solRk },
   { id: "sol_fp", dia: "d4", perfil: "fin", tipo: "reporte", label: "Fondos propios", unit: "COP", get: (b) => b.solFp },
   { id: "sol_margen", dia: "d4", perfil: "fin", tipo: "reporte", label: "Margen de solvencia", unit: "x", get: (b) => b.solMargen },
   { id: "div", dia: "d4", perfil: "fin", tipo: "reporte", label: "Dividendos posibles", unit: "COP", get: (b) => b.div },
+  {
+    id: "eva",
+    dia: "d4",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "EVA — Valor Económico Agregado",
+    unit: "COP",
+    // Classic corporate-finance EVA (capital invertido = fondos propios/patrimonio, not
+    // the Solvency-II solRk requirement — see FZ.costoCapital's own comment for why):
+    // Utilidad Neta del año vigente (Año 2 si ya existe, si no Año 1 — mismo "año
+    // vigente" que solFp/solMargen) menos el costo de oportunidad de mantener ese
+    // patrimonio invertido en la aseguradora.
+    get: (b) => (b.p2 ? b.p2.uneta : b.p1.uneta) - FZ.costoCapital * b.solFp,
+    formula: {
+      kind: "linear",
+      terms: [
+        { conceptId: "p2_uneta", coeff: 1, day: "d3" },
+        { conceptId: "sol_fp", coeff: -FZ.costoCapital },
+      ],
+    },
+  },
   { id: "analitica", dia: "d4", perfil: "act", tipo: "auto_analitica", label: "Analítica sectorial", unit: "score" },
 ];
 
@@ -1010,6 +1086,22 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
     const uai = ownValues.get(ownValueKey(ownDay, spec.uaiConceptId));
     if (uai == null) return null;
     return spec.rate * Math.max(0, uai);
+  }
+  if (spec.kind === "sampleStdevLossRatio") {
+    const ratios: number[] = [];
+    for (const y of spec.years) {
+      const cost = ownValues.get(ownValueKey(y.day ?? ownDay, y.costConceptId));
+      const premium = ownValues.get(ownValueKey(y.day ?? ownDay, y.premiumConceptId));
+      if (cost == null || premium == null || premium === 0) return null;
+      let adjustedCost = cost;
+      if (y.adjustmentConceptId) {
+        const adj = ownValues.get(ownValueKey(y.adjustmentDay ?? y.day ?? ownDay, y.adjustmentConceptId));
+        if (adj == null) return null;
+        adjustedCost += adj;
+      }
+      ratios.push(adjustedCost / premium);
+    }
+    return sampleStdev(ratios);
   }
   let total = spec.constant ?? 0;
   for (const term of spec.terms) {

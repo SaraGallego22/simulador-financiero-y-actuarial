@@ -147,6 +147,14 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
         expect(CONCEPTO_BY_ID[c.formula.uaiConceptId], `${c.id} -> ${c.formula.uaiConceptId}`).toBeDefined();
         continue;
       }
+      if (c.formula.kind === "sampleStdevLossRatio") {
+        for (const y of c.formula.years) {
+          expect(CONCEPTO_BY_ID[y.costConceptId], `${c.id} -> ${y.costConceptId}`).toBeDefined();
+          expect(CONCEPTO_BY_ID[y.premiumConceptId], `${c.id} -> ${y.premiumConceptId}`).toBeDefined();
+          if (y.adjustmentConceptId) expect(CONCEPTO_BY_ID[y.adjustmentConceptId], `${c.id} -> ${y.adjustmentConceptId}`).toBeDefined();
+        }
+        continue;
+      }
       for (const term of c.formula.terms) {
         expect(CONCEPTO_BY_ID[term.conceptId], `${c.id} -> ${term.conceptId}`).toBeDefined();
       }
@@ -208,6 +216,43 @@ describe("Ajuste de siniestralidad (a useTrueValue formula term: true bench fact
     const ownValues = new Map<string, number>();
     ownValues.set(ownValueKey("d2", "p1_costo"), 350_000_000);
     const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", 50_000_000, ownValues, TOLERANCE); // bench omitted
+    expect(result!.score).toBeNull();
+  });
+});
+
+describe("sol_sigmaLR (sample stdev of siniestralidad/prima across Año 1/2/3, graded against the team's OWN P&G lines)", () => {
+  function ownValuesFor(overrides: Partial<Record<string, number>> = {}): Map<string, number> {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d2", "p1_primaEmitida"), overrides.p1_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d2", "p1_costo"), overrides.p1_costo ?? 400_000_000);
+    ownValues.set(ownValueKey("d3", "p2_ajusteSiniestralidad"), overrides.p2_ajusteSiniestralidad ?? 50_000_000);
+    ownValues.set(ownValueKey("d3", "p2_primaEmitida"), overrides.p2_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d3", "p2_costo"), overrides.p2_costo ?? 500_000_000);
+    ownValues.set(ownValueKey("d3", "p3_primaEmitida"), overrides.p3_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d3", "p3_costo"), overrides.p3_costo ?? 550_000_000);
+    return ownValues;
+  }
+
+  it("recomputes Año 1's loss ratio using the team's OWN Costo A1 CORRECTED by its OWN Ajuste de siniestralidad, not the raw Día 2 guess", () => {
+    // Corrected LR1 = (400M + 50M)/1,000M = 0.45; LR2 = 500M/1,000M = 0.50; LR3 = 550M/1,000M = 0.55.
+    // mean=0.50, sample variance = ((-0.05)^2+0^2+0.05^2)/2 = 0.0025, stdev = 0.05.
+    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValuesFor(), TOLERANCE);
+    expect(result).not.toBeNull();
+    expect(result!.bench).toBeCloseTo(0.05, 10);
+    expect(result!.score).toBe(100);
+  });
+
+  it("is ungradable (null, not 0) when the team's own Ajuste de siniestralidad is missing", () => {
+    const ownValues = ownValuesFor();
+    ownValues.delete(ownValueKey("d3", "p2_ajusteSiniestralidad"));
+    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValues, TOLERANCE);
+    expect(result!.score).toBeNull();
+  });
+
+  it("is ungradable when any year's own Costo/Prima is missing", () => {
+    const ownValues = ownValuesFor();
+    ownValues.delete(ownValueKey("d3", "p3_costo"));
+    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValues, TOLERANCE);
     expect(result!.score).toBeNull();
   });
 });

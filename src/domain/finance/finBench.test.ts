@@ -3,6 +3,7 @@ import { finBench } from "./finBench";
 import type { AlmYearBenchInput, FinBenchInput } from "./finBench";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { computeDevelopment } from "../reserving/development";
+import { FZ } from "./constants";
 
 const liabilityYear1: LiabilitySchedule = {
   L: new Array(48).fill(0),
@@ -367,6 +368,27 @@ describe("finBench", () => {
       // activos == pasivo + patrimonio, i.e. caja+inversiones+cxc == reservasTec+rpnd+cxp+patrimonio
       const pasivoMasPatrimonio = bench.bal1.reservasTec + bench.bal1.rpnd + bench.bal1.cxp + bench.bal1.patrimonio;
       expect(bench.bal1.activos).toBeCloseTo(pasivoMasPatrimonio, 4);
+    });
+  });
+
+  describe("solSigmaLR (Día 4's own siniestralidad/prima volatility, replacing the old flat FZ.primeVol in rPrimas)", () => {
+    it("is the sample stdev (n-1) of true costo/primaEmitida across Año 1/2/3 once all three years exist", () => {
+      const bench = finBench(richYear3Input());
+      const ratios = [bench.p1.costo / bench.p1.primaEmitida, bench.p2!.costo / bench.p2!.primaEmitida, bench.p3!.costo / bench.p3!.primaEmitida];
+      const mean = ratios.reduce((a, b) => a + b, 0) / 3;
+      const variance = ratios.reduce((s, r) => s + (r - mean) ** 2, 0) / 2;
+      expect(bench.solSigmaLR).toBeCloseTo(Math.sqrt(variance), 10);
+      // With a real solSigmaLR feeding rPrimas, the true RK is no longer pinned to the old flat FZ.primeVol.
+      expect(bench.solSigmaLR).not.toBeCloseTo(FZ.primeVol, 4);
+    });
+
+    it("falls back to the flat FZ.primeVol when Año 2/3 data doesn't exist yet (finBench() called with only Año 1, e.g. Día 2 grading)", () => {
+      const bench = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: null,
+      });
+      expect(bench.solSigmaLR).toBe(FZ.primeVol);
     });
   });
 });
