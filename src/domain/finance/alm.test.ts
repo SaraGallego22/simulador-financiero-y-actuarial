@@ -459,6 +459,18 @@ describe("almSimRealYear", () => {
     expect(y2!.capitalSocialRestante).toBe(CAPITAL_SOCIAL);
   });
 
+  it("cajaFinalAnio is exactly December's own cajaFinal, and portfolioBookValue is the gross (undiminished) book value, both feeding finBench()'s Balance", () => {
+    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    expect(y1!.cajaFinalAnio).toBe(y1!.rows[11].cajaFinal);
+    // Gross book value = the netted saldoFinalPortafolio plus back whatever
+    // capital comprometido was netted out of it (see stepMonth's own
+    // saldoFinalPortafolio = realBookSum - capitalComprometidoAcumulado
+    // identity) — undiminished, since the real ALM never invests Capital
+    // Social itself (only prima cash flow), so committed capital was never
+    // part of this pool to begin with.
+    expect(y1!.portfolioBookValue).toBeCloseTo(y1!.rows[11].saldoFinalPortafolio + y1!.capitalComprometidoAcumulado, 4);
+  });
+
   it("returns null when the decision has no recognized instruments", () => {
     expect(almSimRealYear(1, lib.payY1, decision([tranche("NOPE", 100, { action: "cash" })]), aporte)).toBeNull();
   });

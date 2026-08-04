@@ -656,6 +656,10 @@ export interface AlmRealYearResult {
   capitalComprometidoAcumulado: number;
   /** CAPITAL_SOCIAL minus capitalComprometidoAcumulado — how much Capital Social this team has left after this year's real ALM. See README §5.3. */
   capitalSocialRestante: number;
+  /** This year's real Caja Mínima balance at close (December's own cajaFinal — a point-in-time stock, not an annual flow) — feeds the Día 4 Balance's `caja` line (see finBench()'s balance()), replacing the old flat FZ.cajaPct×primaEmitida approximation with the actual month-by-month simulated floor. */
+  cajaFinalAnio: number;
+  /** Undiminished book value of every open position at year close (Σ position.book, never netted against capitalComprometidoAcumulado — see stepMonth()'s realBookSum doc comment) — this is the pool the real ALM actually reinvested from prima cash flow alone, deliberately excluding Capital Social (which the real ALM never invests — see almSimRealYear()'s own doc comment on why it only ever funds from primaCobrada). Feeds the Día 4 Balance's `inversiones` line together with the team's own non-committed Capital Social, added separately by the caller — see finBench()'s balance(). */
+  portfolioBookValue: number;
   totalVentaForzada: number;
   mesesConVentaForzada: number;
   peakCapitalComprometido: number;
@@ -719,6 +723,7 @@ export function almSimRealYear(
   let income = 0;
   let sumPV = 0;
   let sumVolWeighted = 0;
+  let lastRealBookSum = 0;
 
   for (let i = 0; i < 12; i++) {
     const t = startMonth + i;
@@ -729,6 +734,7 @@ export function almSimRealYear(
     income += devengo;
     sumPV += realBookSum;
     sumVolWeighted += volWeightedBookSum;
+    lastRealBookSum = realBookSum;
   }
 
   return {
@@ -742,6 +748,8 @@ export function almSimRealYear(
     avgVol: sumPV > 0 ? sumVolWeighted / sumPV : 0,
     capitalComprometidoAcumulado: state.capitalComprometidoAcumulado,
     capitalSocialRestante: CAPITAL_SOCIAL - state.capitalComprometidoAcumulado,
+    cajaFinalAnio: rows[11].cajaFinal,
+    portfolioBookValue: lastRealBookSum,
     totalVentaForzada: acc.totalVentaForzada,
     mesesConVentaForzada: acc.mesesConVentaForzada,
     peakCapitalComprometido: acc.peakCapitalComprometido,

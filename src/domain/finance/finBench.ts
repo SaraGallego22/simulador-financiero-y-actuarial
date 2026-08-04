@@ -26,6 +26,10 @@ export interface AlmYearBenchInput {
   concentrationRatio: number;
   /** Realized yield (income ÷ average invested balance) — see almSimRealYear()'s doc comment. Used to project Año 3's rinv off what the portfolio actually earned instead of its nominal `portYield`; undefined falls back to `portYield`. */
   effectiveYield?: number;
+  /** This year's real year-end Caja Mínima balance (see AlmRealYearResult.cajaFinalAnio) — feeds the Balance's `caja` line, replacing the old flat FZ.cajaPct×primaEmitida approximation. */
+  cajaFinalAnio: number;
+  /** This year's real, undiminished year-end portfolio book value from prima-flow reinvestment alone (see AlmRealYearResult.portfolioBookValue) — feeds the Balance's `inversiones` line together with the team's own non-committed Capital Social (added separately in balance(), never by this ALM run itself — the real ALM only ever reinvests prima cash flow, never Capital Social, see almSimRealYear()'s doc comment). */
+  portfolioBookValue: number;
 }
 
 export interface YearResult {
@@ -68,10 +72,15 @@ export interface BalanceSheet {
   /** Reserva de Prima No Devengada — same number as this year's PnL.rpndConstituida, a liability alongside reservasTec. */
   rpnd: number;
   patrimonio: number;
+  /** This year's real year-end Caja Mínima balance from the real ALM (AlmYearBenchInput.cajaFinalAnio) — falls back to the flat FZ.cajaPct×primaEmitida approximation only when there's no real ALM decision to simulate from at all. */
   caja: number;
   cxc: number;
   cxp: number;
+  /** Real economic fact — this year's real ALM portfolio book value (prima-flow reinvestment only) plus the team's own non-committed Capital Social (max(0, CAPITAL_SOCIAL − capitalComprometido), invested separately from the prima-only ALM tree) — never a balancing residual. */
   inversiones: number;
+  /** max(0, capitalComprometido − CAPITAL_SOCIAL) — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team has drawn more Capital Social than it started with: the excess had to come from fresh financing (equity or debt) raised beyond the original endowment. Zero for every team that never exhausts its Capital Social — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
+  necesidadesPatrimonioODeuda: number;
+  /** caja + inversiones + cxc. Because caja/inversiones are real, independently-computed facts (not solved for), this generally does NOT sum to the exact same peso as Pasivo+Patrimonio — a small residual is a known property of this simplified model (see README §4.3), not something necesidadesPatrimonioODeuda is meant to absorb. */
   activos: number;
 }
 
@@ -157,23 +166,75 @@ function pyg(primaEmitida: number, rpndLiberada: number, costo: number, rinv: nu
 
 /**
  * capitalComprometido subtracts directly from patrimonio — it's the real
- * consequence of the fictitious Día 1/Día 2 ALM having had to draw on
- * Capital Social to meet a cash-flow shortfall neither LIQ nor the rest of
- * the portfolio could cover (see almSim's step 4 in alm.ts). This is a
+ * consequence of the real Día 2 ALM having had to draw on Capital Social to
+ * meet a cash-flow shortfall neither LIQ nor the rest of the (prima-funded)
+ * portfolio could cover (see almSimRealYear's step 4 in alm.ts). This is a
  * lasting equity hit, not something the year's ordinary P&L (retenido)
  * already captures — the P&L reflects accrual-basis annual profitability,
  * this reflects a within-year cash-timing failure.
+ *
+ * inversiones is a real economic fact, not a plug: the real ALM's own
+ * year-end portfolio book value (funded exclusively by prima cash flow —
+ * see almSimRealYear's doc comment on why Capital Social never runs through
+ * that simulation) plus the team's own Capital Social not drawn on to cover
+ * a shortfall (`capital0 − capitalComprometido`, floored at 0 — Capital
+ * Social can't fund a shortfall it doesn't have). caja is likewise a real
+ * fact: the real ALM's own year-end Caja Mínima balance, not a flat
+ * percentage of annual premium. Both fall back to the old flat-percentage/
+ * zero treatment when there's no real ALM to draw from at all (no decision
+ * submitted, or Año 3 — never simulated, see finBench()'s own doc comment
+ * on p3).
+ *
+ * necesidadesPatrimonioODeuda is deliberately narrow: it's only ever
+ * nonzero once capitalComprometido exceeds the team's entire starting
+ * Capital Social (`capital0 − capitalComprometido` would otherwise go
+ * negative) — the team ran out of Capital Social to draw on and still
+ * needed more to keep Caja Mínima met, so that excess has to come from
+ * fresh financing raised beyond what it started with, not from Capital
+ * Social itself. It sits on the LIABILITY side (added into pasivo by the
+ * caller, alongside reservasTec/rpnd/cxp — never into activos): the exact
+ * same capitalComprometido is already subtracted once from patrimonio
+ * (equity side) and once from inversiones (asset side, via the floor at 0);
+ * adding the excess back into activos would double-count that deduction's
+ * sign, not undo it — verified empirically (see finBench.test.ts) that
+ * booking it as a liability instead keeps the Activos-vs-Pasivo+Patrimonio
+ * gap identical whether or not the clamp triggers, so this line's presence
+ * never interacts with (or masks) any other line — it purely reports "this
+ * team spent more than its entire Capital Social." This is NOT the line
+ * that forces the sheet to close in general — caja/inversiones being real,
+ * independently-computed facts (not solved for) means Activos and
+ * Pasivo+Patrimonio generally don't sum to the exact same peso even for a
+ * healthy team; that small residual is a known property of this simplified
+ * model (see README §4.3), not something this line is meant to absorb.
  */
-function balance(pygY: PnL | null, capital0: number, retenido: number, capitalComprometido: number): BalanceSheet | null {
+function balance(
+  pygY: PnL | null,
+  capital0: number,
+  retenido: number,
+  capitalComprometido: number,
+  almYear: AlmYearBenchInput | null
+): BalanceSheet | null {
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
   const rpnd = pygY.rpndConstituida;
   const patrimonio = capital0 + retenido - capitalComprometido;
-  const caja = FZ.cajaPct * pygY.primaEmitida;
-  const cxc = FZ.cxcPct * pygY.primaEmitida;
+  const caja = almYear ? almYear.cajaFinalAnio : FZ.cajaPct * pygY.primaEmitida;
+  const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
-  const inversiones = reservasTec + rpnd + cxp + patrimonio - caja - cxc;
-  return { reservasTec, rpnd, patrimonio, caja, cxc, cxp, inversiones, activos: caja + inversiones + cxc };
+  const capitalSocialInvertido = Math.max(0, capital0 - capitalComprometido);
+  const necesidadesPatrimonioODeuda = Math.max(0, capitalComprometido - capital0);
+  const inversiones = (almYear?.portfolioBookValue ?? 0) + capitalSocialInvertido;
+  return {
+    reservasTec,
+    rpnd,
+    patrimonio,
+    caja,
+    cxc,
+    cxp,
+    inversiones,
+    necesidadesPatrimonioODeuda,
+    activos: caja + inversiones + cxc,
+  };
 }
 
 /**
@@ -317,8 +378,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const capitalComprometidoY1 = almYear1?.capitalComprometido ?? 0;
   const almY2 = almYear2 ?? almYear1;
   const capitalComprometidoY2 = almY2?.capitalComprometido ?? 0;
-  const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1)!;
-  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2) : null;
+  const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1, almYear1)!;
+  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2, almY2) : null;
   // Year 3 is a projection, not an independently ALM-simulated year (see
   // README §5) — there's no third ALM run to measure a real erosion from,
   // so capitalComprometido is projected off the Año1->Año2 trend instead of
@@ -328,7 +389,11 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // same "no new erosion assumed" outcome in the common case (delta = 0)
   // but continues a real trend when one exists.
   const capitalComprometidoY3 = capitalComprometidoY2 + (capitalComprometidoY2 - capitalComprometidoY1);
-  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY3) : null;
+  // No real ALM run exists for Año 3 (never simulated, see p3 above) — caja
+  // and inversiones fall back to the same flat-percentage/Capital-Social-only
+  // treatment balance() already applies whenever there's no ALM decision at
+  // all, rather than inventing a speculative projected portfolio value.
+  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY3, null) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;

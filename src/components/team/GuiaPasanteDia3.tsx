@@ -126,6 +126,7 @@ const BALANCE_ROWS = [
   "Reservas técnicas",
   "RPND",
   "Cuentas por pagar",
+  "Necesidades de patrimonio o deuda",
   "Pasivo total",
   "Patrimonio",
   "Pasivo + Patrimonio",
@@ -155,7 +156,7 @@ export function GuiaPasanteDia3() {
         ]}
         entregables={[
           "Estado de resultados completo del 2028 (15 líneas) y proyección del 2029 (14 líneas).",
-          "Balance de 2027, 2028 y 2029 (10 líneas cada uno).",
+          "Balance de 2027, 2028 y 2029 (11 líneas cada uno).",
           "Siniestros pagados en 2028 (desglose de caja, no una línea del P&G).",
         ]}
       />
@@ -343,20 +344,27 @@ export function GuiaPasanteDia3() {
             sino lo que cierra la ecuación.
           </p>
           <p>
-            <strong>Activos:</strong> Caja (efectivo disponible de inmediato), Inversiones (el valor de mercado hoy de tu árbol de portafolio — no
-            lo que costó comprarlo) y Cuentas por cobrar (prima ya emitida que todavía no se ha recibido en efectivo). Activos totales es la suma de
-            esas tres.
+            <strong>Activos:</strong> Caja (efectivo disponible de inmediato — depende de tu propia gestión de flujo de caja real ese año, no de un
+            porcentaje fijo sobre tu prima), Inversiones (lo que tu portafolio real de Día 2 efectivamente tiene invertido, más el Capital Social de
+            tu aseguradora que no has tenido que comprometer para cubrir un faltante de caja — no lo que costó comprarlo, y no un número que se calcula
+            al final solo para que el Balance cuadre) y Cuentas por cobrar (prima ya emitida que todavía no se ha recibido en efectivo — la
+            aseguradora tiene una rotación de cartera de 30 días sobre su prima emitida). Activos totales es la suma de esas tres.
           </p>
           <p>
             <strong>Pasivo:</strong> Reservas técnicas (lo que falta por pagar de siniestros ya incurridos — RSA + IBNR, siempre el saldo real
             pendiente, nunca una estimación de mercado), RPND (la parte de la prima ya cobrada que corresponde a cobertura de un periodo futuro
             todavía no transcurrido — es una obligación de seguir cubriendo el riesgo, no plata que ya se ganó) y Cuentas por pagar (otras
-            obligaciones operativas pendientes). Pasivo total es la suma de esas tres.
+            obligaciones operativas pendientes). A esas se suma una cuarta línea, <strong>Necesidades de patrimonio o deuda</strong> — que solo es
+            distinta de cero si tu aseguradora comprometió <em>más</em> Capital Social del que tenía disponible para empezar: ese exceso tuvo que
+            salir de financiación fresca (capital nuevo o deuda) que tu aseguradora no tenía al arrancar el año, así que se reconoce como una
+            obligación aparte, no como parte de tu Capital Social original. Para la inmensa mayoría de los equipos —cualquiera que no haya agotado
+            por completo su Capital Social— esta línea es cero. Pasivo total es la suma de las cuatro.
           </p>
           <p>
-            <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: activos menos pasivo. No se calcula desde cero cada año — es el
-            patrimonio del año anterior más la utilidad neta que ese año generó en el P&G (más cualquier otro movimiento patrimonial, si lo hubiera).
-            Es el punto exacto donde el estado de resultados (un flujo) termina alimentando al Balance (una foto).
+            <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: Capital Social más la utilidad neta acumulada, menos cualquier
+            Capital Social que hayas tenido que comprometer para cubrir una brecha de caja en tu ALM real. No se calcula desde cero cada año — es el
+            patrimonio del año anterior más la utilidad neta que ese año generó en el P&G. Es el punto exacto donde el estado de resultados (un
+            flujo) termina alimentando al Balance (una foto).
           </p>
           <p>
             La última línea, <strong>Pasivo + Patrimonio</strong>, no es una fila más — es la verificación de que toda la foto es consistente:
@@ -475,8 +483,24 @@ export function GuiaPasanteDia3() {
 
         <SubSection title="Para el Balance" accent="fin">
           <p>
-            Antes de reportar, verifica tu propia identidad contable: Activos = Pasivo + Patrimonio, para cada uno de los tres años por separado. Si no
-            cuadra, el error está en cómo calculaste alguna de las líneas anteriores — no en la línea final.
+            Antes de reportar, verifica tu propia identidad contable: Activos = Pasivo + Patrimonio, para cada uno de los tres años por separado. Si
+            no cuadra, el error está en cómo calculaste alguna de las líneas anteriores — no en la línea final.
+          </p>
+          <p>
+            <strong>No todas las líneas de Activos y Pasivo se calculan igual.</strong> Cuentas por pagar y RPND siguen siendo un porcentaje fijo de
+            la prima emitida; Cuentas por cobrar sale de la rotación de cartera de 30 días (sección 3). Caja e Inversiones, en cambio, ya no son un
+            porcentaje fijo de nada — dependen de tu propio flujo de caja real ese año (lo que tu prima realmente cobrada alcanzó a cubrir, después de
+            pagar siniestros y gastos) y de tu Capital Social, no de una fórmula sobre la prima emitida.
+          </p>
+          <p>
+            <strong>Inversiones no es un número que se calcula de último para que el Balance cuadre.</strong> Es lo que tu portafolio real de Día 2
+            efectivamente tiene invertido más el Capital Social que tu aseguradora no ha tenido que comprometer — dos cosas que puedes razonar por
+            separado sin necesitar ninguna otra línea del Balance.
+          </p>
+          <p>
+            <strong>Necesidades de patrimonio o deuda va del lado del Pasivo, no de Activos, y casi siempre es cero.</strong> Solo aparece si tu
+            equipo comprometió <em>más</em> Capital Social del que tenía disponible al arrancar el año — no por cualquier faltante de caja menor.
+            Si tu equipo nunca agotó su Capital Social, esta línea es cero y no necesitas razonarla más.
           </p>
         </SubSection>
 
@@ -545,8 +569,11 @@ export function GuiaPasanteDia3() {
             columns={["2027", "2028", "2029 (proy.)"]}
             emphasizedLabels={["Activos totales", "Pasivo + Patrimonio"]}
             formulaNotes={[
-              "Caja / Cuentas por cobrar / Cuentas por pagar / RPND = 15% / 7% / 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
-              "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar.",
+              "Cuentas por pagar / RPND = 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
+              "Cuentas por cobrar no es un porcentaje plano de la prima — sale de la rotación de cartera de 30 días de la sección 3.",
+              "Caja e Inversiones en 2027/2028 dependen de tu propio flujo de caja real y tu Capital Social — no son un porcentaje de la prima. Para 2029 (sin ALM propio) Caja vuelve al 15% de la Prima emitida de ese año.",
+              "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo comprometió más Capital Social del que tenía disponible al arrancar el año. Para casi todos los equipos es 0.",
+              "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar + Necesidades de patrimonio o deuda.",
               "Pasivo + Patrimonio debe ser exactamente igual a Activos totales.",
             ]}
           />
