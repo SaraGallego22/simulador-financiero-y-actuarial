@@ -3,7 +3,7 @@ import { finBench } from "./finBench";
 import type { AlmYearBenchInput, FinBenchInput } from "./finBench";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { computeDevelopment } from "../reserving/development";
-import { FZ } from "./constants";
+import { FZ, CAPITAL_SOCIAL } from "./constants";
 
 const liabilityYear1: LiabilitySchedule = {
   L: new Array(48).fill(0),
@@ -18,9 +18,11 @@ function fakeAlmYear(
   income = 2_000_000,
   portYield = 0.1,
   effectiveYield?: number,
-  concentrationRatio = 0
+  concentrationRatio = 0,
+  cajaFinalAnio = 0,
+  portfolioBookValue = 0
 ): AlmYearBenchInput {
-  return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield };
+  return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield, cajaFinalAnio, portfolioBookValue };
 }
 
 /** A realistic Año1(100 claims)/Año2(80 claims) development schedule, for exercising finBench()'s Año3 "rich data" path. */
@@ -358,16 +360,92 @@ describe("finBench", () => {
   });
 
   describe("Reserva de Prima No Devengada (RPND) on the Balance", () => {
-    it("bal.rpnd equals that year's own P&G rpndConstituida, and the balance sheet still ties out with RPND included as a liability", () => {
+    it("bal.rpnd equals that year's own P&G rpndConstituida", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
         almYear1: fakeAlmYear(0.05, 0, 3_000_000),
       });
       expect(bench.bal1.rpnd).toBeCloseTo(bench.p1.rpndConstituida, 6);
-      // activos == pasivo + patrimonio, i.e. caja+inversiones+cxc == reservasTec+rpnd+cxp+patrimonio
-      const pasivoMasPatrimonio = bench.bal1.reservasTec + bench.bal1.rpnd + bench.bal1.cxp + bench.bal1.patrimonio;
-      expect(bench.bal1.activos).toBeCloseTo(pasivoMasPatrimonio, 4);
+    });
+  });
+
+  describe("Inversiones is a real fact (ALM + Capital Social), not a balancing residual", () => {
+    it("inversiones = the real ALM's own portfolioBookValue plus non-committed Capital Social — never a plug", () => {
+      const bench = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, 0, 3_000_000, 0.1, undefined, 0, 0, 259_453_712),
+      });
+      // 259,453,712 (portfolioBookValue) + (CAPITAL_SOCIAL - 0 comprometido).
+      expect(bench.bal1.inversiones).toBeCloseTo(259_453_712 + CAPITAL_SOCIAL, 0);
+    });
+
+    it("capital comprometido is subtracted exactly once from inversiones (asset side) and once from patrimonio (equity side) — correct double-entry, not a double deduction of the same line", () => {
+      const noErosion = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, 0, 3_000_000, 0.1, undefined, 0, 0, 200_000_000),
+      });
+      const eroded = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, 10_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 200_000_000),
+      });
+      // Each line absorbs the erosion exactly once — not twice on either side.
+      expect(noErosion.bal1.inversiones - eroded.bal1.inversiones).toBeCloseTo(10_000_000_000, 0);
+      expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 0);
+    });
+
+    it("necesidadesPatrimonioODeuda is 0 as long as capitalComprometido doesn't exceed CAPITAL_SOCIAL, even for a team with almost nothing else invested", () => {
+      const bench = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        // capitalComprometido is just under CAPITAL_SOCIAL, and the real
+        // portfolio/caja are both ~0 — a team that committed almost all its
+        // capital but never technically exceeded it.
+        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL - 1, 3_000_000, 0.1, undefined, 0, 0, 0),
+      });
+      expect(bench.bal1.necesidadesPatrimonioODeuda).toBe(0);
+      expect(bench.bal1.inversiones).toBeCloseTo(1, 0);
+    });
+
+    it("necesidadesPatrimonioODeuda equals exactly capitalComprometido − CAPITAL_SOCIAL once a team draws more Capital Social than it started with", () => {
+      const excess = 9_000_000_000;
+      const bench = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + excess, 3_000_000, 0.1, undefined, 0, 0, 0),
+      });
+      expect(bench.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(excess, 4);
+      // Capital Social's own contribution to inversiones floors at 0 — never negative.
+      expect(bench.bal1.inversiones).toBe(0);
+    });
+
+    it("necesidadesPatrimonioODeuda never interacts with the unrelated caja/reserva residual — the Activos-vs-Pasivo+Patrimonio gap is identical whether or not the clamp triggers", () => {
+      const under = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, 40_000_000_000, 3_000_000, 0.1, undefined, 0, 7_750_000, 259_453_712),
+      });
+      const over = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 7_750_000, 259_453_712),
+      });
+      const gap = (b: typeof under) =>
+        b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.patrimonio - b.bal1.activos;
+      expect(gap(over)).toBeCloseTo(gap(under), 4);
+    });
+
+    it("falls back to the flat FZ.cajaPct×primaEmitida caja and a Capital-Social-only inversiones when there's no ALM decision at all", () => {
+      const bench = finBench({
+        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+        liabilityYear1,
+        almYear1: null,
+      });
+      expect(bench.bal1.caja).toBeCloseTo(FZ.cajaPct * 500_000_000, 6);
+      expect(bench.bal1.inversiones).toBeCloseTo(CAPITAL_SOCIAL, 0);
     });
   });
 

@@ -628,7 +628,11 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.caja,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 0.15, day: "d2" }] },
+    // No formula: caja is now the real ALM's own year-end Caja Mínima
+    // balance, not a flat % of primaEmitida — not derivable from other
+    // reported lines, same treatment as reservasTec/Costo de Siniestros
+    // (a primary fact the team estimates from its own portfolio decisions,
+    // graded against the true engine value with a tolerance band).
   },
   {
     id: "bal1_inversiones",
@@ -639,17 +643,11 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.inversiones,
-    formula: {
-      kind: "linear",
-      terms: [
-        { conceptId: "bal1_reservasTec", coeff: 1 },
-        { conceptId: "bal1_rpnd", coeff: 1 },
-        { conceptId: "bal1_cxp", coeff: 1 },
-        { conceptId: "bal1_patrim", coeff: 1 },
-        { conceptId: "bal1_caja", coeff: -1 },
-        { conceptId: "bal1_cxc", coeff: -1 },
-      ],
-    },
+    // No formula: inversiones is the real ALM's own portfolio book value
+    // plus Capital Social not committed to cover a cash shortfall (floored
+    // at 0 — see bal1_necesidadesPatrimonioODeuda for what happens beyond
+    // that floor) — a real economic fact, never a plug that balances the
+    // sheet. Same "primary fact" treatment as caja above.
   },
   {
     id: "bal1_cxc",
@@ -660,7 +658,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.cxc,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 0.07, day: "d2" }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 30 / 365, day: "d2" }] },
   },
   {
     id: "bal1_activos",
@@ -704,6 +702,21 @@ export const CONCEPTOS: Concepto[] = [
     formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 0.1, day: "d2" }] },
   },
   {
+    id: "bal1_necesidadesPatrimonioODeuda",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Necesidades de patrimonio o deuda A1",
+    unit: "COP",
+    group: "bal_a1",
+    get: (b) => b.bal1.necesidadesPatrimonioODeuda,
+    // No formula: only nonzero once a team draws more Capital Social than it
+    // started with — a primary fact the team estimates from its own ALM
+    // reasoning, not a canned linear formula (see
+    // BalanceSheet.necesidadesPatrimonioODeuda's doc comment). Lives on the
+    // liability side (feeds bal1_pasivo below), not activos.
+  },
+  {
     id: "bal1_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -711,13 +724,14 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A1",
     unit: "COP",
     group: "bal_a1",
-    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp,
+    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda,
     formula: {
       kind: "linear",
       terms: [
         { conceptId: "bal1_reservasTec", coeff: 1 },
         { conceptId: "bal1_rpnd", coeff: 1 },
         { conceptId: "bal1_cxp", coeff: 1 },
+        { conceptId: "bal1_necesidadesPatrimonioODeuda", coeff: 1 },
       ],
     },
   },
@@ -730,7 +744,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A1",
     unit: "COP",
     group: "bal_a1",
-    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.patrimonio,
+    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.patrimonio,
     formula: {
       kind: "linear",
       terms: [
@@ -750,7 +764,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.caja ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 0.15 }] },
+    // No formula — see bal1_caja's doc comment.
   },
   {
     id: "bal2_inversiones",
@@ -761,17 +775,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.inversiones ?? null,
-    formula: {
-      kind: "linear",
-      terms: [
-        { conceptId: "bal2_reservasTec", coeff: 1 },
-        { conceptId: "bal2_rpnd", coeff: 1 },
-        { conceptId: "bal2_cxp", coeff: 1 },
-        { conceptId: "bal2_patrim", coeff: 1 },
-        { conceptId: "bal2_caja", coeff: -1 },
-        { conceptId: "bal2_cxc", coeff: -1 },
-      ],
-    },
+    // No formula — see bal1_inversiones's doc comment.
   },
   {
     id: "bal2_cxc",
@@ -782,7 +786,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.cxc ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 0.07 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 30 / 365 }] },
   },
   {
     id: "bal2_activos",
@@ -826,6 +830,17 @@ export const CONCEPTOS: Concepto[] = [
     formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 0.1 }] },
   },
   {
+    id: "bal2_necesidadesPatrimonioODeuda",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Necesidades de patrimonio o deuda A2",
+    unit: "COP",
+    group: "bal_a2",
+    get: (b) => b.bal2?.necesidadesPatrimonioODeuda ?? null,
+    // No formula — see bal1_necesidadesPatrimonioODeuda's doc comment.
+  },
+  {
     id: "bal2_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -833,13 +848,14 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A2",
     unit: "COP",
     group: "bal_a2",
-    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp : null),
+    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda : null),
     formula: {
       kind: "linear",
       terms: [
         { conceptId: "bal2_reservasTec", coeff: 1 },
         { conceptId: "bal2_rpnd", coeff: 1 },
         { conceptId: "bal2_cxp", coeff: 1 },
+        { conceptId: "bal2_necesidadesPatrimonioODeuda", coeff: 1 },
       ],
     },
   },
@@ -852,7 +868,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A2",
     unit: "COP",
     group: "bal_a2",
-    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.patrimonio : null),
+    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda + b.bal2.patrimonio : null),
     formula: {
       kind: "linear",
       terms: [
@@ -883,17 +899,10 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.inversiones ?? null,
-    formula: {
-      kind: "linear",
-      terms: [
-        { conceptId: "bal3_reservasTec", coeff: 1 },
-        { conceptId: "bal3_rpnd", coeff: 1 },
-        { conceptId: "bal3_cxp", coeff: 1 },
-        { conceptId: "bal3_patrim", coeff: 1 },
-        { conceptId: "bal3_caja", coeff: -1 },
-        { conceptId: "bal3_cxc", coeff: -1 },
-      ],
-    },
+    // No formula — see bal1_inversiones's doc comment. Año 3 has no real ALM
+    // run of its own (never simulated, see README §4.2), so this projects to
+    // just the team's own Capital Social not committed in any prior year —
+    // still a primary estimated fact, not a formula of other reported lines.
   },
   {
     id: "bal3_cxc",
@@ -904,7 +913,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.cxc ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 0.07 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 30 / 365 }] },
   },
   {
     id: "bal3_activos",
@@ -948,6 +957,17 @@ export const CONCEPTOS: Concepto[] = [
     formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 0.1 }] },
   },
   {
+    id: "bal3_necesidadesPatrimonioODeuda",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Necesidades de patrimonio o deuda A3 (proy.)",
+    unit: "COP",
+    group: "bal_a3",
+    get: (b) => b.bal3?.necesidadesPatrimonioODeuda ?? null,
+    // No formula — see bal1_necesidadesPatrimonioODeuda's doc comment.
+  },
+  {
     id: "bal3_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -955,13 +975,14 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A3 (proy.)",
     unit: "COP",
     group: "bal_a3",
-    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp : null),
+    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda : null),
     formula: {
       kind: "linear",
       terms: [
         { conceptId: "bal3_reservasTec", coeff: 1 },
         { conceptId: "bal3_rpnd", coeff: 1 },
         { conceptId: "bal3_cxp", coeff: 1 },
+        { conceptId: "bal3_necesidadesPatrimonioODeuda", coeff: 1 },
       ],
     },
   },
@@ -974,7 +995,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A3 (proy.)",
     unit: "COP",
     group: "bal_a3",
-    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.patrimonio : null),
+    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda + b.bal3.patrimonio : null),
     formula: {
       kind: "linear",
       terms: [

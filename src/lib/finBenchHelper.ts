@@ -118,6 +118,8 @@ export async function computeFinBenchBundlesForCohort(
           capitalComprometido: realAlmYear1.capitalComprometidoAcumulado,
           avgVol: realAlmYear1.avgVol,
           concentrationRatio: realAlmYear1.concentrationRatio,
+          cajaFinalAnio: realAlmYear1.cajaFinalAnio,
+          portfolioBookValue: realAlmYear1.portfolioBookValue,
         }
       : null;
 
@@ -139,6 +141,8 @@ export async function computeFinBenchBundlesForCohort(
           avgVol: realAlmYear2.avgVol,
           concentrationRatio: realAlmYear2.concentrationRatio,
           effectiveYield: realAlmYear2.effectiveYield,
+          cajaFinalAnio: realAlmYear2.cajaFinalAnio,
+          portfolioBookValue: realAlmYear2.portfolioBookValue,
         };
       }
     }

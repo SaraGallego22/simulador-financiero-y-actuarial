@@ -99,7 +99,7 @@ function riskCapitalForPremium(premium: number, availableCapital: number, volRat
 
   const cxp = FZ.cxpPct * premium;
   const caja = FZ.cajaPct * premium;
-  const cxc = FZ.cxcPct * premium;
+  const cxc = (FZ.diasRotacionCxc * premium) / 365;
   const inversiones = reservas + cxp + availableCapital - caja - cxc;
   const rFin = FZ.finRiskPct * inversiones * volRatio;
   const rOp = FZ.opPct * premium;

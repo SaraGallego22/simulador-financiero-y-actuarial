@@ -25,7 +25,8 @@ export const FZ = {
   opPct: 0.03,
   targetMargin: 1.5,
   cajaPct: 0.15,
-  cxcPct: 0.07,
+  /** Cuentas por cobrar (CxC): fórmula de días de cartera (DSO, days sales outstanding) — cxc = (diasRotacionCxc × primaEmitida) / 365. Reemplaza el antiguo 7% plano; GuiaPasanteDia3 solo comunica el supuesto de 30 días de rotación de cartera, no esta fórmula, para que cada equipo la derive por su cuenta. */
+  diasRotacionCxc: 30,
   cxpPct: 0.1,
   growth3: 0.06,
   /** Reserva de Prima No Devengada (RPND): the fraction of each year's own Prima Emitida held back as unearned — see PnL's rpndConstituida/rpndLiberada in finBench.ts. A 1-year unearned-premium model: what's held back this year is fully released next year, so the Balance's RPND liability at any year's close is simply this same 20% of that year's own Prima Emitida. */
