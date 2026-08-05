@@ -4,6 +4,18 @@ export const FZ = {
   gCom: 0.15,
   gAdmin: 0.06,
   tax: 0.3,
+  /**
+   * Flat premium-risk volatility used ONLY by capacity.ts's market-share cap
+   * (riskCapitalForPremium(), run during Año 1/Año 2 market clearing) —
+   * finBench()'s own Día 4 rPrimas no longer uses this constant, it uses
+   * each team's own realized solSigmaLR (sample stdev of siniestralidad/
+   * prima across Año 1/2/3, see FinBenchResult.solSigmaLR and sol_sigmaLR in
+   * concepts.ts) instead. capacity.ts can't do the same because it runs
+   * BEFORE those 3 years of loss-ratio data exist — it still needs a single
+   * reference rate to size a quota ahead of the market clearing that
+   * determines each team's actual siniestralidad, so it keeps this flat
+   * value as a calibrated approximation, not a per-team fact.
+   */
   primeVol: 0.1476,
   resVol: 0.3,
   corrPR: 0.75,
@@ -18,6 +30,8 @@ export const FZ = {
   growth3: 0.06,
   /** Reserva de Prima No Devengada (RPND): the fraction of each year's own Prima Emitida held back as unearned — see PnL's rpndConstituida/rpndLiberada in finBench.ts. A 1-year unearned-premium model: what's held back this year is fully released next year, so the Balance's RPND liability at any year's close is simply this same 20% of that year's own Prima Emitida. */
   rpndPct: 0.2,
+  /** Día 4 EVA (Valor Económico Agregado) deliverable: classic corporate-finance definition, EVA = Utilidad Neta − costoCapital × capital invertido, with capital invertido taken as `solFp` (fondos propios/patrimonio) rather than the Solvency-II `solRk` requirement — this is a return-on-equity story (did the team's own capital earn more than its opportunity cost), not a regulatory-capital one. 10% for now, matching a plausible cost of equity for an insurer in an emerging market; revisit if a real rubric calibration says otherwise. */
+  costoCapital: 0.1,
 };
 
 /** Correlation matrix between underwriting/financial/operational risk. Ported from CORR_MOD, line ~1071. Stays 3x3 (Susc/Fin/Op) — capacity.ts's market-share cap reuses this exact matrix and assumes that shape; the concentration risk charge (Día 4 only, not part of capacity sizing) has its own extended matrix below instead of reshaping this one. */

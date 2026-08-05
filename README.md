@@ -342,7 +342,8 @@ Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese 
 
 | Línea | De dónde sale |
 |---|---|
-| `solRPrimas` | `primaEmitida del año vigente × 14.76%` (`FZ.primeVol`) — deliberadamente sobre Prima **Emitida**, no Devengada: el riesgo de prima es sobre el volumen de negocio suscrito, no sobre cuánto de ese volumen ya se ganó. Igual que los gastos (§4.1), que también se calculan sobre Emitida. |
+| `sol_sigmaLR` (σ de la siniestralidad) | Desviación estándar **muestral** (÷(n−1)=÷2, no ÷3) de `costo/primaEmitida` de Año 1, Año 2 y Año 3 (proyectado) — reemplaza el antiguo 14.76% fijo (`FZ.primeVol`) como el factor de volatilidad de `solRPrimas`, así que el riesgo de prima de cada equipo refleja su propia volatilidad de siniestralidad realizada, no un supuesto de industria plano igual para los 12 equipos. Se marca **(fórmula)**: se recalcula desde las propias líneas ya reportadas por el equipo — Costo/Prima Emitida A1 (Día 2), Costo/Prima Emitida A2 y A3 (Día 3) — **con el loss ratio de Año 1 corregido por el propio Ajuste de siniestralidad A1 que el equipo reportó en Día 3** (la corrección de su propia siniestralidad real de Año 1, ver §4.2), no contra la cifra verdadera del motor. `capacity.ts` (el cupo de mercado de Año 1/Año 2, ver §2.1) sigue usando el 14.76% fijo — corre durante la simulación de mercado, antes de que existan los 3 años de siniestralidad de los que sacar esta desviación estándar. |
+| `solRPrimas` | `primaEmitida del año vigente × sol_sigmaLR` — deliberadamente sobre Prima **Emitida**, no Devengada: el riesgo de prima es sobre el volumen de negocio suscrito, no sobre cuánto de ese volumen ya se ganó. Igual que los gastos (§4.1), que también se calculan sobre Emitida. |
 | `solRReservas` | `reservas del año vigente × 30%` (`FZ.resVol`). |
 | `solRSusc` (riesgo de suscripción) | `√(rPrimas² + rReservas² + 2×0.75×rPrimas×rReservas)` — 0.75 es la correlación prima-reserva (`FZ.corrPR`). |
 | `solRFin` (riesgo financiero) | `inversiones del balance vigente × 6.6% × volRatio` (`FZ.finRiskPct`) — `volRatio` es la volatilidad realizada del portafolio real de ese año dividida entre el promedio del menú (`avgVol/VOL_MENU_AVG`, ver §5.4). |
@@ -352,6 +353,7 @@ Construido por `balance()`, el mismo para los tres años, tomando el P&G de ese 
 | `solFp` (fondos propios) | El `patrimonio` del balance vigente (§4.3) — ya neto de todo el capital comprometido acumulado hasta ese punto. |
 | `solMargen` | `solFp / solRk`. |
 | `div` (dividendos sugeridos) | `max(0, solFp − solRk × 1.5)` — 1.5 (`FZ.targetMargin`) es la barra de "sobra capital para repartir", más exigente que la de apenas-solvente (1.0, ver §2.1). |
+| `eva` (EVA — Valor Económico Agregado) | `Utilidad Neta (año vigente) − 10%` (`FZ.costoCapital`) `× solFp` — la definición clásica de finanzas corporativas (capital invertido = fondos propios/patrimonio, no el requerimiento regulatorio `solRk`): la utilidad debe superar el costo de oportunidad del capital, no solo ser positiva. Se marca **(fórmula)**, igual que las líneas del §4.1/4.2/4.3: se recalcula desde la propia Utilidad Neta A2 que el equipo reportó en Día 3 y sus propios Fondos propios de Día 4, no contra el motor directamente (ver la nota sobre `FormulaSpec` al inicio de esta sección). |
 
 "Año/balance vigente" es el Año 2 si existe, si no el Año 1 (`p2 || p1`, `bal2 || bal1`) — la solvencia del Día 4 siempre mira el año más reciente disponible.
 
@@ -557,7 +559,7 @@ Cada día tiene las mismas 5 sub-pestañas: **Tarifas/Simulación** (solo Días 
 | 1 | Tarificar Año 1 | Portafolio de mínima varianza sujeto a un retorno objetivo (ver §5.6) — también alimenta la cuota de mercado del Año 1 (§2.1) |
 | 2 | Retarifar Año 2 (con retención de clientes) | Estado de resultados completo Año 1 (13 líneas, ver §4.1 — sin reservas por separado, esas viven en el Balance de Día 3) + árbol de portafolio real Año 1 (ALM ficticio, calce con reservas — ver §5) |
 | 3 | Reservas técnicas Año 1 y Año 2 (como línea del Balance de cada año) | Estado de resultados Año 2 + proyección Año 3, Balance de Año 1/2/3 |
-| 4 | Recomendación sectorial (top 3 sectores a crecer/disminuir, rankeados, cada uno con un multiplicador estimado — ver §6) | Solvencia (capital requerido, margen) y dividendos |
+| 4 | Recomendación sectorial (top 3 sectores a crecer/disminuir, rankeados, cada uno con un multiplicador estimado — ver §6) | Solvencia (capital requerido, margen), dividendos y EVA (creación de valor, ver §4.4) |
 
 ## Roles
 

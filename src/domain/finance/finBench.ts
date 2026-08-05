@@ -1,4 +1,5 @@
 import { FZ, CORR_MOD_CONCENTRACION, CAPITAL_SOCIAL } from "./constants";
+import { sampleStdev } from "./stats";
 import { VOL_MENU_AVG } from "./instruments";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { DEV_FRAC } from "../reserving/constants";
@@ -98,6 +99,15 @@ export interface FinBenchResult {
   solFp: number;
   solMargen: number;
   div: number;
+  /**
+   * Sample standard deviation (n−1) of siniestralidad/Prima Emitida
+   * (`costo / primaEmitida`) across Año 1, Año 2 and Año 3 (proyectado) —
+   * the team's OWN realized underwriting volatility, replacing the old
+   * flat FZ.primeVol as rPrimas's volatility factor (see rPrimas below and
+   * FZ.primeVol's own comment for why capacity.ts still needs that flat
+   * rate). Reported/graded as `sol_sigmaLR` in concepts.ts.
+   */
+  solSigmaLR: number;
 }
 
 export interface FinBenchInput {
@@ -323,11 +333,17 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const balN = bal2 || bal1;
   const pygN = p2 || p1;
   const reservasN = pygN.reservas;
+  // solSigmaLR needs all 3 years' true costo/primaEmitida — only available
+  // once p2/p3 exist (from Día 3 onward). finBench() is also called earlier
+  // (Día 2 grading, year2 undefined) with only Año 1 known; falls back to
+  // the old flat FZ.primeVol then, since nothing reads solRk/rPrimas as a
+  // graded figure before Día 4 anyway.
+  const solSigmaLR = p2 && p3 ? sampleStdev([p1.costo / p1.primaEmitida, p2.costo / p2.primaEmitida, p3.costo / p3.primaEmitida]) : FZ.primeVol;
   // Premium risk (rSusc) and rOp are sized off primaEmitida, not
   // primaDevengada — the same base gastos use (see PnL.primaEmitida's doc
   // comment): premium risk is about the volume of business written, not
   // how much of it has earned out yet.
-  const rPrimas = pygN.primaEmitida * FZ.primeVol;
+  const rPrimas = pygN.primaEmitida * solSigmaLR;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
   // Financial risk scales with the team's *own* realized portfolio
@@ -378,5 +394,6 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     solFp: fondosPropios,
     solMargen: margen,
     div: dividendos,
+    solSigmaLR,
   };
 }
