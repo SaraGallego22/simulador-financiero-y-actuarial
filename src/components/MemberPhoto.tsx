@@ -1,4 +1,4 @@
-/** Small round headshot next to a member's name, falling back to their initial when no photo was uploaded. */
+/** Round headshot, falling back to the member's initial when no photo was uploaded. Fallback font size scales with `size` so it still reads at larger sizes. */
 export function MemberPhoto({ dataUri, name, size = 24 }: { dataUri: string | null; name: string; size?: number }) {
   if (dataUri) {
     return (
@@ -14,8 +14,8 @@ export function MemberPhoto({ dataUri, name, size = 24 }: { dataUri: string | nu
 
   return (
     <span
-      style={{ width: size, height: size }}
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-gray-light)] align-middle text-[10px] font-semibold text-[var(--color-brand-text-secondary)]"
+      style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.4)) }}
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-gray-light)] align-middle font-semibold text-[var(--color-brand-text-secondary)]"
     >
       {name.trim().charAt(0).toUpperCase() || "?"}
     </span>

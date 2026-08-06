@@ -83,19 +83,19 @@ export default async function AdminActivityPage({ params }: { params: Promise<{ 
                   {team.members.map((member) => {
                     const ratings = ratingsByMemberId.get(member.id) ?? {};
                     return (
-                      <div key={member.id} className="flex flex-col gap-2">
-                        <p className="flex items-center gap-2 text-xs font-semibold text-[var(--color-brand-text-secondary)]">
-                          <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} />
-                          {member.name}
-                        </p>
-                        <SoftSkillEvaluationForm
-                          // Same remount trick as MemberEvaluationForm — see its doc comment.
-                          key={`${member.id}:${Object.values(ratings).join(",")}`}
-                          id={member.id}
-                          activity={activity}
-                          initial={ratings}
-                        />
-                        <SoftSkillComments teamMemberId={member.id} activity={activity} comments={commentsByMemberId.get(member.id) ?? []} />
+                      <div key={member.id} className="flex gap-3">
+                        <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={72} />
+                        <div className="flex flex-1 flex-col gap-2">
+                          <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                          <SoftSkillEvaluationForm
+                            // Same remount trick as MemberEvaluationForm — see its doc comment.
+                            key={`${member.id}:${Object.values(ratings).join(",")}`}
+                            id={member.id}
+                            activity={activity}
+                            initial={ratings}
+                          />
+                          <SoftSkillComments teamMemberId={member.id} activity={activity} comments={commentsByMemberId.get(member.id) ?? []} />
+                        </div>
                       </div>
                     );
                   })}

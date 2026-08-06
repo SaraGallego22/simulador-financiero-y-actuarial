@@ -103,7 +103,7 @@ export default async function ConfigPage() {
                 <div className="flex flex-col gap-2">
                   {team.members.map((member) => (
                     <div key={member.id} className="flex flex-wrap items-center gap-3">
-                      <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={32} />
+                      <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={48} />
                       <span className="min-w-[120px] text-sm text-[var(--color-foreground)]">{member.name}</span>
                       <MemberPhotoUpload teamMemberId={member.id} />
                     </div>

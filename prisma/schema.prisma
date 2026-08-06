@@ -248,6 +248,10 @@ model MemberDayEvaluation {
   notaGeneral  Float? // 1.0-5.0, one decimal
   aprobado     Boolean?
   perfil       EvaluationProfile?
+  // Standalone checkpoint toggle, independent of notaGeneral/aprobado/perfil —
+  // does not feed any numeric grade (see composite.ts's notaDia), just a flag
+  // an evaluator can mark per day.
+  aptitudesRiesgos Boolean @default(false)
 
   published Boolean @default(false)
 
