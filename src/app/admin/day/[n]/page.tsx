@@ -26,6 +26,7 @@ import { MemberPhoto } from "@/components/MemberPhoto";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
+import { AptitudesRiesgosToggle } from "./AptitudesRiesgosToggle";
 import { DeleteMemberButton } from "./DeleteMemberButton";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
@@ -1116,61 +1117,63 @@ export default async function AdminDayPage({
                           (d) => historicalEvaluationsByMemberDay.has(`${member.id}:${d}`) || historicalCommentsByMemberDay.has(`${member.id}:${d}`)
                         );
                         return (
-                          <div key={member.id} className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="flex items-center gap-2 text-xs font-semibold text-[var(--color-brand-text-secondary)]">
-                                <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} />
-                                {member.name}
-                              </p>
-                              <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
-                            </div>
+                          <div key={member.id} className="flex gap-3">
+                            <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={72} />
+                            <div className="flex flex-1 flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                                <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
+                              </div>
 
-                            {hasHistorial && (
-                              <details className="rounded border border-[var(--color-brand-gray-light)]">
-                                <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                  Historial (Días anteriores)
-                                </summary>
-                                <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
-                                  {priorDays.map((d) => {
-                                    const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
-                                    const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
-                                    if (!priorEv && priorComments.length === 0) return null;
-                                    return (
-                                      <div key={d} className="text-sm">
-                                        <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
-                                        <p className="text-xs text-[var(--color-foreground)]">
-                                          Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
-                                          {priorEv?.perfil ?? "—"}
-                                        </p>
-                                        {priorComments.map((c) => (
-                                          <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
-                                            &ldquo;{c.text}&rdquo; — {c.author}
+                              <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
+
+                              {hasHistorial && (
+                                <details className="rounded border border-[var(--color-brand-gray-light)]">
+                                  <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                    Historial (Días anteriores)
+                                  </summary>
+                                  <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
+                                    {priorDays.map((d) => {
+                                      const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
+                                      const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
+                                      if (!priorEv && priorComments.length === 0) return null;
+                                      return (
+                                        <div key={d} className="text-sm">
+                                          <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
+                                          <p className="text-xs text-[var(--color-foreground)]">
+                                            Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
+                                            {priorEv?.perfil ?? "—"}
                                           </p>
-                                        ))}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </details>
-                            )}
+                                          {priorComments.map((c) => (
+                                            <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
+                                              &ldquo;{c.text}&rdquo; — {c.author}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </details>
+                              )}
 
-                            <MemberEvaluationForm
-                              // Keyed by the saved values so a successful save
-                              // remounts the (uncontrolled) form instead of
-                              // leaving its <select>s at whatever the native
-                              // post-action form reset left them at — without
-                              // this they visually snap to "Sin definir" even
-                              // though the save succeeded.
-                              key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
-                              id={member.id}
-                              day={day}
-                              initial={{
-                                notaGeneral: ev?.notaGeneral ?? null,
-                                aprobado: ev?.aprobado ?? null,
-                                perfil: ev?.perfil ?? null,
-                              }}
-                            />
-                            <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
+                              <MemberEvaluationForm
+                                // Keyed by the saved values so a successful save
+                                // remounts the (uncontrolled) form instead of
+                                // leaving its <select>s at whatever the native
+                                // post-action form reset left them at — without
+                                // this they visually snap to "Sin definir" even
+                                // though the save succeeded.
+                                key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
+                                id={member.id}
+                                day={day}
+                                initial={{
+                                  notaGeneral: ev?.notaGeneral ?? null,
+                                  aprobado: ev?.aprobado ?? null,
+                                  perfil: ev?.perfil ?? null,
+                                }}
+                              />
+                              <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
+                            </div>
                           </div>
                         );
                       })}

@@ -218,6 +218,19 @@ export async function submitMemberEvaluationAction(teamMemberId: string, day: nu
   revalidatePath(`/admin/day/${day}`);
 }
 
+/** Standalone checkpoint, independent of the nota/aprobado/perfil form above — one click toggles it, no separate "Guardar" (see MemberDayEvaluation.aptitudesRiesgos's doc comment). */
+export async function toggleAptitudesRiesgosAction(teamMemberId: string, day: number): Promise<void> {
+  await requireAdmin();
+  if (day < 2 || day > 4) return;
+  const existing = await prisma.memberDayEvaluation.findUnique({ where: { teamMemberId_day: { teamMemberId, day } } });
+  await prisma.memberDayEvaluation.upsert({
+    where: { teamMemberId_day: { teamMemberId, day } },
+    update: { aptitudesRiesgos: !(existing?.aptitudesRiesgos ?? false) },
+    create: { teamMemberId, day, aptitudesRiesgos: true },
+  });
+  revalidatePath(`/admin/day/${day}`);
+}
+
 /**
  * Adds one dated, authored comment for a member/day — never overwrites an
  * existing one, so multiple evaluators can weigh in independently. Also
