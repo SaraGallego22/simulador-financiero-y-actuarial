@@ -66,18 +66,28 @@ model Team {
   deliverables             Deliverable[]
   analyticsRecommendations AnalyticsRecommendation[]
   simResults               TeamSimResult[]
+  softSkillActivityNotes   TeamActivityNote[]
 
   @@unique([cohortId, name])
 }
 
 model TeamMember {
-  id     String @id @default(cuid())
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  name   String
+  id            String  @id @default(cuid())
+  teamId        String
+  team          Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name          String
+  // Small headshot shown next to the member's name in subjective/soft-skills
+  // grading — same bytea-in-Postgres approach as tariffs (see CLAUDE.md §3),
+  // not a separate blob service. photoMimeType is stored alongside because a
+  // data: URI must declare the right MIME type to render reliably across
+  // browsers regardless of what was uploaded (jpeg/png/webp/...).
+  photo         Bytes?
+  photoMimeType String?
 
-  evaluations MemberDayEvaluation[]
-  comments    MemberComment[]
+  evaluations          MemberDayEvaluation[]
+  comments             MemberComment[]
+  softSkillEvaluations SoftSkillEvaluation[]
+  softSkillComments    SoftSkillComment[]
 }
 
 // Bulk-generated reference datasets (Colombia universe, Chile reference set).
@@ -258,4 +268,64 @@ model MemberComment {
   createdAt    DateTime   @default(now())
 
   @@index([teamMemberId, day])
+}
+
+enum SoftSkillCompetency {
+  TRABAJO_EQUIPO
+  TRABAJO_PRESION
+  ORIENTACION_LOGRO
+  TOLERANCIA_FRUSTRACION
+  COMUNICACION
+  CREATIVIDAD
+  LIDERAZGO
+  PROACTIVIDAD
+}
+
+enum SoftSkillRating {
+  EXCELENTE
+  BUENO
+  REGULAR
+  NO_EVIDENCIA
+}
+
+// Per-participant qualitative rating on one of the 8 fixed competencies, for
+// one of the 3 soft-skills activities (run in parallel to the técnica
+// challenge — see src/lib/softSkills.ts). Internal to admin/TH only: unlike
+// MemberDayEvaluation there is no `published` flag, teams never see this.
+model SoftSkillEvaluation {
+  id           String              @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember          @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  activity     Int // 1-3
+  competency   SoftSkillCompetency
+  rating       SoftSkillRating
+
+  @@unique([teamMemberId, activity, competency])
+}
+
+// Free-form remark on one participant for one soft-skills activity, always
+// authored by "Equipo TH" (see src/lib/softSkills.ts) — several can
+// accumulate per member/activity, same append-only shape as MemberComment.
+model SoftSkillComment {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  activity     Int
+  text         String
+  createdAt    DateTime   @default(now())
+
+  @@index([teamMemberId, activity])
+}
+
+// Single editable note per team per soft-skills activity (not per member) —
+// overwritten on save, unlike SoftSkillComment's append-only list.
+model TeamActivityNote {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  activity  Int
+  text      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, activity])
 }

@@ -21,6 +21,8 @@ import {
 } from "@/domain/grading/sectors";
 import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
 import { computeConsolidado } from "@/lib/consolidado";
+import { memberPhotoDataUri } from "@/lib/memberPhoto";
+import { MemberPhoto } from "@/components/MemberPhoto";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
@@ -1116,7 +1118,10 @@ export default async function AdminDayPage({
                         return (
                           <div key={member.id} className="flex flex-col gap-2">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                              <p className="flex items-center gap-2 text-xs font-semibold text-[var(--color-brand-text-secondary)]">
+                                <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} />
+                                {member.name}
+                              </p>
                               <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                             </div>
 

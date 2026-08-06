@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { auth } from "./auth";
 import { getOrCreateActiveCohort } from "./cohort";
+import { SOFT_SKILL_COMPETENCIES, SOFT_SKILL_RATINGS, isValidSoftSkillActivity } from "./softSkills";
 
 const TEAM_COLORS = [
   "#0033A0",
@@ -260,4 +261,85 @@ export async function deleteTeamMemberAction(teamMemberId: string, day: number):
   await prisma.teamMember.delete({ where: { id: teamMemberId } });
   revalidatePath(`/admin/day/${day}`);
   revalidatePath("/admin/config");
+}
+
+/**
+ * Upserts one member's 8 competency ratings for a soft-skills activity in one
+ * submit — a blank/unrecognized select clears that competency's row instead
+ * of writing a null rating (SoftSkillRating has no "sin definir" value).
+ */
+export async function submitSoftSkillEvaluationAction(teamMemberId: string, activity: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  if (!isValidSoftSkillActivity(activity)) return;
+  const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId } });
+  if (!member) return;
+
+  await Promise.all(
+    SOFT_SKILL_COMPETENCIES.map((competency) => {
+      const raw = String(formData.get(`rating_${competency}`) ?? "");
+      const rating = (SOFT_SKILL_RATINGS as readonly string[]).includes(raw) ? (raw as (typeof SOFT_SKILL_RATINGS)[number]) : null;
+      return rating
+        ? prisma.softSkillEvaluation.upsert({
+            where: { teamMemberId_activity_competency: { teamMemberId, activity, competency } },
+            update: { rating },
+            create: { teamMemberId, activity, competency, rating },
+          })
+        : prisma.softSkillEvaluation.deleteMany({ where: { teamMemberId, activity, competency } });
+    })
+  );
+  revalidatePath(`/admin/actividad/${activity}`);
+}
+
+/** Adds one dated remark for a member/activity — author is always "Equipo TH" (see softSkills.ts), never taken from the form. */
+export async function addSoftSkillCommentAction(teamMemberId: string, activity: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  if (!isValidSoftSkillActivity(activity)) return;
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await prisma.softSkillComment.create({ data: { teamMemberId, activity, text } });
+  revalidatePath(`/admin/actividad/${activity}`);
+}
+
+export async function deleteSoftSkillCommentAction(commentId: string, activity: number): Promise<void> {
+  await requireAdmin();
+  await prisma.softSkillComment.delete({ where: { id: commentId } });
+  revalidatePath(`/admin/actividad/${activity}`);
+}
+
+export interface UploadMemberPhotoState {
+  error?: string;
+  success?: string;
+}
+
+// Keeps bytea reads fast — see CLAUDE.md's ~0.4-0.5 MB/s ceiling on Neon's free tier; a headshot has no reason to approach this anyway.
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+/** Stores a member's headshot directly as bytea (see TeamMember.photo's doc comment) — no resizing/cropping, uploaded as-is. */
+export async function uploadMemberPhotoAction(teamMemberId: string, _prev: UploadMemberPhotoState, formData: FormData): Promise<UploadMemberPhotoState> {
+  await requireAdmin();
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecciona una imagen." };
+  if (!file.type.startsWith("image/")) return { error: "El archivo debe ser una imagen." };
+  if (file.size > MAX_PHOTO_BYTES) return { error: "La imagen no puede superar 2 MB." };
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await prisma.teamMember.update({ where: { id: teamMemberId }, data: { photo: buffer, photoMimeType: file.type } });
+
+  revalidatePath("/admin/config");
+  revalidatePath("/admin/day/[n]", "page");
+  revalidatePath("/admin/actividad/[n]", "page");
+  return { success: "Foto actualizada." };
+}
+
+/** Single note per team/activity — each save overwrites the previous text (see TeamActivityNote's doc comment). */
+export async function upsertTeamActivityNoteAction(teamId: string, activity: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  if (!isValidSoftSkillActivity(activity)) return;
+  const text = String(formData.get("text") ?? "").trim();
+  await prisma.teamActivityNote.upsert({
+    where: { teamId_activity: { teamId, activity } },
+    update: { text },
+    create: { teamId, activity, text },
+  });
+  revalidatePath(`/admin/actividad/${activity}`);
 }
