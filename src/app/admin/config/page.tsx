@@ -1,14 +1,17 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { updateRubricWeightsAction, updateOpenDayAction } from "@/lib/adminActions";
+import { memberPhotoDataUri } from "@/lib/memberPhoto";
+import { MemberPhoto } from "@/components/MemberPhoto";
 import { CreateTeamForm } from "./CreateTeamForm";
 import { DeleteTeamButton } from "./DeleteTeamButton";
 import { RosterUpload } from "./RosterUpload";
+import { MemberPhotoUpload } from "./MemberPhotoUpload";
 
 export default async function ConfigPage() {
   const cohort = await getOrCreateActiveCohort();
 
-  const [teams, rubric] = await Promise.all([
+  const [teams, rubric, membersByTeam] = await Promise.all([
     prisma.team.findMany({
       where: { cohortId: cohort.id },
       include: { user: { select: { username: true } } },
@@ -18,6 +21,11 @@ export default async function ConfigPage() {
       where: { cohortId: cohort.id },
       update: {},
       create: { cohortId: cohort.id },
+    }),
+    prisma.team.findMany({
+      where: { cohortId: cohort.id },
+      select: { id: true, name: true, color: true, members: { orderBy: { name: "asc" } } },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -72,6 +80,39 @@ export default async function ConfigPage() {
 
         <CreateTeamForm />
         <RosterUpload />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+          Integrantes
+        </h2>
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">
+          Foto de cada integrante — se muestra junto a su nombre en la calificación subjetiva y en las actividades de habilidades blandas.
+        </p>
+
+        <div className="flex flex-col gap-4">
+          {membersByTeam.map((team) => (
+            <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                {team.name}
+              </h3>
+              {team.members.length === 0 ? (
+                <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin integrantes cargados aún.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {team.members.map((member) => (
+                    <div key={member.id} className="flex flex-wrap items-center gap-3">
+                      <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={32} />
+                      <span className="min-w-[120px] text-sm text-[var(--color-foreground)]">{member.name}</span>
+                      <MemberPhotoUpload teamMemberId={member.id} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="flex flex-col gap-4">

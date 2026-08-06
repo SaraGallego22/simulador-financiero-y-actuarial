@@ -22,6 +22,14 @@ const SECTIONS = [
       { href: "/admin/standings", label: "Consolidado final" },
     ],
   },
+  {
+    label: "Habilidades blandas",
+    links: [
+      { href: "/admin/actividad/1", label: "Actividad 1" },
+      { href: "/admin/actividad/2", label: "Actividad 2" },
+      { href: "/admin/actividad/3", label: "Actividad 3" },
+    ],
+  },
 ];
 
 export function AdminNav() {
