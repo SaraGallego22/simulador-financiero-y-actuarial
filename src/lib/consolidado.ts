@@ -10,6 +10,8 @@ import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/conce
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
+import { SOFT_SKILL_COMPETENCIES, RATING_SCORES } from "@/lib/softSkills";
+import type { SoftSkillCompetency, SoftSkillRating } from "@/lib/softSkills";
 
 export interface MarketLossRatio {
   lossRatio: number;
@@ -254,14 +256,26 @@ export interface MemberConsolidadoRow {
   teamId: string;
   teamName: string;
   teamColor: string;
-  perDay: { day: number; notaGeneral: number | null; aprobado: boolean | null; perfil: EvaluationProfile | null }[];
+  perDay: { day: number; notaGeneral: number | null; aprobado: boolean | null; perfil: EvaluationProfile | null; aptitudesRiesgos: boolean }[];
   promedio: number | null;
   diasAprobados: number;
   diasEvaluados: number;
+  // Días 2-4 where the "Mostró aptitudes para Riesgos" checkpoint was
+  // marked, out of 3 — independent of notaGeneral (see
+  // MemberDayEvaluation.aptitudesRiesgos's doc comment), so this is out of a
+  // fixed 3, not out of diasEvaluados like diasAprobados above.
+  aptitudesRiesgosCount: number;
   // Not shown in /admin/standings' on-screen table (which is why this isn't
   // published-gated like perDay above) — carried only for the CSV export
   // (/api/members/consolidado-csv), which is the admin's own private copy.
   comments: { day: number; author: string; text: string }[];
+  // Habilidades blandas: never published to teams (see softSkills.ts's doc
+  // comment) — this whole function is only ever called from admin routes, so
+  // no gating needed here. One nota per competency, averaging
+  // RATING_SCORES across whichever of the 3 activities rated that
+  // competency for this member (missing if none did).
+  softSkills: Partial<Record<SoftSkillCompetency, number>>;
+  softSkillComments: { activity: number; text: string }[];
 }
 
 /**
@@ -295,15 +309,48 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
     commentsByMemberId.get(c.teamMemberId)!.push(c);
   }
 
+  // Habilidades blandas: never gated by `respectPublished` (see this
+  // function's doc comment on softSkills) — grouped by member, then by
+  // competency, so each competency's nota can average across whichever
+  // activities actually rated it.
+  const softSkillEvals = await prisma.softSkillEvaluation.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+  });
+  const softSkillScoresByMemberId = new Map<string, Partial<Record<SoftSkillCompetency, number[]>>>();
+  for (const e of softSkillEvals) {
+    if (!softSkillScoresByMemberId.has(e.teamMemberId)) softSkillScoresByMemberId.set(e.teamMemberId, {});
+    const byCompetency = softSkillScoresByMemberId.get(e.teamMemberId)!;
+    const competency = e.competency as SoftSkillCompetency;
+    (byCompetency[competency] ??= []).push(RATING_SCORES[e.rating as SoftSkillRating]);
+  }
+
+  const softSkillCommentsRaw = await prisma.softSkillComment.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+    orderBy: [{ activity: "asc" }, { createdAt: "asc" }],
+  });
+  const softSkillCommentsByMemberId = new Map<string, { activity: number; text: string }[]>();
+  for (const c of softSkillCommentsRaw) {
+    if (!softSkillCommentsByMemberId.has(c.teamMemberId)) softSkillCommentsByMemberId.set(c.teamMemberId, []);
+    softSkillCommentsByMemberId.get(c.teamMemberId)!.push({ activity: c.activity, text: c.text });
+  }
+
   const rows: MemberConsolidadoRow[] = [];
   for (const team of teams) {
     for (const member of team.members) {
       const perDay = [2, 3, 4].map((day) => {
         const e = evalByMemberDay.get(`${member.id}:${day}`);
-        if (!e || (respectPublished && !e.published)) return { day, notaGeneral: null, aprobado: null, perfil: null };
-        return { day, notaGeneral: e.notaGeneral, aprobado: e.aprobado, perfil: e.perfil };
+        if (!e || (respectPublished && !e.published)) return { day, notaGeneral: null, aprobado: null, perfil: null, aptitudesRiesgos: false };
+        return { day, notaGeneral: e.notaGeneral, aprobado: e.aprobado, perfil: e.perfil, aptitudesRiesgos: e.aptitudesRiesgos };
       });
       const notas = perDay.map((d) => d.notaGeneral).filter((v): v is number => v != null);
+
+      const rawScores = softSkillScoresByMemberId.get(member.id) ?? {};
+      const softSkills: Partial<Record<SoftSkillCompetency, number>> = {};
+      for (const competency of SOFT_SKILL_COMPETENCIES) {
+        const scores = rawScores[competency];
+        if (scores && scores.length > 0) softSkills[competency] = scores.reduce((a, b) => a + b, 0) / scores.length;
+      }
+
       rows.push({
         teamMemberId: member.id,
         memberName: member.name,
@@ -314,7 +361,10 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
         promedio: notaPerfilDia(notas),
         diasAprobados: perDay.filter((d) => d.aprobado === true).length,
         diasEvaluados: notas.length,
+        aptitudesRiesgosCount: perDay.filter((d) => d.aptitudesRiesgos).length,
         comments: (commentsByMemberId.get(member.id) ?? []).map((c) => ({ day: c.day, author: c.author, text: c.text })),
+        softSkills,
+        softSkillComments: softSkillCommentsByMemberId.get(member.id) ?? [],
       });
     }
   }
