@@ -1,5 +1,6 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado, computeMemberConsolidado } from "@/lib/consolidado";
+import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS } from "@/lib/softSkills";
 
 // computeConsolidado() reads live DB state (fetches per-team tariff blobs on
 // Neon's free tier, ~10s each) and must never be statically prerendered —
@@ -77,7 +78,8 @@ export default async function AdminStandingsPage() {
           </a>
         </div>
         <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
-          Promedio de la Nota general (1-5) que cada integrante recibió en la calificación subjetiva de los Días 2-4.
+          Promedio de la Nota general (1-5) que cada integrante recibió en la calificación subjetiva de los Días 2-4. Las columnas de habilidades
+          blandas son el promedio de las 3 actividades (escala 1-4: No se evidencia / Regular / Bueno / Excelente) — ver comentarios de TH en el CSV.
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
           <table className="w-full text-sm">
@@ -91,6 +93,12 @@ export default async function AdminStandingsPage() {
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Día 4</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Promedio</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Días aprobados</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Aptitud Riesgos</th>
+                {SOFT_SKILL_COMPETENCIES.map((c) => (
+                  <th key={c} className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">
+                    {COMPETENCY_LABELS[c]}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -113,6 +121,12 @@ export default async function AdminStandingsPage() {
                   <td className="px-4 py-2">
                     {r.diasAprobados}/{r.diasEvaluados}
                   </td>
+                  <td className="px-4 py-2">{r.aptitudesRiesgosCount}/3</td>
+                  {SOFT_SKILL_COMPETENCIES.map((c) => (
+                    <td key={c} className="px-4 py-2">
+                      {r.softSkills[c] != null ? r.softSkills[c]!.toFixed(1) : "—"}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

@@ -37,6 +37,14 @@ export const RATING_LABELS: Record<SoftSkillRating, string> = {
   NO_EVIDENCIA: "No se evidencia la competencia",
 };
 
+/** Ordinal 1-4 conversion of the qualitative scale, for the consolidado's per-competency nota (averaged across the 3 activities). */
+export const RATING_SCORES: Record<SoftSkillRating, number> = {
+  NO_EVIDENCIA: 1,
+  REGULAR: 2,
+  BUENO: 3,
+  EXCELENTE: 4,
+};
+
 export const SOFT_SKILL_ACTIVITIES = [1, 2, 3] as const;
 
 export const ACTIVITY_TITLES: Record<number, string> = {
