@@ -76,6 +76,11 @@ model TeamMember {
   teamId        String
   team          Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   name          String
+  // Academic background, from the roster CSV's optional carrera/universidad/semestre
+  // columns (see rosterRowSchema) — surfaced mainly in the TH interview view.
+  carrera       String?
+  universidad   String?
+  semestre      String?
   // Small headshot shown next to the member's name in subjective/soft-skills
   // grading — same bytea-in-Postgres approach as tariffs (see CLAUDE.md §3),
   // not a separate blob service. photoMimeType is stored alongside because a
@@ -84,10 +89,12 @@ model TeamMember {
   photo         Bytes?
   photoMimeType String?
 
-  evaluations          MemberDayEvaluation[]
-  comments             MemberComment[]
-  softSkillEvaluations SoftSkillEvaluation[]
-  softSkillComments    SoftSkillComment[]
+  evaluations           MemberDayEvaluation[]
+  comments              MemberComment[]
+  softSkillEvaluations  SoftSkillEvaluation[]
+  softSkillComments     SoftSkillComment[]
+  interviewSkillRatings InterviewSkillRating[]
+  interviewComments     InterviewComment[]
 }
 
 // Bulk-generated reference datasets (Colombia universe, Chile reference set).
@@ -198,16 +205,16 @@ model Deliverable {
 // (dimA=valA x dimB=valB, e.g. zona=urbana x uso=comercial), not a single
 // segment — see domain/grading/sectors.ts.
 model AnalyticsRecommendation {
-  id     String @id @default(cuid())
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id])
-  day    Int
-  list   String // 'crecer' | 'disminuir'
-  rank   Int // 1-based position within that list
-  dimA   String
-  valA   String
-  dimB   String
-  valB   String
+  id                  String @id @default(cuid())
+  teamId              String
+  team                Team   @relation(fields: [teamId], references: [id])
+  day                 Int
+  list                String // 'crecer' | 'disminuir'
+  rank                Int // 1-based position within that list
+  dimA                String
+  valA                String
+  dimB                String
+  valB                String
   // Team's own guess at this sector's true multiplier (aggregateLoss ÷
   // universe aggregateLoss) — optional, scored via a tolerance band exactly
   // like any other numeric estimate; null contributes 0 to that half of the
@@ -241,17 +248,17 @@ enum EvaluationProfile {
 // only notaGeneral feeds the numeric grade; aprobado/perfil/comentario are
 // reporting fields the evaluator fills in alongside it).
 model MemberDayEvaluation {
-  id           String             @id @default(cuid())
-  teamMemberId String
-  teamMember   TeamMember         @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  day          Int
-  notaGeneral  Float? // 1.0-5.0, one decimal
-  aprobado     Boolean?
-  perfil       EvaluationProfile?
+  id               String             @id @default(cuid())
+  teamMemberId     String
+  teamMember       TeamMember         @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  day              Int
+  notaGeneral      Float? // 1.0-5.0, one decimal
+  aprobado         Boolean?
+  perfil           EvaluationProfile?
   // Standalone checkpoint toggle, independent of notaGeneral/aprobado/perfil —
   // does not feed any numeric grade (see composite.ts's notaDia), just a flag
   // an evaluator can mark per day.
-  aptitudesRiesgos Boolean @default(false)
+  aptitudesRiesgos Boolean            @default(false)
 
   published Boolean @default(false)
 
@@ -332,4 +339,34 @@ model TeamActivityNote {
   updatedAt DateTime @updatedAt
 
   @@unique([teamId, activity])
+}
+
+enum InterviewSkill {
+  EXCEL
+  PROGRAMACION
+}
+
+// One-on-one TH interview, separate from the técnica día grading and from
+// habilidades blandas (see src/lib/interview.ts) — reuses SoftSkillRating's
+// qualitative scale so both dropdowns read the same way to an evaluator.
+model InterviewSkillRating {
+  id           String          @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember      @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  skill        InterviewSkill
+  rating       SoftSkillRating
+
+  @@unique([teamMemberId, skill])
+}
+
+// Free-form remark from the TH interview, same append-only shape as
+// MemberComment/SoftSkillComment, always authored by "Equipo TH".
+model InterviewComment {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  text         String
+  createdAt    DateTime   @default(now())
+
+  @@index([teamMemberId])
 }

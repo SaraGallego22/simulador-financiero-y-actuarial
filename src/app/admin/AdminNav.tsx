@@ -30,6 +30,10 @@ const SECTIONS = [
       { href: "/admin/actividad/3", label: "Actividad 3" },
     ],
   },
+  {
+    label: "TH",
+    links: [{ href: "/admin/entrevista", label: "Entrevista individual" }],
+  },
 ];
 
 export function AdminNav() {

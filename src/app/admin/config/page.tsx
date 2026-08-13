@@ -101,13 +101,21 @@ export default async function ConfigPage() {
                 <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin integrantes cargados aún.</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {team.members.map((member) => (
-                    <div key={member.id} className="flex flex-wrap items-center gap-3">
-                      <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={48} />
-                      <span className="min-w-[120px] text-sm text-[var(--color-foreground)]">{member.name}</span>
-                      <MemberPhotoUpload teamMemberId={member.id} />
-                    </div>
-                  ))}
+                  {team.members.map((member) => {
+                    const academic = [member.carrera, member.universidad, member.semestre && `${member.semestre} semestre`]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <div key={member.id} className="flex flex-wrap items-center gap-3">
+                        <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={48} />
+                        <span className="min-w-[120px] text-sm text-[var(--color-foreground)]">
+                          {member.name}
+                          {academic && <span className="block text-xs text-[var(--color-brand-text-secondary)]">{academic}</span>}
+                        </span>
+                        <MemberPhotoUpload teamMemberId={member.id} />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
