@@ -10,8 +10,8 @@ import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/conce
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
-import { SOFT_SKILL_COMPETENCIES, RATING_SCORES } from "@/lib/softSkills";
-import type { SoftSkillCompetency, SoftSkillRating } from "@/lib/softSkills";
+import { averageSoftSkillsByMember } from "@/lib/softSkills";
+import type { SoftSkillCompetency } from "@/lib/softSkills";
 
 export interface MarketLossRatio {
   lossRatio: number;
@@ -316,13 +316,7 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
   const softSkillEvals = await prisma.softSkillEvaluation.findMany({
     where: { teamMember: { team: { cohortId: cohort.id } } },
   });
-  const softSkillScoresByMemberId = new Map<string, Partial<Record<SoftSkillCompetency, number[]>>>();
-  for (const e of softSkillEvals) {
-    if (!softSkillScoresByMemberId.has(e.teamMemberId)) softSkillScoresByMemberId.set(e.teamMemberId, {});
-    const byCompetency = softSkillScoresByMemberId.get(e.teamMemberId)!;
-    const competency = e.competency as SoftSkillCompetency;
-    (byCompetency[competency] ??= []).push(RATING_SCORES[e.rating as SoftSkillRating]);
-  }
+  const softSkillsByMemberId = averageSoftSkillsByMember(softSkillEvals);
 
   const softSkillCommentsRaw = await prisma.softSkillComment.findMany({
     where: { teamMember: { team: { cohortId: cohort.id } } },
@@ -344,12 +338,7 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
       });
       const notas = perDay.map((d) => d.notaGeneral).filter((v): v is number => v != null);
 
-      const rawScores = softSkillScoresByMemberId.get(member.id) ?? {};
-      const softSkills: Partial<Record<SoftSkillCompetency, number>> = {};
-      for (const competency of SOFT_SKILL_COMPETENCIES) {
-        const scores = rawScores[competency];
-        if (scores && scores.length > 0) softSkills[competency] = scores.reduce((a, b) => a + b, 0) / scores.length;
-      }
+      const softSkills = softSkillsByMemberId.get(member.id) ?? {};
 
       rows.push({
         teamMemberId: member.id,
