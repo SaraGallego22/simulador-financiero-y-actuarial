@@ -27,6 +27,11 @@ export async function GET() {
   const cohort = await getOrCreateActiveCohort();
   const rows = await computeMemberConsolidado(cohort.id);
 
+  // "n/m" fractions (días aprobados, aptitud Riesgos) look like dates to
+  // Excel's auto-detection when opened directly (e.g. "1/3" -> "3-jan") —
+  // the ="..." formula form forces Excel to render the literal text instead.
+  const asText = (s: string) => `="${s}"`;
+
   const data = rows.map((r, i) => [
     i + 1,
     r.memberName,
@@ -35,8 +40,8 @@ export async function GET() {
     r.perDay[1]?.notaGeneral?.toFixed(1) ?? "",
     r.perDay[2]?.notaGeneral?.toFixed(1) ?? "",
     r.promedio?.toFixed(1) ?? "",
-    `${r.diasAprobados}/${r.diasEvaluados}`,
-    `${r.aptitudesRiesgosCount}/3`,
+    asText(`${r.diasAprobados}/${r.diasEvaluados}`),
+    asText(`${r.aptitudesRiesgosCount}/3`),
     ...SOFT_SKILL_COMPETENCIES.map((c) => r.softSkills[c]?.toFixed(1) ?? ""),
     r.comments.map((c) => `[Día ${c.day}] ${c.author}: ${c.text}`).join(" | "),
     r.softSkillComments.map((c) => `[Actividad ${c.activity}] ${SOFT_SKILL_COMMENT_AUTHOR}: ${c.text}`).join(" | "),
