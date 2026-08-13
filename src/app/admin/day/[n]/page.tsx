@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction, toggleMemberEvaluationsPublishedForTeamAction } from "@/lib/adminActions";
@@ -25,6 +24,7 @@ import { computeConsolidado } from "@/lib/consolidado";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { SoftSkillsRadarChart } from "@/components/SoftSkillsRadarChart";
+import { TeamSelect } from "@/components/TeamSelect";
 import { averageSoftSkillsByMember, RATING_LABELS } from "@/lib/softSkills";
 import type { SoftSkillRating } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
@@ -370,7 +370,7 @@ export default async function AdminDayPage({
   const selectedSubjTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
+    <main className={`mx-auto flex w-full flex-1 flex-col gap-4 p-8 ${activeTab === "subj" ? "max-w-7xl" : "max-w-4xl"}`}>
       <div>
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Día {day} — {DAY_TITLES[day]}
@@ -1107,7 +1107,7 @@ export default async function AdminDayPage({
       )}
 
       {activeTab === "subj" && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {day === 1 ? (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               El Día 1 no tiene calificación subjetiva — todavía no ha habido suficiente contacto con los equipos para evaluar a cada integrante. Empieza en el Día 2.
@@ -1118,33 +1118,17 @@ export default async function AdminDayPage({
             </div>
           ) : (
             <>
-              <div className="flex flex-wrap gap-2">
-                {teams.map((t) => {
-                  const active = t.id === selectedSubjTeam?.id;
-                  return (
-                    <Link
-                      key={t.id}
-                      href={`/admin/day/${day}?tab=subj&team=${t.id}`}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? "border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] text-[var(--color-brand-blue-accent)]"
-                          : "border-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)] hover:border-[var(--color-brand-blue-accent)]"
-                      }`}
-                    >
-                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: t.color }} />
-                      {t.name}
-                    </Link>
-                  );
-                })}
-              </div>
+              {selectedSubjTeam && (
+                <TeamSelect teams={teams} selectedTeamId={selectedSubjTeam.id} basePath={`/admin/day/${day}`} extraParams={{ tab: "subj" }} />
+              )}
 
               {selectedSubjTeam &&
                 (() => {
                   const team = selectedSubjTeam;
                   const published = teamPublishedByTeamId.get(team.id) ?? false;
                   return (
-                    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-                      <div className="mb-4 flex items-center justify-between">
+                    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
+                      <div className="mb-6 flex items-center justify-between">
                         <h3 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                           {team.name}
@@ -1172,7 +1156,7 @@ export default async function AdminDayPage({
                           primero.
                         </p>
                       ) : (
-                        <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-8">
                           {team.members.map((member) => {
                             const ev = evaluationByMemberId.get(member.id);
                             const priorDays = Array.from({ length: day - 2 }, (_, i) => i + 2); // [2..day-1]
@@ -1183,26 +1167,26 @@ export default async function AdminDayPage({
                             const interviewMemberComments = interviewCommentsByMemberId.get(member.id) ?? [];
                             const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
                             return (
-                              <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-4">
-                                <div className="flex flex-col gap-4 lg:flex-row">
-                                  <div className="flex shrink-0 flex-col items-center gap-2 lg:w-44">
-                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
-                                    <p className="text-center text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                              <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-6">
+                                <div className="flex flex-col gap-6 xl:flex-row">
+                                  <div className="flex shrink-0 flex-col items-center gap-3 xl:w-56">
+                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={144} />
+                                    <p className="text-center text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
                                     <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
                                     <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                                   </div>
 
-                                  <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+                                  <div className="grid flex-1 grid-cols-1 gap-6 lg:grid-cols-3">
                                     <div className="flex flex-col gap-3">
-                                      <div>
-                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                          Habilidades blandas
-                                        </p>
-                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={240} />
-                                      </div>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                        Habilidades blandas
+                                      </p>
+                                      <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={300} />
+                                    </div>
 
-                                      <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
-                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                    <div className="flex flex-col gap-4">
+                                      <div className="rounded border border-[var(--color-brand-gray-light)] p-4">
+                                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                           Entrevista TH
                                         </p>
                                         {hasInterview ? (
@@ -1233,10 +1217,10 @@ export default async function AdminDayPage({
 
                                       {hasHistorial && (
                                         <details className="rounded border border-[var(--color-brand-gray-light)]">
-                                          <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          <summary className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                             Historial (Días anteriores)
                                           </summary>
-                                          <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
+                                          <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-4">
                                             {priorDays.map((d) => {
                                               const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
                                               const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
@@ -1261,7 +1245,7 @@ export default async function AdminDayPage({
                                       )}
                                     </div>
 
-                                    <div className="flex flex-col gap-3">
+                                    <div className="flex flex-col gap-4">
                                       <MemberEvaluationForm
                                         // Keyed by the saved values so a successful save
                                         // remounts the (uncontrolled) form instead of
