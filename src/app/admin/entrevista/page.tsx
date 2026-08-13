@@ -43,6 +43,10 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
   // One team at a time (see TeamSelect's doc comment) — falls back to the
   // first team when no ?team= is selected or it doesn't match.
   const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
+  // Plain fields only — see TeamSelect's doc comment on why the full `teams`
+  // query result (nested members' Bytes photo columns) can't cross into a
+  // Client Component prop.
+  const teamOptions = teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-8">
@@ -62,7 +66,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
       ) : (
         selectedTeam && (
           <>
-            <TeamSelect teams={teams} selectedTeamId={selectedTeam.id} basePath="/admin/entrevista" />
+            <TeamSelect teams={teamOptions} selectedTeamId={selectedTeam.id} basePath="/admin/entrevista" />
 
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
               <h3 className="mb-6 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
