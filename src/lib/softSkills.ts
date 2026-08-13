@@ -59,3 +59,36 @@ export const SOFT_SKILL_COMMENT_AUTHOR = "Equipo TH";
 export function isValidSoftSkillActivity(activity: number): boolean {
   return Number.isInteger(activity) && activity >= 1 && activity <= 3;
 }
+
+export interface SoftSkillEvalRow {
+  teamMemberId: string;
+  competency: string;
+  rating: string;
+}
+
+/**
+ * Averages each member's ordinal rating (RATING_SCORES) per competency
+ * across however many of the 3 activities rated it — shared by the member
+ * consolidado (consolidado.ts) and the per-team subjective grading view
+ * (admin/day/[n]/page.tsx's radar chart), so both read the same numbers.
+ */
+export function averageSoftSkillsByMember(evals: SoftSkillEvalRow[]): Map<string, Partial<Record<SoftSkillCompetency, number>>> {
+  const rawScores = new Map<string, Partial<Record<SoftSkillCompetency, number[]>>>();
+  for (const e of evals) {
+    if (!rawScores.has(e.teamMemberId)) rawScores.set(e.teamMemberId, {});
+    const byCompetency = rawScores.get(e.teamMemberId)!;
+    const competency = e.competency as SoftSkillCompetency;
+    (byCompetency[competency] ??= []).push(RATING_SCORES[e.rating as SoftSkillRating]);
+  }
+
+  const result = new Map<string, Partial<Record<SoftSkillCompetency, number>>>();
+  for (const [teamMemberId, byCompetency] of rawScores) {
+    const averages: Partial<Record<SoftSkillCompetency, number>> = {};
+    for (const competency of SOFT_SKILL_COMPETENCIES) {
+      const scores = byCompetency[competency];
+      if (scores && scores.length > 0) averages[competency] = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+    result.set(teamMemberId, averages);
+  }
+  return result;
+}

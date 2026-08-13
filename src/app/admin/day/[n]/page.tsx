@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { publishAllAction, togglePublishedAction, toggleMemberEvaluationsPublishedForTeamAction } from "@/lib/adminActions";
@@ -23,6 +24,11 @@ import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } 
 import { computeConsolidado } from "@/lib/consolidado";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
+import { SoftSkillsRadarChart } from "@/components/SoftSkillsRadarChart";
+import { averageSoftSkillsByMember, RATING_LABELS } from "@/lib/softSkills";
+import type { SoftSkillRating } from "@/lib/softSkills";
+import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
+import type { InterviewSkill } from "@/lib/interview";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
@@ -40,7 +46,7 @@ export default async function AdminDayPage({
   searchParams,
 }: {
   params: Promise<{ n: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; team?: string }>;
 }) {
   const { n } = await params;
   const day = Number(n);
@@ -52,7 +58,7 @@ export default async function AdminDayPage({
   const hasMinVariance = day === 1;
   const hasPortfolioTree = day === 2;
   const bookYear = day === 2 ? 1 : null;
-  const { tab } = await searchParams;
+  const { tab, team: selectedTeamId } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
 
@@ -77,6 +83,9 @@ export default async function AdminDayPage({
     rubric,
     universeRunForSectors,
     analyticsRecs,
+    softSkillEvals,
+    interviewSkillRatings,
+    interviewComments,
   ] = await Promise.all([
     prisma.team.findMany({
       where: { cohortId: cohort.id },
@@ -156,6 +165,15 @@ export default async function AdminDayPage({
     hasAnalitica
       ? prisma.analyticsRecommendation.findMany({ where: { day, team: { cohortId: cohort.id } } })
       : Promise.resolve([]),
+    // Habilidades blandas (radar) and TH interview (Excel/Programación +
+    // comments) shown read-only alongside this day's subjective grading —
+    // same "day >= 2" gate as memberEvaluations above, not activeTab, so
+    // switching tabs doesn't need another round trip.
+    day >= 2 ? prisma.softSkillEvaluation.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } } }) : Promise.resolve([]),
+    day >= 2 ? prisma.interviewSkillRating.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } } }) : Promise.resolve([]),
+    day >= 2
+      ? prisma.interviewComment.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } }, orderBy: { createdAt: "asc" } })
+      : Promise.resolve([]),
   ]);
 
   const evaluationByMemberId = new Map<string, (typeof memberEvaluations)[number]>();
@@ -181,6 +199,20 @@ export default async function AdminDayPage({
     const key = `${c.teamMemberId}:${c.day}`;
     if (!historicalCommentsByMemberDay.has(key)) historicalCommentsByMemberDay.set(key, []);
     historicalCommentsByMemberDay.get(key)!.push(c);
+  }
+
+  // Habilidades blandas (radar) and TH interview (read-only summary) for the
+  // redesigned "subj" tab below.
+  const softSkillsByMemberId = averageSoftSkillsByMember(softSkillEvals);
+  const interviewRatingsByMemberId = new Map<string, Partial<Record<InterviewSkill, SoftSkillRating>>>();
+  for (const r of interviewSkillRatings) {
+    if (!interviewRatingsByMemberId.has(r.teamMemberId)) interviewRatingsByMemberId.set(r.teamMemberId, {});
+    interviewRatingsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating as SoftSkillRating;
+  }
+  const interviewCommentsByMemberId = new Map<string, (typeof interviewComments)[number][]>();
+  for (const c of interviewComments) {
+    if (!interviewCommentsByMemberId.has(c.teamMemberId)) interviewCommentsByMemberId.set(c.teamMemberId, []);
+    interviewCommentsByMemberId.get(c.teamMemberId)!.push(c);
   }
 
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
@@ -332,6 +364,10 @@ export default async function AdminDayPage({
       if (avg != null) finReportScoreByTeamId.set(team.id, avg);
     }
   }
+
+  // "subj" tab shows one team at a time (see its section below) — falls back
+  // to the first team when no ?team= is selected or it doesn't match.
+  const selectedSubjTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
@@ -1076,112 +1112,185 @@ export default async function AdminDayPage({
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               El Día 1 no tiene calificación subjetiva — todavía no ha habido suficiente contacto con los equipos para evaluar a cada integrante. Empieza en el Día 2.
             </div>
+          ) : teams.length === 0 ? (
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+              Este cohorte todavía no tiene equipos.
+            </div>
           ) : (
-            teams.map((team) => {
-              const published = teamPublishedByTeamId.get(team.id) ?? false;
-              return (
-                <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name}
-                    </h3>
-                    {team.members.length > 0 && (
-                      <form action={toggleMemberEvaluationsPublishedForTeamAction.bind(null, team.id, day)}>
-                        <button
-                          type="submit"
-                          className={`rounded px-3 py-1 text-xs font-semibold ${
-                            published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
-                          }`}
-                        >
-                          {published ? "Publicado" : "Publicar"}
-                        </button>
-                      </form>
-                    )}
-                  </div>
+            <>
+              <div className="flex flex-wrap gap-2">
+                {teams.map((t) => {
+                  const active = t.id === selectedSubjTeam?.id;
+                  return (
+                    <Link
+                      key={t.id}
+                      href={`/admin/day/${day}?tab=subj&team=${t.id}`}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        active
+                          ? "border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] text-[var(--color-brand-blue-accent)]"
+                          : "border-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)] hover:border-[var(--color-brand-blue-accent)]"
+                      }`}
+                    >
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: t.color }} />
+                      {t.name}
+                    </Link>
+                  );
+                })}
+              </div>
 
-                  {team.members.length === 0 ? (
-                    <p className="text-sm text-[var(--color-brand-text-secondary)]">
-                      Este equipo no tiene integrantes cargados. La calificación subjetiva es por integrante — sube el{" "}
-                      <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
-                        roster
-                      </a>{" "}
-                      primero.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {team.members.map((member) => {
-                        const ev = evaluationByMemberId.get(member.id);
-                        const priorDays = Array.from({ length: day - 2 }, (_, i) => i + 2); // [2..day-1]
-                        const hasHistorial = priorDays.some(
-                          (d) => historicalEvaluationsByMemberDay.has(`${member.id}:${d}`) || historicalCommentsByMemberDay.has(`${member.id}:${d}`)
-                        );
-                        return (
-                          <div key={member.id} className="flex gap-3">
-                            <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={72} />
-                            <div className="flex flex-1 flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
-                                <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
-                              </div>
+              {selectedSubjTeam &&
+                (() => {
+                  const team = selectedSubjTeam;
+                  const published = teamPublishedByTeamId.get(team.id) ?? false;
+                  return (
+                    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </h3>
+                        {team.members.length > 0 && (
+                          <form action={toggleMemberEvaluationsPublishedForTeamAction.bind(null, team.id, day)}>
+                            <button
+                              type="submit"
+                              className={`rounded px-3 py-1 text-xs font-semibold ${
+                                published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
+                              }`}
+                            >
+                              {published ? "Publicado" : "Publicar"}
+                            </button>
+                          </form>
+                        )}
+                      </div>
 
-                              <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
-
-                              {hasHistorial && (
-                                <details className="rounded border border-[var(--color-brand-gray-light)]">
-                                  <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                    Historial (Días anteriores)
-                                  </summary>
-                                  <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
-                                    {priorDays.map((d) => {
-                                      const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
-                                      const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
-                                      if (!priorEv && priorComments.length === 0) return null;
-                                      return (
-                                        <div key={d} className="text-sm">
-                                          <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
-                                          <p className="text-xs text-[var(--color-foreground)]">
-                                            Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
-                                            {priorEv?.perfil ?? "—"}
-                                          </p>
-                                          {priorComments.map((c) => (
-                                            <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
-                                              &ldquo;{c.text}&rdquo; — {c.author}
-                                            </p>
-                                          ))}
-                                        </div>
-                                      );
-                                    })}
+                      {team.members.length === 0 ? (
+                        <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                          Este equipo no tiene integrantes cargados. La calificación subjetiva es por integrante — sube el{" "}
+                          <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
+                            roster
+                          </a>{" "}
+                          primero.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-6">
+                          {team.members.map((member) => {
+                            const ev = evaluationByMemberId.get(member.id);
+                            const priorDays = Array.from({ length: day - 2 }, (_, i) => i + 2); // [2..day-1]
+                            const hasHistorial = priorDays.some(
+                              (d) => historicalEvaluationsByMemberDay.has(`${member.id}:${d}`) || historicalCommentsByMemberDay.has(`${member.id}:${d}`)
+                            );
+                            const interviewRatings = interviewRatingsByMemberId.get(member.id);
+                            const interviewMemberComments = interviewCommentsByMemberId.get(member.id) ?? [];
+                            const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
+                            return (
+                              <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-4">
+                                <div className="flex flex-col gap-4 lg:flex-row">
+                                  <div className="flex shrink-0 flex-col items-center gap-2 lg:w-44">
+                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
+                                    <p className="text-center text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                                    <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
+                                    <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                                   </div>
-                                </details>
-                              )}
 
-                              <MemberEvaluationForm
-                                // Keyed by the saved values so a successful save
-                                // remounts the (uncontrolled) form instead of
-                                // leaving its <select>s at whatever the native
-                                // post-action form reset left them at — without
-                                // this they visually snap to "Sin definir" even
-                                // though the save succeeded.
-                                key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
-                                id={member.id}
-                                day={day}
-                                initial={{
-                                  notaGeneral: ev?.notaGeneral ?? null,
-                                  aprobado: ev?.aprobado ?? null,
-                                  perfil: ev?.perfil ?? null,
-                                }}
-                              />
-                              <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
-                            </div>
-                          </div>
-                        );
-                      })}
+                                  <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div className="flex flex-col gap-3">
+                                      <div>
+                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          Habilidades blandas
+                                        </p>
+                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={240} />
+                                      </div>
+
+                                      <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
+                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          Entrevista TH
+                                        </p>
+                                        {hasInterview ? (
+                                          <>
+                                            <p className="text-xs text-[var(--color-foreground)]">
+                                              {INTERVIEW_SKILLS.map((skill) => {
+                                                const rating = interviewRatings?.[skill];
+                                                return `${INTERVIEW_SKILL_LABELS[skill]}: ${rating ? RATING_LABELS[rating] : "Sin definir"}`;
+                                              }).join(" · ")}
+                                            </p>
+                                            {interviewMemberComments.length > 0 && (
+                                              <div className="mt-1.5 flex flex-col gap-1">
+                                                {interviewMemberComments.map((c) => (
+                                                  <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
+                                                    &ldquo;{c.text}&rdquo; — {INTERVIEW_COMMENT_AUTHOR}
+                                                  </p>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin entrevista registrada todavía.</p>
+                                        )}
+                                        <a href="/admin/entrevista" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
+                                          Editar en Entrevista individual →
+                                        </a>
+                                      </div>
+
+                                      {hasHistorial && (
+                                        <details className="rounded border border-[var(--color-brand-gray-light)]">
+                                          <summary className="cursor-pointer px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                            Historial (Días anteriores)
+                                          </summary>
+                                          <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-3">
+                                            {priorDays.map((d) => {
+                                              const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
+                                              const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
+                                              if (!priorEv && priorComments.length === 0) return null;
+                                              return (
+                                                <div key={d} className="text-sm">
+                                                  <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
+                                                  <p className="text-xs text-[var(--color-foreground)]">
+                                                    Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
+                                                    {priorEv?.perfil ?? "—"}
+                                                  </p>
+                                                  {priorComments.map((c) => (
+                                                    <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
+                                                      &ldquo;{c.text}&rdquo; — {c.author}
+                                                    </p>
+                                                  ))}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </details>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                      <MemberEvaluationForm
+                                        // Keyed by the saved values so a successful save
+                                        // remounts the (uncontrolled) form instead of
+                                        // leaving its <select>s at whatever the native
+                                        // post-action form reset left them at — without
+                                        // this they visually snap to "Sin definir" even
+                                        // though the save succeeded.
+                                        key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
+                                        id={member.id}
+                                        day={day}
+                                        initial={{
+                                          notaGeneral: ev?.notaGeneral ?? null,
+                                          aprobado: ev?.aprobado ?? null,
+                                          perfil: ev?.perfil ?? null,
+                                        }}
+                                      />
+                                      <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })
+                  );
+                })()}
+            </>
           )}
         </div>
       )}

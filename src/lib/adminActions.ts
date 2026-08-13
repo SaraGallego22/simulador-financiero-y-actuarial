@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { auth } from "./auth";
 import { getOrCreateActiveCohort } from "./cohort";
 import { SOFT_SKILL_COMPETENCIES, SOFT_SKILL_RATINGS, isValidSoftSkillActivity } from "./softSkills";
+import { INTERVIEW_SKILLS } from "./interview";
 
 const TEAM_COLORS = [
   "#0033A0",
@@ -162,6 +163,7 @@ export async function uploadRosterAction(_prev: UploadRosterState, formData: For
   const teamByLowerName = new Map(teams.map((t) => [t.name.toLowerCase(), t]));
 
   let created = 0;
+  let updated = 0;
   const unmatched: string[] = [];
   for (const row of rows) {
     const team = teamByLowerName.get(row.equipo.toLowerCase());
@@ -169,17 +171,31 @@ export async function uploadRosterAction(_prev: UploadRosterState, formData: For
       unmatched.push(row.equipo);
       continue;
     }
+    // Blank cells stay null rather than overwriting a previously-set value with "" —
+    // lets a re-upload that only fills in some rows' academic background not wipe others.
+    const academicData = {
+      ...(row.carrera && { carrera: row.carrera }),
+      ...(row.universidad && { universidad: row.universidad }),
+      ...(row.semestre && { semestre: row.semestre }),
+    };
     const existing = await prisma.teamMember.findFirst({ where: { teamId: team.id, name: row.nombre } });
-    if (existing) continue;
-    await prisma.teamMember.create({ data: { teamId: team.id, name: row.nombre } });
+    if (existing) {
+      if (Object.keys(academicData).length > 0) {
+        await prisma.teamMember.update({ where: { id: existing.id }, data: academicData });
+        updated++;
+      }
+      continue;
+    }
+    await prisma.teamMember.create({ data: { teamId: team.id, name: row.nombre, ...academicData } });
     created++;
   }
 
   revalidatePath("/admin/config");
-  if (unmatched.length > 0) {
-    return { success: `${created} integrante(s) creados. Equipos no encontrados: ${[...new Set(unmatched)].join(", ")}.` };
-  }
-  return { success: `${created} integrante(s) creados.` };
+  revalidatePath("/admin/entrevista");
+  const parts = [`${created} integrante(s) creados.`];
+  if (updated > 0) parts.push(`${updated} actualizados.`);
+  if (unmatched.length > 0) parts.push(`Equipos no encontrados: ${[...new Set(unmatched)].join(", ")}.`);
+  return { success: parts.join(" ") };
 }
 
 const EVALUATION_PROFILES = ["ACTUARIAL", "FINANCIERO", "GENERALISTA"] as const;
@@ -317,6 +333,47 @@ export async function deleteSoftSkillCommentAction(commentId: string, activity: 
   await requireAdmin();
   await prisma.softSkillComment.delete({ where: { id: commentId } });
   revalidatePath(`/admin/actividad/${activity}`);
+}
+
+/**
+ * Upserts one member's Excel/Programación ratings from the TH interview in
+ * one submit — same blank-clears-the-row behavior as
+ * submitSoftSkillEvaluationAction (SoftSkillRating has no "sin definir" value).
+ */
+export async function submitInterviewSkillsAction(teamMemberId: string, formData: FormData): Promise<void> {
+  await requireAdmin();
+  const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId } });
+  if (!member) return;
+
+  await Promise.all(
+    INTERVIEW_SKILLS.map((skill) => {
+      const raw = String(formData.get(`rating_${skill}`) ?? "");
+      const rating = (SOFT_SKILL_RATINGS as readonly string[]).includes(raw) ? (raw as (typeof SOFT_SKILL_RATINGS)[number]) : null;
+      return rating
+        ? prisma.interviewSkillRating.upsert({
+            where: { teamMemberId_skill: { teamMemberId, skill } },
+            update: { rating },
+            create: { teamMemberId, skill, rating },
+          })
+        : prisma.interviewSkillRating.deleteMany({ where: { teamMemberId, skill } });
+    })
+  );
+  revalidatePath("/admin/entrevista");
+}
+
+/** Adds one dated remark from the TH interview — author is always "Equipo TH" (see interview.ts), never taken from the form. */
+export async function addInterviewCommentAction(teamMemberId: string, formData: FormData): Promise<void> {
+  await requireAdmin();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await prisma.interviewComment.create({ data: { teamMemberId, text } });
+  revalidatePath("/admin/entrevista");
+}
+
+export async function deleteInterviewCommentAction(commentId: string): Promise<void> {
+  await requireAdmin();
+  await prisma.interviewComment.delete({ where: { id: commentId } });
+  revalidatePath("/admin/entrevista");
 }
 
 export interface UploadMemberPhotoState {

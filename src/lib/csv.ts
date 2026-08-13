@@ -20,6 +20,13 @@ export interface CsvSchema<T> {
    * ~1871).
    */
   headerAliases: Record<string, string[]>;
+  /**
+   * Same alias-matching as headerAliases, but the file is still valid if the
+   * column is entirely absent (unmatched fields are simply omitted from
+   * canonicalRow, left for rowSchema to default) — lets a schema add columns
+   * without breaking files uploaded before those columns existed.
+   */
+  optionalHeaderAliases?: Record<string, string[]>;
   rowSchema: z.ZodType<T>;
 }
 
@@ -74,10 +81,12 @@ export function parseCsv<T>(text: string, schema: CsvSchema<T>): ParseCsvResult<
     errors.push({ row: 1, message: `Faltan columnas requeridas: ${missing.join(", ")}` });
     return { rows, errors };
   }
+  const optionalColumnFor = schema.optionalHeaderAliases ? resolveHeaderAliases(headers, schema.optionalHeaderAliases) : {};
 
   parsed.data.forEach((raw, i) => {
     const canonicalRow: Record<string, string> = {};
     for (const [canonical, column] of Object.entries(columnFor)) canonicalRow[canonical] = raw[column] ?? "";
+    for (const [canonical, column] of Object.entries(optionalColumnFor)) canonicalRow[canonical] = raw[column] ?? "";
 
     const result = schema.rowSchema.safeParse(canonicalRow);
     if (result.success) rows.push(result.data);

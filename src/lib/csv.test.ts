@@ -36,7 +36,17 @@ describe("parseCsv / tariffCsvSchema", () => {
 describe("rosterCsvSchema", () => {
   it("parses name/team pairs", () => {
     const { rows } = parseCsv("nombre,equipo\nAna Pérez,Equipo 1", rosterCsvSchema);
-    expect(rows).toEqual([{ nombre: "Ana Pérez", equipo: "Equipo 1" }]);
+    expect(rows).toEqual([{ nombre: "Ana Pérez", equipo: "Equipo 1", carrera: "", universidad: "", semestre: "" }]);
+  });
+
+  it("parses the optional academic-background columns when present", () => {
+    const { rows } = parseCsv(
+      "nombre,equipo,carrera,universidad,semestre\nAna Pérez,Equipo 1,Ingeniería,EAFIT,8",
+      rosterCsvSchema
+    );
+    expect(rows).toEqual([
+      { nombre: "Ana Pérez", equipo: "Equipo 1", carrera: "Ingeniería", universidad: "EAFIT", semestre: "8" },
+    ]);
   });
 });
 

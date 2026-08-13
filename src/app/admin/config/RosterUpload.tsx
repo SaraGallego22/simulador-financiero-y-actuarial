@@ -11,7 +11,8 @@ export function RosterUpload() {
       <h3 className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Roster de integrantes</h3>
       <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
         Sube un CSV con columnas <code>nombre,equipo</code> para habilitar la calificación subjetiva por integrante
-        (además de la calificación por equipo).
+        (además de la calificación por equipo). Columnas opcionales <code>carrera,universidad,semestre</code> se
+        muestran en la entrevista individual de TH.
       </p>
       <form action={formAction} className="flex items-center gap-3">
         <input type="file" name="file" accept=".csv" required disabled={pending} className="text-sm" />

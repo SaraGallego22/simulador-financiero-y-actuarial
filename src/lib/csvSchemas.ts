@@ -22,14 +22,23 @@ export const tariffCsvSchema: CsvSchema<TariffRow> = {
   rowSchema: tariffRowSchema,
 };
 
-/** Team roster upload: `nombre,equipo` — matched against team names case-insensitively. */
+/**
+ * Team roster upload: `nombre,equipo` required, plus optional academic
+ * background columns (`carrera,universidad,semestre`) — matched against team
+ * names case-insensitively. An empty/missing optional column yields "" here,
+ * normalized to null before storage (see uploadRosterAction).
+ */
 export const rosterRowSchema = z.object({
   nombre: z.string().trim().min(1),
   equipo: z.string().trim().min(1),
+  carrera: z.string().trim().optional().default(""),
+  universidad: z.string().trim().optional().default(""),
+  semestre: z.string().trim().optional().default(""),
 });
 export type RosterRow = z.infer<typeof rosterRowSchema>;
 export const rosterCsvSchema: CsvSchema<RosterRow> = {
   headerAliases: { nombre: ["nombre"], equipo: ["equipo"] },
+  optionalHeaderAliases: { carrera: ["carrera"], universidad: ["universidad"], semestre: ["semestre"] },
   rowSchema: rosterRowSchema,
 };
 
