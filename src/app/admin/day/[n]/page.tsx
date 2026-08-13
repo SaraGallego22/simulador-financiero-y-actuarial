@@ -368,6 +368,12 @@ export default async function AdminDayPage({
   // "subj" tab shows one team at a time (see its section below) — falls back
   // to the first team when no ?team= is selected or it doesn't match.
   const selectedSubjTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
+  // TeamSelect is a Client Component — pass only the plain fields it needs,
+  // never the full `teams` query result (its `members` include nested Bytes
+  // photo columns, which React's Flight serializer cannot send across the
+  // server/client boundary: "ArrayBuffer is not detachable and could not be
+  // cloned").
+  const teamOptions = teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
   return (
     <main className={`mx-auto flex w-full flex-1 flex-col gap-4 p-8 ${activeTab === "subj" ? "max-w-7xl" : "max-w-4xl"}`}>
@@ -1119,7 +1125,7 @@ export default async function AdminDayPage({
           ) : (
             <>
               {selectedSubjTeam && (
-                <TeamSelect teams={teams} selectedTeamId={selectedSubjTeam.id} basePath={`/admin/day/${day}`} extraParams={{ tab: "subj" }} />
+                <TeamSelect teams={teamOptions} selectedTeamId={selectedSubjTeam.id} basePath={`/admin/day/${day}`} extraParams={{ tab: "subj" }} />
               )}
 
               {selectedSubjTeam &&
