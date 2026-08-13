@@ -4,6 +4,7 @@ import { ACTIVITY_TITLES, isValidSoftSkillActivity } from "@/lib/softSkills";
 import type { SoftSkillCompetency, SoftSkillRating } from "@/lib/softSkills";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
+import { TeamSelect } from "@/components/TeamSelect";
 import { SoftSkillEvaluationForm } from "./SoftSkillEvaluationForm";
 import { SoftSkillComments } from "./SoftSkillComments";
 import { TeamActivityNoteForm } from "./TeamActivityNoteForm";
@@ -12,11 +13,18 @@ import { notFound } from "next/navigation";
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
 
-export default async function AdminActivityPage({ params }: { params: Promise<{ n: string }> }) {
+export default async function AdminActivityPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ n: string }>;
+  searchParams: Promise<{ team?: string }>;
+}) {
   const { n } = await params;
   const activity = Number(n);
   if (!isValidSoftSkillActivity(activity)) notFound();
 
+  const { team: selectedTeamId } = await searchParams;
   const cohort = await getOrCreateActiveCohort();
 
   const [teams, evaluations, comments, notes] = await Promise.all([
@@ -49,8 +57,12 @@ export default async function AdminActivityPage({ params }: { params: Promise<{ 
 
   const noteByTeamId = new Map(notes.map((note) => [note.teamId, note.text]));
 
+  // One team at a time (see TeamSelect's doc comment) — falls back to the
+  // first team when no ?team= is selected or it doesn't match.
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
+
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-8">
       <div>
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           {ACTIVITY_TITLES[activity]} — Habilidades blandas
@@ -60,17 +72,22 @@ export default async function AdminActivityPage({ params }: { params: Promise<{ 
         </p>
       </div>
 
-      <div className="flex flex-col gap-4">
-        {teams.map((team) => {
-          const noteText = noteByTeamId.get(team.id) ?? "";
-          return (
-            <div key={team.id} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                {team.name}
+      {teams.length === 0 ? (
+        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+          Este cohorte todavía no tiene equipos.
+        </div>
+      ) : (
+        selectedTeam && (
+          <>
+            <TeamSelect teams={teams} selectedTeamId={selectedTeam.id} basePath={`/admin/actividad/${activity}`} />
+
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
+              <h3 className="mb-6 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: selectedTeam.color }} />
+                {selectedTeam.name}
               </h3>
 
-              {team.members.length === 0 ? (
+              {selectedTeam.members.length === 0 ? (
                 <p className="text-sm text-[var(--color-brand-text-secondary)]">
                   Este equipo no tiene integrantes cargados. Sube el{" "}
                   <a href="/admin/config" className="text-[var(--color-brand-blue-accent)] underline">
@@ -79,14 +96,16 @@ export default async function AdminActivityPage({ params }: { params: Promise<{ 
                   primero.
                 </p>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {team.members.map((member) => {
+                <div className="flex flex-col gap-6">
+                  {selectedTeam.members.map((member) => {
                     const ratings = ratingsByMemberId.get(member.id) ?? {};
                     return (
-                      <div key={member.id} className="flex gap-3">
-                        <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={72} />
-                        <div className="flex flex-1 flex-col gap-2">
-                          <p className="text-xs font-semibold text-[var(--color-brand-text-secondary)]">{member.name}</p>
+                      <div key={member.id} className="flex flex-col gap-4 rounded-lg border border-[var(--color-brand-gray-light)] p-5 sm:flex-row">
+                        <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
+                          <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
+                          <p className="text-center text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                        </div>
+                        <div className="flex flex-1 flex-col gap-3">
                           <SoftSkillEvaluationForm
                             // Same remount trick as MemberEvaluationForm — see its doc comment.
                             key={`${member.id}:${Object.values(ratings).join(",")}`}
@@ -102,13 +121,18 @@ export default async function AdminActivityPage({ params }: { params: Promise<{ 
                 </div>
               )}
 
-              <div className="mt-3 border-t border-[var(--color-brand-gray-light)] pt-3">
-                <TeamActivityNoteForm key={`${team.id}:${noteText}`} teamId={team.id} activity={activity} initialText={noteText} />
+              <div className="mt-6 border-t border-[var(--color-brand-gray-light)] pt-4">
+                <TeamActivityNoteForm
+                  key={`${selectedTeam.id}:${noteByTeamId.get(selectedTeam.id) ?? ""}`}
+                  teamId={selectedTeam.id}
+                  activity={activity}
+                  initialText={noteByTeamId.get(selectedTeam.id) ?? ""}
+                />
               </div>
             </div>
-          );
-        })}
-      </div>
+          </>
+        )
+      )}
     </main>
   );
 }
