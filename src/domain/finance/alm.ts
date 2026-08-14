@@ -1,6 +1,6 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM, displayYield } from "./instruments";
 import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
 import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
 
@@ -58,6 +58,71 @@ export const W_CAP_AVG = 0.5;
 export const ALM_TASA_BASE = 0.1;
 export const ALM_TASA_ALZA = 0.1 * 1.2;
 export const ALM_TASA_BAJA = 0.1 * 0.85;
+
+/**
+ * Nominal discount curve for Día 4's riesgo de tasa/riesgo de inflación
+ * exercise (see computeMarketRiskAtAño2End below) — a genuinely separate
+ * mechanic from ALM_TASA_BASE/ALZA/BAJA above (which stays exactly as-is,
+ * still driving the Día 2 almNAV() diagnostic, a single flat rate). This
+ * one is a real curve, not a flat rate: built directly from the menu's own
+ * nominal bond yields (INSTRUMENT_BY_ID) at their own tenors — CDT90 (3m),
+ * TES1 (12m), TES3 (36m) — the same numbers already shown to teams in the
+ * instrument menu, not a separately-calibrated level. Piecewise-linear
+ * between consecutive points, flat-extrapolated outside [3, 36] months.
+ * Every nominal cashflow this exercise ever needs to discount (post-Año-2
+ * liability payments, or a nominal bond position's remaining term) falls
+ * inside or only slightly past that range, since a position's remaining
+ * term never exceeds its own instrument's plazoM.
+ */
+const NOMINAL_CURVE_POINTS: { months: number; rate: number }[] = [
+  { months: INSTRUMENT_BY_ID.CDT90.plazoM, rate: INSTRUMENT_BY_ID.CDT90.yield },
+  { months: INSTRUMENT_BY_ID.TES1.plazoM, rate: INSTRUMENT_BY_ID.TES1.yield },
+  { months: INSTRUMENT_BY_ID.TES3.plazoM, rate: INSTRUMENT_BY_ID.TES3.yield },
+];
+
+function interpolateCurve(points: { months: number; rate: number }[], months: number): number {
+  if (months <= points[0].months) return points[0].rate;
+  const last = points[points.length - 1];
+  if (months >= last.months) return last.rate;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (months >= a.months && months <= b.months) {
+      const t = (months - a.months) / (b.months - a.months);
+      return a.rate + t * (b.rate - a.rate);
+    }
+  }
+  return last.rate;
+}
+
+/** Nominal rate for a given remaining term (months), read off NOMINAL_CURVE_POINTS. */
+function nominalCurveRate(months: number): number {
+  return interpolateCurve(NOMINAL_CURVE_POINTS, months);
+}
+
+/**
+ * Real curve spread: the menu has only one genuinely inflation-linked
+ * instrument (TESUVR8), so it can't define a real curve *shape* on its
+ * own — only a single anchor point, at its own 96-month tenor
+ * (displayYield() already computes exactly this: TESUVR8's real return,
+ * the same number already shown to teams as "Inflación + X%" in the
+ * instrument menu). The real curve reuses the nominal curve's shape
+ * (same relative movement across tenors — a constant implied-inflation
+ * assumption, the same simplification this engine already makes
+ * everywhere else it needs a single inflation number) shifted by the one
+ * spread that makes it pass through TESUVR8's own real yield at month 96.
+ */
+const REAL_CURVE_SPREAD = nominalCurveRate(INSTRUMENT_BY_ID.TESUVR8.plazoM) - displayYield(INSTRUMENT_BY_ID.TESUVR8);
+
+/** Real rate for a given remaining term (months) — nominal curve shape, shifted by REAL_CURVE_SPREAD. */
+function realCurveRate(months: number): number {
+  return nominalCurveRate(months) - REAL_CURVE_SPREAD;
+}
+
+/** Per-tenor implied inflation curve (Fisher), from the two curves above — varies slightly by tenor even with a constant spread, since Fisher is multiplicative, not additive. */
+function inflacionCurveRate(months: number): number {
+  return (1 + nominalCurveRate(months)) / (1 + realCurveRate(months)) - 1;
+}
 
 export interface AlmSimRow {
   mes: number;
@@ -117,7 +182,7 @@ export interface AlmSimResult {
   mesesConCapitalComprometido: number;
 }
 
-interface Position {
+export interface Position {
   /** Reference to the exact tranche that produced this position — its onMaturity is read fresh when this position matures. */
   tranche: Tranche;
   book: number;
@@ -995,4 +1060,118 @@ export function almNAV(lib: LiabilitySchedule, allocInitial: Allocation): AlmNav
   const baja = compute(ALM_TASA_BAJA);
   const riesgoTasa = -Math.min(alza.nav - base.nav, baja.nav - base.nav);
   return { base, alza, baja, riesgoTasa };
+}
+
+export interface MarketRiskAtYearEnd {
+  riesgoTasa: number;
+  riesgoInflacion: number;
+}
+
+/** Absolute month index right after Año 2's real ALM finishes (see almSimRealYear) — the same 0-based absolute frame every open Position's own matM is already stamped in. */
+const AÑO2_END_MONTH = BUILD_MONTHS + 12;
+
+/** A curve is just a function from remaining term (months) to a rate. */
+type Curve = (months: number) => number;
+
+/**
+ * PV of a team's real, open positions at the end of Año 2 — TESUVR8
+ * discounted off the real curve at its own remaining term (it's
+ * UVR-indexed, the menu's only genuinely inflation-linked instrument),
+ * every other bond-like instrument off the nominal curve at its own
+ * remaining term, LIQ/ACC at par (no defined duration — same treatment
+ * pvPortafolio() already gives them; ACC's equity risk is priced
+ * separately, see ACC_STRESS_PCT). Each position grows its own current
+ * `book` to its own `matM` at its own contractual `ins.yield` (same shape
+ * as pvPortafolio()'s per-bond faceVal, just using the position's real
+ * remaining term instead of a fresh plazoM), then discounts that back to
+ * AÑO2_END_MONTH — a genuine curve, not a single flat rate, so a
+ * short-remaining-term CDT90 position and a long-remaining-term TES3
+ * position discount at different points on the same nominal curve.
+ */
+function pvPositionsAtCurve(positions: Position[], nominalCurve: Curve, realCurve: Curve): number {
+  let pv = 0;
+  for (const p of positions) {
+    const ins = INSTRUMENT_BY_ID[p.tranche.instrumentId];
+    if (!ins || ins.id === "LIQ" || ins.id === "ACC") {
+      pv += p.book;
+      continue;
+    }
+    const remainingMonths = p.matM - AÑO2_END_MONTH;
+    const remainingYears = Math.max(0, remainingMonths / 12);
+    const faceVal = p.book * Math.pow(1 + ins.yield, remainingYears);
+    const rate = ins.id === "TESUVR8" ? realCurve(remainingMonths) : nominalCurve(remainingMonths);
+    pv += faceVal / Math.pow(1 + rate, remainingYears);
+  }
+  return pv;
+}
+
+/** Same shape as pvReserva(), but reads its discount rate off a curve (evaluated at each cashflow's own month t) instead of one flat rate for the whole schedule. */
+function pvLiabilityAtCurve(L: number[], nominalCurve: Curve): number {
+  let pv = 0;
+  for (let t = 0; t < L.length; t++) {
+    if (L[t] > 0) pv += L[t] / Math.pow(1 + nominalCurve(t), t / 12);
+  }
+  return pv;
+}
+
+/**
+ * Día 4's riesgo de tasa / riesgo de inflación: the adverse-direction move
+ * in NAV (PV Activo − PV Pasivo), valued at the end of Año 2 off the
+ * team's real open positions and the real liability cashflows still owed
+ * past that point (`liabilityPostAño2`, the caller's job to assemble —
+ * see computeFinBenchBundlesForCohort in finBenchHelper.ts: Año 1's
+ * liabilityYear1.L.slice(12) plus Año 2's own claims' L.slice(12), summed
+ * element-wise, both already anchored so index 12 = calendar month 24).
+ *
+ * Two independent shocks, both ±20%/-15% relative (same convention as
+ * ALM_TASA_ALZA/BAJA, applied to the new nominal/real/inflation curves
+ * instead — see their own doc comments) — applied to the *whole curve* at
+ * every tenor, not a single point:
+ * - Riesgo de tasa shocks the REAL curve, holding each tenor's implied
+ *   inflation fixed — the nominal curve moves as a mechanical consequence
+ *   (Fisher, per tenor), so this moves TESUVR8 (direct real-curve shock)
+ *   AND every nominal-discounted asset/liability (indirect, via the
+ *   re-derived nominal curve) together.
+ * - Riesgo de inflación shocks the IMPLIED INFLATION curve, holding the
+ *   real curve fixed — only the re-derived nominal curve moves, so
+ *   TESUVR8 (real-curve-discounted, untouched) is insulated while
+ *   everything nominal isn't. This is the asymmetry a team has to
+ *   discover: how much TESUVR8 vs. nominal bonds vs. LIQ it ends up
+ *   holding by Año 2's close determines which of the two shocks actually
+ *   hurts it, and by how much.
+ *
+ * Both figures are "worse of the two directions," same clipped-to-≥0 shape
+ * almNAV()'s own riesgoTasa already uses.
+ */
+export function computeMarketRiskAtAño2End(positions: Position[], liabilityPostAño2: number[]): MarketRiskAtYearEnd {
+  const navAt = (nominalCurve: Curve, realCurve: Curve) =>
+    pvPositionsAtCurve(positions, nominalCurve, realCurve) - pvLiabilityAtCurve(liabilityPostAño2, nominalCurve);
+
+  const navBase = navAt(nominalCurveRate, realCurveRate);
+
+  // Riesgo de tasa: shock the real curve at every tenor, re-deriving the
+  // nominal curve at that same tenor from the *base* implied inflation
+  // there (held fixed).
+  const nominalFromShockedReal = (factor: number): Curve => (months) => {
+    const real = realCurveRate(months) * factor;
+    const infl = inflacionCurveRate(months);
+    return (1 + real) * (1 + infl) - 1;
+  };
+  const realShocked = (factor: number): Curve => (months) => realCurveRate(months) * factor;
+  const navTasaAlza = navAt(nominalFromShockedReal(1.2), realShocked(1.2));
+  const navTasaBaja = navAt(nominalFromShockedReal(0.85), realShocked(0.85));
+  const riesgoTasa = -Math.min(navTasaAlza - navBase, navTasaBaja - navBase);
+
+  // Riesgo de inflación: shock the implied-inflation curve at every tenor,
+  // holding the real curve fixed at base — TESUVR8 discounts at the same
+  // (unshocked) realCurveRate in every scenario here.
+  const nominalFromShockedInflacion = (factor: number): Curve => (months) => {
+    const infl = inflacionCurveRate(months) * factor;
+    return (1 + realCurveRate(months)) * (1 + infl) - 1;
+  };
+  const navInflAlza = navAt(nominalFromShockedInflacion(1.2), realCurveRate);
+  const navInflBaja = navAt(nominalFromShockedInflacion(0.85), realCurveRate);
+  const riesgoInflacion = -Math.min(navInflAlza - navBase, navInflBaja - navBase);
+
+  return { riesgoTasa, riesgoInflacion };
 }

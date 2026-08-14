@@ -1055,6 +1055,14 @@ export const CONCEPTOS: Concepto[] = [
       ],
     },
   },
+  // Riesgo de tasa/inflación: adverse-direction NAV move (Activo − Pasivo)
+  // at end of Año 2 under a real-curve/implied-inflation shock — see
+  // computeMarketRiskAtAño2End() in alm.ts. Riesgo de acciones: exposición
+  // (ACC book value at end of Año 2) × ACC_STRESS_PCT — see finBench.ts's
+  // solRAcciones, which also folds into solRk/sol_margen above.
+  { id: "riesgo_tasa", dia: "d4", perfil: "fin", tipo: "reporte", label: "Riesgo de tasa", unit: "COP", get: (b) => b.riesgoTasa },
+  { id: "riesgo_inflacion", dia: "d4", perfil: "fin", tipo: "reporte", label: "Riesgo de inflación", unit: "COP", get: (b) => b.riesgoInflacion },
+  { id: "riesgo_acciones", dia: "d4", perfil: "fin", tipo: "reporte", label: "Riesgo de acciones", unit: "COP", get: (b) => b.solRAcciones },
   { id: "analitica", dia: "d4", perfil: "act", tipo: "auto_analitica", label: "Analítica sectorial", unit: "score" },
 ];
 

@@ -2,8 +2,8 @@ import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getYear2ClaimsByTeamId, computeDevelopmentForTeams } from "./teamBook";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
-import { almSimRealYear } from "@/domain/finance/alm";
-import type { AlmRealYearResult } from "@/domain/finance/alm";
+import { almSimRealYear, computeMarketRiskAtAño2End } from "@/domain/finance/alm";
+import type { AlmRealYearResult, MarketRiskAtYearEnd } from "@/domain/finance/alm";
 import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
 import type { PortfolioDecisionV3 } from "@/domain/finance/instruments";
@@ -155,6 +155,24 @@ export async function computeFinBenchBundlesForCohort(
         ? { retainedCount: year2Extra.retainedCount, newCount: year2Extra.newCount }
         : undefined;
 
+    // Día 4 riesgo de tasa/inflación/acciones — valued off the real Año-2-end
+    // positions and the real liability cashflows still owed past that point
+    // (Año 1's own tail + Año 2's own claims, both already anchored so index
+    // 12 = calendar month 24 — see computeMarketRiskAtAño2End's doc comment).
+    // null/0 when there's no real Año 2 ALM to draw from, same
+    // graceful-degradation every other almYear2-derived figure above follows.
+    let marketRisk: MarketRiskAtYearEnd | null = null;
+    let accBookValue2 = 0;
+    if (realAlmYear2) {
+      const l1PostAño2 = liabilityYear1.L.slice(12);
+      const l2PostAño2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(12) ?? [];
+      const liabilityPostAño2 = l1PostAño2.map((v, i) => (v || 0) + (l2PostAño2[i] || 0));
+      marketRisk = computeMarketRiskAtAño2End(realAlmYear2.finalState.positions, liabilityPostAño2);
+      accBookValue2 = realAlmYear2.finalState.positions
+        .filter((p) => p.tranche.instrumentId === "ACC")
+        .reduce((s, p) => s + p.book, 0);
+    }
+
     const bench = finBench({
       year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount, insuredCount: year1.insuredCount },
       year2: year2 ? { totalPremium: year2.totalPremium, claimsAmount: year2.claimsAmount, insuredCount: year2.insuredCount } : undefined,
@@ -163,6 +181,8 @@ export async function computeFinBenchBundlesForCohort(
       almYear1,
       almYear2,
       year2Retention,
+      marketRisk,
+      accBookValue2,
     });
     results.set(teamId, { bench, realAlmYear1, realAlmYear2 });
   }

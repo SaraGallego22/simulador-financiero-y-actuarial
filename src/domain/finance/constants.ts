@@ -43,26 +43,32 @@ export const CORR_MOD = [
 ];
 
 /**
- * Correlation matrix for finBench()'s 4-component solvency capital
- * (underwriting/financial/operational/concentration risk), order [rSusc,
- * rFin, rOp, rConcentracion] — the first 3 rows/columns are CORR_MOD
- * unchanged, extended with a 4th for concentration risk. Real Solvency II
- * treats concentration as a market-risk sub-module alongside volatility
- * (not a separate top-level category like operational risk), which is why
- * it correlates with rFin (0.5 — related domain, but a genuinely different
- * driver: a low-volatility single-instrument portfolio scores high on
- * concentration and low on rFin, and vice versa for an evenly-spread but
- * individually volatile blend) more than with rSusc (0.75, same as rFin's
- * own correlation to rSusc — both are investment-side risks equally
- * distant from underwriting). Like rOp, it correlates 1 with everything
- * else — the same conservative "just add it" treatment CORR_MOD already
- * gives operational risk, extended consistently to this new component.
+ * Correlation matrix for finBench()'s 5-component solvency capital
+ * (underwriting/financial/operational/concentration/equity risk), order
+ * [rSusc, rFin, rOp, rConcentracion, rAcciones]. The first 4 rows/columns
+ * are what used to be CORR_MOD_CONCENTRACION (itself CORR_MOD, 3x3,
+ * extended with a 4th for concentration risk — concentration correlates
+ * 0.5 with rFin, a related domain but a genuinely different driver: a
+ * low-volatility single-instrument portfolio scores high on concentration
+ * and low on rFin, and vice versa for an evenly-spread but individually
+ * volatile blend — and 0.75 with rSusc, same as rFin's own correlation
+ * there, both investment-side risks equally distant from underwriting).
+ * The 5th row/column (rAcciones — see ACC_STRESS_PCT, riesgo de acciones
+ * in Día 4) follows the same extension logic: 0.75 vs. rSusc (same
+ * investment-side distance as rFin/rConc), 0.75 vs. rFin (closely related
+ * driver — ACC concentration already feeds rFin's volRatio too), 0.5 vs.
+ * rConc (same value and reasoning as rFin<->rConc: a small ACC sleeve
+ * inside an otherwise-spread portfolio can score low concentration yet
+ * nonzero rAcciones). Like rOp, every module correlates 1 with it — the
+ * same conservative "just add it" treatment CORR_MOD already gives
+ * operational risk.
  */
-export const CORR_MOD_CONCENTRACION = [
-  [1, 0.75, 1, 0.75],
-  [0.75, 1, 1, 0.5],
-  [1, 1, 1, 1],
-  [0.75, 0.5, 1, 1],
+export const CORR_MOD_SOLVENCIA = [
+  [1, 0.75, 1, 0.75, 0.75],
+  [0.75, 1, 1, 0.5, 0.75],
+  [1, 1, 1, 1, 1],
+  [0.75, 0.5, 1, 1, 0.5],
+  [0.75, 0.75, 1, 0.5, 1],
 ];
 
 /**
@@ -131,3 +137,14 @@ export const VOL_PENALTY_LAMBDA = 0.35;
  * every year, in both the fictitious ALM and the real P&L/Balance it feeds.
  */
 export const CAPITAL_SOCIAL = 81_000_000_000;
+
+/**
+ * Día 4 equity-risk capital charge: riesgo de acciones = exposición ×
+ * ACC_STRESS_PCT, exposición being the ACC book value a team ends up
+ * holding at the end of Año 2 (see computeMarketRiskAtAño2End's sibling
+ * computation in finBenchHelper.ts). No in-repo precedent for this figure
+ * — 39% is Solvencia II's own standard-formula charge for "tipo 1"
+ * (listed/developed-market) equities, taken as the reference value in the
+ * absence of one, not derived from anything else in this engine.
+ */
+export const ACC_STRESS_PCT = 0.39;
