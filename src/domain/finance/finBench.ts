@@ -1,10 +1,11 @@
-import { FZ, CORR_MOD_CONCENTRACION, CAPITAL_SOCIAL } from "./constants";
+import { FZ, CORR_MOD_SOLVENCIA, CAPITAL_SOCIAL, ACC_STRESS_PCT } from "./constants";
 import { sampleStdev } from "./stats";
 import { VOL_MENU_AVG } from "./instruments";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { DEV_FRAC } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
+import type { MarketRiskAtYearEnd } from "./alm";
 
 /**
  * What finBench() actually needs from a real, one-year ALM run — not the
@@ -104,10 +105,16 @@ export interface FinBenchResult {
   solRConc: number;
   /** The concentrationRatio (0-1) rConcentracion is charged on — see portfolioConcentrationRatio(). */
   solConcRatio: number;
+  /** Día 4 equity-risk capital charge (exposición × ACC_STRESS_PCT) — see FinBenchInput.accBookValue2. Folded into solRk via CORR_MOD_SOLVENCIA's 5th row/column. */
+  solRAcciones: number;
   solRk: number;
   solFp: number;
   solMargen: number;
   div: number;
+  /** Adverse-direction NAV move at end of Año 2 under a real-curve shock — see computeMarketRiskAtAño2End() in alm.ts. Reported/graded as `riesgo_tasa` in concepts.ts, NOT folded into solRk (a NAV-mismatch figure, not a capital charge). 0 when there's no real Año 2 ALM to value from. */
+  riesgoTasa: number;
+  /** Same shape as riesgoTasa, but shocking the implied-inflation curve instead — see `riesgo_inflacion` in concepts.ts. */
+  riesgoInflacion: number;
   /**
    * Sample standard deviation (n−1) of siniestralidad/Prima Emitida
    * (`costo / primaEmitida`) across Año 1, Año 2 and Año 3 (proyectado) —
@@ -128,6 +135,10 @@ export interface FinBenchInput {
   almYear2?: AlmYearBenchInput | null;
   /** Año 2's real retained-vs-new policy split (from TeamSimResult.extra) — needed only for the Año 3 prima projection; undefined falls back to the flat FZ.growth3 projection. */
   year2Retention?: { retainedCount: number; newCount: number };
+  /** Riesgo de tasa/riesgo de inflación (see computeMarketRiskAtAño2End in alm.ts), computed by the caller (finBenchHelper.ts) from the team's real Año-2-end positions + post-Año-2 liability schedule — finBench() just threads these through, it has no access to raw Position[] data itself. null/undefined when there's no real Año 2 ALM to value from. */
+  marketRisk?: MarketRiskAtYearEnd | null;
+  /** ACC book value the team's real ALM ends up holding at the end of Año 2 (see computeFinBenchBundlesForCohort in finBenchHelper.ts) — feeds solRAcciones = accBookValue2 × ACC_STRESS_PCT. */
+  accBookValue2?: number;
 }
 
 /**
@@ -240,15 +251,15 @@ function balance(
 /**
  * Central financial benchmark: builds the Year 1-3 P&L, a simplified balance
  * sheet, and Solvency-II-style capital requirement (underwriting + financial
- * + operational + concentration risk combined via a correlation matrix, see
- * CORR_MOD_CONCENTRACION). Used both to
+ * + operational + concentration + equity risk combined via a correlation
+ * matrix, see CORR_MOD_SOLVENCIA). Used both to
  * auto-grade uploaded financial deliverables (scoreConcepto) and to compute
  * solvency ratio / dividends (Day 4). Ported from finBench() in the legacy
  * prototype, line ~1113 — same formulas, but parameterized on plain inputs
  * instead of reading mutable globals (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
-  const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention } = input;
+  const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention, marketRisk, accBookValue2 } = input;
 
   // Always the true remaining unpaid ultimate (siniestralidad − pagos, from
   // computeLiabilitySchedules()'s real payment-kernel timing) — never a
@@ -430,9 +441,14 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // pre-concentration legacy default this needs to match.
   const concRatio = almN?.concentrationRatio ?? 0;
   const rConc = FZ.concRiskPct * balN.inversiones * concRatio;
-  const R = [rSusc, rFin, rOp, rConc];
+  // Equity risk: exposición × riesgo (see ACC_STRESS_PCT's doc comment) —
+  // exposición is the ACC book value the caller's real ALM ended up
+  // holding at the end of Año 2 (finBenchHelper.ts), not derived from
+  // anything finBench() itself computes.
+  const rAcciones = (accBookValue2 ?? 0) * ACC_STRESS_PCT;
+  const R = [rSusc, rFin, rOp, rConc, rAcciones];
   let rk2 = 0;
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) rk2 += CORR_MOD_CONCENTRACION[i][j] * R[i] * R[j];
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) rk2 += CORR_MOD_SOLVENCIA[i][j] * R[i] * R[j];
   const rk = Math.sqrt(rk2);
   const fondosPropios = balN.patrimonio;
   const margen = rk > 0 ? fondosPropios / rk : 0;
@@ -455,10 +471,13 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     solROp: rOp,
     solRConc: rConc,
     solConcRatio: concRatio,
+    solRAcciones: rAcciones,
     solRk: rk,
     solFp: fondosPropios,
     solMargen: margen,
     div: dividendos,
     solSigmaLR,
+    riesgoTasa: marketRisk?.riesgoTasa ?? 0,
+    riesgoInflacion: marketRisk?.riesgoInflacion ?? 0,
   };
 }

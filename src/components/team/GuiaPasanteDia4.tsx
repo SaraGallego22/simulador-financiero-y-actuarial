@@ -89,10 +89,12 @@ export function GuiaPasanteDia4() {
         insumos={[
           "Balance de cada año (Día 3): reservas, RPND, cuentas por cobrar/pagar y patrimonio.",
           "Volatilidad realizada y concentración de tu árbol de portafolio (Día 2).",
+          "El menú de instrumentos que ya conoces (Día 1/2) — no hay curvas nuevas que memorizar: la nominal y la real salen de los mismos yields del menú.",
           "Tu propia cartera (parcial, sesgada) y el CSV público del universo, para la recomendación sectorial.",
         ]}
         entregables={[
           "σ de tu siniestralidad (volatilidad de prima/siniestralidad de Año 1, 2 y 3), Requerimiento de Capital (RK), Fondos propios, Margen de solvencia, Dividendo posible y EVA (Valor Económico Agregado).",
+          "Riesgo de tasa, riesgo de inflación y riesgo de acciones, valorados al cierre de Año 2.",
           "Hasta 3 sectores a crecer y hasta 3 a disminuir, cada uno con su multiplicador estimado.",
         ]}
       />
@@ -164,6 +166,35 @@ export function GuiaPasanteDia4() {
           </p>
         </SubSection>
 
+        <SubSection title="Riesgo de tasa, riesgo de inflación y riesgo de acciones" accent="fin">
+          <p>
+            Hoy trabajas con dos curvas de descuento — no un solo número plano, sino una tasa que cambia según el plazo del flujo que estás
+            valorando — y ninguna de las dos es nueva: ambas salen del mismo menú de instrumentos que ya conoces desde Día 1. La curva{" "}
+            <strong>nominal</strong> son los yields de CDT90 (3 meses), TES1 (1 año) y TES3 (3 años), interpolados entre esos plazos. La curva{" "}
+            <strong>real</strong> se ancla al yield real de TESUVR8 (el mismo &ldquo;Inflación + X%&rdquo; que ya ves en el menú de instrumentos, a
+            su propio plazo de 8 años) — con un solo instrumento indexado a inflación en el menú, esa curva real toma la forma de la curva nominal,
+            desplazada para pasar exactamente por ese punto.
+          </p>
+          <p>
+            La relación entre ambas curvas (Fisher) es (1+nominal) = (1+real) × (1+inflación) — despejando, la curva de inflación implícita que tu
+            equipo debe usar en cada plazo es (1+nominal)/(1+real) − 1. Nadie te entrega esa tercera curva directamente: se deriva de las otras dos,
+            plazo por plazo.
+          </p>
+          <p>
+            TESUVR8 es el único instrumento del menú indexado a UVR (inflación) — su valor presente se descuenta con la curva{" "}
+            <strong>real</strong>, a su propio plazo remanente. Todo lo demás (CDT90/TES1/TES3, y tu pasivo de siniestros) se descuenta con la curva{" "}
+            <strong>nominal</strong>, cada flujo a su propio plazo. Un choque de <strong>tasa</strong> mueve toda la curva real (y, por Fisher, la
+            nominal con ella) — un choque de <strong>inflación</strong> mueve solo la curva de inflación implícita, dejando la curva real fija. Cuál
+            de los dos choques te desfavorece depende de qué tanto de tu portafolio real (al cierre de Año 2) quedó en TESUVR8 frente a instrumentos
+            nominales, comparado contra el perfil de tu pasivo — eso es lo que tu equipo tiene que descubrir, no algo que se te entrega.
+          </p>
+          <p>
+            El riesgo de acciones es más directo: tu exposición real en ACC al cierre de Año 2 (lo que efectivamente terminaste sosteniendo en ese
+            instrumento, según tu propio árbol de Día 2) multiplicada por un cargo regulatorio fijo del 39% — el mismo tipo de cargo que Solvencia II
+            exige para acciones cotizadas.
+          </p>
+        </SubSection>
+
         <SubSection title="Creación de valor económico (EVA)" accent="fin">
           <p>
             Utilidad neta positiva no significa, por sí sola, que una aseguradora creó valor: el patrimonio invertido en el negocio tiene un costo de
@@ -177,10 +208,17 @@ export function GuiaPasanteDia4() {
       <Section n="3" title="Qué se te va a calificar">
         <SubSection title="Solvencia y dividendos" accent="fin">
           <p>
-            Reportas 6 líneas: tu <strong>σ de siniestralidad</strong>, el <strong>Requerimiento de Capital (RK)</strong>, tus{" "}
-            <strong>Fondos propios</strong>, el <strong>Margen de solvencia</strong> (fondos propios ÷ RK), el <strong>Dividendo posible</strong> y el{" "}
-            <strong>EVA (Valor Económico Agregado)</strong> — cada una calificada por separado con una banda de tolerancia sobre el error relativo, igual
-            que el resto de tus entregables numéricos.
+            Reportas 9 líneas: tu <strong>σ de siniestralidad</strong>, el <strong>Requerimiento de Capital (RK)</strong>, tus{" "}
+            <strong>Fondos propios</strong>, el <strong>Margen de solvencia</strong> (fondos propios ÷ RK), el <strong>Dividendo posible</strong>, el{" "}
+            <strong>EVA (Valor Económico Agregado)</strong>, el <strong>Riesgo de tasa</strong>, el <strong>Riesgo de inflación</strong> y el{" "}
+            <strong>Riesgo de acciones</strong> — cada una calificada por separado con una banda de tolerancia sobre el error relativo, igual que el
+            resto de tus entregables numéricos.
+          </p>
+          <p>
+            El Riesgo de tasa y el Riesgo de inflación se valoran al cierre de Año 2 — con las posiciones que tu portafolio real efectivamente tiene
+            abiertas en ese momento y los flujos de tu pasivo de siniestros que todavía quedan por pagar después de ese punto, no con una simulación
+            hipotética desde cero. El Riesgo de acciones es tu exposición real en ACC en ese mismo momento, multiplicada por el cargo regulatorio del
+            39%.
           </p>
           <p>
             Tu <strong>σ de siniestralidad</strong> no se compara contra un valor del motor calculado aparte: se recalcula a partir de tus propias otras
@@ -191,14 +229,15 @@ export function GuiaPasanteDia4() {
             esas líneas solo te penaliza una vez, no también aquí.
           </p>
           <p>
-            El RK combina cuatro riesgos (suscripción, financiero, operacional y concentración) — los que conectan directamente con tus propias
-            decisiones anteriores son el de prima (tu propia σ de siniestralidad, arriba), el financiero y el de concentración, y los tres son cosas
-            distintas. El riesgo de prima escala con tu propia volatilidad de siniestralidad, no con un porcentaje plano. El riesgo financiero tampoco
-            es un porcentaje plano sobre tus inversiones: se escala por qué tan volátil resultó realmente tu portafolio frente al promedio del menú de
-            instrumentos. El riesgo de concentración es independiente de eso — se escala por qué tan repartido quedó tu árbol entre los instrumentos con
-            plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era volátil o no. Un equipo que puso todo en un solo CDT90
-            (bajo riesgo nominal) sigue pagando este segundo cargo completo, aunque su riesgo financiero sea bajo. Ver sección 5 para las fórmulas
-            completas.
+            El RK combina cinco riesgos (suscripción, financiero, operacional, concentración y acciones) — los que conectan directamente con tus
+            propias decisiones anteriores son el de prima (tu propia σ de siniestralidad, arriba), el financiero, el de concentración y el de
+            acciones, y son cosas distintas entre sí. El riesgo de prima escala con tu propia volatilidad de siniestralidad, no con un porcentaje
+            plano. El riesgo financiero tampoco es un porcentaje plano sobre tus inversiones: se escala por qué tan volátil resultó realmente tu
+            portafolio frente al promedio del menú de instrumentos. El riesgo de concentración es independiente de eso — se escala por qué tan
+            repartido quedó tu árbol entre los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era
+            volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo nominal) sigue pagando este segundo cargo completo, aunque su riesgo
+            financiero sea bajo. El riesgo de acciones es, de los cuatro, el único que depende de un solo instrumento específico (ACC) y de un cargo
+            fijo, no de una fórmula que combina varios factores tuyos. Ver sección 5 para las fórmulas completas.
           </p>
         </SubSection>
 
@@ -254,6 +293,21 @@ export function GuiaPasanteDia4() {
               de tus fondos propios, tu EVA será bajo o negativo aunque tu Utilidad Neta A2 haya sido positiva — reporta el cálculo completo, no solo el
               signo de la utilidad.
             </li>
+            <li>
+              <strong>Ninguna de las dos curvas es un número nuevo que memorizar.</strong> La nominal son los yields de CDT90/TES1/TES3 que ya
+              conoces, interpolados por plazo; la real se ancla al yield real de TESUVR8 (el mismo &ldquo;Inflación + X%&rdquo; del menú). La curva
+              de inflación implícita que alimenta el choque de riesgo de inflación no está dada — se deriva de esas dos, plazo por plazo, vía Fisher.
+            </li>
+            <li>
+              <strong>Riesgo de tasa y riesgo de inflación no afectan igual a todo tu portafolio.</strong> Solo TESUVR8 se descuenta con la curva
+              real — todo lo demás (nominal) y tu pasivo de siniestros se mueven con la curva nominal. Qué tanto de tu portafolio real quedó en
+              TESUVR8 frente a instrumentos nominales, al cierre de Año 2, determina cuál de los dos choques (y en qué dirección) te desfavorece más.
+            </li>
+            <li>
+              <strong>El riesgo de tasa/inflación se valora con tu portafolio y pasivo reales al cierre de Año 2, no con la simulación ficticia de
+              Día 2.</strong> Las posiciones que importan son las que tu árbol real todavía tiene abiertas en ese momento, y los flujos de siniestros
+              (propios y de Año 1) que todavía quedan por pagar después de ese punto.
+            </li>
           </ul>
         </SubSection>
 
@@ -307,18 +361,33 @@ export function GuiaPasanteDia4() {
               label="Riesgo de concentración (rConcentracion)"
               formula="3% × inversiones × concentración de tu árbol (0 a 1, excluye LIQ — mismo número que descontó tu Rendimiento en Día 2)"
             />
+            <ScoreCard label="Riesgo de acciones (rAcciones)" formula="tu exposición real en ACC al cierre de Año 2 × 39%" />
             <ScoreCard
               label="Requerimiento de Capital (RK)"
-              formula="combinación de rSusc/rFin/rOp/rConcentracion vía matriz de correlación (rSusc-rFin=0.75, rSusc-rConcentracion=0.75, rFin-rConcentracion=0.5, el resto=1)"
+              formula="combinación de rSusc/rFin/rOp/rConcentracion/rAcciones vía matriz de correlación (rSusc-rFin=0.75, rSusc-rConcentracion=0.75, rSusc-rAcciones=0.75, rFin-rAcciones=0.75, rFin-rConcentracion=0.5, rConcentracion-rAcciones=0.5, el resto=1)"
             />
             <ScoreCard label="Margen de solvencia" formula="Fondos propios (patrimonio) ÷ RK" />
             <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
             <ScoreCard label="EVA (Valor Económico Agregado)" formula="Utilidad Neta (año vigente, Día 3) − 10% × Fondos propios" />
+            <ScoreCard
+              label="Curvas dadas"
+              formula="nominal = yields de CDT90/TES1/TES3 por plazo (interpolados) · real = curva nominal desplazada para pasar por el yield real de TESUVR8 a su propio plazo · inflación implícita = (1+nominal)/(1+real) − 1 por plazo (la derivas tú)"
+            />
+            <ScoreCard
+              label="Riesgo de tasa"
+              formula="peor de los dos choques (±20%/-15%) a la curva real, en NAV (PV activo real − PV pasivo real) al cierre de Año 2"
+            />
+            <ScoreCard
+              label="Riesgo de inflación"
+              formula="peor de los dos choques (±20%/-15%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 no se mueve con este choque"
+            />
           </div>
           <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
             &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; (fuera de la fórmula de σ) son los mismos
             números de tu Balance del año vigente (Día 3) — no hay que recalcularlos desde cero. La σ de siniestralidad es la única línea que mira los 3
-            años a la vez en lugar de solo el año vigente.
+            años a la vez en lugar de solo el año vigente. Riesgo de tasa, riesgo de inflación y riesgo de acciones son distintos a las demás líneas
+            de esta tabla en un sentido: no salen de tu Balance de Día 3, sino de tu portafolio y pasivo <strong>reales</strong> al cierre de Año 2
+            (las posiciones que tu árbol real todavía tiene abiertas en ese momento, no un número ya reportado en otro día).
           </p>
         </FlowStep>
 

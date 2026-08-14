@@ -171,6 +171,40 @@ describe("finBench", () => {
     expect(bench.solConcRatio).toBe(0);
   });
 
+  it("charges equity risk capital proportional to ACC exposure, and it folds into solRk/solMargen", () => {
+    const input = (accBookValue2: number) => ({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmYear(0.05),
+      accBookValue2,
+    });
+    const noAcc = finBench(input(0));
+    const someAcc = finBench(input(100_000_000));
+    expect(noAcc.solRAcciones).toBe(0);
+    expect(someAcc.solRAcciones).toBeCloseTo(100_000_000 * 0.39, 4);
+    expect(someAcc.solRk).toBeGreaterThan(noAcc.solRk);
+    expect(someAcc.solMargen).toBeLessThan(noAcc.solMargen);
+  });
+
+  it("threads riesgoTasa/riesgoInflacion straight through from marketRisk, defaulting to 0 when absent", () => {
+    const withRisk = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: null,
+      marketRisk: { riesgoTasa: 12_345, riesgoInflacion: 6_789 },
+    });
+    expect(withRisk.riesgoTasa).toBe(12_345);
+    expect(withRisk.riesgoInflacion).toBe(6_789);
+
+    const withoutRisk = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: null,
+    });
+    expect(withoutRisk.riesgoTasa).toBe(0);
+    expect(withoutRisk.riesgoInflacion).toBe(0);
+  });
+
   it("erodes bal1's patrimonio by exactly Year 1's committed capital, and bal2's by Year 2's checkpoint", () => {
     const noErosion = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },

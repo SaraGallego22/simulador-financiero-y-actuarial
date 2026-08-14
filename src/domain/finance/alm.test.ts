@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { computeLiabilitySchedules } from "../reserving/liability";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { almLadder, almNAV, almObjetivo, almSim, almSimRealYear, portfolioConcentrationRatio, portfolioNominalYield, scoreFinanciero } from "./alm";
+import {
+  almLadder,
+  almNAV,
+  almObjetivo,
+  almSim,
+  almSimRealYear,
+  computeMarketRiskAtAño2End,
+  portfolioConcentrationRatio,
+  portfolioNominalYield,
+  scoreFinanciero,
+} from "./alm";
 import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA } from "./constants";
 import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
+import type { Position } from "./alm";
 
 // A handful of claims spread across the Year-1 window, notified early enough
 // that meaningful amounts land in both payY1 and the post-valuation reserve.
@@ -485,5 +496,52 @@ describe("almNAV", () => {
 
   it("returns null when there is no liability", () => {
     expect(almNAV({ L: [], payY1: [], reserva: 0, hay: false }, { LIQ: 100 })).toBeNull();
+  });
+});
+
+describe("computeMarketRiskAtAño2End", () => {
+  it("returns zero risk when there are no open positions and no liability", () => {
+    const result = computeMarketRiskAtAño2End([], []);
+    expect(result.riesgoTasa).toBeCloseTo(0, 8);
+    expect(result.riesgoInflacion).toBeCloseTo(0, 8);
+  });
+
+  it("LIQ/ACC positions never move against an empty liability — no duration, valued at par regardless of the shock", () => {
+    const positions: Position[] = [
+      { tranche: { instrumentId: "LIQ", weight: 1, onMaturity: { action: "cash" } }, book: 50_000_000, yM: 0, matM: 30 },
+      { tranche: { instrumentId: "ACC", weight: 1, onMaturity: { action: "cash" } }, book: 20_000_000, yM: 0, matM: 999 },
+    ];
+    const result = computeMarketRiskAtAño2End(positions, []);
+    expect(result.riesgoTasa).toBeCloseTo(0, 8);
+    expect(result.riesgoInflacion).toBeCloseTo(0, 8);
+  });
+
+  it("riesgoInflacion for an all-TESUVR8 portfolio equals that of an empty portfolio against the same liability — TESUVR8 discounts off the real curve, which an inflation-only shock never moves, so its (constant) PV cancels out of the NAV delta entirely", () => {
+    // matM=120: 96 months (TESUVR8's own plazoM) past the AÑO2_END_MONTH valuation point (24).
+    const uvr8Positions: Position[] = [{ tranche: { instrumentId: "TESUVR8", weight: 1, onMaturity: { action: "cash" } }, book: 100_000_000, yM: 0, matM: 120 }];
+    const liabilityPostAño2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5_000_000]; // a single cashflow a year out
+    const withUvr8 = computeMarketRiskAtAño2End(uvr8Positions, liabilityPostAño2);
+    const empty = computeMarketRiskAtAño2End([], liabilityPostAño2);
+    expect(withUvr8.riesgoInflacion).toBeCloseTo(empty.riesgoInflacion, 4);
+    // Sanity: the liability alone genuinely does move under the shock — this isn't a trivial 0==0.
+    expect(empty.riesgoInflacion).toBeGreaterThan(0);
+  });
+
+  it("riesgoTasa for an all-TESUVR8 portfolio (empty liability) is strictly positive — the real curve shock does move TESUVR8's own PV", () => {
+    const uvr8Positions: Position[] = [{ tranche: { instrumentId: "TESUVR8", weight: 1, onMaturity: { action: "cash" } }, book: 100_000_000, yM: 0, matM: 120 }];
+    const result = computeMarketRiskAtAño2End(uvr8Positions, []);
+    expect(result.riesgoTasa).toBeGreaterThan(0);
+  });
+
+  it("a mixed real portfolio (TESUVR8 + CDT90 + LIQ) produces finite, non-negative figures", () => {
+    const treeMixed = decision([tranche("LIQ", 20, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 50, { action: "repeat" })]);
+    const aporte = 200_000_000;
+    const y1 = almSimRealYear(1, lib.payY1, treeMixed, aporte)!;
+    const y2 = almSimRealYear(2, new Array(12).fill(0), treeMixed, aporte, y1.finalState)!;
+    const result = computeMarketRiskAtAño2End(y2.finalState.positions, lib.L.slice(12));
+    expect(Number.isFinite(result.riesgoTasa)).toBe(true);
+    expect(Number.isFinite(result.riesgoInflacion)).toBe(true);
+    expect(result.riesgoTasa).toBeGreaterThanOrEqual(0);
+    expect(result.riesgoInflacion).toBeGreaterThanOrEqual(0);
   });
 });
