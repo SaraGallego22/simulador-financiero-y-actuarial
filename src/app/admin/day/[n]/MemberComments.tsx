@@ -49,18 +49,18 @@ export function MemberComments({ teamMemberId, day, comments }: { teamMemberId: 
         </div>
       )}
 
-      <form action={addAction} className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
+      <form action={addAction} className="flex flex-col gap-2">
+        <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
           Nuevo comentario
-          <textarea name="text" rows={1} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
+          <textarea name="text" rows={2} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
         </label>
         <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
           Autor
-          <input type="text" name="author" className="w-36 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
+          <input type="text" name="author" className="w-full rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm sm:w-36" />
         </label>
         <button
           type="submit"
-          className="rounded border border-[var(--color-brand-blue-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+          className="self-start rounded border border-[var(--color-brand-blue-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
         >
           Agregar
         </button>

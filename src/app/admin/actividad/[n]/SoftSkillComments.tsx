@@ -49,14 +49,14 @@ export function SoftSkillComments({ teamMemberId, activity, comments }: { teamMe
         </div>
       )}
 
-      <form action={addAction} className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
+      <form action={addAction} className="flex flex-col gap-2">
+        <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
           Nuevo comentario ({SOFT_SKILL_COMMENT_AUTHOR})
-          <textarea name="text" rows={1} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
+          <textarea name="text" rows={2} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
         </label>
         <button
           type="submit"
-          className="rounded border border-[var(--color-brand-blue-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+          className="self-start rounded border border-[var(--color-brand-blue-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
         >
           Agregar
         </button>
