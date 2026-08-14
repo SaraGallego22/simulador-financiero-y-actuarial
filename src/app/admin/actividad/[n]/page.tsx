@@ -109,7 +109,7 @@ export default async function AdminActivityPage({
                           <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
                           <p className="text-center text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
                         </div>
-                        <div className="flex flex-1 flex-col gap-3">
+                        <div className="flex min-w-0 flex-1 flex-col gap-3">
                           <SoftSkillEvaluationForm
                             // Same remount trick as MemberEvaluationForm — see its doc comment.
                             key={`${member.id}:${Object.values(ratings).join(",")}`}

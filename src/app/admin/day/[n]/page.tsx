@@ -1174,23 +1174,23 @@ export default async function AdminDayPage({
                             const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
                             return (
                               <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-6">
-                                <div className="flex flex-col gap-6 xl:flex-row">
-                                  <div className="flex shrink-0 flex-col items-center gap-3 xl:w-56">
-                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={144} />
+                                <div className="flex flex-col gap-6 lg:flex-row">
+                                  <div className="flex shrink-0 flex-col items-center gap-3 lg:w-48">
+                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={128} />
                                     <p className="text-center text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
                                     <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
                                     <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                                   </div>
 
-                                  <div className="grid flex-1 grid-cols-1 gap-6 lg:grid-cols-3">
-                                    <div className="flex flex-col gap-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                        Habilidades blandas
-                                      </p>
-                                      <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={300} />
-                                    </div>
+                                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2">
+                                    <div className="flex min-w-0 flex-col gap-4">
+                                      <div>
+                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          Habilidades blandas
+                                        </p>
+                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} />
+                                      </div>
 
-                                    <div className="flex flex-col gap-4">
                                       <div className="rounded border border-[var(--color-brand-gray-light)] p-4">
                                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                           Entrevista TH
@@ -1251,7 +1251,7 @@ export default async function AdminDayPage({
                                       )}
                                     </div>
 
-                                    <div className="flex flex-col gap-4">
+                                    <div className="flex min-w-0 flex-col gap-4">
                                       <MemberEvaluationForm
                                         // Keyed by the saved values so a successful save
                                         // remounts the (uncontrolled) form instead of

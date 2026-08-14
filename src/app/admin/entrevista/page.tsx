@@ -98,7 +98,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
                             {academic && <p className="text-xs text-[var(--color-brand-text-secondary)]">{academic}</p>}
                           </div>
                         </div>
-                        <div className="flex flex-1 flex-col gap-3">
+                        <div className="flex min-w-0 flex-1 flex-col gap-3">
                           <InterviewSkillsForm
                             // Same remount trick as SoftSkillEvaluationForm — see its doc comment.
                             key={`${member.id}:${Object.values(memberRatings).join(",")}`}
