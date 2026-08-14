@@ -1,6 +1,6 @@
 import { FZ, CORR_MOD } from "./constants";
 import { INSTRUMENT_BY_ID, VOL_MENU_AVG } from "./instruments";
-import type { Tranche } from "./instruments";
+import type { MonthlyAllocationEntry } from "./instruments";
 
 /**
  * Solvency-derived market-share cap: how much premium volume — and, from
@@ -50,12 +50,12 @@ export const RESERVE_TO_PREMIUM_RATIO = RESERVE_TO_INCURRED_RATIO * REFERENCE_LO
 /**
  * Weighted-average volatility ratio of a plain {instrumentId: weight} map,
  * relative to VOL_MENU_AVG (1 = same as the menu average). Shared by
- * nominalPortfolioVolRatio() (extracts this shape from a tree's top-level
- * tranches) and Año 1's capacity calc (capacityHelper.ts), which sources
- * the weights from a team's Día 1 minimum-variance submission instead of a
- * tree — both only ever need instrumentId+weight pairs, never a tranche's
- * onMaturity/durationM, so this is the one normalization implementation.
- * No weights at all -> 1 (the flat, pre-volatility charge).
+ * nominalPortfolioVolRatio() (extracts this shape from a schedule's month-0
+ * checkpoint) and Año 1's capacity calc (capacityHelper.ts), which sources
+ * the weights from a team's Día 1 minimum-variance submission instead — both
+ * only ever need instrumentId+weight pairs, so this is the one
+ * normalization implementation. No weights at all -> 1 (the flat,
+ * pre-volatility charge).
  */
 export function volRatioFromWeights(weights: Record<string, number> | null): number {
   if (!weights) return 1;
@@ -68,14 +68,12 @@ export function volRatioFromWeights(weights: Record<string, number> | null): num
 
 /**
  * Decision-only (no simulation) weighted-average volatility ratio of a
- * portfolio's top-level tranches — see volRatioFromWeights(), which this
- * just extracts {instrumentId: weight} pairs for.
+ * schedule's starting (month-0) allocation — see volRatioFromWeights(),
+ * which this just extracts the {instrumentId: weight} pairs for.
  */
-export function nominalPortfolioVolRatio(tranches: Tranche[] | null): number {
-  if (!tranches || tranches.length === 0) return 1;
-  const weights: Record<string, number> = {};
-  for (const t of tranches) if (INSTRUMENT_BY_ID[t.instrumentId] && t.weight > 0) weights[t.instrumentId] = (weights[t.instrumentId] ?? 0) + t.weight;
-  return volRatioFromWeights(weights);
+export function nominalPortfolioVolRatio(schedule: MonthlyAllocationEntry[] | null): number {
+  if (!schedule || schedule.length === 0) return 1;
+  return volRatioFromWeights(schedule[0].allocation);
 }
 
 /**

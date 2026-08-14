@@ -12,6 +12,10 @@ const liabilityYear1: LiabilitySchedule = {
   hay: true,
 };
 
+// portfolioBookValue defaults to CAPITAL_SOCIAL, not 0 — every real ALM now
+// starts Año 1 with at least Capital Social funded into the tree (see
+// almSimRealYear() in alm.ts), so a fixture with "some ALM decision but no
+// portfolio value" no longer represents a realistic state.
 function fakeAlmYear(
   avgVol: number,
   capitalComprometido = 0,
@@ -20,7 +24,7 @@ function fakeAlmYear(
   effectiveYield?: number,
   concentrationRatio = 0,
   cajaFinalAnio = 0,
-  portfolioBookValue = 0
+  portfolioBookValue = CAPITAL_SOCIAL
 ): AlmYearBenchInput {
   return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield, cajaFinalAnio, portfolioBookValue };
 }
@@ -404,18 +408,17 @@ describe("finBench", () => {
     });
   });
 
-  describe("Inversiones is a real fact (ALM + Capital Social), not a balancing residual", () => {
-    it("inversiones = the real ALM's own portfolioBookValue plus non-committed Capital Social — never a plug", () => {
+  describe("Inversiones is a real fact (ALM + Capital Social, genuinely invested), not a balancing residual", () => {
+    it("inversiones equals the real ALM's own portfolioBookValue directly — no separate Capital Social term added on top (it's already inside portfolioBookValue, see almSimRealYear())", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
         almYear1: fakeAlmYear(0.05, 0, 3_000_000, 0.1, undefined, 0, 0, 259_453_712),
       });
-      // 259,453,712 (portfolioBookValue) + (CAPITAL_SOCIAL - 0 comprometido).
-      expect(bench.bal1.inversiones).toBeCloseTo(259_453_712 + CAPITAL_SOCIAL, 0);
+      expect(bench.bal1.inversiones).toBeCloseTo(259_453_712, 0);
     });
 
-    it("capital comprometido is subtracted exactly once from inversiones (asset side) and once from patrimonio (equity side) — correct double-entry, not a double deduction of the same line", () => {
+    it("capital comprometido is subtracted exactly once, from patrimonio (equity side) — inversiones no longer double-subtracts it (balance() trusts portfolioBookValue as-is; it's almSimRealYear()'s job to have already reflected any liquidation there)", () => {
       const noErosion = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
@@ -426,37 +429,26 @@ describe("finBench", () => {
         liabilityYear1,
         almYear1: fakeAlmYear(0.05, 10_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 200_000_000),
       });
-      // Each line absorbs the erosion exactly once — not twice on either side.
-      expect(noErosion.bal1.inversiones - eroded.bal1.inversiones).toBeCloseTo(10_000_000_000, 0);
+      expect(eroded.bal1.inversiones).toBe(noErosion.bal1.inversiones);
       expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 0);
     });
 
-    it("necesidadesPatrimonioODeuda is 0 as long as capitalComprometido doesn't exceed CAPITAL_SOCIAL, even for a team with almost nothing else invested", () => {
-      const bench = finBench({
+    it("necesidadesPatrimonioODeuda equals capitalComprometido directly, with no clamp against CAPITAL_SOCIAL — by the time capitalComprometido is ever nonzero, Capital Social has already been fully spent via ordinary liquidation (see almSimRealYear()), so any draw at all is already genuinely external", () => {
+      const modest = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        // capitalComprometido is just under CAPITAL_SOCIAL, and the real
-        // portfolio/caja are both ~0 — a team that committed almost all its
-        // capital but never technically exceeded it.
-        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL - 1, 3_000_000, 0.1, undefined, 0, 0, 0),
+        almYear1: fakeAlmYear(0.05, 5_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 0),
       });
-      expect(bench.bal1.necesidadesPatrimonioODeuda).toBe(0);
-      expect(bench.bal1.inversiones).toBeCloseTo(1, 0);
-    });
-
-    it("necesidadesPatrimonioODeuda equals exactly capitalComprometido − CAPITAL_SOCIAL once a team draws more Capital Social than it started with", () => {
-      const excess = 9_000_000_000;
-      const bench = finBench({
+      const large = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + excess, 3_000_000, 0.1, undefined, 0, 0, 0),
+        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 0),
       });
-      expect(bench.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(excess, 4);
-      // Capital Social's own contribution to inversiones floors at 0 — never negative.
-      expect(bench.bal1.inversiones).toBe(0);
+      expect(modest.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(5_000_000_000, 4);
+      expect(large.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(CAPITAL_SOCIAL + 9_000_000_000, 4);
     });
 
-    it("necesidadesPatrimonioODeuda never interacts with the unrelated caja/reserva residual — the Activos-vs-Pasivo+Patrimonio gap is identical whether or not the clamp triggers", () => {
+    it("necesidadesPatrimonioODeuda never interacts with the unrelated caja/reserva residual — the Activos-vs-Pasivo+Patrimonio gap is identical regardless of capitalComprometido's size, since it cancels out exactly against patrimonio's own subtraction", () => {
       const under = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
@@ -472,7 +464,7 @@ describe("finBench", () => {
       expect(gap(over)).toBeCloseTo(gap(under), 4);
     });
 
-    it("falls back to the flat FZ.cajaPct×primaEmitida caja and a Capital-Social-only inversiones when there's no ALM decision at all", () => {
+    it("falls back to a Capital-Social-only inversiones (never invested) only when there's no real ALM decision at all", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,

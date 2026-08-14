@@ -1,7 +1,7 @@
 import { prisma } from "./prisma";
 import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
 import { maxPoliciesForCapital, nominalPortfolioVolRatio, volRatioFromWeights } from "@/domain/finance/capacity";
-import { isPortfolioDecisionV3, isMinVarianceAllocation } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV4, isMinVarianceAllocation } from "@/domain/finance/instruments";
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
@@ -27,7 +27,7 @@ export interface TeamForCapacity {
  * team's own Día 1 minimum-variance submission (PortfolioAllocation.day=1,
  * a flat {instrumentId: weight} map — see instruments.ts's
  * isMinVarianceAllocation) — its *actual* volatility, not the true optimal
- * solution's, and not the Día 2 tree (which doesn't exist yet at this
+ * solution's, and not the Día 2 schedule (which doesn't exist yet at this
  * point in the game): a deliberate one-time "regulatory filing at moment
  * 0" that only Año 1's capacity ever looks at. See README's market-clearing
  * section for the full narrative and why Año 2 doesn't reuse it.
@@ -38,10 +38,10 @@ export interface TeamForCapacity {
  * finBenchHelper.ts) — so a team that drew heavily on Capital Social to
  * cover a cash shortfall in Año 1 enters Año 2 with materially less room
  * to grow, before it even prices a single policy. Volatility comes from
- * the real portfolio tree the team submits in Día 2 (PortfolioAllocation.
+ * the real portfolio schedule the team submits in Día 2 (PortfolioAllocation.
  * day=2) — already required and already submitted by the time Año 2's
  * market clears, so no fallback is needed here (unlike the old day=2 falling
- * back to day=1 — Día 1 no longer stores a tree at all).
+ * back to day=1 — Día 1 no longer stores a schedule at all).
  *
  * `universe`/`year2Claims` should be whatever the caller already generated
  * this request (the simulation route always has both in scope, since it
@@ -74,7 +74,7 @@ export async function computeCapacityByTeamId(
     const volRatio =
       day === 1
         ? volRatioFromWeights(isMinVarianceAllocation(rawAlloc) ? rawAlloc : null)
-        : nominalPortfolioVolRatio(isPortfolioDecisionV3(rawAlloc) ? rawAlloc.tranches : null);
+        : nominalPortfolioVolRatio(isPortfolioDecisionV4(rawAlloc) ? rawAlloc.schedule : null);
     result.set(team.id, maxPoliciesForCapital(availableCapital, volRatio, team.avgOwnPremium));
   }
   return result;

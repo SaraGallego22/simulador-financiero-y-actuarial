@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn } from "@/domain/finance/markowitz";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -22,21 +22,21 @@ export interface SubmitPortfolioState {
 }
 
 /**
- * A team's portfolio decision is a tree of tranches (see PortfolioDecisionV3
- * in src/domain/finance/instruments.ts) decided once, up front, via the
- * PortfolioForm wizard — each tranche says how much goes into which
- * instrument, and what happens when it reaches its own maturity/decision
- * month (hold as cash, repeat indefinitely, or reallocate into new child
- * tranches). Arbitrary tree depth doesn't flatten cleanly into named
- * FormData fields, so the wizard submits the whole tree as one JSON blob
- * (see PortfolioForm.tsx's review screen) — never trust that payload's
- * shape without re-validating server-side, since a client can submit
- * anything.
+ * A team's portfolio decision is a sparse, ascending schedule of monthly
+ * checkpoints (see PortfolioDecisionV4/MonthlyAllocationEntry in
+ * src/domain/finance/instruments.ts), built via the PortfolioForm's
+ * checkpoint list — each checkpoint says how to split that month's (and
+ * every following month's, until overridden) investable surplus across the
+ * instrument menu. An arbitrary number of checkpoints doesn't flatten
+ * cleanly into named FormData fields, so the form submits the whole
+ * schedule as one JSON blob (see PortfolioForm.tsx) — never trust that
+ * payload's shape without re-validating server-side, since a client can
+ * submit anything.
  */
 export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioState, formData: FormData): Promise<SubmitPortfolioState> {
   const teamId = await requireTeam();
 
-  const raw = formData.get("decisionTree");
+  const raw = formData.get("decisionSchedule");
   if (raw == null || raw === "") return { error: "No se recibió ningún portafolio." };
 
   let parsed: unknown;
@@ -45,8 +45,8 @@ export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioS
   } catch {
     return { error: "El portafolio enviado no es JSON válido." };
   }
-  if (!isPortfolioDecisionV3(parsed)) {
-    return { error: "El portafolio enviado tiene un formato inválido. Vuelve a completar el asistente." };
+  if (!isPortfolioDecisionV4(parsed)) {
+    return { error: "El portafolio enviado tiene un formato inválido. Vuelve a completar el formulario." };
   }
 
   const decisionJson = parsed as unknown as Prisma.InputJsonValue;

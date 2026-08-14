@@ -345,26 +345,26 @@ export function GuiaPasanteDia3() {
           </p>
           <p>
             <strong>Activos:</strong> Caja (efectivo disponible de inmediato — depende de tu propia gestión de flujo de caja real ese año, no de un
-            porcentaje fijo sobre tu prima), Inversiones (lo que tu portafolio real de Día 2 efectivamente tiene invertido, más el Capital Social de
-            tu aseguradora que no has tenido que comprometer para cubrir un faltante de caja — no lo que costó comprarlo, y no un número que se calcula
-            al final solo para que el Balance cuadre) y Cuentas por cobrar (prima ya emitida que todavía no se ha recibido en efectivo — la
-            aseguradora tiene una rotación de cartera de 30 días sobre su prima emitida). Activos totales es la suma de esas tres.
+            porcentaje fijo sobre tu prima), Inversiones (lo que tu portafolio real de Día 2 efectivamente tiene invertido — Capital Social incluido,
+            ver más abajo — no lo que costó comprarlo, y no un número que se calcula al final solo para que el Balance cuadre) y Cuentas por cobrar
+            (prima ya emitida que todavía no se ha recibido en efectivo — la aseguradora tiene una rotación de cartera de 30 días sobre su prima
+            emitida). Activos totales es la suma de esas tres.
           </p>
           <p>
             <strong>Pasivo:</strong> Reservas técnicas (lo que falta por pagar de siniestros ya incurridos — RSA + IBNR, siempre el saldo real
             pendiente, nunca una estimación de mercado), RPND (la parte de la prima ya cobrada que corresponde a cobertura de un periodo futuro
             todavía no transcurrido — es una obligación de seguir cubriendo el riesgo, no plata que ya se ganó) y Cuentas por pagar (otras
             obligaciones operativas pendientes). A esas se suma una cuarta línea, <strong>Necesidades de patrimonio o deuda</strong> — que solo es
-            distinta de cero si tu aseguradora comprometió <em>más</em> Capital Social del que tenía disponible para empezar: ese exceso tuvo que
-            salir de financiación fresca (capital nuevo o deuda) que tu aseguradora no tenía al arrancar el año, así que se reconoce como una
-            obligación aparte, no como parte de tu Capital Social original. Para la inmensa mayoría de los equipos —cualquiera que no haya agotado
-            por completo su Capital Social— esta línea es cero. Pasivo total es la suma de las cuatro.
+            distinta de cero si tu aseguradora agotó por completo su portafolio real (Capital Social incluido, no solo lo que invirtió con prima) y
+            aun así necesitó más para cubrir un faltante de caja: ese exceso tuvo que salir de financiación fresca (capital nuevo o deuda) que tu
+            aseguradora no tenía, así que se reconoce como una obligación aparte, no como parte de tu Capital Social original. Para la inmensa mayoría
+            de los equipos —cualquiera que no haya agotado por completo su portafolio real— esta línea es cero. Pasivo total es la suma de las cuatro.
           </p>
           <p>
             <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: Capital Social más la utilidad neta acumulada, menos cualquier
-            Capital Social que hayas tenido que comprometer para cubrir una brecha de caja en tu ALM real. No se calcula desde cero cada año — es el
-            patrimonio del año anterior más la utilidad neta que ese año generó en el P&G. Es el punto exacto donde el estado de resultados (un
-            flujo) termina alimentando al Balance (una foto).
+            financiamiento externo que hayas tenido que traer para cubrir una brecha de caja en tu ALM real (Necesidades de patrimonio o deuda,
+            arriba). No se calcula desde cero cada año — es el patrimonio del año anterior más la utilidad neta que ese año generó en el P&G. Es el
+            punto exacto donde el estado de resultados (un flujo) termina alimentando al Balance (una foto).
           </p>
           <p>
             La última línea, <strong>Pasivo + Patrimonio</strong>, no es una fila más — es la verificación de que toda la foto es consistente:
@@ -390,7 +390,7 @@ export function GuiaPasanteDia3() {
             constituido no se cancelan exactamente.
           </p>
           <p>
-            El Resultado de inversiones es, otra vez, el ingreso real que tu árbol de portafolio devengó durante los 12 meses del 2028 — esta corrida no
+            El Resultado de inversiones es, otra vez, el ingreso real que tu calendario de portafolio devengó durante los 12 meses del 2028 — esta corrida no
             empieza de cero, continúa exactamente donde terminó el 2027 real (mismas posiciones abiertas, mismo capital comprometido acumulado).
           </p>
         </SubSection>
@@ -475,7 +475,7 @@ export function GuiaPasanteDia3() {
             </li>
             <li>
               <strong>El Resultado de inversiones ya no puede salir de una fórmula plana sobre la reserva.</strong> Piensa en lo que tu ALM real de 2028
-              efectivamente rindió (no lo que su árbol prometía rendir en teoría) — si tuviste que vender algo bajo presión o comprometer capital en
+              efectivamente rindió (no lo que su calendario prometía rendir en teoría) — si tuviste que vender algo bajo presión o comprometer capital en
               2028, eso también debería pesar en tu proyección de 2029, no desaparecer.
             </li>
           </ul>
@@ -494,13 +494,13 @@ export function GuiaPasanteDia3() {
           </p>
           <p>
             <strong>Inversiones no es un número que se calcula de último para que el Balance cuadre.</strong> Es lo que tu portafolio real de Día 2
-            efectivamente tiene invertido más el Capital Social que tu aseguradora no ha tenido que comprometer — dos cosas que puedes razonar por
-            separado sin necesitar ninguna otra línea del Balance.
+            efectivamente tiene invertido — Capital Social incluido, porque se invierte junto con tu calendario desde el arranque del 2027, no aparte de
+            él — un único número que puedes razonar directamente.
           </p>
           <p>
             <strong>Necesidades de patrimonio o deuda va del lado del Pasivo, no de Activos, y casi siempre es cero.</strong> Solo aparece si tu
-            equipo comprometió <em>más</em> Capital Social del que tenía disponible al arrancar el año — no por cualquier faltante de caja menor.
-            Si tu equipo nunca agotó su Capital Social, esta línea es cero y no necesitas razonarla más.
+            equipo agotó por completo su portafolio real (Capital Social incluido) y aun así necesitó más para cubrir un faltante de caja — no por
+            cualquier faltante de caja menor. Si tu equipo nunca llegó a ese punto, esta línea es cero y no necesitas razonarla más.
           </p>
         </SubSection>
 
@@ -572,7 +572,7 @@ export function GuiaPasanteDia3() {
               "Cuentas por pagar / RPND = 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
               "Cuentas por cobrar no es un porcentaje plano de la prima — sale de la rotación de cartera de 30 días de la sección 3.",
               "Caja e Inversiones en 2027/2028 dependen de tu propio flujo de caja real y tu Capital Social — no son un porcentaje de la prima. Para 2029 (sin ALM propio) Caja vuelve al 15% de la Prima emitida de ese año.",
-              "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo comprometió más Capital Social del que tenía disponible al arrancar el año. Para casi todos los equipos es 0.",
+              "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo agotó por completo su portafolio real (Capital Social incluido) y aun así necesitó más. Para casi todos los equipos es 0.",
               "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar + Necesidades de patrimonio o deuda.",
               "Pasivo + Patrimonio debe ser exactamente igual a Activos totales.",
             ]}
@@ -582,7 +582,7 @@ export function GuiaPasanteDia3() {
         <FlowStep n="5" title="5.4 · El camino completo, de tus decisiones a tu reporte" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
-              El costo real de siniestros del 2027 (4) + tu árbol de portafolio de Día 2 → alimentan el estado de resultados del 2028 (5.1) → que junto
+              El costo real de siniestros del 2027 (4) + tu calendario de portafolio de Día 2 → alimentan el estado de resultados del 2028 (5.1) → que junto
               con la retención real de 2028 y el rendimiento realmente devengado por tu ALM real, te da la proyección del 2029 (5.1b, sin línea de Ajuste
               de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (5.3).
             </p>

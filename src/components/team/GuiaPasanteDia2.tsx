@@ -144,8 +144,8 @@ export function GuiaPasanteDia2() {
           Día 2 — P&G 2027, retarifación 2028 y portafolio real
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu árbol de portafolio: te explica exactamente qué se
-          va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
+          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu calendario de inversión: te explica exactamente qué
+          se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
         </p>
       </header>
 
@@ -153,19 +153,19 @@ export function GuiaPasanteDia2() {
         insumos={[
           "Resultado real del mercado del 2027: pólizas ganadas y prima cobrada de tu propia cartera.",
           "Historial de siniestros por póliza avisados hasta la fecha (algunos siniestros de 2027 todavía no se han avisado — la misma opacidad de IBNR de Día 1) — insumo para la retarifación de 2028 y para estimar tu Costo de Siniestros A1.",
-          "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu árbol de portafolio real.",
+          "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu calendario de portafolio real.",
         ]}
         entregables={[
           "Tarifa 2028 (mismo formato CSV que Día 1: id_expuesto, prima).",
-          "Árbol de decisión de portafolio real (instrumento, % asignado, vencimiento/reasignación).",
+          "Calendario mensual de decisión de portafolio real (instrumento, % asignado, desde qué mes aplica).",
           "Estado de resultados completo del 2027 (13 líneas).",
         ]}
       />
 
       <Section n="1" title="Contexto del día">
         <p>
-          Ya conoces el resultado real del 2027 — cuántas pólizas ganaste, con qué siniestralidad, y cuánta prima realmente cobraste. Hoy tomas el árbol
-          de decisión de tu portafolio de inversión real, ahora con esas cifras reales en la mano en vez de la incertidumbre del Día 1.
+          Ya conoces el resultado real del 2027 — cuántas pólizas ganaste, con qué siniestralidad, y cuánta prima realmente cobraste. Hoy defines el
+          calendario de decisión de tu portafolio de inversión real, ahora con esas cifras reales en la mano en vez de la incertidumbre del Día 1.
         </p>
         <ul className="list-disc pl-5">
           <li>
@@ -175,10 +175,11 @@ export function GuiaPasanteDia2() {
             reportan hoy — se calculan y reportan más adelante en el ejercicio.
           </li>
           <li>
-            <strong>Financiero — el árbol de portafolio real.</strong> Repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5)
-            y, para cada uno, decides qué pasa cuando venza. Esta decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente
-            tu nota de ALM de hoy y, más adelante, el Resultado de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A
-            diferencia del portafolio de mínima varianza de Día 1 (un ejercicio aparte, ya calificado), este árbol es tu decisión de inversión real.
+            <strong>Financiero — el calendario de portafolio real.</strong> Defines, mes a mes, cómo invertir el excedente disponible ese mes (tabla de
+            instrumentos en la sección 5): la asignación que definas para un mes se mantiene fija hasta que definas un cambio en un mes posterior. Esta
+            decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente tu nota de ALM de hoy y, más adelante, el Resultado
+            de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A diferencia del portafolio de mínima varianza de Día 1
+            (un ejercicio aparte, ya calificado), este calendario es tu decisión de inversión real.
           </li>
           <li>
             <strong>Financiero — estado de resultados completo del 2027.</strong> Reportas las 13 líneas del P&G del 2027 (prima emitida, la Reserva de
@@ -191,7 +192,7 @@ export function GuiaPasanteDia2() {
 
       <Section n="2" title="Teoría necesaria">
         <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
-          El ajuste exacto de tu tarifa y la asignación óptima de tu árbol no se revelan — esta sección explica el marco conceptual, no la respuesta.
+          El ajuste exacto de tu tarifa y la asignación óptima de tu calendario no se revelan — esta sección explica el marco conceptual, no la respuesta.
         </p>
 
         <SubSection title="Retarifar con un año de experiencia real" accent="act">
@@ -320,7 +321,7 @@ export function GuiaPasanteDia2() {
             comercial en Día 1; el administrativo también, pero ya no resta dentro del Resultado Técnico — tiene su propia línea (Resultado
             Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
-            Resultado de inversiones es el ingreso real que tu árbol de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
+            Resultado de inversiones es el ingreso real que tu calendario de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
             resultado de la simulación mes a mes.
           </p>
           <p>
@@ -334,16 +335,20 @@ export function GuiaPasanteDia2() {
             (&ldquo;Ajuste de siniestralidad&rdquo;).
           </p>
         </SubSection>
-        <SubSection title="Árbol de portafolio real (ALM)" accent="fin">
+        <SubSection title="Calendario de portafolio real (ALM)" accent="fin">
           <p>
-            Construyes un árbol de decisiones de inversión: repartes tu presupuesto entre los instrumentos disponibles (tabla en la sección 5) y, para cada
-            uno, decides qué pasa cuando venza — dejarlo en caja, repetirlo indefinidamente, o reasignarlo entre nuevos instrumentos (que a su vez tienen
-            su propia decisión). El sistema simula, mes a mes durante 60 meses, cómo tu árbol enfrenta el flujo de caja real: primas que entran, siniestros
-            y gastos que salen, vencimientos que regresan como caja, y lo que queda se reinvierte según tu árbol.
+            Construyes un calendario de decisiones de inversión: para cada mes en que quieras cambiar de estrategia, repartes el excedente disponible ese
+            mes entre los instrumentos del menú (tabla en la sección 5). Esa asignación queda vigente desde ese mes en adelante — incluyendo cualquier
+            vencimiento que vaya llegando — hasta que definas un cambio en un mes posterior; no hay una decisión de reinversión por instrumento, todo lo
+            que vence entra a la misma bolsa de excedente disponible del mes en que vence. El sistema simula, mes a mes durante 60 meses, cómo tu
+            calendario enfrenta el flujo de caja real: primas que entran, siniestros y gastos que salen, vencimientos que regresan como caja, y lo que
+            queda se reinvierte según el checkpoint vigente ese mes. TES3 y TES UVR 8 además pagan un cupón en efectivo cada 12 meses mientras siguen
+            abiertos (sin vencer todavía) — ese cupón también entra como caja disponible ese mes, exactamente igual que un vencimiento.
           </p>
           <p>
-            Este es tu único árbol para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más adelante — no
-            vas a tener una segunda oportunidad de someter uno distinto. Piensa tu árbol pensando en ambos años, no solo en el 2027.
+            Este es tu único calendario para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más
+            adelante — no vas a tener una segunda oportunidad de someter uno distinto. Piensa tu calendario pensando en ambos años, no solo en el 2027;
+            puedes agregar tantos cambios de estrategia como quieras a lo largo de los 60 meses simulados.
           </p>
           <p>Tu nota (&ldquo;Calce ALM del portafolio&rdquo;) tiene 4 componentes, con estos pesos:</p>
           <ul className="list-disc pl-5">
@@ -364,8 +369,8 @@ export function GuiaPasanteDia2() {
             </li>
           </ul>
           <p>
-            La sección 5 te da la plantilla exacta y las fórmulas de cada componente, para que puedas anticipar tu nota antes de enviar tu árbol, no solo
-            leerla después.
+            La sección 5 te da la plantilla exacta y las fórmulas de cada componente, para que puedas anticipar tu nota antes de enviar tu calendario, no
+            solo leerla después.
           </p>
         </SubSection>
       </Section>
@@ -402,7 +407,7 @@ export function GuiaPasanteDia2() {
         <SubSection title="Para el portafolio" accent="fin">
           <p>
             El menú de instrumentos (sección 5.2) tiene un trade-off real entre rendimiento y volatilidad — no asumas que el instrumento con el
-            rendimiento nominal más alto es la mejor opción una vez ajustas por riesgo. Antes de construir tu árbol, considera:
+            rendimiento nominal más alto es la mejor opción una vez ajustas por riesgo. Antes de construir tu calendario, considera:
           </p>
           <ul className="list-disc pl-5">
             <li>
@@ -421,21 +426,21 @@ export function GuiaPasanteDia2() {
               algo de colchón ahí evita caer en venta forzada cuando falte caja en un mes puntual.
             </li>
             <li>
-              <strong>Los vencimientos personalizados no son gratis de planear.</strong> LIQ y ACC no tienen plazo fijo — tú decides cuándo se te vuelve a
-              preguntar qué hacer con ellos. Un vencimiento demasiado largo en el instrumento más volátil del menú te deja atrapado justo cuando podrías
-              necesitar liquidez.
+              <strong>Cada instrumento tiene su propio ritmo de vencimiento, fijo.</strong> LIQ vuelve a estar disponible cada mes; los TES/CDT vencen en
+              su plazo propio; ACC vence cada 12 meses. Ese ritmo ya no lo eliges tú — lo que sí eliges es qué hacer con el excedente cuando cada uno
+              regresa, definiendo un cambio de estrategia en el mes que corresponda.
             </li>
             <li>
-              <strong>Piensa en tu árbol completo, no solo en la primera decisión.</strong> Si reasignas un vencimiento hacia otro instrumento, esa nueva
-              posición también vence en algún momento y también necesita una decisión — encadenar reasignaciones sin ninguna salida líquida puede parecer
-              rentable en papel y fallar en la práctica.
+              <strong>Piensa en todo el calendario, no solo en la asignación inicial.</strong> Tu asignación del mes 0 se mantiene vigente indefinidamente
+              a menos que agregues un cambio de estrategia más adelante — un portafolio que se ve bien al inicio pero que nunca revisas puede dejarte
+              atrapado en instrumentos poco líquidos justo cuando aparece un mes de caja ajustada.
             </li>
           </ul>
         </SubSection>
 
         <PreguntasAbiertas>
           <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de 2028 de la de 2027?</li>
-          <li>¿Cómo cambiaría tu árbol de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
+          <li>¿Cómo cambiaría tu calendario de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
           <li>¿Qué le pasaría a tu Resultado de Inversiones si una recesión bajara el rendimiento de los instrumentos más riesgosos del menú?</li>
         </PreguntasAbiertas>
       </Section>
@@ -443,7 +448,7 @@ export function GuiaPasanteDia2() {
       <Section n="5" title="Plantillas — cómo se construyen y cómo alimentan el resultado">
         <p>
           Esta sección te muestra la <strong>estructura</strong> exacta que va a evaluar el motor, vacía, para que puedas planear tu estado de resultados
-          y tu árbol en papel antes de construirlos en los formularios. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya
+          y tu calendario en papel antes de construirlos en los formularios. Las fórmulas de calificación que aparecen aquí son las mismas que vas a ver, ya
           resueltas con tus números, en los resultados objetivos después de guardar cada entregable.
         </p>
 
@@ -459,7 +464,7 @@ export function GuiaPasanteDia2() {
               "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
               "Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones.",
               "Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo.",
-              "Resultado de inversiones sale de tu árbol de portafolio (secciones 5.2-5.6), no de una fórmula aparte.",
+              "Resultado de inversiones sale de tu calendario de portafolio (secciones 5.2-5.6), no de una fórmula aparte.",
             ]}
           />
         </FlowStep>
@@ -495,25 +500,26 @@ export function GuiaPasanteDia2() {
           </div>
         </FlowStep>
 
-        <FlowStep n="3" title="5.3 · Tu árbol de decisión — plantilla en blanco">
+        <FlowStep n="3" title="5.3 · Tu calendario de decisión — plantilla en blanco">
           <BlankTable
-            headers={["Instrumento (del menú de 5.2)", "% asignado", "Vencimiento personalizado (solo LIQ/ACC)", "Al vencer, ¿qué haces?"]}
-            rows={5}
-            note='Si en "Al vencer, ¿qué haces?" elegiste reasignar, repite esta misma tabla para esa porción — el vencimiento de la nueva línea se cuenta desde el mes en que venció la anterior, no desde el mes 0. Los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8) siempre vencen en su propio plazo; el vencimiento personalizado solo aplica a LIQ y ACC.'
+            headers={["¿Desde qué mes aplica?", "Instrumento (del menú de 5.2)", "% asignado"]}
+            rows={6}
+            note="La primera fila siempre es el mes 0 (tu asignación inicial). Cada fila adicional es un cambio de estrategia: desde ese mes, el excedente disponible (incluyendo lo que venza) se reparte según esos nuevos porcentajes, hasta el siguiente cambio que definas. LIQ vuelve a estar disponible cada mes, los TES/CDT en su propio plazo, y ACC cada 12 meses — no hay una decisión de reinversión por instrumento, todo entra a la misma bolsa del mes en que vence."
           />
         </FlowStep>
 
-        <FlowStep n="4" title="5.4 · Cómo se traduce tu árbol en caja, mes a mes — plantilla del estado de caja">
+        <FlowStep n="4" title="5.4 · Cómo se traduce tu calendario en caja, mes a mes — plantilla del estado de caja">
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando tu árbol de la sección 5.3."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Vencimientos en caja incluye tanto lo que vence de verdad como el cupón anual de TES3/TES UVR 8 mientras siguen abiertos."
           />
           <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
             <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
             primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
             compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
-            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según tu árbol de la sección 5.3 — nunca es la Prima Cobrada cruda.
+            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según el checkpoint vigente ese mes en tu calendario de la sección
+            5.3 — nunca es la Prima Cobrada cruda.
             La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
             cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
             lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
@@ -523,9 +529,9 @@ export function GuiaPasanteDia2() {
             <span className="font-semibold text-[var(--color-brand-blue-accent)]">Importante — </span>
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
             1/12 de tu reserva total, ni más ni menos — no tu prima real, aunque ya la conozcas. Esto es intencional: el ejercicio evalúa la calidad de tu
-            árbol de decisión de forma aislada, sin mezclarla con el resultado de tu tarifa (un equipo que tarificó mal no debería tener, solo por eso, una
-            nota de ALM peor). Cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la plataforma no te lo
-            resuelve, aunque te muestra ambas corridas lado a lado en los resultados objetivos.
+            calendario de decisión de forma aislada, sin mezclarla con el resultado de tu tarifa (un equipo que tarificó mal no debería tener, solo por
+            eso, una nota de ALM peor). Cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la
+            plataforma no te lo resuelve, aunque te muestra ambas corridas lado a lado en los resultados objetivos.
           </p>
         </FlowStep>
 
@@ -554,14 +560,14 @@ export function GuiaPasanteDia2() {
         <FlowStep n="6" title="5.6 · El camino completo, de tu decisión a tu nota" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
-              Tu árbol (5.3) → se simula mes a mes contra la caja real (5.4) → sus resultados (capital comprometido, rendimiento, ventas forzadas, liquidez)
-              alimentan las 4 notas (5.5) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
+              Tu calendario (5.3) → se simula mes a mes contra la caja real (5.4) → sus resultados (capital comprometido, rendimiento, ventas forzadas,
+              liquidez) alimentan las 4 notas (5.5) → esas 4 notas, ponderadas, son tu nota final de ALM de hoy.
             </p>
             <p className="mt-2 text-sm">
-              Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en tu P&G — para ese entregable necesitas volver a
-              razonar tu árbol, esta vez con tu prima real (la que ya conoces) en vez del supuesto de fondeo perfecto de esta plantilla. El objetivo de esta
-              guía es que entiendas la mecánica completa desde ahora, para que ese siguiente paso sea un ajuste sobre algo que ya entiendes, no un ejercicio
-              desde cero.
+              Esa misma nota final NO es directamente lo que vas a reportar como Resultado de Inversiones en tu P&G — para ese entregable necesitas volver
+              a razonar tu calendario, esta vez con tu prima real (la que ya conoces) en vez del supuesto de fondeo perfecto de esta plantilla. El objetivo
+              de esta guía es que entiendas la mecánica completa desde ahora, para que ese siguiente paso sea un ajuste sobre algo que ya entiendes, no un
+              ejercicio desde cero.
             </p>
           </div>
         </FlowStep>

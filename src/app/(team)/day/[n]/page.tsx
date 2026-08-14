@@ -11,7 +11,7 @@ import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
-import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
@@ -55,12 +55,12 @@ export default async function TeamDayPage({
     );
   }
   const includeSim = day <= 2;
-  // Día 1 hosts the minimum-variance exercise (a flat weight map, not a
-  // tree); the real ALM tree is submitted once, on Día 2 — decoupled from
-  // includeSim, which stays about the tariff/simulation tab only. See
-  // README's market-clearing section.
+  // Día 1 hosts the minimum-variance exercise (a flat weight map, no
+  // checkpoints); the real ALM schedule is submitted once, on Día 2 —
+  // decoupled from includeSim, which stays about the tariff/simulation tab
+  // only. See README's market-clearing section.
   const hasMinVariance = day === 1;
-  const hasPortfolioTree = day === 2;
+  const hasPortfolioSchedule = day === 2;
   // Día 3 has its own report (/api/teams/report?day=3) — Año 1's claims
   // widen to a second development diagonal (see that route) — but no tariff
   // of its own, so it stays outside includeSim.
@@ -153,8 +153,8 @@ export default async function TeamDayPage({
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
   const bookYear = day === 2 ? 1 : null;
-  if (activeTab === "obj" && hasPortfolioTree && teamId && bookYear) {
-    const decision = isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null;
+  if (activeTab === "obj" && hasPortfolioSchedule && teamId && bookYear) {
+    const decision = isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null;
     if (decision) {
       const cohort = await getOrCreateActiveCohort();
       const book = await getTeamBookForDay(cohort.id, bookYear);
@@ -247,17 +247,17 @@ export default async function TeamDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioTree} />}
+          {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
           {hasMinVariance && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
               <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
             </>
           )}
-          {hasPortfolioTree && (
+          {hasPortfolioSchedule && (
             <>
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
-              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV3(allocation?.allocation) ? allocation.allocation : null} />
+              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} />
             </>
           )}
           {reportConcepts.length > 0 && (
@@ -280,7 +280,7 @@ export default async function TeamDayPage({
               <AnalyticsForm day={day} initialPicks={analyticsPicksByKey} />
             </>
           )}
-          {!hasMinVariance && !hasPortfolioTree && reportConcepts.length === 0 && !hasAnalitica && (
+          {!hasMinVariance && !hasPortfolioSchedule && reportConcepts.length === 0 && !hasAnalitica && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               No hay entregables para este día.
             </div>
@@ -430,7 +430,7 @@ export default async function TeamDayPage({
           </div>
         )}
 
-        {hasPortfolioTree && (
+        {hasPortfolioSchedule && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
             <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[bookYear ?? 1]}

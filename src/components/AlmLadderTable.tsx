@@ -1,48 +1,56 @@
-import { INSTRUMENT_BY_ID, MAX_TRANCHE_DEPTH, trancheDurationM } from "@/domain/finance/instruments";
-import type { Tranche, MaturityDecision } from "@/domain/finance/instruments";
+import { INSTRUMENTS } from "@/domain/finance/instruments";
+import type { MonthlyAllocationEntry } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow, AlmRealYearResult } from "@/domain/finance/alm";
 import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
 import { SIMULATED_YEAR_LABEL } from "@/lib/days";
 
-function maturityLabel(action: MaturityDecision): string {
-  if (action.action === "cash") return "mantener en caja";
-  if (action.action === "repeat") return "repetir indefinidamente";
-  return "reasignar a:";
-}
-
 /**
- * Recursively renders a decision tree (Tranche[]) as an indented list —
- * instrument + weight + maturity/duration + what happens at maturity,
- * recursing into a "reallocate" node's children. Bounded by
- * MAX_TRANCHE_DEPTH (a legitimate tree from the wizard never nests this
- * deep — the horizon-based pruning caps realistic depth around 5-6 — this
- * is just a display-side safety net, matching the same cap the server-side
- * validator uses).
+ * Renders a Día 2 schedule (MonthlyAllocationEntry[]) as one row per
+ * checkpoint — the month it takes effect, and how that month's (and every
+ * following month's, until a later checkpoint overrides it) investable
+ * surplus is split across the instrument menu. Weights are shown normalized
+ * to their own checkpoint's total, not the raw submitted values — the same
+ * normalization fundFromAllocation() applies when actually funding that
+ * month, so a checkpoint that didn't sum to exactly 100 isn't shown
+ * misleadingly. Used both by a team's own PortfolioForm and by the admin's
+ * read-only accordion.
  */
-export function PortfolioTreeView({ tranches, depth = 0 }: { tranches: Tranche[]; depth?: number }) {
-  if (depth > MAX_TRANCHE_DEPTH) return <li className="text-xs text-[var(--color-brand-text-secondary)]">…</li>;
-  // Displayed normalized to its own sibling group's total, not the raw
-  // submitted weight — the same normalization fundTranches() applies when
-  // actually funding this group (tranche.weight / totalW), so a sibling
-  // list that didn't sum to exactly 100 isn't shown misleadingly.
-  const totalW = tranches.reduce((s, t) => s + Math.max(0, t.weight), 0);
+export function PortfolioScheduleView({ schedule }: { schedule: MonthlyAllocationEntry[] }) {
+  if (schedule.length === 0) return null;
   return (
-    <ul className={depth === 0 ? "flex flex-col gap-1" : "ml-4 flex flex-col gap-1 border-l border-[var(--color-brand-gray-light)] pl-3"}>
-      {tranches.map((t, i) => {
-        const ins = INSTRUMENT_BY_ID[t.instrumentId];
-        const dur = trancheDurationM(t);
-        const normalizedWeight = totalW > 0 ? (Math.max(0, t.weight) / totalW) * 100 : 0;
-        return (
-          <li key={i} className="text-xs text-[var(--color-brand-text-secondary)]">
-            <span className="font-semibold text-[var(--color-foreground)]">
-              {ins?.nombre ?? t.instrumentId} ({normalizedWeight.toFixed(1)}%, vence a los {dur} {dur === 1 ? "mes" : "meses"})
-            </span>{" "}
-            → {maturityLabel(t.onMaturity)}
-            {t.onMaturity.action === "reallocate" && <PortfolioTreeView tranches={t.onMaturity.tranches} depth={depth + 1} />}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+            <th className="px-2 py-1">Desde el mes</th>
+            {INSTRUMENTS.map((ins) => (
+              <th key={ins.id} className="px-2 py-1">
+                {ins.id}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((entry, i) => {
+            const totalW = Object.values(entry.allocation).reduce((s, w) => s + Math.max(0, Number(w) || 0), 0);
+            return (
+              <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
+                <td className="px-2 py-1 font-semibold text-[var(--color-foreground)]">{entry.month}</td>
+                {INSTRUMENTS.map((ins) => {
+                  const w = Math.max(0, Number(entry.allocation[ins.id]) || 0);
+                  const normalized = totalW > 0 ? (w / totalW) * 100 : 0;
+                  return (
+                    <td key={ins.id} className="px-2 py-1">
+                      {normalized > 0 ? `${normalized.toFixed(1)}%` : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -302,11 +310,15 @@ export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
  * AlmSimRow.rendimientoPortafolio) actually accrued during that year's 12
  * months alone — never reserva×portYield (ignores real cash-flow timing)
  * and never a naive ending-minus-starting portfolio value (dominated by
- * how much fresh money flowed in/out, not by investment performance).
- * Capital comprometido does NOT factor into rinv — it already reduces
- * patrimonio directly in finBench()'s balance(), so folding it in here too
- * would double-count the same event; it's shown here purely for
- * transparency about how much Capital Social this team has left.
+ * how much fresh money flowed in/out, not by investment performance). It
+ * now includes Capital Social's own accrual too (funded into the tree at
+ * Año 1's start, see almSimRealYear()'s doc comment in alm.ts) — a team's
+ * `income`/rinv is meaningfully larger than it would be from prima alone.
+ * Capital comprometido itself does NOT factor into rinv — it already
+ * reduces patrimonio directly in finBench()'s balance(), so folding it in
+ * here too would double-count the same event; it's shown here purely for
+ * transparency about how much external financing (beyond the team's whole
+ * real portfolio, Capital Social included) this team has needed.
  */
 export function AlmPnlBreakdown({
   scoreFicticio,
@@ -328,7 +340,8 @@ export function AlmPnlBreakdown({
         El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo, no una fórmula aproximada: el ingreso de inversión que el
         portafolio realmente generó, mes a mes, durante los 12 meses de este año{" "}
         {year === 2 && "— continuando exactamente donde quedó el 2027, mismas posiciones abiertas, mismo capital comprometido acumulado — "}
-        corrido con la prima real de este equipo. No incluye el capital comprometido (eso ya se resta aparte, directamente del patrimonio).
+        corrido con la prima real de este equipo — incluyendo el Capital Social, que se invierte desde el arranque del 2027 (no una reserva aparte).
+        No incluye el capital comprometido (financiamiento externo genuino, ver abajo — eso ya se resta aparte, directamente del patrimonio).
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
@@ -346,7 +359,7 @@ export function AlmPnlBreakdown({
       </div>
       <div className="mt-3 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-2">
         <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-          Capital Social al final del ALM real de este año
+          Capital Social sin necesidad de financiamiento externo
         </p>
         <p className="font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-blue-accent)]">
           {money(realYear.capitalSocialRestante)}{" "}
@@ -354,8 +367,10 @@ export function AlmPnlBreakdown({
         </p>
         <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">
           Capital Social − capital comprometido acumulado ({money(realYear.capitalComprometidoAcumulado)}
-          {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Esto es lo mismo que finBench() usa para restar directamente del
-          patrimonio en el Balance real de este año.
+          {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Capital Social ya está invertido según el calendario mensual desde
+          el arranque del 2027 — este número no es &ldquo;lo que queda sin usar&rdquo;, es cuánto de él este equipo ha evitado tener que reponer con
+          financiamiento externo (casi siempre el total, ver abajo). Esto es lo mismo que finBench() usa para restar directamente del patrimonio en el
+          Balance real de este año.
         </p>
       </div>
       <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">

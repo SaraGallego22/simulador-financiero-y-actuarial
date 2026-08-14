@@ -1,4 +1,5 @@
 import { GENERAL_INFLATION_ANNUAL } from "../generation/constants";
+import { ACC_ROLL_M } from "./constants";
 
 export interface Instrument {
   id: string;
@@ -30,14 +31,21 @@ export const INSTRUMENTS: readonly Instrument[] = [
   { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.05, volAnual: 0.01, plazoM: 0, nota: "Liquidez total, rendimiento bajo, riesgo mínimo" },
   { id: "CDT90", nombre: "CDT 90 días", yield: 0.095, volAnual: 0.032, plazoM: 3, nota: "Corto plazo, baja liquidez intermedia, riesgo bajo" },
   { id: "TES1", nombre: "TES tasa fija 1 año", yield: 0.105, volAnual: 0.04, plazoM: 12, nota: "Cubre pasivos del primer año, riesgo de tasa moderado" },
-  { id: "TES3", nombre: "TES tasa fija 3 años", yield: 0.115, volAnual: 0.07, plazoM: 36, nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración" },
+  {
+    id: "TES3",
+    nombre: "TES tasa fija 3 años",
+    yield: 0.115,
+    volAnual: 0.07,
+    plazoM: 36,
+    nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración. Paga cupón anual — no es un solo pago al vencer",
+  },
   {
     id: "TESUVR8",
     nombre: "TES UVR 8 años",
     yield: 0.12,
     volAnual: 0.06,
     plazoM: 96,
-    nota: "Alto rendimiento y duración, indexado a inflación",
+    nota: "Alto rendimiento y duración, indexado a inflación. Paga cupón anual — no es un solo pago al vencer",
   },
   {
     id: "ACC",
@@ -104,119 +112,106 @@ export type Allocation = Record<string, number>;
 
 /**
  * Only bond-like instruments (a real, fixed numeric term) mature on their
- * own — LIQ (plazoM===0, cash-equivalent) and ACC (plazoM>=400, the "no
- * defined maturity" sentinel for equities) have no fixed term, so a
- * Tranche using either must instead carry a team-chosen `durationM`.
+ * own contractual term — LIQ (plazoM===0, cash-equivalent) and ACC
+ * (plazoM>=400, the "no defined maturity" sentinel for equities) have no
+ * fixed term, so instrumentDurationM() below assigns each its own engine
+ * rule instead.
  */
 export function isBondLike(ins: Instrument): boolean {
   return ins.plazoM > 0 && ins.plazoM < 400;
 }
 
 /**
- * A slice of a portfolio: how much (relative weight among siblings — not
- * required to sum to 100, normalized when funded), in what instrument, and
- * what happens when it reaches its own maturity/decision month.
+ * TES3 and TESUVR8 pay an annual cash coupon (equal to the position's own
+ * `ins.yield` on its current book value) instead of accruing silently as a
+ * single zero-coupon lump sum paid at maturity — see stepMonth()'s coupon
+ * handling in alm.ts. CDT90 (3mo) and TES1 (12mo) stay zero-coupon: their
+ * terms are too short for an interim coupon to mean anything (CDT90 matures
+ * in under a year; TES1's own maturity already IS its first coupon date).
+ * See RATE_LOADING in markowitz.ts for the Día 1 portfolio-optimization
+ * consequence of this (a coupon bond's genuine interest-rate exposure is
+ * lower than its maturity alone suggests).
  */
-export interface Tranche {
-  instrumentId: string;
-  weight: number;
-  /**
-   * Team-chosen holding period in months — required iff the instrument has
-   * no fixed term (LIQ, ACC — !isBondLike) and forbidden (must be omitted)
-   * for bond-like instruments, which always use their own ins.plazoM
-   * instead. See trancheDurationM().
-   */
-  durationM?: number;
-  onMaturity: MaturityDecision;
+export function isCouponBond(ins: Instrument): boolean {
+  return ins.id === "TES3" || ins.id === "TESUVR8";
 }
 
 /**
- * What happens to a tranche's proceeds at its maturity/decision month:
- * - "cash": becomes non-reinvested cash (folds into that month's
- *   Vencimientos en caja).
- * - "repeat": immediately re-funds a new tranche with the SAME
- *   instrumentId and SAME durationM — a self-sustaining rolling position,
- *   the explicit "keep doing this forever" escape hatch, needs no further
- *   decisions.
- * - "reallocate": splits the proceeds across 1+ new child tranches, each
- *   of which recursively has its own onMaturity.
+ * A team's investing instruction for a single month: the same flat
+ * {instrumentId: weight} shape as a Día 1 Allocation (not required to sum to
+ * 100, normalized when funded). It stays in effect from `month` onward,
+ * until a later entry in the same schedule overrides it — see
+ * activeAllocation() in alm.ts.
  */
-export type MaturityDecision =
-  | { action: "cash" }
-  | { action: "repeat" }
-  | { action: "reallocate"; tranches: Tranche[] };
-
-/** A team's full portfolio decision for a day: a tree of tranches, decided once, up front. */
-export interface PortfolioDecisionV3 {
-  tranches: Tranche[];
+export interface MonthlyAllocationEntry {
+  month: number;
+  allocation: Allocation;
 }
-
-/** Defensive ceilings for isPortfolioDecisionV3 — a security boundary against a tampered client payload, independent of whatever horizon-based pruning the wizard does client-side. */
-export const MAX_TRANCHE_DEPTH = 10;
-export const MAX_TRANCHE_SIBLINGS = 20;
 
 /**
- * A tranche's own holding period in months before its onMaturity decision
- * applies: bond-like instruments always use their fixed contractual term
- * (ins.plazoM); LIQ and ACC use the team's chosen durationM instead.
+ * A team's full Día 2 portfolio decision: a sparse, ascending schedule of
+ * monthly checkpoints (see MonthlyAllocationEntry) instead of a one-time
+ * tree. The month-0 entry is mandatory (the starting allocation); every
+ * later entry is an explicit "change my strategy from this month on" —
+ * unlisted months keep whatever the previous checkpoint said. Reinvestment
+ * of matured principal is no longer a per-position rule (onMaturity):
+ * everything that matures becomes available cash that month, and the
+ * checkpoint active THAT month decides where it goes next, same as any
+ * other month's surplus.
  */
-export function trancheDurationM(tranche: Pick<Tranche, "instrumentId" | "durationM">): number {
-  const ins = INSTRUMENT_BY_ID[tranche.instrumentId];
-  return isBondLike(ins) ? ins.plazoM : (tranche.durationM ?? 0);
+export interface PortfolioDecisionV4 {
+  schedule: MonthlyAllocationEntry[];
 }
 
-function isValidTranche(value: unknown, depth: number): value is Tranche {
-  if (depth > MAX_TRANCHE_DEPTH) return false;
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  const ins = typeof v.instrumentId === "string" ? INSTRUMENT_BY_ID[v.instrumentId] : undefined;
-  if (!ins) return false;
-  if (typeof v.weight !== "number" || !Number.isFinite(v.weight) || v.weight <= 0) return false;
+/** Defensive ceiling for isPortfolioDecisionV4 — a schedule can't usefully have more checkpoints than almSim's own 60-month horizon (BUILD_MONTHS + HORIZON). */
+export const MAX_SCHEDULE_ENTRIES = 60;
 
-  if (!isBondLike(ins)) {
-    if (typeof v.durationM !== "number" || !Number.isInteger(v.durationM) || v.durationM < 1) return false;
-  } else if (v.durationM !== undefined) {
-    return false; // bond-like instruments must NOT carry a durationM — they always use their own plazoM
-  }
-
-  return isValidMaturityDecision(v.onMaturity, depth + 1);
+/**
+ * An instrument's own holding period in months before its principal matures
+ * back into the investable pool. Bond-like instruments always use their
+ * fixed contractual term (ins.plazoM). LIQ — genuinely liquid — rolls every
+ * month. ACC has no real-world term at all; the team no longer chooses one
+ * (that was a Tranche-only concept), so the engine fixes it at ACC_ROLL_M.
+ */
+export function instrumentDurationM(ins: Instrument): number {
+  if (isBondLike(ins)) return ins.plazoM;
+  if (ins.id === "LIQ") return 1;
+  return ACC_ROLL_M;
 }
 
-function isValidMaturityDecision(value: unknown, depth: number): value is MaturityDecision {
-  if (depth > MAX_TRANCHE_DEPTH) return false;
+function isValidMonthlyAllocationEntry(value: unknown): value is MonthlyAllocationEntry {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  if (v.action === "cash" || v.action === "repeat") return true;
-  if (v.action === "reallocate") {
-    return (
-      Array.isArray(v.tranches) &&
-      v.tranches.length > 0 &&
-      v.tranches.length <= MAX_TRANCHE_SIBLINGS &&
-      v.tranches.every((t) => isValidTranche(t, depth + 1))
-    );
-  }
-  return false;
+  if (typeof v.month !== "number" || !Number.isInteger(v.month) || v.month < 0) return false;
+  return isMinVarianceAllocation(v.allocation);
 }
 
 /**
  * Guards against a stored PortfolioAllocation.allocation predating this
- * shape (the old {allocation, maturityRules} model, or anything older) —
- * none of those have a `tranches` key, so they're rejected automatically
- * and treated as "no decision submitted yet," the same graceful-
- * degradation pattern the previous version already used for ITS
- * predecessors. This is also the real security boundary for client-
- * submitted JSON (see submitPortfolioAction) — strict and recursive, not
- * just a shallow shape check.
+ * shape (the old tree-based PortfolioDecisionV3, or anything older) — none
+ * of those have a `schedule` key, so they're rejected automatically and
+ * treated as "no decision submitted yet," the same graceful-degradation
+ * pattern the previous version already used for ITS predecessors. This is
+ * also the real security boundary for client-submitted JSON (see
+ * submitPortfolioAction) — strict, not just a shallow shape check.
  */
-export function isPortfolioDecisionV3(value: unknown): value is PortfolioDecisionV3 {
+export function isPortfolioDecisionV4(value: unknown): value is PortfolioDecisionV4 {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  return (
-    Array.isArray(v.tranches) &&
-    v.tranches.length > 0 &&
-    v.tranches.length <= MAX_TRANCHE_SIBLINGS &&
-    v.tranches.every((t) => isValidTranche(t, 0))
-  );
+  if (
+    !Array.isArray(v.schedule) ||
+    v.schedule.length === 0 ||
+    v.schedule.length > MAX_SCHEDULE_ENTRIES ||
+    !v.schedule.every((e) => isValidMonthlyAllocationEntry(e))
+  ) {
+    return false;
+  }
+  const schedule = v.schedule as MonthlyAllocationEntry[];
+  if (schedule[0].month !== 0) return false;
+  for (let i = 1; i < schedule.length; i++) {
+    if (schedule[i].month <= schedule[i - 1].month) return false;
+  }
+  return true;
 }
 
 /**
@@ -224,12 +219,13 @@ export function isPortfolioDecisionV3(value: unknown): value is PortfolioDecisio
  * map, one entry per instrument in the menu (no more, no less — a team
  * can't silently omit an instrument to dodge it, must explicitly weight it
  * 0), every weight a finite number >= 0. Distinguishes this shape from
- * PortfolioDecisionV3 (which has a `tranches` key instead) — both are
- * stored in the same PortfolioAllocation.allocation Json column, keyed by
- * day (day=1 is always this shape, day=2/3 are always PortfolioDecisionV3).
+ * PortfolioDecisionV4 (which has a `schedule` key instead) at the top
+ * level — both are stored in the same PortfolioAllocation.allocation Json
+ * column, keyed by day (day=1 is always this shape; day=2's checkpoints
+ * reuse this same guard per-entry, see isValidMonthlyAllocationEntry).
  */
 export function isMinVarianceAllocation(value: unknown): value is Allocation {
-  if (typeof value !== "object" || value === null || "tranches" in value) return false;
+  if (typeof value !== "object" || value === null || "schedule" in value) return false;
   const v = value as Record<string, unknown>;
   const keys = Object.keys(v);
   if (keys.length !== INSTRUMENTS.length) return false;

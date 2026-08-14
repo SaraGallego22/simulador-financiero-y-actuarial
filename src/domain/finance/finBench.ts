@@ -19,7 +19,7 @@ export interface AlmYearBenchInput {
   portYield: number;
   /** Real investment income this specific year's ALM accrued — what feeds this year's P&G "Resultado de inversiones" line. */
   income: number;
-  /** Cumulative Capital Social committed through the end of this year — subtracted directly from patrimonio in balance(), never folded into rinv (see that function's doc comment). */
+  /** Cumulative genuine external financing needed through the end of this year — subtracted directly from patrimonio in balance(), never folded into rinv (see that function's doc comment). Only nonzero once LIQ *and* the entire real portfolio, Capital Social included, were exhausted via ordinary forced liquidation — see almSimRealYear()'s doc comment in alm.ts. */
   capitalComprometido: number;
   /** This year's book-value-weighted average realized volatility — feeds rFin's volRatio. */
   avgVol: number;
@@ -29,7 +29,7 @@ export interface AlmYearBenchInput {
   effectiveYield?: number;
   /** This year's real year-end Caja Mínima balance (see AlmRealYearResult.cajaFinalAnio) — feeds the Balance's `caja` line, replacing the old flat FZ.cajaPct×primaEmitida approximation. */
   cajaFinalAnio: number;
-  /** This year's real, undiminished year-end portfolio book value from prima-flow reinvestment alone (see AlmRealYearResult.portfolioBookValue) — feeds the Balance's `inversiones` line together with the team's own non-committed Capital Social (added separately in balance(), never by this ALM run itself — the real ALM only ever reinvests prima cash flow, never Capital Social, see almSimRealYear()'s doc comment). */
+  /** This year's real, undiminished year-end portfolio book value — includes Capital Social, funded into the tree at Año 1's start (see AlmRealYearResult.portfolioBookValue / almSimRealYear()'s doc comment) alongside every month's prima-flow reinvestment; they're mechanically indistinguishable positions by this point. Feeds the Balance's `inversiones` line directly — see balance() below. */
   portfolioBookValue: number;
 }
 
@@ -77,9 +77,9 @@ export interface BalanceSheet {
   caja: number;
   cxc: number;
   cxp: number;
-  /** Real economic fact — this year's real ALM portfolio book value (prima-flow reinvestment only) plus the team's own non-committed Capital Social (max(0, CAPITAL_SOCIAL − capitalComprometido), invested separately from the prima-only ALM tree) — never a balancing residual. */
+  /** Real economic fact — this year's real ALM portfolio book value, which already includes Capital Social (funded into the tree at Año 1's start, see AlmYearBenchInput.portfolioBookValue) — never a balancing residual. */
   inversiones: number;
-  /** max(0, capitalComprometido − CAPITAL_SOCIAL) — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team has drawn more Capital Social than it started with: the excess had to come from fresh financing (equity or debt) raised beyond the original endowment. Zero for every team that never exhausts its Capital Social — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
+  /** Equals capitalComprometido directly — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team's entire real portfolio (Capital Social included) was exhausted via ordinary forced liquidation and LIQ still wasn't enough: genuinely external financing (equity or debt) needed beyond everything the team had. Zero for the vast majority of teams — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
   necesidadesPatrimonioODeuda: number;
   /** caja + inversiones + cxc. Because caja/inversiones are real, independently-computed facts (not solved for), this generally does NOT sum to the exact same peso as Pasivo+Patrimonio — a small residual is a known property of this simplified model (see README §4.3), not something necesidadesPatrimonioODeuda is meant to absorb. */
   activos: number;
@@ -177,42 +177,41 @@ function pyg(primaEmitida: number, rpndLiberada: number, costo: number, rinv: nu
 
 /**
  * capitalComprometido subtracts directly from patrimonio — it's the real
- * consequence of the real Día 2 ALM having had to draw on Capital Social to
- * meet a cash-flow shortfall neither LIQ nor the rest of the (prima-funded)
- * portfolio could cover (see almSimRealYear's step 4 in alm.ts). This is a
- * lasting equity hit, not something the year's ordinary P&L (retenido)
- * already captures — the P&L reflects accrual-basis annual profitability,
- * this reflects a within-year cash-timing failure.
+ * consequence of the real Día 2 ALM having had LIQ *and* its entire
+ * remaining real portfolio (Capital Social included — funded into the tree
+ * at Año 1's start, see almSimRealYear() in alm.ts) all exhausted by a
+ * cash-flow shortfall, and still needing more (see almSimRealYear's step 4).
+ * This is a lasting equity hit, not something the year's ordinary P&L
+ * (retenido) already captures — the P&L reflects accrual-basis annual
+ * profitability, this reflects a within-year cash-timing failure.
  *
- * inversiones is a real economic fact, not a plug: the real ALM's own
- * year-end portfolio book value (funded exclusively by prima cash flow —
- * see almSimRealYear's doc comment on why Capital Social never runs through
- * that simulation) plus the team's own Capital Social not drawn on to cover
- * a shortfall (`capital0 − capitalComprometido`, floored at 0 — Capital
- * Social can't fund a shortfall it doesn't have). caja is likewise a real
- * fact: the real ALM's own year-end Caja Mínima balance, not a flat
- * percentage of annual premium. Both fall back to the old flat-percentage/
- * zero treatment when there's no real ALM to draw from at all (no decision
- * submitted, or Año 3 — never simulated, see finBench()'s own doc comment
- * on p3).
+ * inversiones is a real economic fact, not a plug: it's the real ALM's own
+ * year-end portfolio book value, which already includes Capital Social
+ * (see AlmYearBenchInput.portfolioBookValue's doc comment) — no separate
+ * "non-committed Capital Social" term added on top of it anymore; that
+ * would double-count what's already inside portfolioBookValue. caja is
+ * likewise a real fact: the real ALM's own year-end Caja Mínima balance,
+ * not a flat percentage of annual premium. Both fall back to the old
+ * flat-percentage/Capital-Social-at-capital0 treatment when there's no real
+ * ALM to draw from at all (no decision submitted, or Año 3 — never
+ * simulated, see finBench()'s own doc comment on p3).
  *
- * necesidadesPatrimonioODeuda is deliberately narrow: it's only ever
- * nonzero once capitalComprometido exceeds the team's entire starting
- * Capital Social (`capital0 − capitalComprometido` would otherwise go
- * negative) — the team ran out of Capital Social to draw on and still
- * needed more to keep Caja Mínima met, so that excess has to come from
- * fresh financing raised beyond what it started with, not from Capital
- * Social itself. It sits on the LIABILITY side (added into pasivo by the
- * caller, alongside reservasTec/rpnd/cxp — never into activos): the exact
- * same capitalComprometido is already subtracted once from patrimonio
- * (equity side) and once from inversiones (asset side, via the floor at 0);
- * adding the excess back into activos would double-count that deduction's
- * sign, not undo it — verified empirically (see finBench.test.ts) that
- * booking it as a liability instead keeps the Activos-vs-Pasivo+Patrimonio
- * gap identical whether or not the clamp triggers, so this line's presence
- * never interacts with (or masks) any other line — it purely reports "this
- * team spent more than its entire Capital Social." This is NOT the line
- * that forces the sheet to close in general — caja/inversiones being real,
+ * necesidadesPatrimonioODeuda now equals capitalComprometido directly — the
+ * old `max(0, capitalComprometido − capital0)` subtraction stopped making
+ * sense once Capital Social is invested and gets force-liquidated like
+ * anything else before capitalComprometido can ever become nonzero: by the
+ * time it does, capital0 is *already* fully spent (it went through ordinary
+ * forced liquidation first, inside almSimRealYear() — see its doc comment),
+ * so any capitalComprometido at all is, by construction, genuinely external
+ * financing needed beyond everything the team had, not an excess over some
+ * remaining Capital Social balance. It still sits on the LIABILITY side
+ * (added into pasivo by the caller, alongside reservasTec/rpnd/cxp — never
+ * into activos): the same capitalComprometido is already subtracted once
+ * from patrimonio (equity side) and is embedded in a *lower* inversiones
+ * (asset side, since the real ALM's own book value reflects however much
+ * had to be liquidated) — adding it again into activos would double-count
+ * that deduction's sign, not undo it. This is NOT the line that forces the
+ * sheet to close in general — caja/inversiones being real,
  * independently-computed facts (not solved for) means Activos and
  * Pasivo+Patrimonio generally don't sum to the exact same peso even for a
  * healthy team; that small residual is a known property of this simplified
@@ -232,9 +231,8 @@ function balance(
   const caja = almYear ? almYear.cajaFinalAnio : FZ.cajaPct * pygY.primaEmitida;
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
-  const capitalSocialInvertido = Math.max(0, capital0 - capitalComprometido);
-  const necesidadesPatrimonioODeuda = Math.max(0, capitalComprometido - capital0);
-  const inversiones = (almYear?.portfolioBookValue ?? 0) + capitalSocialInvertido;
+  const necesidadesPatrimonioODeuda = capitalComprometido;
+  const inversiones = almYear ? almYear.portfolioBookValue : Math.max(0, capital0 - capitalComprometido);
   return {
     reservasTec,
     rpnd,

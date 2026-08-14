@@ -88,7 +88,7 @@ export function GuiaPasanteDia4() {
       <InsumosEntregables
         insumos={[
           "Balance de cada año (Día 3): reservas, RPND, cuentas por cobrar/pagar y patrimonio.",
-          "Volatilidad realizada y concentración de tu árbol de portafolio (Día 2).",
+          "Volatilidad realizada y concentración de tu calendario de portafolio (Día 2).",
           "El menú de instrumentos que ya conoces (Día 1/2) — no hay curvas nuevas que memorizar: la nominal y la real salen de los mismos yields del menú.",
           "Tu propia cartera (parcial, sesgada) y el CSV público del universo, para la recomendación sectorial.",
         ]}
@@ -172,8 +172,17 @@ export function GuiaPasanteDia4() {
             valorando — y ninguna de las dos es nueva: ambas salen del mismo menú de instrumentos que ya conoces desde Día 1. La curva{" "}
             <strong>nominal</strong> son los yields de CDT90 (3 meses), TES1 (1 año) y TES3 (3 años), interpolados entre esos plazos. La curva{" "}
             <strong>real</strong> se ancla al yield real de TESUVR8 (el mismo &ldquo;Inflación + X%&rdquo; que ya ves en el menú de instrumentos, a
-            su propio plazo de 8 años) — con un solo instrumento indexado a inflación en el menú, esa curva real toma la forma de la curva nominal,
-            desplazada para pasar exactamente por ese punto.
+            su propio plazo de 8 años) — con un solo instrumento indexado a inflación en el menú, esa es tu única pista para despejar una inflación
+            implícita (Fisher, ver abajo) en ese punto; la curva real completa sale de deflactar la curva nominal por esa misma inflación en
+            cualquier otro plazo, no de restarle un número fijo.
+          </p>
+          <p>
+            &ldquo;Interpolados entre esos plazos&rdquo; quiere decir <strong>interpolación lineal</strong>: para un plazo entre dos puntos dados
+            (ej. 6 meses, entre CDT90 a 3 y TES1 a 12), la tasa es un promedio ponderado por qué tan cerca queda de cada uno —{" "}
+            <em>tasa(plazo) = tasa_A + (plazo − plazo_A)/(plazo_B − plazo_A) × (tasa_B − tasa_A)</em>, con A el punto anterior y B el siguiente. Para
+            un plazo antes de 3 meses o después de 36 meses (fuera del rango que cubren CDT90/TES1/TES3) se usa la tasa del punto dado más cercano,
+            sin extrapolar más allá — así que, por ejemplo, el plazo remanente de una posición TESUVR8 que cae en la curva <strong>nominal</strong>{" "}
+            (para el choque de riesgo de inflación, que sí mueve lo nominal) usa la tasa de TES3 si ese plazo supera los 36 meses.
           </p>
           <p>
             La relación entre ambas curvas (Fisher) es (1+nominal) = (1+real) × (1+inflación) — despejando, la curva de inflación implícita que tu
@@ -189,9 +198,20 @@ export function GuiaPasanteDia4() {
             nominales, comparado contra el perfil de tu pasivo — eso es lo que tu equipo tiene que descubrir, no algo que se te entrega.
           </p>
           <p>
+            TES3 y TESUVR8 pagan cupón anual (ver Día 2), así que su valor presente no es un solo flujo al vencer: es la suma de cada cupón remanente
+            más el principal del último pago, cada uno descontado a su propio plazo en la curva que le corresponde (nominal para TES3, real para
+            TESUVR8) — el mismo tipo de cálculo &ldquo;cada flujo a su propio plazo&rdquo; que ya aplicas al pasivo, aplicado ahora también a estas dos
+            posiciones. CDT90 y TES1 siguen siendo un único pago al vencer, sin cambios.
+          </p>
+          <p>
             El riesgo de acciones es más directo: tu exposición real en ACC al cierre de Año 2 (lo que efectivamente terminaste sosteniendo en ese
-            instrumento, según tu propio árbol de Día 2) multiplicada por un cargo regulatorio fijo del 39% — el mismo tipo de cargo que Solvencia II
+            instrumento, según tu propio calendario de Día 2) multiplicada por un cargo regulatorio fijo del 39% — el mismo tipo de cargo que Solvencia II
             exige para acciones cotizadas.
+          </p>
+          <p>
+            &ldquo;Tu portafolio real al cierre de Año 2&rdquo; incluye tu Capital Social — se invierte según el mismo calendario que tu prima desde el
+            arranque de 2027, no aparte de él (ver Balance, Día 3) — así que tu exposición en cada instrumento (TESUVR8, ACC, lo que sea) es mayor a
+            lo que tu prima real sola habría financiado.
           </p>
         </SubSection>
 
@@ -234,7 +254,7 @@ export function GuiaPasanteDia4() {
             acciones, y son cosas distintas entre sí. El riesgo de prima escala con tu propia volatilidad de siniestralidad, no con un porcentaje
             plano. El riesgo financiero tampoco es un porcentaje plano sobre tus inversiones: se escala por qué tan volátil resultó realmente tu
             portafolio frente al promedio del menú de instrumentos. El riesgo de concentración es independiente de eso — se escala por qué tan
-            repartido quedó tu árbol entre los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era
+            repartido quedó tu calendario entre los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era
             volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo nominal) sigue pagando este segundo cargo completo, aunque su riesgo
             financiero sea bajo. El riesgo de acciones es, de los cuatro, el único que depende de un solo instrumento específico (ACC) y de un cargo
             fijo, no de una fórmula que combina varios factores tuyos. Ver sección 5 para las fórmulas completas.
@@ -278,7 +298,7 @@ export function GuiaPasanteDia4() {
               tu rendimiento, antes de reportar.
             </li>
             <li>
-              <strong>Si tu nota de Rendimiento del Día 2 quedó más baja de lo esperado, revisa qué tan repartido quedó tu árbol.</strong> Ese mismo
+              <strong>Si tu nota de Rendimiento del Día 2 quedó más baja de lo esperado, revisa qué tan repartido quedó tu calendario.</strong> Ese mismo
               descuento por concentración reaparece aquí como un cargo de capital aparte del financiero — un CDT90 100% concentrado paga este cargo
               completo aunque su volatilidad sea baja. Entender esa conexión es lo que te permite reportar un RK correcto hoy, no solo recordar que tu
               nota de Día 2 fue más baja.
@@ -305,7 +325,7 @@ export function GuiaPasanteDia4() {
             </li>
             <li>
               <strong>El riesgo de tasa/inflación se valora con tu portafolio y pasivo reales al cierre de Año 2, no con la simulación ficticia de
-              Día 2.</strong> Las posiciones que importan son las que tu árbol real todavía tiene abiertas en ese momento, y los flujos de siniestros
+              Día 2.</strong> Las posiciones que importan son las que tu calendario real todavía tiene abiertas en ese momento, y los flujos de siniestros
               (propios y de Año 1) que todavía quedan por pagar después de ese punto.
             </li>
           </ul>
@@ -359,7 +379,7 @@ export function GuiaPasanteDia4() {
             <ScoreCard label="Riesgo operacional (rOp)" formula="3% × prima" />
             <ScoreCard
               label="Riesgo de concentración (rConcentracion)"
-              formula="3% × inversiones × concentración de tu árbol (0 a 1, excluye LIQ — mismo número que descontó tu Rendimiento en Día 2)"
+              formula="3% × inversiones × concentración de tu calendario (0 a 1, excluye LIQ — mismo número que descontó tu Rendimiento en Día 2)"
             />
             <ScoreCard label="Riesgo de acciones (rAcciones)" formula="tu exposición real en ACC al cierre de Año 2 × 39%" />
             <ScoreCard
@@ -371,7 +391,7 @@ export function GuiaPasanteDia4() {
             <ScoreCard label="EVA (Valor Económico Agregado)" formula="Utilidad Neta (año vigente, Día 3) − 10% × Fondos propios" />
             <ScoreCard
               label="Curvas dadas"
-              formula="nominal = yields de CDT90/TES1/TES3 por plazo (interpolados) · real = curva nominal desplazada para pasar por el yield real de TESUVR8 a su propio plazo · inflación implícita = (1+nominal)/(1+real) − 1 por plazo (la derivas tú)"
+              formula="nominal = yields de CDT90/TES1/TES3 por plazo, interpolación lineal entre puntos y plana fuera de [3,36] meses · inflación implícita = despéjala de (1+nominal)/(1+real) = (1+inflación) en el único plazo donde conoces las dos (TESUVR8, 96 meses) — luego es la misma en cualquier otro plazo · real = (1+nominal)/(1+inflación) − 1 en cada plazo (nunca una resta)"
             />
             <ScoreCard
               label="Riesgo de tasa"
@@ -387,7 +407,7 @@ export function GuiaPasanteDia4() {
             números de tu Balance del año vigente (Día 3) — no hay que recalcularlos desde cero. La σ de siniestralidad es la única línea que mira los 3
             años a la vez en lugar de solo el año vigente. Riesgo de tasa, riesgo de inflación y riesgo de acciones son distintos a las demás líneas
             de esta tabla en un sentido: no salen de tu Balance de Día 3, sino de tu portafolio y pasivo <strong>reales</strong> al cierre de Año 2
-            (las posiciones que tu árbol real todavía tiene abiertas en ese momento, no un número ya reportado en otro día).
+            (las posiciones que tu calendario real todavía tiene abiertas en ese momento, no un número ya reportado en otro día).
           </p>
         </FlowStep>
 
@@ -412,7 +432,7 @@ export function GuiaPasanteDia4() {
         <FlowStep n="3" title="5.3 · El camino completo, de tus decisiones a tu nota" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
-              Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu árbol de portafolio (Día 2, la misma concentración que ya
+              Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu calendario de portafolio (Día 2, la misma concentración que ya
               descontó tu nota de Rendimiento entonces) → alimentan el RK y tu margen de solvencia (5.1). En paralelo, tu lectura del mercado a través de
               tu propia cartera y el CSV público → tu recomendación sectorial (5.2), calificada contra el ranking real que nunca ves directamente.
             </p>

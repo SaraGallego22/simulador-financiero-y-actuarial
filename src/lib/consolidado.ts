@@ -4,7 +4,7 @@ import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSect
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
-import { isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { scoreMinVariance } from "@/domain/finance/markowitz";
 import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -112,16 +112,16 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
   const finBenchByTeamId = await computeFinBenchForCohort(cohort.id);
 
-  // Año 1's real ALM tree is submitted Día 2 (not Día 1 — Día 1 is the
+  // Año 1's real ALM schedule is submitted Día 2 (not Día 1 — Día 1 is the
   // minimum-variance exercise, scored separately below).
   const almScoreByTeamId = new Map<string, number>();
   const book1 = await getTeamBookForDay(cohort.id, 1);
   if (book1) {
     const reserves1 = computeReservesForTeams(book1.claimsByTeamId);
-    const treeAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId: cohort.id } } });
-    for (const a of treeAllocations) {
+    const scheduleAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId: cohort.id } } });
+    for (const a of scheduleAllocations) {
       const reserves = reserves1.get(a.teamId);
-      if (reserves && isPortfolioDecisionV3(a.allocation)) {
+      if (reserves && isPortfolioDecisionV4(a.allocation)) {
         const s = scoreFinanciero(reserves, a.allocation);
         if (s) almScoreByTeamId.set(a.teamId, s.nota);
       }
