@@ -148,3 +148,16 @@ export const CAPITAL_SOCIAL = 81_000_000_000;
  * absence of one, not derived from anything else in this engine.
  */
 export const ACC_STRESS_PCT = 0.39;
+
+/**
+ * How many months an ACC (renta variable) position stays open before its
+ * proceeds roll back into that month's investable pool, under the Día 2
+ * monthly-allocation model (see MonthlyAllocationEntry/PortfolioDecisionV4
+ * in instruments.ts). Real equities have no fixed term, and since the team
+ * no longer chooses a per-position duration (that was a Tranche-only
+ * concept, removed along with onMaturity), the engine picks one instead —
+ * 12 months, the same order as TES1's own term, long enough that ACC isn't
+ * effectively as liquid as LIQ (which rolls every month) while still giving
+ * teams a genuine yearly chance to rebalance out of it.
+ */
+export const ACC_ROLL_M = 12;

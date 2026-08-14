@@ -1,7 +1,7 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, isBondLike, trancheDurationM, displayYield } from "./instruments";
-import type { Allocation, PortfolioDecisionV3, Tranche } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, instrumentDurationM, isCouponBond, displayYield } from "./instruments";
+import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
 
 export const W_CUMPL_CAJA = 0.35;
@@ -101,27 +101,27 @@ function nominalCurveRate(months: number): number {
 }
 
 /**
- * Real curve spread: the menu has only one genuinely inflation-linked
+ * Implied inflation: the menu has only one genuinely inflation-linked
  * instrument (TESUVR8), so it can't define a real curve *shape* on its
  * own — only a single anchor point, at its own 96-month tenor
  * (displayYield() already computes exactly this: TESUVR8's real return,
  * the same number already shown to teams as "Inflación + X%" in the
- * instrument menu). The real curve reuses the nominal curve's shape
- * (same relative movement across tenors — a constant implied-inflation
- * assumption, the same simplification this engine already makes
- * everywhere else it needs a single inflation number) shifted by the one
- * spread that makes it pass through TESUVR8's own real yield at month 96.
+ * instrument menu). Solved via Fisher at that one point —
+ * `(1+nominal)=(1+real)×(1+inflación)` — and then held constant across
+ * every tenor, the same simplification this engine already makes
+ * everywhere else it needs a single inflation number (GENERAL_INFLATION_ANNUAL
+ * is likewise one flat rate, never a curve). This is deliberately
+ * multiplicative throughout, matching displayYield()'s own Fisher
+ * decomposition — an earlier version of this constant subtracted an
+ * additive spread from the nominal curve instead, which is NOT the same
+ * relationship: `(1+nominal)/(1+real)-1` isn't `nominal-real`, and the two
+ * only agree at the one calibration point.
  */
-const REAL_CURVE_SPREAD = nominalCurveRate(INSTRUMENT_BY_ID.TESUVR8.plazoM) - displayYield(INSTRUMENT_BY_ID.TESUVR8);
+const IMPLIED_INFLATION = (1 + nominalCurveRate(INSTRUMENT_BY_ID.TESUVR8.plazoM)) / (1 + displayYield(INSTRUMENT_BY_ID.TESUVR8)) - 1;
 
-/** Real rate for a given remaining term (months) — nominal curve shape, shifted by REAL_CURVE_SPREAD. */
+/** Real rate for a given remaining term (months) — the nominal curve at that same term, deflated by the constant IMPLIED_INFLATION via Fisher. */
 function realCurveRate(months: number): number {
-  return nominalCurveRate(months) - REAL_CURVE_SPREAD;
-}
-
-/** Per-tenor implied inflation curve (Fisher), from the two curves above — varies slightly by tenor even with a constant spread, since Fisher is multiplicative, not additive. */
-function inflacionCurveRate(months: number): number {
-  return (1 + nominalCurveRate(months)) / (1 + realCurveRate(months)) - 1;
+  return (1 + nominalCurveRate(months)) / (1 + IMPLIED_INFLATION) - 1;
 }
 
 export interface AlmSimRow {
@@ -130,7 +130,7 @@ export interface AlmSimRow {
   primaCobrada: number;
   pagoSiniestros: number;
   gastos: number;
-  /** Proceeds this month from instruments that matured with a "mantener en caja" rule — folded into availability before Inversión Neta is computed. */
+  /** Proceeds this month from every position that matured, of any instrument, PLUS any coupon paid this month by an open (non-maturing) TES3/TESUVR8 position (see isCouponBond() in instruments.ts) — folded into availability before Inversión Neta is computed. There's no per-position "keep as cash" choice: maturity always releases cash here, and whichever monthly checkpoint is active decides where the resulting surplus, if any, gets reinvested (see activeAllocation()). */
   vencimientosCaja: number;
   /** Negative = surplus invested this month; positive = drawn from LIQ, forced portfolio sales, and/or committed capital to cover a Caja Mínima shortfall — always exactly covers the shortfall now (see the module doc comment: Caja Mínima is never left unmet). */
   inversionNeta: number;
@@ -142,7 +142,7 @@ export interface AlmSimRow {
   capitalComprometidoPortafolio: number;
   /** Book value of every open investment position at the START of this month, net of any Capital Social committed so far (= previous month's saldoFinalPortafolio, or 0 at the first month) — separate from the cash-statement columns above, this tracks the *portfolio's* value, not the cash floor. Can be negative once cumulative capital committed exceeds what's actually invested. */
   saldoInicialPortafolio: number;
-  /** Yield/growth accrued this month across all open positions (step 1 of the simulation) — the only way saldoFinalPortafolio can grow without fresh Inversión Neta. */
+  /** Yield/growth accrued this month across all open positions (step 1 of the simulation), including any TES3/TESUVR8 coupon paid this month — the only way saldoFinalPortafolio can grow without fresh Inversión Neta. */
   rendimientoPortafolio: number;
   /** saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta (an identity — see alm.test.ts): money leaves the portfolio via "mantener en caja" or a draw to cover a shortfall, and enters via fresh Inversión Neta. Can be negative — see capitalComprometidoPortafolio. */
   saldoFinalPortafolio: number;
@@ -183,8 +183,7 @@ export interface AlmSimResult {
 }
 
 export interface Position {
-  /** Reference to the exact tranche that produced this position — its onMaturity is read fresh when this position matures. */
-  tranche: Tranche;
+  instrumentId: string;
   book: number;
   yM: number;
   matM: number;
@@ -253,27 +252,53 @@ function stepMonth(
   fase: "a1" | "post",
   primaCobrada: number,
   pagoSiniestros: number,
-  decision: PortfolioDecisionV3,
+  decision: PortfolioDecisionV4,
   state: AlmYearState,
   acc: MonthAccumulators
 ): StepResult {
   const saldoInicialPortafolio = state.positions.reduce((s, p) => s + p.book, 0) - state.capitalComprometidoAcumulado;
 
-  // 1. Route this month's maturities per each position's own onMaturity.
-  //    Runs before accrual (below) — a maturing position pays out its book
-  //    value as of last month's close, without earning further on its own
-  //    maturity month; its "repeat"/"reallocate" replacement is a brand-new
-  //    position that (correctly) hasn't earned anything yet either, until
-  //    the accrual step below runs.
+  // 1. Route this month's maturities, and pay any periodic coupon due this
+  //    month on positions that AREN'T maturing (coupon-bearing instruments
+  //    only — TES3/TESUVR8, see isCouponBond() in instruments.ts). Runs
+  //    before accrual (below) — a maturing position pays out its book value
+  //    as of last month's close, without earning further on its own
+  //    maturity month. There's no per-position onMaturity choice: every
+  //    position's principal becomes available cash here, unconditionally,
+  //    regardless of instrument — where it goes next is entirely up to
+  //    whichever checkpoint is active this month (see step 3 below), same
+  //    as any other month's surplus. A coupon bond's own coupon is genuine
+  //    investment return (folded into devengo in step 4 below via
+  //    cuponDevengo), not another maturity — it doesn't remove or resize
+  //    the position beyond paying out the coupon itself; the position's
+  //    book stays flat at its funded principal for its whole life (step 4
+  //    skips monthly compounding for coupon-bond positions entirely, since
+  //    their yield is realized purely through these coupons instead).
   const remaining: Position[] = [];
   const maturingNow: Position[] = [];
   for (const p of state.positions) (p.matM === t ? maturingNow : remaining).push(p);
+
   let vencCash = 0;
+  let cuponDevengo = 0;
   for (const p of maturingNow) {
-    const action = p.tranche.onMaturity;
-    if (action.action === "cash") vencCash += p.book;
-    else if (action.action === "repeat") fundTranches([p.tranche], p.book, t, remaining);
-    else fundTranches(action.tranches, p.book, t, remaining);
+    const ins = INSTRUMENT_BY_ID[p.instrumentId];
+    // A coupon bond's final coupon (its last held year) is bundled with its
+    // principal at maturity — the periodic-coupon loop below only ever
+    // fires on a position that ISN'T maturing this month.
+    const finalCoupon = ins && isCouponBond(ins) ? p.book * ins.yield : 0;
+    vencCash += p.book + finalCoupon;
+    cuponDevengo += finalCoupon;
+  }
+  for (const p of remaining) {
+    const ins = INSTRUMENT_BY_ID[p.instrumentId];
+    if (!ins || !isCouponBond(ins)) continue;
+    const fundedMonth = p.matM - ins.plazoM;
+    const monthsHeld = t - fundedMonth;
+    if (monthsHeld > 0 && monthsHeld % 12 === 0) {
+      const coupon = p.book * ins.yield;
+      vencCash += coupon;
+      cuponDevengo += coupon;
+    }
   }
   state.positions = remaining;
 
@@ -291,7 +316,7 @@ function stepMonth(
   let capitalComprometido = 0;
   if (neededNeta <= 0) {
     const surplus = -neededNeta;
-    fundTranches(decision.tranches, surplus, t, state.positions);
+    fundFromAllocation(activeAllocation(decision.schedule, t), surplus, t, state.positions);
     inversionNeta = neededNeta;
     cajaFinal = cajaMinima;
   } else {
@@ -333,9 +358,17 @@ function stepMonth(
   //    month (it's paid out based on last month's book, not "topped up"
   //    first) — that half of the asymmetry was always correct and is
   //    unaffected by this reorder.
-  let devengo = 0;
+  //
+  //    Coupon-bond positions (TES3/TESUVR8) are skipped here entirely —
+  //    their book never compounds month to month, since their full yield is
+  //    already realized via the periodic/final coupons paid in step 1
+  //    (folded into devengo via cuponDevengo, seeded below). Every other
+  //    instrument keeps compounding monthly exactly as before.
+  let devengo = cuponDevengo;
   for (const p of state.positions) {
     if (p.matM > t) {
+      const ins = INSTRUMENT_BY_ID[p.instrumentId];
+      if (ins && isCouponBond(ins)) continue;
       const g = p.book * p.yM;
       p.book += g;
       devengo += g;
@@ -350,7 +383,7 @@ function stepMonth(
   // of letting the portfolio show negative).
   const realBookSum = state.positions.reduce((s, p) => s + p.book, 0);
   const saldoFinalPortafolio = realBookSum - state.capitalComprometidoAcumulado;
-  const volWeightedBookSum = state.positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual, 0);
+  const volWeightedBookSum = state.positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.instrumentId].volAnual, 0);
   acc.peakOpenPositions = Math.max(acc.peakOpenPositions, state.positions.length);
 
   const row: AlmSimRow = {
@@ -374,45 +407,60 @@ function stepMonth(
 }
 
 /**
- * Splits `monto` across `tranches` by weight and appends one new Position
- * per non-degenerate share into `positions`. Used to (a) fund the top-level
- * decision.tranches template with fresh money every month (the base
- * allocation isn't a one-time lump — it's a reusable policy applied
- * whenever there's surplus to invest, exactly like the previous
- * `allocation` field), (b) fund a "reallocate" node's children, and (c)
- * re-fund a "repeat" tranche (called with a singleton `[tranche]` list).
- * Purely iterative — never calls itself or almSim — so "repeat"/"reallocate"
- * cycling across many months never grows the call stack; see the module
- * doc comment above almSim.
+ * Splits `monto` across `alloc` by weight and appends one new Position per
+ * non-degenerate share into `positions`. Called every month with whatever
+ * checkpoint is currently active (see activeAllocation()) to fund that
+ * month's surplus — the active allocation isn't a one-time lump, it's a
+ * reusable policy applied to every month's surplus until the next
+ * checkpoint overrides it. Purely iterative — never calls itself or
+ * almSim — so a schedule that keeps reusing the same checkpoint across many
+ * months never grows the call stack; see the module doc comment above
+ * almSim.
  */
-function fundTranches(tranches: Tranche[], monto: number, atMonth: number, positions: Position[]): void {
+function fundFromAllocation(alloc: Allocation, monto: number, atMonth: number, positions: Position[]): void {
   if (monto <= 0) return;
-  const valid = tranches.filter((tr) => INSTRUMENT_BY_ID[tr.instrumentId] && tr.weight > 0);
-  const totalW = valid.reduce((s, tr) => s + tr.weight, 0);
+  const ids = Object.keys(alloc).filter((id) => INSTRUMENT_BY_ID[id] && (Number(alloc[id]) || 0) > 0);
+  const totalW = ids.reduce((s, id) => s + Number(alloc[id]), 0);
   if (totalW <= 0) return;
-  for (const tranche of valid) {
-    const parte = (tranche.weight / totalW) * monto;
+  for (const id of ids) {
+    const w = Number(alloc[id]);
+    const parte = (w / totalW) * monto;
     if (parte <= 0) continue;
-    const ins = INSTRUMENT_BY_ID[tranche.instrumentId];
+    const ins = INSTRUMENT_BY_ID[id];
     const yM = Math.pow(1 + ins.yield, 1 / 12) - 1;
-    const dur = Math.max(1, trancheDurationM(tranche));
-    positions.push({ tranche, book: parte, yM, matM: atMonth + dur });
+    const dur = Math.max(1, instrumentDurationM(ins));
+    positions.push({ instrumentId: id, book: parte, yM, matM: atMonth + dur });
   }
+}
+
+/**
+ * The allocation in effect for month `t`: whichever checkpoint in `schedule`
+ * has the largest `month <= t` — schedule is assumed sorted ascending with a
+ * mandatory month-0 entry (see isPortfolioDecisionV4 in instruments.ts), so
+ * this always resolves to something.
+ */
+function activeAllocation(schedule: MonthlyAllocationEntry[], t: number): Allocation {
+  let active = schedule[0].allocation;
+  for (const entry of schedule) {
+    if (entry.month <= t) active = entry.allocation;
+    else break;
+  }
+  return active;
 }
 
 /**
  * Draws up to `neededNeta` out of whatever LIQ positions currently have
  * money, mutating their book values in place — a LIQ position stays part
  * of the always-drawable pool regardless of where it is in its own
- * maturity countdown (LIQ's custom duration is a decision-cadence device,
- * not a liquidity lock; see the module doc comment). Returns the amount
- * actually drawn.
+ * 1-month maturity countdown (see instrumentDurationM() in instruments.ts;
+ * this isn't a liquidity lock, just when its principal automatically rolls
+ * back into the investable pool). Returns the amount actually drawn.
  */
 function drawFromLiq(neededNeta: number, positions: Position[]): number {
   let remaining = neededNeta;
   for (const p of positions) {
     if (remaining <= 0) break;
-    if (p.tranche.instrumentId !== "LIQ") continue;
+    if (p.instrumentId !== "LIQ") continue;
     const take = Math.min(p.book, remaining);
     p.book -= take;
     remaining -= take;
@@ -429,9 +477,9 @@ function drawFromLiq(neededNeta: number, positions: Position[]): number {
  * ladder around gets tapped there before anything touches its equities.
  * Selling reduces a position's book value exactly like a natural maturity
  * payout would (no artificial haircut on the cash side — the consequence
- * lives entirely in the ventaForzada score, not in fabricated losses), and
- * does NOT trigger that position's onMaturity decision (it's an early,
- * forced exit, not a real maturity event).
+ * lives entirely in the ventaForzada score, not in fabricated losses); it's
+ * an early, forced exit from a position that would otherwise have kept
+ * accruing until its own matM.
  * Returns { sold, volWeighted }: total $ liquidated and the volatility-
  * weighted amount (Σ sold_i × volAnual_i) used to size the score penalty.
  */
@@ -441,11 +489,11 @@ function forceLiquidatePortfolio(neededNeta: number, positions: Position[]): { s
   let volWeighted = 0;
   if (remaining <= 0) return { sold, volWeighted };
   const sellable = positions
-    .filter((p) => p.tranche.instrumentId !== "LIQ" && p.book > 0)
-    .sort((a, b) => INSTRUMENT_BY_ID[a.tranche.instrumentId].volAnual - INSTRUMENT_BY_ID[b.tranche.instrumentId].volAnual);
+    .filter((p) => p.instrumentId !== "LIQ" && p.book > 0)
+    .sort((a, b) => INSTRUMENT_BY_ID[a.instrumentId].volAnual - INSTRUMENT_BY_ID[b.instrumentId].volAnual);
   for (const p of sellable) {
     if (remaining <= 0) break;
-    const vol = INSTRUMENT_BY_ID[p.tranche.instrumentId].volAnual;
+    const vol = INSTRUMENT_BY_ID[p.instrumentId].volAnual;
     const take = Math.min(p.book, remaining);
     p.book -= take;
     remaining -= take;
@@ -461,48 +509,56 @@ function forceLiquidatePortfolio(neededNeta: number, positions: Position[]): { s
  * Vencimientos en caja / Inversión Neta / Caja Final) and checked against a
  * mandatory minimum-cash floor (Caja Mínima) each month.
  *
- * `decision.tranches` is a tree, not a flat allocation: each tranche is a
- * slice of money in one instrument, and its `onMaturity` says what happens
- * when it reaches its own maturity/decision month — held as cash, repeated
- * (refunds the same instrument+duration indefinitely, no further
- * decisions), or reallocated into 1+ new child tranches (each with its own
- * onMaturity). The whole tree is also the *template* applied to fresh
- * surplus every month (Prima Cobrada during the build phase, or any
- * month's leftover after Caja Mínima is met) — a team decides this whole
- * tree once, up front, in a single sitting; there is no live/staged
- * simulation, `almSim` still runs the full horizon in one deterministic
- * pass, exactly as before.
+ * `decision.schedule` is a sparse, ascending list of monthly checkpoints
+ * (see MonthlyAllocationEntry/PortfolioDecisionV4 in instruments.ts), not a
+ * tree: each checkpoint is a flat {instrumentId: weight} allocation that
+ * applies to every month's investable surplus (Prima Cobrada during the
+ * build phase, or any later month's leftover after Caja Mínima is met, or
+ * proceeds from anything that matured that month) from its own `month`
+ * onward, until a later checkpoint overrides it — see activeAllocation().
+ * A team decides the whole schedule once, up front, in a single sitting;
+ * there is no live/staged simulation, `almSim` still runs the full horizon
+ * in one deterministic pass, exactly as before.
  *
- * Every instrument now has a maturity: bond-like instruments (CDT90/TES1/
- * TES3/TESUVR8) use their own fixed ins.plazoM; LIQ and ACC use a
- * team-chosen `durationM` per tranche instead. LIQ and ACC generalize
- * differently, though, because they play different roles:
- * - LIQ positions still count toward the instantly-drawable pool for
- *   covering a Caja Mínima shortfall (drawFromLiq) REGARDLESS of their own
+ * Every instrument has a maturity, but the team no longer chooses any of
+ * them directly (see instrumentDurationM() in instruments.ts): bond-like
+ * instruments (CDT90/TES1/TES3/TESUVR8) use their own fixed ins.plazoM; LIQ
+ * rolls every month; ACC rolls every ACC_ROLL_M months. LIQ and ACC still
+ * play different roles despite both lacking a real-world term:
+ * - LIQ positions count toward the instantly-drawable pool for covering a
+ *   Caja Mínima shortfall (drawFromLiq) REGARDLESS of their own 1-month
  *   maturity countdown — locking LIQ up would defeat its entire purpose as
- *   the always-liquid choice. Its durationM only controls when its
- *   onMaturity decision fires, not whether the money is usable before then.
+ *   the always-liquid choice.
  * - ACC positions are genuinely illiquid until their own maturity, exactly
- *   like a bond — this is what finally lets a team exit an equity position
- *   at a chosen time; before this, equities never converted back to cash.
+ *   like a bond.
  *
- * The engine never overrides a team's stated maturity rule to cover a
- * shortfall — a positive Inversión Neta can only draw on LIQ. A shortfall
- * caused by locking everything into illiquid reallocation chains is
- * exactly the failure being graded.
+ * TES3 and TESUVR8 also pay an annual cash coupon along the way (see
+ * isCouponBond() in instruments.ts and stepMonth()'s step 1) — their book
+ * value stays flat at its funded principal for the position's whole life,
+ * since their yield is realized entirely through these coupons instead of
+ * monthly compounding. Every other instrument (LIQ/CDT90/TES1/ACC) still
+ * compounds monthly and pays everything out as a single lump sum at
+ * maturity, unchanged.
+ *
+ * The engine never sells a position early just because a checkpoint moved
+ * money elsewhere — a positive Inversión Neta (a shortfall) can only draw
+ * on LIQ, then force-sell the rest (see forceLiquidatePortfolio). A
+ * shortfall caused by concentrating everything into illiquid, long-dated
+ * instruments is exactly the failure being graded.
  *
  * Historical note: extends almSim() from the legacy prototype, line ~1659,
- * and this app's earlier `initial`/`reinvest` two-phase split, then its
- * later flat per-instrument `maturityRules` — this version replaces both
- * with a genuine per-tranche decision tree.
+ * and this app's earlier `initial`/`reinvest` two-phase split, then a flat
+ * per-instrument `maturityRules`, then a per-tranche decision tree with a
+ * per-position onMaturity choice — this version replaces all of those with
+ * a genuine monthly decision, the schedule of checkpoints above.
  */
-export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, aporteMensualReal?: number): AlmSimResult | null {
+export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, aporteMensualReal?: number): AlmSimResult | null {
   if (!lib.hay) return null;
-  const totalTopW = decision.tranches.reduce(
-    (s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s),
-    0
-  );
-  if (totalTopW <= 0) return null;
+  const first = decision.schedule[0];
+  const totalW0 = first
+    ? Object.entries(first.allocation).reduce((s, [id, w]) => (INSTRUMENT_BY_ID[id] ? s + Math.max(0, Number(w) || 0) : s), 0)
+    : 0;
+  if (totalW0 <= 0) return null;
 
   const reserva = lib.reserva;
   const totalPagoY1 = lib.payY1.reduce((s, v) => s + v, 0);
@@ -577,7 +633,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV3, ap
 
     if (t === BUILD_MONTHS) {
       liq6 = state.positions.reduce((s, p) => {
-        if (p.tranche.instrumentId === "LIQ") return s + p.book;
+        if (p.instrumentId === "LIQ") return s + p.book;
         if (p.matM > t && p.matM <= t + 6) return s + p.book;
         return s;
       }, 0);
@@ -637,7 +693,7 @@ export interface FinancialScore {
   cobertura: number;
   avgPV: number;
   totIncome: number;
-  tranches: Tranche[];
+  schedule: MonthlyAllocationEntry[];
   /** Book-value-weighted average volatility actually held over the horizon — see AlmSimResult.avgVol. */
   avgVol: number;
   /** Decision-only concentration ratio of the submitted tree — see portfolioConcentrationRatio(). */
@@ -658,28 +714,31 @@ export interface FinancialScore {
 
 /**
  * Decision-only (no simulation) weighted-average nominal yield of a
- * portfolio's top-level tranches — the same shape nominalPortfolioVolRatio()
- * in capacity.ts uses for volatility, just for yield instead. Never depends
- * on funding size or claims, so it's identical between the fictitious and
- * real ALM for the same decision tree.
+ * schedule's starting (month-0) allocation — the same shape
+ * nominalPortfolioVolRatio() in capacity.ts uses for volatility, just for
+ * yield instead. Never depends on funding size or claims, so it's identical
+ * between the fictitious and real ALM for the same decision schedule. Only
+ * looks at the month-0 checkpoint, same scope the old tree version only
+ * ever gave its top-level tranches — later checkpoints aren't visited.
  */
-export function portfolioNominalYield(tranches: Tranche[]): number {
-  const totalTopW = tranches.reduce((s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s), 0);
-  if (totalTopW <= 0) return 0;
-  return tranches.reduce((s, t) => {
-    const ins = INSTRUMENT_BY_ID[t.instrumentId];
-    return ins ? s + (Math.max(0, t.weight) / totalTopW) * ins.yield : s;
-  }, 0);
+export function portfolioNominalYield(schedule: MonthlyAllocationEntry[]): number {
+  const alloc = schedule[0]?.allocation ?? {};
+  const ids = Object.keys(alloc).filter((id) => INSTRUMENT_BY_ID[id]);
+  const totalW = ids.reduce((s, id) => s + Math.max(0, Number(alloc[id]) || 0), 0);
+  if (totalW <= 0) return 0;
+  return ids.reduce((s, id) => s + (Math.max(0, Number(alloc[id]) || 0) / totalW) * INSTRUMENT_BY_ID[id].yield, 0);
 }
 
 /**
- * Decision-only (no simulation) concentration ratio of a portfolio's
- * top-level tranches, normalized to [0, 1] — 0 = risky exposure spread
- * evenly across every non-LIQ instrument in the menu, 1 = concentrated in a
- * single one. Feeds both the Día 2 "Rendimiento" sub-score's discount (see
- * CONCENTRATION_PENALTY_MU in constants.ts) and Día 4's solvency
- * concentration-risk capital charge (see rConcentracion in finBench.ts) —
- * same measurement, two different consequences.
+ * Decision-only (no simulation) concentration ratio of a schedule's
+ * starting (month-0) allocation, normalized to [0, 1] — 0 = risky exposure
+ * spread evenly across every non-LIQ instrument in the menu, 1 =
+ * concentrated in a single one. Feeds both the Día 2 "Rendimiento"
+ * sub-score's discount (see CONCENTRATION_PENALTY_MU in constants.ts) and
+ * Día 4's solvency concentration-risk capital charge (see rConcentracion in
+ * finBench.ts) — same measurement, two different consequences. Only looks
+ * at the month-0 checkpoint, same scope the old tree version only ever gave
+ * its top-level tranches.
  *
  * LIQ is excluded from the weight base entirely, not just given a low
  * score: it's a pooled liquidity fund, not a single-name credit/market
@@ -695,11 +754,12 @@ export function portfolioNominalYield(tranches: Tranche[]): number {
  * Normalized against the menu's 5 non-LIQ instruments: an even split
  * across all 5 (HHI=1/5) maps to 0, a single instrument (HHI=1) maps to 1.
  */
-export function portfolioConcentrationRatio(tranches: Tranche[]): number {
-  const risky = tranches.filter((t) => t.instrumentId !== "LIQ" && INSTRUMENT_BY_ID[t.instrumentId] && t.weight > 0);
-  const totalW = risky.reduce((s, t) => s + t.weight, 0);
+export function portfolioConcentrationRatio(schedule: MonthlyAllocationEntry[]): number {
+  const alloc = schedule[0]?.allocation ?? {};
+  const risky = Object.entries(alloc).filter(([id, w]) => id !== "LIQ" && INSTRUMENT_BY_ID[id] && Number(w) > 0);
+  const totalW = risky.reduce((s, [, w]) => s + Number(w), 0);
   if (totalW <= 0) return 0;
-  const hhi = risky.reduce((s, t) => s + (t.weight / totalW) ** 2, 0);
+  const hhi = risky.reduce((s, [, w]) => s + (Number(w) / totalW) ** 2, 0);
   const nRisky = INSTRUMENTS.filter((i) => i.id !== "LIQ").length;
   const minHhi = 1 / nRisky;
   return Math.max(0, Math.min(1, (hhi - minHhi) / (1 - minHhi)));
@@ -717,13 +777,13 @@ export interface AlmRealYearResult {
   effectiveYield: number;
   /** Book-value-weighted average volatility actually held during just this year — feeds finBench()'s rFin volRatio for that year. */
   avgVol: number;
-  /** Cumulative Capital Social committed through the end of this year (continues accumulating from whatever initialState carried in, if any). */
+  /** Cumulative genuine external financing needed through the end of this year — only nonzero once LIQ *and* the entire real portfolio (Capital Social included, see almSimRealYear()'s doc comment) were exhausted via ordinary forced liquidation. Continues accumulating from whatever initialState carried in, if any. */
   capitalComprometidoAcumulado: number;
-  /** CAPITAL_SOCIAL minus capitalComprometidoAcumulado — how much Capital Social this team has left after this year's real ALM. See README §5.3. */
+  /** CAPITAL_SOCIAL minus capitalComprometidoAcumulado — *not* "how much Capital Social sits untouched" (it's genuinely invested and its current value moves with the portfolio, see portfolioBookValue below); this is how much of it the team has avoided needing as *external* financing beyond its whole real portfolio. Almost always equals CAPITAL_SOCIAL. See README §5.3. */
   capitalSocialRestante: number;
   /** This year's real Caja Mínima balance at close (December's own cajaFinal — a point-in-time stock, not an annual flow) — feeds the Día 4 Balance's `caja` line (see finBench()'s balance()), replacing the old flat FZ.cajaPct×primaEmitida approximation with the actual month-by-month simulated floor. */
   cajaFinalAnio: number;
-  /** Undiminished book value of every open position at year close (Σ position.book, never netted against capitalComprometidoAcumulado — see stepMonth()'s realBookSum doc comment) — this is the pool the real ALM actually reinvested from prima cash flow alone, deliberately excluding Capital Social (which the real ALM never invests — see almSimRealYear()'s own doc comment on why it only ever funds from primaCobrada). Feeds the Día 4 Balance's `inversiones` line together with the team's own non-committed Capital Social, added separately by the caller — see finBench()'s balance(). */
+  /** Undiminished book value of every open position at year close (Σ position.book, never netted against capitalComprometidoAcumulado — see stepMonth()'s realBookSum doc comment) — includes Capital Social (funded into the tree at Año 1's start, see almSimRealYear()'s own doc comment) alongside every month's prima-funded surplus; they're mechanically indistinguishable positions by this point. Feeds the Día 4 Balance's `inversiones` line directly — see finBench()'s balance(), which no longer adds Capital Social back in separately (that would double-count it). */
   portfolioBookValue: number;
   totalVentaForzada: number;
   mesesConVentaForzada: number;
@@ -742,9 +802,10 @@ export interface AlmRealYearResult {
  * has no reason to project 48 months past a year nobody is grading a real
  * deliverable against.
  *
- * year===1 starts fresh (state defaults to zero positions/caja/capital
- * comprometido) funded against that team's own Year-1-within-Year-1 claims
- * schedule (typically lib.payY1). year===2 must receive `initialState` —
+ * year===1 starts fresh — but not from zero: Capital Social is funded per
+ * the schedule's month-0 checkpoint right away (see below), then run against that team's own
+ * Year-1-within-Year-1 claims schedule (typically lib.payY1). year===2 must
+ * receive `initialState` —
  * Año 1's `finalState` — and continues the *same* simulation for another
  * 12 months (same open positions still earning yield/maturing on their
  * own original schedule, same capitalComprometidoAcumulado carried
@@ -763,15 +824,18 @@ export interface AlmRealYearResult {
 export function almSimRealYear(
   year: 1 | 2,
   claimsSchedule12: number[],
-  decision: PortfolioDecisionV3,
+  decision: PortfolioDecisionV4,
   aporteMensual: number,
   initialState?: AlmYearState
 ): AlmRealYearResult | null {
   if (year === 2 && !initialState) {
     throw new Error("almSimRealYear(2, ...) requires Año 1's finalState — Año 2 is a continuation, not a fresh run.");
   }
-  const totalTopW = decision.tranches.reduce((s, t) => (INSTRUMENT_BY_ID[t.instrumentId] ? s + Math.max(0, t.weight) : s), 0);
-  if (totalTopW <= 0) return null;
+  const first = decision.schedule[0];
+  const totalW0 = first
+    ? Object.entries(first.allocation).reduce((s, [id, w]) => (INSTRUMENT_BY_ID[id] ? s + Math.max(0, Number(w) || 0) : s), 0)
+    : 0;
+  if (totalW0 <= 0) return null;
 
   const state: AlmYearState = initialState
     ? {
@@ -780,6 +844,23 @@ export function almSimRealYear(
         cajaFloat: initialState.cajaFloat,
       }
     : { positions: [], capitalComprometidoAcumulado: 0, cajaFloat: 0 };
+
+  // Capital Social is genuinely invested — funded per the schedule's month-0
+  // checkpoint, right at Año 1's start, before a single month of prima
+  // runs. Only here, never in almSim() (the fictitious ALM stays on its own
+  // notional reserva/12 funding hypothesis, unrelated to how much real
+  // capital a team has — see this function's own doc comment and README
+  // §5.3). From this point on a Capital-Social-funded position is
+  // mechanically indistinguishable from a prima-funded one: it accrues,
+  // matures, and can be forced-sold via forceLiquidatePortfolio() exactly
+  // like anything else. capitalComprometidoAcumulado (below) now only ever
+  // grows once LIQ *and* this entire real portfolio are exhausted — genuine
+  // external financing needed beyond everything the team has, not a direct
+  // draw against an untouched reserve (see balance()'s necesidadesPatrimonioODeuda).
+  if (year === 1 && !initialState) {
+    fundFromAllocation(activeAllocation(decision.schedule, 0), CAPITAL_SOCIAL, 0, state.positions);
+  }
+
   const acc = freshAccumulators();
 
   const startMonth = year === 1 ? 0 : BUILD_MONTHS;
@@ -804,8 +885,8 @@ export function almSimRealYear(
 
   return {
     rows,
-    portYield: portfolioNominalYield(decision.tranches),
-    concentrationRatio: portfolioConcentrationRatio(decision.tranches),
+    portYield: portfolioNominalYield(decision.schedule),
+    concentrationRatio: portfolioConcentrationRatio(decision.schedule),
     income,
     // sumPV is already accumulated per-month for avgVol above — reuse it
     // here as the average invested book balance (sumPV / 12 months).
@@ -862,7 +943,7 @@ export function almSimRealYear(
  * liquidate LIQ doesn't count against this at all, since drawing LIQ down
  * is exactly what it's there for (see drawFromLiq/forceLiquidatePortfolio).
  */
-export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV3, aporteMensualReal?: number): FinancialScore | null {
+export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecisionV4, aporteMensualReal?: number): FinancialScore | null {
   const sim = almSim(lib, decision, aporteMensualReal);
   if (!sim) return null;
   const {
@@ -890,7 +971,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const patrimonioDisponible = CAPITAL_SOCIAL - totalCapitalComprometido;
 
   const effYield = sim.effYield;
-  const concentrationRatio = portfolioConcentrationRatio(decision.tranches);
+  const concentrationRatio = portfolioConcentrationRatio(decision.schedule);
   const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol - CONCENTRATION_PENALTY_MU * concentrationRatio;
   const rendimiento = Math.max(
     0,
@@ -900,7 +981,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
   const ventaForzadaSeveridad = sumCajaMinima > 0 ? Math.min(1, ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX)) : 0;
   const ventaForzada = 100 * (1 - ventaForzadaSeveridad);
 
-  const portYield = portfolioNominalYield(decision.tranches);
+  const portYield = portfolioNominalYield(decision.schedule);
   const liquidez = liab6 > 0 ? 100 * Math.min(1, liq6 / liab6) : 100;
   const nota = W_CUMPL_CAJA * cumplimientoCaja + W_REND * rendimiento + W_VENTA_FORZADA * ventaForzada + W_LIQ * liquidez;
 
@@ -924,7 +1005,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     cobertura,
     avgPV: sim.avgPV,
     totIncome: sim.totIncome,
-    tranches: decision.tranches,
+    schedule: decision.schedule,
     avgVol,
     concentrationRatio,
     riskAdjustedYield,
@@ -959,23 +1040,14 @@ export function almObjetivo(lib: LiabilitySchedule): FinancialScore | null {
   }
   if (tot <= 0) return null;
 
-  const tranches: Tranche[] = Object.keys(acc).map((id) => {
-    const ins = INSTRUMENT_BY_ID[id];
-    const t: Tranche = { instrumentId: id, weight: (100 * acc[id]) / tot, onMaturity: { action: "repeat" } };
-    // LIQ can legitimately be `best` for liabilities due in months 0-2
-    // (plazoM=0 qualifies for any t>=0, no bond qualifies until t>=3). Its
-    // durationM is immaterial to cash availability (LIQ stays pooled
-    // regardless — see almSim's doc comment); 1 is the simplest valid value.
-    if (!isBondLike(ins)) t.durationM = 1;
-    return t;
-  });
-  return scoreFinanciero(lib, { tranches });
+  const allocation: Allocation = Object.fromEntries(INSTRUMENTS.map((ins) => [ins.id, ((acc[ins.id] || 0) * 100) / tot]));
+  return scoreFinanciero(lib, { schedule: [{ month: 0, allocation }] });
 }
 
 /** Monthly ladder view (Caja Inicial/Prima/Siniestros/Gastos/Vencimientos en caja/Inversión Neta/Caja Final), ported from almLadder(), line ~1809. */
 export function almLadder(
   lib: LiabilitySchedule,
-  decision: PortfolioDecisionV3,
+  decision: PortfolioDecisionV4,
   aporteMensualReal?: number
 ): { rows: AlmSimRow[]; peakCapitalComprometido: number; totalCapitalComprometido: number; reserva: number } | null {
   const sim = almSim(lib, decision, aporteMensualReal);
@@ -1002,11 +1074,36 @@ export function pvReserva(L: number[], rate: number): number {
 }
 
 /**
- * PV of a portfolio: bonds valued at market rate off their single maturity
- * cashflow, cash at par (duration 0), equities at book (no defined
- * duration). Uses a single allocation — this represents the balance sheet
- * at the valuation date, before any reinvestment cycle has occurred.
- * Ported from pvPortafolio(), line ~1824.
+ * PV of a single bond position's remaining cashflows at a flat rate,
+ * discounting each one at its own time — the final cashflow (at
+ * `remainingMonths`) bundles the coupon with the principal (a genuine
+ * maturity payout), every earlier one is coupon-only, spaced 12 months
+ * apart counting back from `remainingMonths`. Shared by pvPortafolio()
+ * (fresh position, `remainingMonths = ins.plazoM`) and, at curve rates
+ * instead of one flat rate, `pvPositionsAtCurve()` below.
+ */
+function pvCouponCashflows(amt: number, couponRate: number, remainingMonths: number, rateAt: (months: number) => number): number {
+  if (remainingMonths <= 0) return amt;
+  const coupon = amt * couponRate;
+  let pv = 0;
+  let first = true;
+  for (let m = remainingMonths; m > 0; m -= 12) {
+    const cf = first ? coupon + amt : coupon;
+    pv += cf / Math.pow(1 + rateAt(m), m / 12);
+    first = false;
+  }
+  return pv;
+}
+
+/**
+ * PV of a portfolio: bonds valued at market rate off their remaining
+ * cashflows (a single maturity payout for CDT90/TES1, annual coupons plus a
+ * final coupon+principal payout for the coupon-bearing TES3/TESUVR8 — see
+ * isCouponBond() in instruments.ts and pvCouponCashflows() above), cash at
+ * par (duration 0), equities at book (no defined duration). Uses a single
+ * allocation — this represents the balance sheet at the valuation date,
+ * before any reinvestment cycle has occurred. Ported from pvPortafolio(),
+ * line ~1824.
  */
 export function pvPortafolio(alloc: Allocation, reserva: number, rate: number): number {
   const ids = Object.keys(alloc).filter((id) => INSTRUMENT_BY_ID[id]);
@@ -1018,7 +1115,9 @@ export function pvPortafolio(alloc: Allocation, reserva: number, rate: number): 
     const amt = (Number(alloc[id]) / sumW) * reserva;
     if (ins.plazoM === 0) pv += amt;
     else if (ins.plazoM >= 400) pv += amt;
-    else {
+    else if (isCouponBond(ins)) {
+      pv += pvCouponCashflows(amt, ins.yield, ins.plazoM, () => rate);
+    } else {
       const faceVal = amt * Math.pow(1 + ins.yield, ins.plazoM / 12);
       pv += faceVal / Math.pow(1 + rate, ins.plazoM / 12);
     }
@@ -1080,27 +1179,40 @@ type Curve = (months: number) => number;
  * every other bond-like instrument off the nominal curve at its own
  * remaining term, LIQ/ACC at par (no defined duration — same treatment
  * pvPortafolio() already gives them; ACC's equity risk is priced
- * separately, see ACC_STRESS_PCT). Each position grows its own current
- * `book` to its own `matM` at its own contractual `ins.yield` (same shape
- * as pvPortafolio()'s per-bond faceVal, just using the position's real
- * remaining term instead of a fresh plazoM), then discounts that back to
- * AÑO2_END_MONTH — a genuine curve, not a single flat rate, so a
- * short-remaining-term CDT90 position and a long-remaining-term TES3
- * position discount at different points on the same nominal curve.
+ * separately, see ACC_STRESS_PCT).
+ *
+ * CDT90/TES1 (zero-coupon-style) grow their own current `book` to their own
+ * `matM` at their own contractual `ins.yield` (same shape as
+ * pvPortafolio()'s per-bond faceVal, just using the position's real
+ * remaining term instead of a fresh plazoM), then discount that single
+ * lump sum back to AÑO2_END_MONTH. TES3/TESUVR8 (coupon-bearing — see
+ * isCouponBond() in instruments.ts) don't grow `book` at all — it's already
+ * their flat principal (their yield having already been paid out as
+ * periodic coupons, see stepMonth()) — so they're valued as the genuine
+ * multi-cashflow stream of remaining coupons plus a final coupon+principal
+ * (pvCouponCashflows(), shared with pvPortafolio() above), each cashflow
+ * discounted at the curve rate for its own tenor. Either way this is a
+ * genuine curve, not a single flat rate, so a short-remaining-term CDT90
+ * position and a long-remaining-term TES3 position discount at different
+ * points on the same nominal curve.
  */
 function pvPositionsAtCurve(positions: Position[], nominalCurve: Curve, realCurve: Curve): number {
   let pv = 0;
   for (const p of positions) {
-    const ins = INSTRUMENT_BY_ID[p.tranche.instrumentId];
+    const ins = INSTRUMENT_BY_ID[p.instrumentId];
     if (!ins || ins.id === "LIQ" || ins.id === "ACC") {
       pv += p.book;
       continue;
     }
     const remainingMonths = p.matM - AÑO2_END_MONTH;
-    const remainingYears = Math.max(0, remainingMonths / 12);
-    const faceVal = p.book * Math.pow(1 + ins.yield, remainingYears);
-    const rate = ins.id === "TESUVR8" ? realCurve(remainingMonths) : nominalCurve(remainingMonths);
-    pv += faceVal / Math.pow(1 + rate, remainingYears);
+    const curve = ins.id === "TESUVR8" ? realCurve : nominalCurve;
+    if (isCouponBond(ins)) {
+      pv += pvCouponCashflows(p.book, ins.yield, remainingMonths, curve);
+    } else {
+      const remainingYears = Math.max(0, remainingMonths / 12);
+      const faceVal = p.book * Math.pow(1 + ins.yield, remainingYears);
+      pv += faceVal / Math.pow(1 + curve(remainingMonths), remainingYears);
+    }
   }
   return pv;
 }
@@ -1151,22 +1263,21 @@ export function computeMarketRiskAtAño2End(positions: Position[], liabilityPost
 
   // Riesgo de tasa: shock the real curve at every tenor, re-deriving the
   // nominal curve at that same tenor from the *base* implied inflation
-  // there (held fixed).
+  // (IMPLIED_INFLATION, held fixed).
   const nominalFromShockedReal = (factor: number): Curve => (months) => {
     const real = realCurveRate(months) * factor;
-    const infl = inflacionCurveRate(months);
-    return (1 + real) * (1 + infl) - 1;
+    return (1 + real) * (1 + IMPLIED_INFLATION) - 1;
   };
   const realShocked = (factor: number): Curve => (months) => realCurveRate(months) * factor;
   const navTasaAlza = navAt(nominalFromShockedReal(1.2), realShocked(1.2));
   const navTasaBaja = navAt(nominalFromShockedReal(0.85), realShocked(0.85));
   const riesgoTasa = -Math.min(navTasaAlza - navBase, navTasaBaja - navBase);
 
-  // Riesgo de inflación: shock the implied-inflation curve at every tenor,
-  // holding the real curve fixed at base — TESUVR8 discounts at the same
-  // (unshocked) realCurveRate in every scenario here.
+  // Riesgo de inflación: shock IMPLIED_INFLATION, holding the real curve
+  // fixed at base — TESUVR8 discounts at the same (unshocked)
+  // realCurveRate in every scenario here.
   const nominalFromShockedInflacion = (factor: number): Curve => (months) => {
-    const infl = inflacionCurveRate(months) * factor;
+    const infl = IMPLIED_INFLATION * factor;
     return (1 + realCurveRate(months)) * (1 + infl) - 1;
   };
   const navInflAlza = navAt(nominalFromShockedInflacion(1.2), realCurveRate);

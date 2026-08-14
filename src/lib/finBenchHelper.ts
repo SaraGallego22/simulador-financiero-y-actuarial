@@ -5,8 +5,8 @@ import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import { almSimRealYear, computeMarketRiskAtAño2End } from "@/domain/finance/alm";
 import type { AlmRealYearResult, MarketRiskAtYearEnd } from "@/domain/finance/alm";
 import { BUILD_MONTHS } from "@/domain/reserving/constants";
-import { isPortfolioDecisionV3 } from "@/domain/finance/instruments";
-import type { PortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { isPortfolioDecisionV4 } from "@/domain/finance/instruments";
+import type { PortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
 import type { FinBenchResult, AlmYearBenchInput } from "@/domain/finance/finBench";
 
@@ -85,9 +85,9 @@ export async function computeFinBenchBundlesForCohort(
       where: { simulationRun: { cohortId, day: 2, status: "DONE" } },
       orderBy: { simulationRun: { createdAt: "desc" } },
     }),
-    // Año 1's real ALM tree lives on Día 2 (not Día 1 — Día 1 is the
-    // minimum-variance exercise, a flat weight map, never a tree) — it's the
-    // only tree the platform collects, and also drives Año 2's real ALM.
+    // Año 1's real ALM schedule lives on Día 2 (not Día 1 — Día 1 is the
+    // minimum-variance exercise, a flat weight map, no checkpoints) — it's
+    // the only schedule the platform collects, and also drives Año 2's real ALM.
     prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId } } }),
   ]);
 
@@ -100,8 +100,8 @@ export async function computeFinBenchBundlesForCohort(
   for (const r of year1Results) if (!year1ByTeamId.has(r.teamId)) year1ByTeamId.set(r.teamId, r);
   const year2ByTeamId = new Map<string, (typeof year2Results)[number]>();
   for (const r of year2Results) if (!year2ByTeamId.has(r.teamId)) year2ByTeamId.set(r.teamId, r);
-  const toDecision = (allocation: unknown): PortfolioDecisionV3 | null => (isPortfolioDecisionV3(allocation) ? allocation : null);
-  // The only tree the platform collects — submitted Día 2, drives Año 1's
+  const toDecision = (allocation: unknown): PortfolioDecisionV4 | null => (isPortfolioDecisionV4(allocation) ? allocation : null);
+  // The only schedule the platform collects — submitted Día 2, drives Año 1's
   // real ALM and (unchanged for Año 2, see below) Año 2's too.
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
 
@@ -124,7 +124,7 @@ export async function computeFinBenchBundlesForCohort(
       : null;
 
     const year2 = year2ByTeamId.get(teamId);
-    // Año 2's real ALM continues with the same Día 2 tree — there's no
+    // Año 2's real ALM continues with the same Día 2 schedule — there's no
     // separate Año 2 decision to fall back from anymore.
     let realAlmYear2: AlmRealYearResult | null = null;
     let almYear2: AlmYearBenchInput | undefined;
@@ -169,7 +169,7 @@ export async function computeFinBenchBundlesForCohort(
       const liabilityPostAño2 = l1PostAño2.map((v, i) => (v || 0) + (l2PostAño2[i] || 0));
       marketRisk = computeMarketRiskAtAño2End(realAlmYear2.finalState.positions, liabilityPostAño2);
       accBookValue2 = realAlmYear2.finalState.positions
-        .filter((p) => p.tranche.instrumentId === "ACC")
+        .filter((p) => p.instrumentId === "ACC")
         .reduce((s, p) => s + p.book, 0);
     }
 

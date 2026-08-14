@@ -399,7 +399,7 @@ export function GuiaPasanteDia1() {
           <p>
             Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 5) buscando el <strong>menor riesgo posible</strong>{" "}
             — medido como la varianza del portafolio, usando la matriz de covarianza que se te da en el formulario — sujeto a alcanzar al menos un{" "}
-            <strong>rendimiento esperado objetivo</strong>. No es un árbol de decisiones con vencimientos y reinversión: es una asignación de pesos, de
+            <strong>rendimiento esperado objetivo</strong>. No es un calendario de decisiones con vencimientos y reinversión: es una asignación de pesos, de
             una sola vez, sin reinversión ni horizonte temporal — una fotografía de cómo invertirías el capital hoy mismo, antes de saber cuánta prima vas
             a cobrar o cuántos siniestros vas a pagar.
           </p>
@@ -462,6 +462,11 @@ export function GuiaPasanteDia1() {
             <li>
               <strong>El rendimiento objetivo no es negociable, pero cómo lo alcanzas sí.</strong> Hay muchas combinaciones de pesos que llegan al mismo
               rendimiento esperado — tu trabajo es encontrar, de esas, la que minimiza la varianza resultante.
+            </li>
+            <li>
+              <strong>TES3 y TES UVR 8 pagan cupón anual, no un solo pago al vencer.</strong> Eso les da liquidez intermedia real — no todo el
+              rendimiento queda atrapado hasta el vencimiento — y por eso su exposición genuina al riesgo de tasa es algo menor de lo que su plazo nominal
+              sugeriría por sí solo; la matriz de covarianza ya refleja esto.
             </li>
           </ul>
         </SubSection>

@@ -37,8 +37,24 @@ export const TARGET_RETURN = 0.1;
  * both on the term structure. A loading can never exceed an instrument's
  * own volAnual (the remaining idiosyncratic variance, volAnual² − loading²,
  * would go negative) — see buildCovarianceMatrix()'s doc comment.
+ *
+ * TES3/TESUVR8 loadings are scaled down from a flat 0.062/0.03 by each
+ * bond's own Macaulay-duration ratio (duration ÷ maturity) now that both pay
+ * annual coupons (see isCouponBond() in instruments.ts and stepMonth() in
+ * alm.ts) instead of accruing as a single zero-coupon lump sum: a
+ * coupon-paying bond's interest-rate exposure is genuinely lower than its
+ * maturity alone suggests, since part of its value returns as cash well
+ * before maturity. Computed by hand (par-bond cashflows, coupon = the
+ * instrument's own yield, discounted at that same yield — verified to sum
+ * back to exactly 100, confirming the par assumption): TES3 (3yr) has a
+ * 2.701yr Macaulay duration, ratio 0.900, loading 0.062×0.900≈0.0558;
+ * TESUVR8 (8yr) has a 5.564yr duration, ratio 0.696, loading
+ * 0.03×0.696≈0.0209. `volAnual` itself is left unchanged — only the
+ * rate-factor loading (and so each bond's correlation to the rest of the
+ * menu) reflects the shorter effective duration; recompute both ratios (see
+ * markowitz.test.ts's cross-check) if either bond's yield or term changes.
  */
-const RATE_LOADING: Record<string, number> = { LIQ: 0.003, CDT90: 0.0256, TES1: 0.034, TES3: 0.062, TESUVR8: 0.03, ACC: -0.01 };
+const RATE_LOADING: Record<string, number> = { LIQ: 0.003, CDT90: 0.0256, TES1: 0.034, TES3: 0.0558, TESUVR8: 0.0209, ACC: -0.01 };
 /** Equity factor loading — only ACC has any exposure to it. */
 const EQUITY_LOADING: Record<string, number> = { LIQ: 0, CDT90: 0, TES1: 0, TES3: 0, TESUVR8: 0, ACC: 0.195 };
 

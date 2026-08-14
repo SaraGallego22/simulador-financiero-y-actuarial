@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { isPortfolioDecisionV3, MAX_TRANCHE_SIBLINGS, INSTRUMENTS } from "./instruments";
-import type { Tranche } from "./instruments";
-import { VOL_PENALTY_LAMBDA } from "./constants";
+import { isPortfolioDecisionV4, instrumentDurationM, isCouponBond, MAX_SCHEDULE_ENTRIES, INSTRUMENTS, INSTRUMENT_BY_ID } from "./instruments";
+import type { Allocation, MonthlyAllocationEntry } from "./instruments";
+import { ACC_ROLL_M, VOL_PENALTY_LAMBDA } from "./constants";
+
+function fullAllocation(overrides: Allocation): Allocation {
+  const alloc: Allocation = {};
+  for (const ins of INSTRUMENTS) alloc[ins.id] = overrides[ins.id] ?? 0;
+  return alloc;
+}
 
 describe("instrument risk/return calibration", () => {
   it("every instrument has a positive volatility", () => {
@@ -31,80 +37,99 @@ describe("instrument risk/return calibration", () => {
   });
 });
 
-describe("isPortfolioDecisionV3", () => {
-  it("accepts a minimal valid tree", () => {
-    expect(isPortfolioDecisionV3({ tranches: [{ instrumentId: "LIQ", weight: 100, durationM: 6, onMaturity: { action: "cash" } }] })).toBe(
-      true
-    );
+describe("instrumentDurationM", () => {
+  it("uses the instrument's own plazoM for bond-like instruments", () => {
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.CDT90)).toBe(INSTRUMENT_BY_ID.CDT90.plazoM);
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.TES1)).toBe(INSTRUMENT_BY_ID.TES1.plazoM);
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.TES3)).toBe(INSTRUMENT_BY_ID.TES3.plazoM);
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.TESUVR8)).toBe(INSTRUMENT_BY_ID.TESUVR8.plazoM);
   });
 
-  it("rejects a bond-like tranche carrying a durationM (must be omitted, it always uses the instrument's own plazoM)", () => {
-    expect(
-      isPortfolioDecisionV3({ tranches: [{ instrumentId: "TES1", weight: 100, durationM: 12, onMaturity: { action: "cash" } }] })
-    ).toBe(false);
+  it("rolls LIQ every month", () => {
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.LIQ)).toBe(1);
   });
 
-  it("rejects LIQ/ACC tranches missing durationM, or with an invalid one", () => {
-    expect(isPortfolioDecisionV3({ tranches: [{ instrumentId: "LIQ", weight: 100, onMaturity: { action: "cash" } }] })).toBe(false);
-    expect(
-      isPortfolioDecisionV3({ tranches: [{ instrumentId: "LIQ", weight: 100, durationM: 0, onMaturity: { action: "cash" } }] })
-    ).toBe(false);
-    expect(
-      isPortfolioDecisionV3({ tranches: [{ instrumentId: "ACC", weight: 100, durationM: 2.5, onMaturity: { action: "cash" } }] })
-    ).toBe(false);
+  it("rolls ACC every ACC_ROLL_M months", () => {
+    expect(instrumentDurationM(INSTRUMENT_BY_ID.ACC)).toBe(ACC_ROLL_M);
+  });
+});
+
+describe("isCouponBond", () => {
+  it("is true only for TES3 and TESUVR8", () => {
+    for (const ins of INSTRUMENTS) {
+      expect(isCouponBond(ins)).toBe(ins.id === "TES3" || ins.id === "TESUVR8");
+    }
+  });
+});
+
+describe("isPortfolioDecisionV4", () => {
+  it("accepts a minimal valid schedule (month 0 only)", () => {
+    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(true);
   });
 
-  it("rejects an unknown instrumentId", () => {
-    expect(isPortfolioDecisionV3({ tranches: [{ instrumentId: "NOPE", weight: 100, onMaturity: { action: "cash" } }] })).toBe(false);
+  it("accepts a schedule with additional ascending checkpoints", () => {
+    const schedule: MonthlyAllocationEntry[] = [
+      { month: 0, allocation: fullAllocation({ LIQ: 100 }) },
+      { month: 6, allocation: fullAllocation({ TES1: 100 }) },
+      { month: 24, allocation: fullAllocation({ TESUVR8: 100 }) },
+    ];
+    expect(isPortfolioDecisionV4({ schedule })).toBe(true);
   });
 
-  it("rejects a non-positive weight", () => {
-    expect(
-      isPortfolioDecisionV3({ tranches: [{ instrumentId: "TES1", weight: 0, onMaturity: { action: "cash" } }] })
-    ).toBe(false);
-    expect(
-      isPortfolioDecisionV3({ tranches: [{ instrumentId: "TES1", weight: -5, onMaturity: { action: "cash" } }] })
-    ).toBe(false);
+  it("rejects a schedule whose first entry isn't month 0", () => {
+    expect(isPortfolioDecisionV4({ schedule: [{ month: 1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
   });
 
-  it("rejects an empty reallocate (should have been 'cash' instead)", () => {
+  it("rejects a schedule with an empty allocation entry", () => {
+    expect(isPortfolioDecisionV4({ schedule: [] })).toBe(false);
+  });
+
+  it("rejects non-ascending or duplicate months", () => {
     expect(
-      isPortfolioDecisionV3({
-        tranches: [{ instrumentId: "TES1", weight: 100, onMaturity: { action: "reallocate", tranches: [] } }],
+      isPortfolioDecisionV4({
+        schedule: [
+          { month: 0, allocation: fullAllocation({ LIQ: 100 }) },
+          { month: 0, allocation: fullAllocation({ TES1: 100 }) },
+        ],
+      })
+    ).toBe(false);
+    expect(
+      isPortfolioDecisionV4({
+        schedule: [
+          { month: 0, allocation: fullAllocation({ LIQ: 100 }) },
+          { month: 12, allocation: fullAllocation({ TES1: 100 }) },
+          { month: 6, allocation: fullAllocation({ TESUVR8: 100 }) },
+        ],
       })
     ).toBe(false);
   });
 
-  it("enforces the depth cap: passes exactly at MAX_TRANCHE_DEPTH, fails one past it", () => {
-    // Build a chain of nested reallocate nodes MAX_TRANCHE_DEPTH+1 deep.
-    function nest(depth: number): Tranche {
-      const leaf: Tranche = { instrumentId: "TES1", weight: 100, onMaturity: { action: "cash" } };
-      let node = leaf;
-      for (let i = 0; i < depth; i++) {
-        node = { instrumentId: "TES1", weight: 100, onMaturity: { action: "reallocate", tranches: [node] } };
-      }
-      return node;
-    }
-    // Each level of nesting costs 2 steps of depth (the tranche itself, then
-    // its onMaturity) — 4 levels stays comfortably within MAX_TRANCHE_DEPTH,
-    // 20 levels is unambiguously past it.
-    expect(isPortfolioDecisionV3({ tranches: [nest(4)] })).toBe(true);
-    expect(isPortfolioDecisionV3({ tranches: [nest(20)] })).toBe(false);
+  it("rejects a negative month", () => {
+    expect(isPortfolioDecisionV4({ schedule: [{ month: -1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
   });
 
-  it("enforces the sibling cap", () => {
-    const tooMany: Tranche[] = Array.from({ length: MAX_TRANCHE_SIBLINGS + 1 }, () => ({
-      instrumentId: "LIQ",
-      weight: 1,
-      durationM: 1,
-      onMaturity: { action: "cash" },
+  it("rejects an allocation missing an instrument key, reusing isMinVarianceAllocation's strictness", () => {
+    const { LIQ, ...missingLiq } = fullAllocation({ LIQ: 100 });
+    void LIQ;
+    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: missingLiq }] })).toBe(false);
+  });
+
+  it("rejects a negative weight", () => {
+    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: fullAllocation({ LIQ: -5 }) }] })).toBe(false);
+  });
+
+  it("enforces MAX_SCHEDULE_ENTRIES", () => {
+    const schedule: MonthlyAllocationEntry[] = Array.from({ length: MAX_SCHEDULE_ENTRIES + 1 }, (_, i) => ({
+      month: i,
+      allocation: fullAllocation({ LIQ: 100 }),
     }));
-    expect(isPortfolioDecisionV3({ tranches: tooMany })).toBe(false);
-    expect(isPortfolioDecisionV3({ tranches: tooMany.slice(0, MAX_TRANCHE_SIBLINGS) })).toBe(true);
+    expect(isPortfolioDecisionV4({ schedule })).toBe(false);
+    expect(isPortfolioDecisionV4({ schedule: schedule.slice(0, MAX_SCHEDULE_ENTRIES) })).toBe(true);
   });
 
-  it("rejects the old {allocation, maturityRules} shape gracefully (false, not a throw)", () => {
-    expect(() => isPortfolioDecisionV3({ allocation: { LIQ: 100 }, maturityRules: {} })).not.toThrow();
-    expect(isPortfolioDecisionV3({ allocation: { LIQ: 100 }, maturityRules: {} })).toBe(false);
+  it("rejects the old tree shape ({tranches: [...]}) gracefully (false, not a throw)", () => {
+    const oldTree = { tranches: [{ instrumentId: "LIQ", weight: 100, onMaturity: { action: "cash" } }] };
+    expect(() => isPortfolioDecisionV4(oldTree)).not.toThrow();
+    expect(isPortfolioDecisionV4(oldTree)).toBe(false);
   });
 });

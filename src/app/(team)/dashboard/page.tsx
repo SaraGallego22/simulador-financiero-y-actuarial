@@ -15,7 +15,7 @@ const DAYS = [
     n: 2,
     label: "Día 2 — P&G 2027 y retarifación 2028",
     actuarial: "Retarificas para el 2028 (con retención de clientes) y reportas el estado de resultados del 2027.",
-    financiero: "Armas el árbol de decisiones de tu portafolio de inversión real.",
+    financiero: "Armas el calendario de decisiones de tu portafolio de inversión real.",
   },
   {
     n: 3,

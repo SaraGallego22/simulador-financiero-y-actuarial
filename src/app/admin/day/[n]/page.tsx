@@ -4,9 +4,9 @@ import { publishAllAction, togglePublishedAction, toggleMemberEvaluationsPublish
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV3 } from "@/domain/finance/instruments";
+import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioTreeView } from "@/components/AlmLadderTable";
+import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioScheduleView } from "@/components/AlmLadderTable";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { conceptosDia, scoreConcepto, ownValueKey, GROUP_LABELS } from "@/domain/grading/concepts";
 import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
@@ -56,7 +56,7 @@ export default async function AdminDayPage({
   // offers a rebalance, it was cut to lighten an already-packed day. Año 2
   // still uses whatever tree was submitted on Día 2.
   const hasMinVariance = day === 1;
-  const hasPortfolioTree = day === 2;
+  const hasPortfolioSchedule = day === 2;
   const bookYear = day === 2 ? 1 : null;
   const { tab, team: selectedTeamId } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
@@ -263,7 +263,7 @@ export default async function AdminDayPage({
   }
 
   // ALM score per team: needs Año 1's book of claims (bookYear is only ever
-  // 1, on Día 2 — see hasPortfolioTree above) to compute reserves, plus
+  // 1, on Día 2 — see hasPortfolioSchedule above) to compute reserves, plus
   // whatever tree they uploaded. This is the *fictitious* ALM only (what's
   // graded for the Día 2 ALM nota) — the real ALM (below, via
   // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
@@ -286,12 +286,12 @@ export default async function AdminDayPage({
 
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
-  if (book && hasPortfolioTree) {
+  if (book && hasPortfolioSchedule) {
     const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
     for (const team of teams) {
       const rawAllocation = team.portfolioAllocations[0]?.allocation;
       const reserves = reservesByTeamId.get(team.id);
-      if (reserves && isPortfolioDecisionV3(rawAllocation)) {
+      if (reserves && isPortfolioDecisionV4(rawAllocation)) {
         almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
         if (activeTab === "obj") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
       }
@@ -504,7 +504,7 @@ export default async function AdminDayPage({
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioTree) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioTree} />}
+          {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
           {hasMinVariance && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -597,7 +597,7 @@ export default async function AdminDayPage({
             </div>
           )}
 
-          {hasPortfolioTree && (
+          {hasPortfolioSchedule && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolios de inversión — Día {day}
@@ -914,7 +914,7 @@ export default async function AdminDayPage({
                 <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
                   &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Entregables) —{" "}
                   <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM
-                  (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el árbol de
+                  (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el calendario de
                   portafolio se movió a este día. La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: Día 2 no tiene ningún reporte actuarial
                   aparte — las reservas técnicas de 2027 se reportan hasta Día 3, como línea del Balance.
                 </p>
@@ -922,7 +922,7 @@ export default async function AdminDayPage({
             </div>
           )}
 
-          {hasPortfolioTree && bookYear && (
+          {hasPortfolioSchedule && bookYear && (
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 ALM — calce del portafolio vs. reservas de {SIMULATED_YEAR_LABEL[bookYear]}
@@ -934,7 +934,7 @@ export default async function AdminDayPage({
                   const bundle = finBenchBundlesByTeamId.get(team.id);
                   const realAlmYear = bookYear === 1 ? bundle?.realAlmYear1 : bundle?.realAlmYear2;
                   const rawAllocation = team.portfolioAllocations[0]?.allocation;
-                  const decision = isPortfolioDecisionV3(rawAllocation) ? rawAllocation : undefined;
+                  const decision = isPortfolioDecisionV4(rawAllocation) ? rawAllocation : undefined;
                   return (
                     <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
@@ -954,10 +954,10 @@ export default async function AdminDayPage({
 
                           <div className="mb-3">
                             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                              Árbol de decisión de inversión
+                              Calendario de decisión de inversión
                             </p>
                             {decision ? (
-                              <PortfolioTreeView tranches={decision.tranches} />
+                              <PortfolioScheduleView schedule={decision.schedule} />
                             ) : (
                               <p className="text-xs text-[var(--color-brand-text-secondary)]">—</p>
                             )}

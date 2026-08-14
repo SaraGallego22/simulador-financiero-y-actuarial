@@ -3,7 +3,7 @@ import { maxPremiumForCapital, maxPoliciesForCapital, nominalPortfolioVolRatio, 
 import { finBench } from "./finBench";
 import { RESERVE_TO_PREMIUM_RATIO } from "./capacity";
 import { CAPITAL_SOCIAL } from "./constants";
-import type { Tranche } from "./instruments";
+import type { MonthlyAllocationEntry } from "./instruments";
 
 describe("nominalPortfolioVolRatio", () => {
   it("returns 1 (the flat pre-volatility charge) when there's no decision at all", () => {
@@ -12,8 +12,8 @@ describe("nominalPortfolioVolRatio", () => {
   });
 
   it("is > 1 for a 100% ACC portfolio (the menu's most volatile instrument) and < 1 for a 100% LIQ portfolio", () => {
-    const acc: Tranche[] = [{ instrumentId: "ACC", weight: 100, onMaturity: { action: "cash" } }];
-    const liq: Tranche[] = [{ instrumentId: "LIQ", weight: 100, onMaturity: { action: "cash" } }];
+    const acc: MonthlyAllocationEntry[] = [{ month: 0, allocation: { ACC: 100 } }];
+    const liq: MonthlyAllocationEntry[] = [{ month: 0, allocation: { LIQ: 100 } }];
     expect(nominalPortfolioVolRatio(acc)).toBeGreaterThan(1);
     expect(nominalPortfolioVolRatio(liq)).toBeLessThan(1);
   });

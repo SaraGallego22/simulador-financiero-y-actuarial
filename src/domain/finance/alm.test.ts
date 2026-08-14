@@ -12,8 +12,9 @@ import {
   portfolioNominalYield,
   scoreFinanciero,
 } from "./alm";
-import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA } from "./constants";
-import type { MaturityDecision, PortfolioDecisionV3, Tranche } from "./instruments";
+import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA, ACC_ROLL_M } from "./constants";
+import { INSTRUMENT_BY_ID } from "./instruments";
+import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import type { Position } from "./alm";
 
 // A handful of claims spread across the Year-1 window, notified early enough
@@ -25,30 +26,19 @@ const claims = [
 ];
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
-function tranche(instrumentId: string, weight: number, onMaturity: MaturityDecision, durationM?: number): Tranche {
-  return durationM != null ? { instrumentId, weight, durationM, onMaturity } : { instrumentId, weight, onMaturity };
-}
-function decision(tranches: Tranche[]): PortfolioDecisionV3 {
-  return { tranches };
+/** Builds a PortfolioDecisionV4 with a month-0 checkpoint (`allocation`) plus any additional checkpoints. */
+function decision(allocation: Allocation, extra: MonthlyAllocationEntry[] = []): PortfolioDecisionV4 {
+  return { schedule: [{ month: 0, allocation }, ...extra] };
 }
 
 describe("almSim / scoreFinanciero", () => {
   it("returns null when there are no recognized instruments", () => {
-    expect(almSim(lib, decision([tranche("NOPE", 100, { action: "cash" })]))).toBeNull();
-    expect(scoreFinanciero(lib, decision([]))).toBeNull();
+    expect(almSim(lib, decision({ NOPE: 100 }))).toBeNull();
+    expect(scoreFinanciero(lib, { schedule: [] })).toBeNull();
   });
 
   it("produces a composite score within [0, 100] for a diversified allocation", () => {
-    const score = scoreFinanciero(
-      lib,
-      decision([
-        tranche("LIQ", 20, { action: "cash" }, 6),
-        tranche("CDT90", 20, { action: "cash" }),
-        tranche("TES1", 30, { action: "cash" }),
-        tranche("TES3", 20, { action: "cash" }),
-        tranche("ACC", 10, { action: "cash" }, 24),
-      ])
-    );
+    const score = scoreFinanciero(lib, decision({ LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 }));
     expect(score).not.toBeNull();
     expect(score!.nota).toBeGreaterThanOrEqual(0);
     expect(score!.nota).toBeLessThanOrEqual(100);
@@ -63,8 +53,8 @@ describe("almSim / scoreFinanciero", () => {
     // unmet even after selling *everything*) is now rare by design (see
     // forceLiquidatePortfolio), so totalVentaForzada is the metric that
     // actually distinguishes these two allocations.
-    const liq = almSim(lib, decision([tranche("LIQ", 100, { action: "repeat" }, 6)]));
-    const uvr8 = almSim(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
+    const liq = almSim(lib, decision({ LIQ: 100 }));
+    const uvr8 = almSim(lib, decision({ TESUVR8: 100 }));
     expect(liq).not.toBeNull();
     expect(uvr8).not.toBeNull();
     expect(liq!.totalVentaForzada).toBe(0);
@@ -72,16 +62,7 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("cash-conservation invariant: Caja Mínima is always met exactly, every month, no matter what (cajaFinal == FZ.cajaPct * (primaCobrada + pagoSiniestros))", () => {
-    const sim = almSim(
-      lib,
-      decision([
-        tranche("LIQ", 20, { action: "cash" }, 6),
-        tranche("CDT90", 20, { action: "cash" }),
-        tranche("TES1", 30, { action: "cash" }),
-        tranche("TES3", 20, { action: "cash" }),
-        tranche("ACC", 10, { action: "cash" }, 24),
-      ])
-    );
+    const sim = almSim(lib, decision({ LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 }));
     expect(sim).not.toBeNull();
     for (const row of sim!.rows) {
       const expectedCajaMinima = FZ.cajaPct * (row.primaCobrada + row.pagoSiniestros);
@@ -89,77 +70,54 @@ describe("almSim / scoreFinanciero", () => {
     }
   });
 
-  it("a maturity chain (TES1 -> reallocate into TES3) risks a costlier forced liquidation than 'mantener en caja' on the same instrument", () => {
-    const alloc = [tranche("LIQ", 50, { action: "repeat" }, 3)];
-    const cashOnMaturity = almSim(lib, decision([...alloc, tranche("TES1", 50, { action: "cash" })]));
-    const chained = almSim(
-      lib,
-      decision([...alloc, tranche("TES1", 50, { action: "reallocate", tranches: [tranche("TES3", 100, { action: "cash" })] })])
-    );
-    expect(cashOnMaturity).not.toBeNull();
-    expect(chained).not.toBeNull();
+  it("reinvesting maturities into a longer-dated instrument (TES3, 36mo) risks a costlier forced liquidation than a shorter one (TES1, 12mo), for the same LIQ cushion", () => {
     // Both scenarios share the same 50% LIQ leg; the other 50% either comes
-    // back as cash every ~12 months (TES1) or stays locked for ~48 months
-    // via TES3 — a shortfall the shared LIQ can't cover is more likely to
-    // force-sell the still-locked TES3 leg than the more-often-liquid TES1.
-    expect(chained!.ventaForzadaVolWeighted).toBeGreaterThanOrEqual(cashOnMaturity!.ventaForzadaVolWeighted);
+    // back as cash (and gets reinvested by the same checkpoint) every ~12
+    // months (TES1) or stays locked for ~36 months at a time (TES3) — a
+    // shortfall the shared LIQ can't cover is more likely to force-sell the
+    // still-locked TES3 leg than the more-often-liquid TES1.
+    const shortDated = almSim(lib, decision({ LIQ: 50, TES1: 50 }));
+    const longDated = almSim(lib, decision({ LIQ: 50, TES3: 50 }));
+    expect(shortDated).not.toBeNull();
+    expect(longDated).not.toBeNull();
+    expect(longDated!.ventaForzadaVolWeighted).toBeGreaterThanOrEqual(shortDated!.ventaForzadaVolWeighted);
   });
 
-  it("splitting a maturity's proceeds across reallocate children funds both branches independently, and keeping some LIQ reduces forced-liquidation severity", () => {
-    const allIntoTes1 = almSim(
-      lib,
-      decision([tranche("CDT90", 100, { action: "reallocate", tranches: [tranche("TES1", 100, { action: "cash" })] })])
-    );
-    const splitWithLiq = almSim(
-      lib,
-      decision([
-        tranche("CDT90", 100, {
-          action: "reallocate",
-          tranches: [tranche("TES1", 60, { action: "cash" }), tranche("LIQ", 40, { action: "repeat" }, 3)],
-        }),
-      ])
-    );
-    expect(allIntoTes1).not.toBeNull();
+  it("keeping some LIQ alongside a bond reduces forced-liquidation severity relative to putting everything into that bond alone", () => {
+    const allIntoCdt90 = almSim(lib, decision({ CDT90: 100 }));
+    const splitWithLiq = almSim(lib, decision({ CDT90: 60, LIQ: 40 }));
+    expect(allIntoCdt90).not.toBeNull();
     expect(splitWithLiq).not.toBeNull();
-    // Keeping 40% perpetually liquid (vs. locking 100% into TES1) means more
+    // Keeping 40% perpetually liquid (vs. locking 100% into CDT90) means more
     // shortfalls get covered by a free LIQ draw instead of a forced sale of
-    // TES1 — the forced-liquidation severity should never be higher.
-    expect(splitWithLiq!.ventaForzadaVolWeighted).toBeLessThanOrEqual(allIntoTes1!.ventaForzadaVolWeighted);
+    // CDT90 — the forced-liquidation severity should never be higher.
+    expect(splitWithLiq!.ventaForzadaVolWeighted).toBeLessThanOrEqual(allIntoCdt90!.ventaForzadaVolWeighted);
   });
 
-  it("a repeating 3-month tranche cycles ~20 times over the horizon without excessive recursion or slowdown", () => {
+  it("a 3-month instrument (CDT90) cycles ~20 times over the horizon without excessive recursion or slowdown", () => {
     const start = performance.now();
-    const score = scoreFinanciero(lib, decision([tranche("CDT90", 100, { action: "repeat" })]));
+    const score = scoreFinanciero(lib, decision({ CDT90: 100 }));
     const elapsedMs = performance.now() - start;
     expect(score).not.toBeNull();
     expect(Number.isFinite(score!.nota)).toBe(true);
-    // Tripwire, not a real budget — "repeat"/"reallocate" are resolved
+    // Tripwire, not a real budget — every month's reinvestment is resolved
     // inside almSim's flat monthly loop, never via recursive re-funding
-    // calls, so call-stack depth is O(1) regardless of repeat count. This
-    // just catches a future regression that reintroduces recursion.
+    // calls, so call-stack depth is O(1) regardless of how many times an
+    // instrument matures and rolls over. This just catches a future
+    // regression that reintroduces recursion.
     expect(elapsedMs).toBeLessThan(1000);
   });
 
-  it("an ACC tranche with a custom duration converts back to usable cash at maturity (equities are no longer a permanent trap)", () => {
-    const sim = almSim(lib, decision([tranche("LIQ", 50, { action: "repeat" }, 6), tranche("ACC", 50, { action: "cash" }, 6)]));
+  it("an ACC position converts back to usable cash at its fixed ACC_ROLL_M maturity (equities are not a permanent trap)", () => {
+    const sim = almSim(lib, decision({ LIQ: 50, ACC: 50 }));
     expect(sim).not.toBeNull();
-    // Funded at month 0 (build phase), durationM=6 -> matures at absolute
-    // month 6 -> row index 6 (mes = t - BUILD_MONTHS, so absolute t=6 is
-    // mes=-6, the 7th row, index 6).
-    expect(sim!.rows[6].vencimientosCaja).toBeGreaterThan(0);
+    // Funded at absolute month 0 (build phase) -> matures at absolute month
+    // ACC_ROLL_M -> row index ACC_ROLL_M (rows are pushed in absolute-month order).
+    expect(sim!.rows[ACC_ROLL_M].vencimientosCaja).toBeGreaterThan(0);
   });
 
   it("portfolio-value invariant: saldoFinalPortafolio == saldoInicialPortafolio + rendimientoPortafolio - vencimientosCaja - inversionNeta every month", () => {
-    const sim = almSim(
-      lib,
-      decision([
-        tranche("LIQ", 20, { action: "cash" }, 6),
-        tranche("CDT90", 20, { action: "cash" }),
-        tranche("TES1", 30, { action: "cash" }),
-        tranche("TES3", 20, { action: "cash" }),
-        tranche("ACC", 10, { action: "cash" }, 24),
-      ])
-    );
+    const sim = almSim(lib, decision({ LIQ: 20, CDT90: 20, TES1: 30, TES3: 20, ACC: 10 }));
     expect(sim).not.toBeNull();
     for (const row of sim!.rows) {
       const expected = row.saldoInicialPortafolio + row.rendimientoPortafolio - row.vencimientosCaja - row.inversionNeta;
@@ -168,8 +126,8 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("an all-ACC portfolio has higher realized volatility and a worse risk-adjusted Rendimiento than an all-TESUVR8 portfolio, despite ACC's higher raw yield", () => {
-    const acc = scoreFinanciero(lib, decision([tranche("ACC", 100, { action: "repeat" }, 24)]));
-    const uvr8 = scoreFinanciero(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
+    const acc = scoreFinanciero(lib, decision({ ACC: 100 }));
+    const uvr8 = scoreFinanciero(lib, decision({ TESUVR8: 100 }));
     expect(acc).not.toBeNull();
     expect(uvr8).not.toBeNull();
     expect(acc!.avgVol).toBeGreaterThan(uvr8!.avgVol);
@@ -178,11 +136,8 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("adding a meaningful TESUVR8 weight to an otherwise-safe portfolio raises the risk-adjusted Rendimiento sub-score", () => {
-    const safe = scoreFinanciero(lib, decision([tranche("LIQ", 50, { action: "repeat" }, 6), tranche("CDT90", 50, { action: "repeat" })]));
-    const withUvr = scoreFinanciero(
-      lib,
-      decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })])
-    );
+    const safe = scoreFinanciero(lib, decision({ LIQ: 50, CDT90: 50 }));
+    const withUvr = scoreFinanciero(lib, decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 }));
     expect(safe).not.toBeNull();
     expect(withUvr).not.toBeNull();
     expect(withUvr!.rendimiento).toBeGreaterThan(safe!.rendimiento);
@@ -190,37 +145,23 @@ describe("almSim / scoreFinanciero", () => {
 
   describe("portfolioConcentrationRatio", () => {
     it("is 1 for a single non-LIQ instrument, 0 for an even spread across every non-LIQ instrument, 0 for 100% LIQ", () => {
-      expect(portfolioConcentrationRatio([tranche("TES1", 100, { action: "cash" })])).toBeCloseTo(1, 6);
+      expect(portfolioConcentrationRatio([{ month: 0, allocation: { TES1: 100 } }])).toBeCloseTo(1, 6);
       expect(
-        portfolioConcentrationRatio([
-          tranche("CDT90", 20, { action: "cash" }),
-          tranche("TES1", 20, { action: "cash" }),
-          tranche("TES3", 20, { action: "cash" }),
-          tranche("TESUVR8", 20, { action: "cash" }),
-          tranche("ACC", 20, { action: "cash" }, 24),
-        ])
+        portfolioConcentrationRatio([{ month: 0, allocation: { CDT90: 20, TES1: 20, TES3: 20, TESUVR8: 20, ACC: 20 } }])
       ).toBeCloseTo(0, 6);
-      expect(portfolioConcentrationRatio([tranche("LIQ", 100, { action: "cash" }, 6)])).toBe(0);
+      expect(portfolioConcentrationRatio([{ month: 0, allocation: { LIQ: 100 } }])).toBe(0);
     });
 
     it("ignores LIQ entirely — half LIQ + half of one risky instrument is exactly as concentrated as 100% of that instrument", () => {
-      const full = portfolioConcentrationRatio([tranche("ACC", 100, { action: "cash" }, 24)]);
-      const halfLiq = portfolioConcentrationRatio([tranche("LIQ", 50, { action: "cash" }, 12), tranche("ACC", 50, { action: "cash" }, 24)]);
+      const full = portfolioConcentrationRatio([{ month: 0, allocation: { ACC: 100 } }]);
+      const halfLiq = portfolioConcentrationRatio([{ month: 0, allocation: { LIQ: 50, ACC: 50 } }]);
       expect(halfLiq).toBeCloseTo(full, 6);
     });
   });
 
   it("a well-diversified portfolio can out-score concentrating fully in the single nominally-best instrument, thanks to the concentration discount", () => {
-    const concentrated = scoreFinanciero(lib, decision([tranche("TESUVR8", 100, { action: "repeat" })]));
-    const diversified = scoreFinanciero(
-      lib,
-      decision([
-        tranche("CDT90", 25, { action: "repeat" }),
-        tranche("TES1", 25, { action: "repeat" }),
-        tranche("TES3", 25, { action: "repeat" }),
-        tranche("TESUVR8", 25, { action: "repeat" }),
-      ])
-    );
+    const concentrated = scoreFinanciero(lib, decision({ TESUVR8: 100 }));
+    const diversified = scoreFinanciero(lib, decision({ CDT90: 25, TES1: 25, TES3: 25, TESUVR8: 25 }));
     expect(concentrated).not.toBeNull();
     expect(diversified).not.toBeNull();
     // Concentrated scores higher once only volatility is discounted...
@@ -232,7 +173,7 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("regression: a shortfall with no LIQ available force-sells the portfolio instead of leaving inversionNeta stuck at 0 with cajaFinal deeply negative", () => {
-    const sim = almSim(lib, decision([tranche("TES1", 100, { action: "repeat" })]));
+    const sim = almSim(lib, decision({ TES1: 100 }));
     expect(sim).not.toBeNull();
     expect(sim!.totalVentaForzada).toBeGreaterThan(0);
     // Caja Mínima is now always met exactly — see the dedicated invariant
@@ -251,7 +192,7 @@ describe("almSim / scoreFinanciero", () => {
     const L = new Array(48).fill(0);
     L[0] = 2_000_000_000_000;
     const extremeLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L, reserva: 1_000_000_000_000, hay: true };
-    const sim = almSim(extremeLib, decision([tranche("TES1", 100, { action: "cash" })]));
+    const sim = almSim(extremeLib, decision({ TES1: 100 }));
     expect(sim).not.toBeNull();
     expect(sim!.totalCapitalComprometido).toBeGreaterThan(0);
 
@@ -269,14 +210,7 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("a team that keeps enough LIQ never touches Capital Social through either claim year, and keeps essentially all of it", () => {
-    const score = scoreFinanciero(
-      lib,
-      decision([
-        tranche("LIQ", 30, { action: "repeat" }, 6),
-        tranche("CDT90", 30, { action: "repeat" }),
-        tranche("TESUVR8", 40, { action: "repeat" }),
-      ])
-    );
+    const score = scoreFinanciero(lib, decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 }));
     expect(score).not.toBeNull();
     // Both checkpoints that actually feed the real Balance/Solvencia
     // (finBench's bal1/bal2) are untouched — this is the part that matters
@@ -296,8 +230,8 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("forced-selling ACC under duress is penalized more than forced-selling TES1 for an equivalent shortfall — a real hierarchy, not a flat penalty", () => {
-    const acc = scoreFinanciero(lib, decision([tranche("ACC", 100, { action: "repeat" }, 24)]));
-    const tes1 = scoreFinanciero(lib, decision([tranche("TES1", 100, { action: "repeat" })]));
+    const acc = scoreFinanciero(lib, decision({ ACC: 100 }));
+    const tes1 = scoreFinanciero(lib, decision({ TES1: 100 }));
     expect(acc).not.toBeNull();
     expect(tes1).not.toBeNull();
     expect(acc!.totalVentaForzada).toBeGreaterThan(0);
@@ -307,16 +241,81 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("a forced sale of LIQ itself (drawFromLiq) never counts toward the forced-liquidation penalty — that's exactly what LIQ is for", () => {
-    const sim = almSim(lib, decision([tranche("LIQ", 100, { action: "repeat" }, 3)]));
+    const sim = almSim(lib, decision({ LIQ: 100 }));
     expect(sim).not.toBeNull();
     expect(sim!.totalVentaForzada).toBe(0);
     expect(sim!.ventaForzadaVolWeighted).toBe(0);
   });
 });
 
+describe("coupon-bearing bonds (TES3/TESUVR8)", () => {
+  // A dedicated claims-free liability: the shared `lib` fixture's reserve
+  // ($11.3M) is small enough that, once TES3 stops compounding monthly
+  // (see stepMonth's coupon handling), ongoing post-build claims genuinely
+  // drain the whole book via forced liquidation well before month 36 — a
+  // realistic outcome for that fixture, but it obscures the coupon
+  // mechanic itself. This one has real prima (a nonzero reserva) but zero
+  // claims, so nothing ever forces a sale and a position can be observed
+  // across its whole lifecycle.
+  const noClaimsLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L: new Array(48).fill(0), reserva: 100_000_000, hay: true };
+
+  it("an all-TES3 portfolio accrues zero rendimientoPortafolio in a month that's neither a coupon date nor a maturity — its book stays flat until cash actually arrives", () => {
+    const sim = almSim(noClaimsLib, decision({ TES3: 100 }));
+    expect(sim).not.toBeNull();
+    // t=1: only positions funded at t=0/t=1 exist, and none of them are due
+    // for a coupon until t=12 (fundedMonth=0, monthsHeld=1) — no monthly
+    // compounding for a coupon bond at any point in its life, so this
+    // month's rendimiento is exactly 0.
+    expect(sim!.rows[1].rendimientoPortafolio).toBe(0);
+  });
+
+  it("a TES3 position pays annual coupons at months 12 and 24 without maturing, then a final coupon+principal at month 36", () => {
+    const sim = almSim(noClaimsLib, decision({ LIQ: 50, TES3: 50 }));
+    expect(sim).not.toBeNull();
+    // Funded at absolute month 0 (build phase) -> plazoM=36 -> matures at
+    // absolute month 36. Periodic coupons fire at monthsHeld=12,24 (still
+    // open); the final coupon is bundled with principal at month 36 itself.
+    expect(sim!.rows[12].vencimientosCaja).toBeGreaterThan(0);
+    expect(sim!.rows[24].vencimientosCaja).toBeGreaterThan(0);
+    expect(sim!.rows[36].vencimientosCaja).toBeGreaterThan(0);
+    // Those same 3 months show up as real investment income (devengo), not
+    // just idle cash movement — a coupon is genuine yield, same as any
+    // other instrument's accrual.
+    expect(sim!.rows[12].rendimientoPortafolio).toBeGreaterThan(0);
+    expect(sim!.rows[24].rendimientoPortafolio).toBeGreaterThan(0);
+    expect(sim!.rows[36].rendimientoPortafolio).toBeGreaterThan(0);
+  });
+
+  it("a TESUVR8 position's first coupon (month 12) is materially smaller than its full face value — it's a coupon, not an early full maturity payout", () => {
+    const sim = almSim(noClaimsLib, decision({ LIQ: 50, TESUVR8: 50 }));
+    expect(sim).not.toBeNull();
+    const couponCash = sim!.rows[12].vencimientosCaja;
+    expect(couponCash).toBeGreaterThan(0);
+    // A single year's coupon on the book right before it's paid is
+    // ins.yield (12%) of it — nowhere close to the full principal coming
+    // back early.
+    expect(couponCash).toBeLessThan(sim!.rows[11].saldoFinalPortafolio * 0.2);
+  });
+
+  it("total accrued income for an all-TES3 portfolio through its first coupon date (month 12) is close to book*yield for the initial funding — coupons aren't lost or double-counted", () => {
+    const sim = almSim(noClaimsLib, decision({ TES3: 100 }));
+    expect(sim).not.toBeNull();
+    // Rows 0..12 (through month 12 inclusive) — the first coupon is due
+    // exactly at month 12, not before, so it has to be included here.
+    const throughFirstCoupon = sim!.rows.slice(0, 13).reduce((s, r) => s + r.rendimientoPortafolio, 0);
+    const initialBook = sim!.rows[0].saldoFinalPortafolio;
+    // Rough check, not exact — later months also fund small fresh TES3
+    // slices from that month's own surplus, which haven't reached their own
+    // first coupon yet and so contribute 0 in this same window; the
+    // dominant term is still the month-0 position's own first coupon.
+    expect(throughFirstCoupon).toBeGreaterThan(0);
+    expect(throughFirstCoupon).toBeLessThan(initialBook * INSTRUMENT_BY_ID.TES3.yield * 1.5);
+  });
+});
+
 describe("almLadder", () => {
   it("always reaches the last month of the horizon (mes 47), even when nothing else about that month would otherwise qualify for the filtered view", () => {
-    const ladder = almLadder(lib, decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })]));
+    const ladder = almLadder(lib, decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 }));
     expect(ladder).not.toBeNull();
     const lastRow = ladder!.rows[ladder!.rows.length - 1];
     expect(lastRow.mes).toBe(47);
@@ -324,11 +323,7 @@ describe("almLadder", () => {
 });
 
 describe("almSim's incomeY1/incomeY2 (what finBench() uses for the P&G's 'Resultado de inversiones', not a formula proxy)", () => {
-  const mix = decision([
-    tranche("LIQ", 30, { action: "repeat" }, 6),
-    tranche("CDT90", 30, { action: "repeat" }),
-    tranche("TESUVR8", 40, { action: "repeat" }),
-  ]);
+  const mix = decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 });
 
   it("incomeY1 is exactly the sum of rendimientoPortafolio across Year 1's 12 build months (mes -12..-1)", () => {
     const sim = almSim(lib, mix);
@@ -353,11 +348,7 @@ describe("almSim's incomeY1/incomeY2 (what finBench() uses for the P&G's 'Result
 });
 
 describe("almSim's real-premium override (the 'ALM real' companion to the graded fictitious run)", () => {
-  const mix = decision([
-    tranche("LIQ", 30, { action: "repeat" }, 6),
-    tranche("CDT90", 30, { action: "repeat" }),
-    tranche("TESUVR8", 40, { action: "repeat" }),
-  ]);
+  const mix = decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 });
 
   it("omitting the override reproduces the exact fictitious behavior (regression: existing callers are unaffected)", () => {
     const withoutOverride = almSim(lib, mix);
@@ -376,7 +367,7 @@ describe("almSim's real-premium override (the 'ALM real' companion to the graded
     expect(real!.avgCapitalComprometidoRatio).toBeGreaterThanOrEqual(fictitious!.avgCapitalComprometidoRatio);
   });
 
-  it("portYield never changes between the fictitious and real runs — it depends only on the decision tree, never on funding", () => {
+  it("portYield never changes between the fictitious and real runs — it depends only on the decision schedule, never on funding", () => {
     const fictitious = scoreFinanciero(lib, mix);
     const real = scoreFinanciero(lib, mix, 999_999);
     expect(fictitious).not.toBeNull();
@@ -397,17 +388,17 @@ describe("almObjetivo", () => {
   it("produces a target allocation that sums to ~100%", () => {
     const objective = almObjetivo(lib);
     expect(objective).not.toBeNull();
-    const total = objective!.tranches.reduce((s, t) => s + t.weight, 0);
+    const total = Object.values(objective!.schedule[0].allocation).reduce((s, w) => s + (Number(w) || 0), 0);
     expect(total).toBeCloseTo(100, 4);
   });
 });
 
 describe("almSimRealYear", () => {
-  const treeA = decision([tranche("LIQ", 30, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 40, { action: "repeat" })]);
+  const scheduleA = decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 });
   const aporte = 200_000_000;
 
   it("Año 1 runs exactly 12 months, labeled -12..-1, fase a1", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
     expect(y1).not.toBeNull();
     expect(y1!.rows).toHaveLength(12);
     expect(y1!.rows.map((r) => r.mes)).toEqual([-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1]);
@@ -415,18 +406,45 @@ describe("almSimRealYear", () => {
   });
 
   it("Año 1's income is exactly the sum of its 12 months' rendimientoPortafolio", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
     const expected = y1!.rows.reduce((s, r) => s + r.rendimientoPortafolio, 0);
     expect(y1!.income).toBeCloseTo(expected, 4);
   });
 
-  it("portYield is decision-only — identical to portfolioNominalYield(tranches), independent of funding/claims", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
-    expect(y1!.portYield).toBeCloseTo(portfolioNominalYield(treeA.tranches), 8);
+  it("Capital Social is genuinely funded per the schedule's month-0 checkpoint before Año 1's first month even runs — mes -12's opening balance already reflects it, before a single peso of real prima", () => {
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
+    // fundFromAllocation() splits CAPITAL_SOCIAL across the month-0 checkpoint's
+    // weights with no loss (every instrument here is valid), so month -12's
+    // saldoInicialPortafolio — computed before that month's own prima gets
+    // invested — is exactly CAPITAL_SOCIAL, not 0 like a prima-only real ALM
+    // would start at.
+    expect(y1!.rows[0].saldoInicialPortafolio).toBeCloseTo(CAPITAL_SOCIAL, 0);
+  });
+
+  it("Capital Social's own accrual flows into Resultado de Inversiones — income is meaningfully more than what this fixture's modest prima (~$2.4B/año) could earn on its own", () => {
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
+    // TESUVR8 (40% of scheduleA) is coupon-bearing (see isCouponBond() in
+    // instruments.ts): funded at month 0, its first coupon isn't due until
+    // month 12 — the month right AFTER Año 1's own 12 months (0..11) end —
+    // so it contributes exactly 0 devengo throughout all of Año 1, unlike
+    // before this mechanic existed (when it compounded monthly like every
+    // other bond). Worse, LIQ rolls every month and gets reinvested per the
+    // same checkpoint each time it matures, so an increasing share of the
+    // LIQ/CDT90 legs cascades into that same non-earning TESUVR8 bucket as
+    // the year progresses — this floor is measured (not guessed) well below
+    // the actual result (~$1.6B) but still comfortably above what prima
+    // alone could ever produce (its own monthly investment income, on a
+    // ~$2.4B/año trickle, is on the order of tens of millions, not billions).
+    expect(y1!.income).toBeGreaterThan(CAPITAL_SOCIAL * 0.015);
+  });
+
+  it("portYield is decision-only — identical to portfolioNominalYield(schedule), independent of funding/claims", () => {
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
+    expect(y1!.portYield).toBeCloseTo(portfolioNominalYield(scheduleA.schedule), 8);
   });
 
   it("Año 2 throws without Año 1's finalState — it's a continuation, not a fresh run", () => {
-    expect(() => almSimRealYear(2, new Array(12).fill(0), treeA, aporte)).toThrow();
+    expect(() => almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte)).toThrow();
   });
 
   it("Año 2 continues Año 1's open positions and accumulated capital comprometido, not a fresh start", () => {
@@ -437,12 +455,12 @@ describe("almSimRealYear", () => {
     const payY1 = new Array(12).fill(0);
     payY1[0] = 2_000_000_000_000;
     const extremeLib: LiabilitySchedule = { payY1, L: new Array(48).fill(0), reserva: 0, hay: true };
-    const y1 = almSimRealYear(1, extremeLib.payY1, treeA, aporte);
+    const y1 = almSimRealYear(1, extremeLib.payY1, scheduleA, aporte);
     expect(y1).not.toBeNull();
     expect(y1!.capitalComprometidoAcumulado).toBeGreaterThan(0);
     expect(y1!.capitalSocialRestante).toBeCloseTo(CAPITAL_SOCIAL - y1!.capitalComprometidoAcumulado, 4);
 
-    const y2 = almSimRealYear(2, new Array(12).fill(0), treeA, aporte, y1!.finalState);
+    const y2 = almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte, y1!.finalState);
     expect(y2).not.toBeNull();
     // With no new claims at all in Año 2, capital comprometido never drops —
     // it only ever accumulates (see the module's "never repaid" note) — so
@@ -456,34 +474,33 @@ describe("almSimRealYear", () => {
   });
 
   it("Año 2 is labeled 0..11, fase post, and matches almSim()'s own labeling for the same calendar year", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
-    const y2 = almSimRealYear(2, new Array(12).fill(0), treeA, aporte, y1!.finalState);
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
+    const y2 = almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte, y1!.finalState);
     expect(y2!.rows.map((r) => r.mes)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     expect(y2!.rows.every((r) => r.fase === "post")).toBe(true);
   });
 
-  it("a real ALM with ample LIQ never touches Capital Social across either year, same as the fictitious one", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
-    const y2 = almSimRealYear(2, [lib.L[0] || 0, lib.L[1] || 0, ...new Array(10).fill(0)], treeA, aporte, y1!.finalState);
+  it("a real ALM with ample LIQ never needs external financing across either year — Capital Social is invested from the start, it just never has to be force-liquidated", () => {
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
+    const y2 = almSimRealYear(2, [lib.L[0] || 0, lib.L[1] || 0, ...new Array(10).fill(0)], scheduleA, aporte, y1!.finalState);
     expect(y1!.capitalComprometidoAcumulado).toBe(0);
     expect(y2!.capitalComprometidoAcumulado).toBe(0);
     expect(y2!.capitalSocialRestante).toBe(CAPITAL_SOCIAL);
   });
 
   it("cajaFinalAnio is exactly December's own cajaFinal, and portfolioBookValue is the gross (undiminished) book value, both feeding finBench()'s Balance", () => {
-    const y1 = almSimRealYear(1, lib.payY1, treeA, aporte);
+    const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
     expect(y1!.cajaFinalAnio).toBe(y1!.rows[11].cajaFinal);
     // Gross book value = the netted saldoFinalPortafolio plus back whatever
     // capital comprometido was netted out of it (see stepMonth's own
     // saldoFinalPortafolio = realBookSum - capitalComprometidoAcumulado
-    // identity) — undiminished, since the real ALM never invests Capital
-    // Social itself (only prima cash flow), so committed capital was never
-    // part of this pool to begin with.
+    // identity) — undiminished, since capital comprometido was never part
+    // of this pool to begin with, it's an emergency draw against it.
     expect(y1!.portfolioBookValue).toBeCloseTo(y1!.rows[11].saldoFinalPortafolio + y1!.capitalComprometidoAcumulado, 4);
   });
 
   it("returns null when the decision has no recognized instruments", () => {
-    expect(almSimRealYear(1, lib.payY1, decision([tranche("NOPE", 100, { action: "cash" })]), aporte)).toBeNull();
+    expect(almSimRealYear(1, lib.payY1, decision({ NOPE: 100 }), aporte)).toBeNull();
   });
 });
 
@@ -508,8 +525,8 @@ describe("computeMarketRiskAtAño2End", () => {
 
   it("LIQ/ACC positions never move against an empty liability — no duration, valued at par regardless of the shock", () => {
     const positions: Position[] = [
-      { tranche: { instrumentId: "LIQ", weight: 1, onMaturity: { action: "cash" } }, book: 50_000_000, yM: 0, matM: 30 },
-      { tranche: { instrumentId: "ACC", weight: 1, onMaturity: { action: "cash" } }, book: 20_000_000, yM: 0, matM: 999 },
+      { instrumentId: "LIQ", book: 50_000_000, yM: 0, matM: 30 },
+      { instrumentId: "ACC", book: 20_000_000, yM: 0, matM: 999 },
     ];
     const result = computeMarketRiskAtAño2End(positions, []);
     expect(result.riesgoTasa).toBeCloseTo(0, 8);
@@ -518,7 +535,7 @@ describe("computeMarketRiskAtAño2End", () => {
 
   it("riesgoInflacion for an all-TESUVR8 portfolio equals that of an empty portfolio against the same liability — TESUVR8 discounts off the real curve, which an inflation-only shock never moves, so its (constant) PV cancels out of the NAV delta entirely", () => {
     // matM=120: 96 months (TESUVR8's own plazoM) past the AÑO2_END_MONTH valuation point (24).
-    const uvr8Positions: Position[] = [{ tranche: { instrumentId: "TESUVR8", weight: 1, onMaturity: { action: "cash" } }, book: 100_000_000, yM: 0, matM: 120 }];
+    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120 }];
     const liabilityPostAño2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5_000_000]; // a single cashflow a year out
     const withUvr8 = computeMarketRiskAtAño2End(uvr8Positions, liabilityPostAño2);
     const empty = computeMarketRiskAtAño2End([], liabilityPostAño2);
@@ -528,16 +545,16 @@ describe("computeMarketRiskAtAño2End", () => {
   });
 
   it("riesgoTasa for an all-TESUVR8 portfolio (empty liability) is strictly positive — the real curve shock does move TESUVR8's own PV", () => {
-    const uvr8Positions: Position[] = [{ tranche: { instrumentId: "TESUVR8", weight: 1, onMaturity: { action: "cash" } }, book: 100_000_000, yM: 0, matM: 120 }];
+    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120 }];
     const result = computeMarketRiskAtAño2End(uvr8Positions, []);
     expect(result.riesgoTasa).toBeGreaterThan(0);
   });
 
   it("a mixed real portfolio (TESUVR8 + CDT90 + LIQ) produces finite, non-negative figures", () => {
-    const treeMixed = decision([tranche("LIQ", 20, { action: "repeat" }, 6), tranche("CDT90", 30, { action: "repeat" }), tranche("TESUVR8", 50, { action: "repeat" })]);
+    const scheduleMixed = decision({ LIQ: 20, CDT90: 30, TESUVR8: 50 });
     const aporte = 200_000_000;
-    const y1 = almSimRealYear(1, lib.payY1, treeMixed, aporte)!;
-    const y2 = almSimRealYear(2, new Array(12).fill(0), treeMixed, aporte, y1.finalState)!;
+    const y1 = almSimRealYear(1, lib.payY1, scheduleMixed, aporte)!;
+    const y2 = almSimRealYear(2, new Array(12).fill(0), scheduleMixed, aporte, y1.finalState)!;
     const result = computeMarketRiskAtAño2End(y2.finalState.positions, lib.L.slice(12));
     expect(Number.isFinite(result.riesgoTasa)).toBe(true);
     expect(Number.isFinite(result.riesgoInflacion)).toBe(true);
