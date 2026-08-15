@@ -45,7 +45,15 @@ export function SidebarShell({
         title="Ir al resumen"
         className={`flex shrink-0 items-center gap-2 px-3 py-3 transition-opacity hover:opacity-80 ${collapsed ? "justify-center" : ""}`}
       >
-        <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-6 w-auto shrink-0" priority />
+        {collapsed ? (
+          // The full wordmark+wing lockup is too wide for the w-16 icon
+          // rail (it either overflows or gets awkwardly clipped) — the wing
+          // glyph alone, cropped from the same asset, is the app's de facto
+          // "favicon" and reads fine at this size on its own.
+          <Image src="/logo_sura_mark.png" alt="Seguros SURA" width={151} height={191} className="h-7 w-auto shrink-0" priority />
+        ) : (
+          <Image src="/logo_sura.png" alt="Seguros SURA" width={662} height={302} className="h-6 w-auto shrink-0" priority />
+        )}
         {!collapsed && (
           <p className="truncate font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide">Pasantía Técnica</p>
         )}
