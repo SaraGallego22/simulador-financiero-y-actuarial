@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LockIcon } from "@/components/ui/icons";
+import { BarChartIcon, HomeIcon, LockIcon } from "@/components/ui/icons";
 import { SidebarShell } from "@/components/SidebarShell";
 import { useSidebarCollapsed } from "@/lib/sidebarCollapse";
 import { TEAM_DAY_LINKS } from "@/lib/teamNavData";
+import { type ReactNode } from "react";
 
 const DAY_LINKS = TEAM_DAY_LINKS;
+
+// Same reasoning as AdminNav's NAV_ICON_BY_HREF: only links with a clear,
+// distinct real-world icon get one when the sidebar collapses to icons —
+// Día 1-4 keep their short codes since a calendar glyph can't tell them apart.
+const NAV_ICON_BY_HREF: Record<string, ReactNode> = {
+  "/dashboard": <HomeIcon className="h-4 w-4 shrink-0" />,
+  "/standings": <BarChartIcon className="h-4 w-4 shrink-0" />,
+};
 
 /** Days beyond the cohort's openDay (admin-controlled, see updateOpenDayAction) render locked, not linked. */
 export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) {
@@ -57,19 +66,25 @@ function NavItem({
   active: boolean;
   collapsed: boolean;
 }) {
+  const icon = NAV_ICON_BY_HREF[href];
   return (
     <Link
       href={href}
       title={collapsed ? label : undefined}
-      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide transition-colors ${
-        collapsed ? "text-center" : ""
+      className={`flex items-center gap-1.5 rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide transition-colors ${
+        collapsed ? "justify-center text-center" : ""
       } ${
         active
           ? "border-[var(--color-brand-yellow)] bg-white/10 text-white"
           : "border-transparent text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"
       }`}
     >
-      {collapsed ? short : label}
+      {collapsed ? (icon ?? short) : (
+        <>
+          {icon}
+          {label}
+        </>
+      )}
     </Link>
   );
 }

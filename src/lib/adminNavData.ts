@@ -22,7 +22,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     ],
   },
   {
-    label: "Evaluación (reto por días)",
+    label: "Reto por días",
     links: [
       { href: "/admin/day/1", label: "Día 1", short: "D1", description: "Tarificación 2027 y portafolio de mínima varianza." },
       { href: "/admin/day/2", label: "Día 2", short: "D2", description: "P&G 2027 y retarifación 2028." },
