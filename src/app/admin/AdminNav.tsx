@@ -45,18 +45,50 @@ function sectionHasActive(section: NavSection, pathname: string): boolean {
   return section.links.some((l) => l.href === pathname) || (section.subgroup?.links.some((l) => l.href === pathname) ?? false);
 }
 
-/** Admin's sidebar links (11 across 4 former flat groups) as collapsible disclosures — each section opens/closes independently, defaulting open only when it contains the current page. */
+function defaultOpenMap(pathname: string): Record<string, boolean> {
+  return Object.fromEntries(SECTIONS.map((s) => [s.label, sectionHasActive(s, pathname)]));
+}
+
+/**
+ * Admin's sidebar links (11 across 4 former flat groups) as collapsible
+ * disclosures — each section opens/closes independently, defaulting open
+ * only when it contains the current page. Open/closed state lives here
+ * (not inside each accordion) so the collapsed icon rail can mirror it:
+ * only sections the admin actually has open show their links there too,
+ * instead of dumping every link from every section into one flat list.
+ */
 export function AdminNav({ badge }: { badge: string }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
   const footerExtra = <NavItem link={CONFIG_LINK} active={pathname === CONFIG_HREF} collapsed={collapsed} />;
 
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => defaultOpenMap(pathname));
+  // Auto-open (never auto-close) a section when navigation brings the active
+  // page into it, without discarding sections the admin opened/closed by
+  // hand. Adjusting state during render (React's documented alternative to
+  // an effect for "sync state to a changed prop") instead of useEffect,
+  // which would call setState after commit and force an extra render pass.
+  const [prevDefaults, setPrevDefaults] = useState(openMap);
+  const defaults = defaultOpenMap(pathname);
+  if (SECTIONS.some((s) => defaults[s.label] !== prevDefaults[s.label])) {
+    setPrevDefaults(defaults);
+    setOpenMap((prev) => {
+      const next = { ...prev };
+      for (const s of SECTIONS) {
+        if (defaults[s.label] && !prevDefaults[s.label]) next[s.label] = true;
+      }
+      return next;
+    });
+  }
+
   if (collapsed) {
-    const allLinks = SECTIONS.flatMap((s) => withoutConfig([...s.links, ...(s.subgroup?.links ?? [])]));
+    const openLinks = SECTIONS.filter((s) => openMap[s.label]).flatMap((s) =>
+      withoutConfig([...s.links, ...(s.subgroup?.links ?? [])])
+    );
     return (
       <SidebarShell badge={badge} homeHref={HOME_HREF} footerExtra={footerExtra}>
         <NavItem link={HOME_LINK} active={pathname === HOME_HREF} collapsed />
-        {allLinks.map((link) => (
+        {openLinks.map((link) => (
           <NavItem key={link.href} link={link} active={pathname === link.href} collapsed />
         ))}
       </SidebarShell>
@@ -67,7 +99,12 @@ export function AdminNav({ badge }: { badge: string }) {
     <SidebarShell badge={badge} homeHref={HOME_HREF} footerExtra={footerExtra}>
       <NavItem link={HOME_LINK} active={pathname === HOME_HREF} collapsed={false} />
       {SECTIONS.map((section) => (
-        <NavAccordion key={section.label} label={section.label} defaultOpen={sectionHasActive(section, pathname)}>
+        <NavAccordion
+          key={section.label}
+          label={section.label}
+          open={openMap[section.label]}
+          onToggle={() => setOpenMap((m) => ({ ...m, [section.label]: !m[section.label] }))}
+        >
           {withoutConfig(section.links).map((link) => (
             <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} nested />
           ))}
@@ -85,29 +122,17 @@ export function AdminNav({ badge }: { badge: string }) {
   );
 }
 
-function NavAccordion({ label, defaultOpen, children }: { label: string; defaultOpen: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  // Auto-open (never auto-close) when navigation brings the active page into
-  // this section, without discarding a manual expand/collapse of siblings.
-  // Adjusting state during render (React's documented alternative to an
-  // effect for "sync state to a changed prop") instead of useEffect, which
-  // would call setState after commit and force an extra render pass.
-  const [prevDefaultOpen, setPrevDefaultOpen] = useState(defaultOpen);
-  if (defaultOpen !== prevDefaultOpen) {
-    setPrevDefaultOpen(defaultOpen);
-    if (defaultOpen) setOpen(true);
-  }
-
+function NavAccordion({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <div className="mt-1 first:mt-0">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-start justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left font-[family-name:var(--font-condensed)] text-base font-bold uppercase leading-tight tracking-wide text-white/80 transition-colors hover:bg-white/5 hover:text-white/80"
+        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-white/80 transition-colors hover:bg-white/5 hover:text-white/80"
       >
         <span>{label}</span>
-        <ChevronIcon className={`mt-0.5 h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />
+        <ChevronIcon className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />
       </button>
       {open && <div className="flex flex-col gap-0.5 pb-1 pt-0.5">{children}</div>}
     </div>
