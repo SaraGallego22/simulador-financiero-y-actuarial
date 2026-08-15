@@ -8,6 +8,8 @@ export interface CardProps extends ComponentPropsWithoutRef<"div"> {
   /** Adds a hover lift + shadow, for clickable/interactive cards (e.g. the dashboard's Día cards). */
   hoverable?: boolean;
   padding?: CardPadding;
+  /** Translucent, blurred surface instead of the opaque one — lets an ambient SVG background show through. Use over DashboardHero/AdminHero, never over dense data (readability). */
+  glass?: boolean;
 }
 
 const paddingClasses: Record<CardPadding, string> = {
@@ -35,13 +37,16 @@ export function Card({
   accent = "none",
   hoverable = false,
   padding = "md",
+  glass = false,
   className = "",
   children,
   ...props
 }: CardProps) {
   return (
     <div
-      className={`rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] ${
+      className={`rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] shadow-[var(--shadow-sm)] ${
+        glass ? "bg-[var(--brand-glass-surface)] backdrop-blur-md" : "bg-[var(--color-brand-surface)]"
+      } ${
         hoverable ? "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]" : ""
       } ${paddingClasses[padding]} ${accentClasses[accent]} ${className}`}
       {...props}

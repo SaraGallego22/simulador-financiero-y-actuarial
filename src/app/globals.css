@@ -23,6 +23,10 @@
      higher in dark mode since the same alpha reads fainter on a dark
      surface than on a light one. */
   --decorative-opacity: 0.09;
+  /* Frosted-glass surface (Apple-style translucent card over a vivid
+     ambient background) — semi-transparent + backdrop-blur, used by
+     Card's `glass` variant instead of the opaque --brand-surface. */
+  --brand-glass-surface: rgba(255, 255, 255, 0.6);
 }
 
 .dark {
@@ -42,6 +46,7 @@
   --brand-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --brand-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
   --decorative-opacity: 0.16;
+  --brand-glass-surface: rgba(30, 41, 59, 0.55);
 }
 
 @theme inline {
