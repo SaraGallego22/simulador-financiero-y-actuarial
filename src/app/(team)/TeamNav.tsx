@@ -15,7 +15,7 @@ export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) 
   const collapsed = useSidebarCollapsed();
 
   return (
-    <SidebarShell badge={badge}>
+    <SidebarShell badge={badge} homeHref="/dashboard">
       <NavItem href="/dashboard" label="Resumen" short="RES" active={pathname === "/dashboard"} collapsed={collapsed} />
       {DAY_LINKS.map((link) =>
         link.day <= openDay ? (

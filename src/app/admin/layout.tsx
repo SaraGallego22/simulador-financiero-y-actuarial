@@ -13,10 +13,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") redirect("/login");
   return (
-    <div className="flex flex-1">
+    <div className="flex min-h-0 flex-1">
       <FloatingThemeToggle />
       <AdminNav badge="Admin" />
-      <div className="relative flex flex-1 flex-col overflow-y-auto">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
         <AdminHero />
         {children}
       </div>

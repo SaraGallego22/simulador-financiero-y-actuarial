@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { type ReactNode } from "react";
 import { signOutAction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,19 @@ import { useSidebarCollapsed, toggleSidebarCollapsed } from "@/lib/sidebarCollap
  * top-right corner instead (see FloatingThemeToggle, mounted per layout) —
  * it doesn't belong to this panel.
  */
-export function SidebarShell({ badge, children }: { badge: string; children: ReactNode }) {
+export function SidebarShell({
+  badge,
+  homeHref,
+  footerExtra,
+  children,
+}: {
+  badge: string;
+  /** Where the SURA logo/header links back to (the role's summary/home page). */
+  homeHref: string;
+  /** Rendered in the pinned footer, above "Cerrar sesión" — for a link that must stay reachable without scrolling the nav (e.g. admin's Configuración). */
+  footerExtra?: ReactNode;
+  children: ReactNode;
+}) {
   const collapsed = useSidebarCollapsed();
 
   return (
@@ -27,17 +40,21 @@ export function SidebarShell({ badge, children }: { badge: string; children: Rea
         collapsed ? "w-16" : "w-60"
       }`}
     >
-      <div className={`flex shrink-0 items-center gap-2 px-3 py-3 ${collapsed ? "justify-center" : ""}`}>
+      <Link
+        href={homeHref}
+        title="Ir al resumen"
+        className={`flex shrink-0 items-center gap-2 px-3 py-3 transition-opacity hover:opacity-80 ${collapsed ? "justify-center" : ""}`}
+      >
         <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-6 w-auto shrink-0" priority />
         {!collapsed && (
           <p className="truncate font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide">Pasantía Técnica</p>
         )}
-      </div>
+      </Link>
 
       {/* Only this middle section scrolls — header and footer (sign-out,
           collapse toggle) must always stay in view without hunting through a
           long nav list, so they can't be inside the same scroll container. */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-1">{children}</nav>
+      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-1">{children}</nav>
 
       <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 px-3 py-2.5">
         {!collapsed && (
@@ -56,6 +73,7 @@ export function SidebarShell({ badge, children }: { badge: string; children: Rea
           <ChevronIcon className={`h-4 w-4 shrink-0 transition-transform duration-200 ${collapsed ? "rotate-180" : ""}`} />
           {!collapsed && <span className="font-[family-name:var(--font-condensed)] text-xs font-semibold uppercase tracking-wide">Colapsar</span>}
         </button>
+        {footerExtra}
         <form action={signOutAction}>
           <Button type="submit" variant="ghost" onDark size="sm" className="w-full justify-center" title="Cerrar sesión">
             {collapsed ? <LogoutIcon className="h-4 w-4" /> : "Cerrar sesión"}

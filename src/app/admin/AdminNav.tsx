@@ -13,6 +13,20 @@ type NavSection = AdminNavSection;
 
 const SECTIONS = ADMIN_NAV_SECTIONS;
 
+// Configuración is pinned in the sidebar footer (above "Cerrar sesión") instead
+// of living inside the scrollable accordion — it's used every session and
+// shouldn't require opening/scrolling a section to reach. Still listed in
+// ADMIN_NAV_SECTIONS itself, so the admin home menu grid keeps showing it.
+const CONFIG_HREF = "/admin/config";
+const CONFIG_LINK = SECTIONS.flatMap((s) => s.links).find((l) => l.href === CONFIG_HREF)!;
+
+const HOME_HREF = "/admin";
+const HOME_LINK: NavLink = { href: HOME_HREF, label: "Resumen", short: "RES", description: "Panel del profesor." };
+
+function withoutConfig(links: NavLink[]): NavLink[] {
+  return links.filter((l) => l.href !== CONFIG_HREF);
+}
+
 function sectionHasActive(section: NavSection, pathname: string): boolean {
   return section.links.some((l) => l.href === pathname) || (section.subgroup?.links.some((l) => l.href === pathname) ?? false);
 }
@@ -21,11 +35,13 @@ function sectionHasActive(section: NavSection, pathname: string): boolean {
 export function AdminNav({ badge }: { badge: string }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
+  const footerExtra = <NavItem link={CONFIG_LINK} active={pathname === CONFIG_HREF} collapsed={collapsed} />;
 
   if (collapsed) {
-    const allLinks = SECTIONS.flatMap((s) => [...s.links, ...(s.subgroup?.links ?? [])]);
+    const allLinks = SECTIONS.flatMap((s) => withoutConfig([...s.links, ...(s.subgroup?.links ?? [])]));
     return (
-      <SidebarShell badge={badge}>
+      <SidebarShell badge={badge} homeHref={HOME_HREF} footerExtra={footerExtra}>
+        <NavItem link={HOME_LINK} active={pathname === HOME_HREF} collapsed />
         {allLinks.map((link) => (
           <NavItem key={link.href} link={link} active={pathname === link.href} collapsed />
         ))}
@@ -34,10 +50,11 @@ export function AdminNav({ badge }: { badge: string }) {
   }
 
   return (
-    <SidebarShell badge={badge}>
+    <SidebarShell badge={badge} homeHref={HOME_HREF} footerExtra={footerExtra}>
+      <NavItem link={HOME_LINK} active={pathname === HOME_HREF} collapsed={false} />
       {SECTIONS.map((section) => (
         <NavAccordion key={section.label} label={section.label} defaultOpen={sectionHasActive(section, pathname)}>
-          {section.links.map((link) => (
+          {withoutConfig(section.links).map((link) => (
             <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
           ))}
           {section.subgroup && (

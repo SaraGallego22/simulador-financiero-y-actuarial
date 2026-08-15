@@ -18,10 +18,10 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
   ]);
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-h-0 flex-1">
       <FloatingThemeToggle />
       <TeamNav openDay={cohort.openDay} badge={team?.name ?? "Equipo"} />
-      <div className="relative flex flex-1 flex-col overflow-y-auto">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
         <DashboardHero />
         {children}
       </div>
