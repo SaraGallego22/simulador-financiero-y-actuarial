@@ -55,13 +55,13 @@ export function AdminNav({ badge }: { badge: string }) {
       {SECTIONS.map((section) => (
         <NavAccordion key={section.label} label={section.label} defaultOpen={sectionHasActive(section, pathname)}>
           {withoutConfig(section.links).map((link) => (
-            <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
+            <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} nested />
           ))}
           {section.subgroup && (
             <>
-              <div className="mb-1 mt-2 px-2.5 font-[family-name:var(--font-condensed)] text-base font-bold uppercase tracking-wide text-white/80">{section.subgroup.label}</div>
+              <div className="mb-1 mt-2 pl-5 pr-2.5 font-[family-name:var(--font-condensed)] text-base font-bold uppercase tracking-wide text-white/80">{section.subgroup.label}</div>
               {section.subgroup.links.map((link) => (
-                <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
+                <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} nested />
               ))}
             </>
           )}
@@ -100,14 +100,27 @@ function NavAccordion({ label, defaultOpen, children }: { label: string; default
   );
 }
 
-function NavItem({ link, active, collapsed }: { link: NavLink; active: boolean; collapsed: boolean }) {
+function NavItem({
+  link,
+  active,
+  collapsed,
+  nested = false,
+}: {
+  link: NavLink;
+  active: boolean;
+  collapsed: boolean;
+  /** Items living inside an accordion section — indented and a step smaller than
+      the section title above them, so the title/subitem hierarchy reads clearly
+      instead of both sitting at the same visual weight. */
+  nested?: boolean;
+}) {
   return (
     <Link
       href={link.href}
       title={collapsed ? link.label : undefined}
-      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide transition-colors ${
-        collapsed ? "text-center" : ""
-      } ${
+      className={`rounded-[var(--radius-sm)] border-l-2 py-1 font-[family-name:var(--font-condensed)] font-bold uppercase tracking-wide transition-colors ${
+        nested && !collapsed ? "pl-5 pr-2.5 text-xs" : "px-2.5 text-sm"
+      } ${collapsed ? "text-center" : ""} ${
         active
           ? "border-[var(--color-brand-yellow)] bg-white/10 text-white"
           : "border-transparent text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"
