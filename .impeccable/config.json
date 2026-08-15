@@ -1,0 +1,18 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/app/(team)/TeamNav.tsx",
+          "src/app/admin/AdminNav.tsx"
+        ],
+        "createdAt": "2026-08-15T00:46:40.999Z",
+        "reason": "User explicitly confirmed the yellow left-border active-nav indicator is intentional SURA brand design (kept deliberately when asked about sidebar restyling, not an AI-added flourish)"
+      }
+    ]
+  }
+}

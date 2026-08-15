@@ -6,7 +6,7 @@ type ButtonSize = "sm" | "default" | "lg";
 export interface ButtonProps extends ComponentPropsWithoutRef<"button"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Use on dark (brand-blue) backgrounds, e.g. the TopBar. */
+  /** Use on dark (brand-blue) backgrounds, e.g. the sidebar. */
   onDark?: boolean;
   loading?: boolean;
   loadingText?: string;

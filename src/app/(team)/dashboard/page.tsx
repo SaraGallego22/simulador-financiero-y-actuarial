@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { DashboardHero } from "@/components/backgrounds/DashboardHero";
 import { Card } from "@/components/ui/card";
 import { LockIcon } from "@/components/ui/icons";
 
@@ -49,8 +48,7 @@ export default async function TeamDashboard() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
-      <div className="animate-fade-in-up relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-6 shadow-[var(--shadow-sm)]">
-        <DashboardHero />
+      <div className="animate-fade-in-up">
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           {team?.name ?? "Equipo"}
         </h1>

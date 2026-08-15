@@ -52,7 +52,7 @@
 
   /* Brand palette ported from the legacy prototype (Pasantia_SURA_v3_inversiones_dinamicas.html).
      --color-brand-blue/-blue-dark/-cyan/-yellow stay fixed across themes —
-     they're used for solid fills (TopBar, sidebar, primary buttons, the
+     they're used for solid fills (sidebar, primary buttons, the
      yellow role badge) whose contrast doesn't depend on the page theme.
      Everything else routes through a var that /.dark overrides above, so
      usages never need a separate dark: utility. */
@@ -76,8 +76,8 @@
   /* Card/panel background — replaces raw bg-white so surfaces darken with the theme */
   --color-brand-surface: var(--brand-surface);
 
-  /* Vivid tones + gradients for decorative/backdrop use only (TopBar,
-     sidebars, primary buttons, SVG hero backgrounds) — never a solid
+  /* Vivid tones + gradients for decorative/backdrop use only (sidebar,
+     primary buttons, SVG hero backgrounds) — never a solid
      text/button fill on their own, same rule as --color-brand-cyan below.
      Fixed across themes like --color-brand-blue, since they're gradient
      stops rather than surface/text colors. */
@@ -113,7 +113,7 @@
  * - Brand blue as TEXT/BORDER on a surface must use --color-brand-blue-accent,
  *   not --color-brand-blue directly, or it disappears on dark surfaces.
  * - --color-brand-blue-vivid/-cyan-vivid/-yellow-soft and the --gradient-brand-*
- *   tokens are gradient/decorative-stop colors only (TopBar, sidebars, primary
+ *   tokens are gradient/decorative-stop colors only (sidebar, primary
  *   buttons, SVG backgrounds) — never used as solid text or as a lone button
  *   fill, same restriction as brand cyan above.
  */
@@ -155,9 +155,13 @@ body {
     -webkit-print-color-adjust: exact;
   }
 
-  /* Decorative SVG hero backgrounds (login/dashboard/admin) must never
-     print — they're purely a screen affordance. */
-  .print-light .bg-decorative {
+  /* Decorative SVG backgrounds must never print — they're purely a screen
+     affordance. Unscoped (not `.print-light .bg-decorative`): the team/admin
+     ambient backgrounds now mount once at the layout level (see
+     (team)/layout.tsx, admin/layout.tsx), so they sit as a DOM *sibling* of
+     a printable page's own `.print-light` root, not a descendant of it — a
+     descendant-scoped selector would silently stop hiding them. */
+  .bg-decorative {
     display: none;
   }
 

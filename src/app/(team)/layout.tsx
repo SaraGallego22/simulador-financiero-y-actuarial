@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TopBar } from "@/components/TopBar";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { TeamNav } from "./TeamNav";
+import { DashboardHero } from "@/components/backgrounds/DashboardHero";
 
 export default async function TeamLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -17,14 +17,15 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
   ]);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <TopBar
+    <div className="flex flex-1">
+      <TeamNav
+        openDay={cohort.openDay}
         subtitle="Panel del Equipo · Seguros de Automóviles · 4 días / 2 años simulados"
         badge={team?.name ?? "Equipo"}
       />
-      <div className="flex flex-1">
-        <TeamNav openDay={cohort.openDay} />
-        <div className="flex flex-1 flex-col overflow-y-auto">{children}</div>
+      <div className="relative flex flex-1 flex-col overflow-y-auto">
+        <DashboardHero />
+        {children}
       </div>
     </div>
   );
