@@ -59,7 +59,7 @@ export function AdminNav({ badge }: { badge: string }) {
           ))}
           {section.subgroup && (
             <>
-              <div className="mb-1 mt-2 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-white/60">{section.subgroup.label}</div>
+              <div className="mb-1 mt-2 px-2.5 font-[family-name:var(--font-condensed)] text-base font-bold uppercase tracking-wide text-white/80">{section.subgroup.label}</div>
               {section.subgroup.links.map((link) => (
                 <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
               ))}
@@ -90,10 +90,10 @@ function NavAccordion({ label, defaultOpen, children }: { label: string; default
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-white/60 transition-colors hover:bg-white/5 hover:text-white/80"
+        className="flex w-full items-start justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left font-[family-name:var(--font-condensed)] text-base font-bold uppercase leading-tight tracking-wide text-white/80 transition-colors hover:bg-white/5 hover:text-white/80"
       >
-        <span className="truncate">{label}</span>
-        <ChevronIcon className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />
+        <span>{label}</span>
+        <ChevronIcon className={`mt-0.5 h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />
       </button>
       {open && <div className="flex flex-col gap-0.5 pb-1 pt-0.5">{children}</div>}
     </div>
