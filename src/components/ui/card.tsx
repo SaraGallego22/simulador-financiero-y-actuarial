@@ -22,8 +22,12 @@ const paddingClasses: Record<CardPadding, string> = {
 // straight bar appears to cut into the curve), so accented cards square off
 // the top corners and only round the bottom — the accent bar then sits
 // flush against a straight edge instead of fighting the radius.
+// "blue" renders cyan, not literal blue — a deliberate accent color the app
+// otherwise doesn't use for borders/outlines, so "available/interactive"
+// cards read as distinct from "locked" ones without reintroducing the loud
+// blue borders that got pulled out of the rest of the app.
 const accentClasses: Record<CardAccent, string> = {
-  blue: "rounded-t-none border-t-4 border-t-[var(--color-brand-gray-light)]",
+  blue: "rounded-t-none border-t-4 border-t-[var(--color-brand-cyan)]",
   gray: "rounded-t-none border-t-4 border-t-[var(--color-brand-gray-light)]",
   none: "rounded-t-[var(--radius-lg)]",
 };

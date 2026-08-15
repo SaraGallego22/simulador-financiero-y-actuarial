@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { SidebarShell } from "@/components/SidebarShell";
 import { useSidebarCollapsed } from "@/lib/sidebarCollapse";
-import { ChevronIcon } from "@/components/ui/icons";
+import { BarChartIcon, ChatIcon, ChevronIcon, FlaskIcon, GlobeIcon, HomeIcon, SettingsIcon } from "@/components/ui/icons";
 import { ADMIN_NAV_SECTIONS, type AdminNavLink, type AdminNavSection } from "@/lib/adminNavData";
 
 type NavLink = AdminNavLink;
@@ -22,6 +22,20 @@ const CONFIG_LINK = SECTIONS.flatMap((s) => s.links).find((l) => l.href === CONF
 
 const HOME_HREF = "/admin";
 const HOME_LINK: NavLink = { href: HOME_HREF, label: "Resumen", short: "RES", description: "Panel del profesor." };
+
+// A collapsed sidebar showing "UNI"/"MOD"/"ENT" reads as a wall of similar
+// abbreviations — a per-link icon is far more scannable. Only links with a
+// clear, distinct real-world icon get one (day/activity numbers don't gain
+// anything from an icon, since a calendar glyph can't tell Día 1 from Día 4);
+// those keep their short code as-is.
+const NAV_ICON_BY_HREF: Record<string, ReactNode> = {
+  [HOME_HREF]: <HomeIcon className="h-4 w-4 shrink-0" />,
+  "/admin/universo": <GlobeIcon className="h-4 w-4 shrink-0" />,
+  "/admin/modelo": <FlaskIcon className="h-4 w-4 shrink-0" />,
+  "/admin/standings": <BarChartIcon className="h-4 w-4 shrink-0" />,
+  "/admin/entrevista": <ChatIcon className="h-4 w-4 shrink-0" />,
+  [CONFIG_HREF]: <SettingsIcon className="h-4 w-4 shrink-0" />,
+};
 
 function withoutConfig(links: NavLink[]): NavLink[] {
   return links.filter((l) => l.href !== CONFIG_HREF);
@@ -114,19 +128,25 @@ function NavItem({
       instead of both sitting at the same visual weight. */
   nested?: boolean;
 }) {
+  const icon = NAV_ICON_BY_HREF[link.href];
   return (
     <Link
       href={link.href}
       title={collapsed ? link.label : undefined}
-      className={`rounded-[var(--radius-sm)] border-l-2 py-1 font-[family-name:var(--font-condensed)] font-bold uppercase tracking-wide transition-colors ${
+      className={`flex items-center gap-1.5 rounded-[var(--radius-sm)] border-l-2 py-1 font-[family-name:var(--font-condensed)] font-bold uppercase tracking-wide transition-colors ${
         nested && !collapsed ? "pl-5 pr-2.5 text-xs" : "px-2.5 text-sm"
-      } ${collapsed ? "text-center" : ""} ${
+      } ${collapsed ? "justify-center text-center" : ""} ${
         active
           ? "border-[var(--color-brand-yellow)] bg-white/10 text-white"
           : "border-transparent text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"
       }`}
     >
-      {collapsed ? link.short : link.label}
+      {collapsed ? (icon ?? link.short) : (
+        <>
+          {icon}
+          {link.label}
+        </>
+      )}
     </Link>
   );
 }
