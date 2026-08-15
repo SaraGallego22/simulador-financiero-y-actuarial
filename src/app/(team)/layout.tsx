@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { TeamNav } from "./TeamNav";
 import { DashboardHero } from "@/components/backgrounds/DashboardHero";
+import { FloatingThemeToggle } from "@/components/FloatingThemeToggle";
 
 export default async function TeamLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -18,6 +19,7 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex flex-1">
+      <FloatingThemeToggle />
       <TeamNav
         openDay={cohort.openDay}
         subtitle="Panel del Equipo · Seguros de Automóviles · 4 días / 2 años simulados"

@@ -1,3 +1,5 @@
+import { ChevronIcon } from "@/components/ui/icons";
+
 const SECTIONS = [
   {
     title: "Universo y generación de datos",
@@ -29,16 +31,29 @@ const SECTIONS = [
   },
 ];
 
+/**
+ * Titles-only by default, body expands on click — the model reference used
+ * to be 7 always-expanded walls of text. Uses native <details>/<summary>
+ * (no client component needed): Tailwind's group-open: variant tracks the
+ * [open] attribute directly, so the chevron animates without JS.
+ */
 export function ModelDocs() {
   return (
-    <div className="flex flex-col gap-4">
-      {SECTIONS.map((s) => (
-        <div key={s.title} className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-            {s.title}
-          </h3>
-          <p className="text-sm text-[var(--color-brand-text-secondary)]">{s.body}</p>
-        </div>
+    <div className="flex flex-col gap-3">
+      {SECTIONS.map((s, i) => (
+        <details
+          key={s.title}
+          open={i === 0}
+          className="group rounded-b-[var(--radius-lg)] rounded-t-none border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 marker:hidden [&::-webkit-details-marker]:hidden">
+            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              {s.title}
+            </h3>
+            <ChevronIcon className="h-4 w-4 shrink-0 rotate-180 text-[var(--color-brand-blue-accent)] transition-transform duration-200 group-open:-rotate-90" />
+          </summary>
+          <p className="px-4 pb-4 text-sm text-[var(--color-brand-text-secondary)]">{s.body}</p>
+        </details>
       ))}
     </div>
   );

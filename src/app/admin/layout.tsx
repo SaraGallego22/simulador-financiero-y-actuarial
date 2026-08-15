@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { AdminNav } from "./AdminNav";
 import { AdminHero } from "@/components/backgrounds/AdminHero";
+import { FloatingThemeToggle } from "@/components/FloatingThemeToggle";
 
 /**
  * Defense-in-depth: proxy.ts already blocks non-admins from /admin/*, but
@@ -13,6 +14,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session || session.user.role !== "ADMIN") redirect("/login");
   return (
     <div className="flex flex-1">
+      <FloatingThemeToggle />
       <AdminNav subtitle="Panel del Profesor · Seguros de Automóviles · 4 días / 2 años simulados" badge="Admin" />
       <div className="relative flex flex-1 flex-col overflow-y-auto">
         <AdminHero />
