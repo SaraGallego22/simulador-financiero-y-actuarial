@@ -1,22 +1,38 @@
-import { RT_EXPENSE_PCT } from "../finance/constants";
+import { RT_EXPENSE_PCT, FZ } from "../finance/constants";
 
 export type ObjectiveMode = "relative" | "ranking";
 
+/** Shared input shape for computeRt() — see its doc comment for why this now mirrors finBench.ts's pyg() exactly. */
+export interface RtInputs {
+  /** Prima Emitida — what was actually charged/collected, before any RPND holdback. */
+  totalPremium: number;
+  claimsAmount: number;
+  /** The PRIOR year's own 20% RPND holdback, now released as revenue this year (FZ.rpndPct × prior year's totalPremium) — 0/undefined for Año 1, which has no prior year. See finBench.ts's pyg() `rpndLiberada` param, which this must stay in lockstep with. */
+  rpndLiberada?: number;
+}
+
 /**
- * RT (resultado técnico) — premium minus claims minus the acquisition/
- * commission expense load (RT_EXPENSE_PCT — deliberately NOT gasto
- * administrativo, which lands on its own line, Resultado Industrial, see
- * finBench.ts's pyg()). Same shape as finBench()'s own `rt` — kept as one
- * shared definition so "RT" means the same thing everywhere it's computed
- * or displayed (grading here, the P&L there, the admin panel), instead of
- * two similarly-named but different numbers. Deliberately built from raw
- * `totalPremium` (Prima Emitida), not Prima Devengada — this score is about
- * pricing/underwriting quality (premium vs. claims vs. acquisition cost),
- * not the unearned-premium accounting timing that's specific to the full
- * financial-statement model (see README §4.1's RPND roll-forward).
+ * RT (resultado técnico) — Prima Devengada minus claims minus the
+ * acquisition/commission expense load (RT_EXPENSE_PCT, still charged on
+ * Prima Emitida — deliberately NOT gasto administrativo, which lands on
+ * its own line, Resultado Industrial, see finBench.ts's pyg()). Same
+ * shape as finBench()'s own `rt` — kept as one shared definition so "RT"
+ * means the same thing everywhere it's computed or displayed (grading
+ * here, the P&L there, the admin panel), instead of two similarly-named
+ * but different numbers.
+ *
+ * Built from Prima Devengada (totalPremium × (1 − FZ.rpndPct) +
+ * rpndLiberada), not raw totalPremium — a team's technical result
+ * genuinely depends on the unearned-premium accounting timing: only the
+ * earned share of what it charged counts as revenue this year, exactly
+ * like the real P&G it reports in Día 2+ (see finBench.ts's pyg() and
+ * README §4.1's RPND roll-forward). For Año 1 (rpndLiberada omitted),
+ * Prima Devengada is simply 80% of totalPremium, since there's no prior
+ * year to release from.
  */
-export function computeRt(r: { totalPremium: number; claimsAmount: number }): number {
-  return r.totalPremium * (1 - RT_EXPENSE_PCT) - r.claimsAmount;
+export function computeRt(r: RtInputs): number {
+  const primaDevengada = r.totalPremium * (1 - FZ.rpndPct) + (r.rpndLiberada ?? 0);
+  return primaDevengada - r.totalPremium * RT_EXPENSE_PCT - r.claimsAmount;
 }
 
 /**
@@ -29,7 +45,7 @@ export function computeRt(r: { totalPremium: number; claimsAmount: number }): nu
  * score); "ranking" mode is a linear score by finishing position.
  */
 export function notaTarifacionAnio(
-  results: { teamId: number; totalPremium: number; claimsAmount: number }[],
+  results: (RtInputs & { teamId: number })[],
   mode: ObjectiveMode
 ): Map<number, number> {
   const byTeam = new Map<number, number>();
@@ -64,16 +80,18 @@ export function notaTarifacionAnio(
 }
 
 /**
- * Target net technical margin (RT as a fraction of premium, *after* both
- * claims and the RT_EXPENSE_PCT expense load) that counts as "good
- * performance" for notaTarifacionAbsoluta(). This can't reuse analytics.ts's
- * LR_BAJO (0.85, the "grow" threshold) directly the way an earlier version
- * of this function did: once RT already subtracts RT_EXPENSE_PCT (19%), a
- * team merely hitting LR_BAJO on claims alone (0.85 + 0.19 > 1.0 of premium)
- * is still running a net technical loss — realistic (many insurers run an
- * underwriting loss offset by investment income, graded separately via ALM),
- * but not what "good performance" should mean for this specific,
- * underwriting-only score.
+ * Target net technical margin — RT as a fraction of Prima Emitida (the
+ * premium a team actually controls/prices to, same framing as the Día 1
+ * guide's "margen técnico neto del 20% sobre la prima") — that counts as
+ * "good performance" for notaTarifacionAbsoluta(). This can't reuse
+ * analytics.ts's LR_BAJO (0.85, the "grow" threshold) directly the way an
+ * earlier version of this function did: once RT already subtracts
+ * RT_EXPENSE_PCT (19%) off Prima Emitida on top of the 20% RPND holdback
+ * that never reaches Prima Devengada at all, a team merely hitting LR_BAJO
+ * on claims alone (0.85 + 0.19 > 0.80 of premium) is still running a net
+ * technical loss — realistic (many insurers run an underwriting loss offset
+ * by investment income, graded separately via ALM), but not what "good
+ * performance" should mean for this specific, underwriting-only score.
  *
  * 20% (not a thinner margin like 10%) is deliberate, and coincidentally
  * close to but distinct from RT_EXPENSE_PCT (19%) — the two are unrelated
@@ -114,14 +132,19 @@ const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMA
  * "Good performance" for a given team is defined as: what its RT *would
  * have been* had it priced its own actual book of claims (claimsAmount,
  * already known — not a population estimate) to land exactly at
- * GOOD_PERFORMANCE_MARGIN_PCT net technical margin, after also covering the
- * same RT_EXPENSE_PCT expense load every team pays. Solving
- * `premium*(1-RT_EXPENSE_PCT) - claims = premium*MARGIN` for premium and
- * substituting back into RT gives `goodRt = claims * MARGIN / (1 -
- * RT_EXPENSE_PCT - MARGIN)`. That reference RT scales with each team's
- * own claims volume, so a small and a large book are judged on the same
- * relative bar, not on who racked up more absolute COP of technical result
- * by writing more policies.
+ * GOOD_PERFORMANCE_MARGIN_PCT net technical margin (as a fraction of the
+ * premium it would have had to charge — Prima Emitida, not Devengada; see
+ * GOOD_PERFORMANCE_MARGIN_PCT's own comment), after also covering the same
+ * RT_EXPENSE_PCT expense load every team pays and the RPND holdback every
+ * Año 1 book carries (this function is only ever used for Año 1 — see
+ * notaTarifacionAnio() for Año 2 — so rpndLiberada is always 0 here, i.e.
+ * Prima Devengada is always exactly 80% of Prima Emitida). Solving
+ * `premium*(1-FZ.rpndPct) - premium*RT_EXPENSE_PCT - claims = premium*MARGIN`
+ * for premium and substituting back into RT gives `goodRt = claims * MARGIN
+ * / (1 - FZ.rpndPct - RT_EXPENSE_PCT - MARGIN)`. That reference RT scales
+ * with each team's own claims volume, so a small and a large book are
+ * judged on the same relative bar, not on who racked up more absolute COP
+ * of technical result by writing more policies.
  *
  * RT itself ranges over all of (-∞, ∞), so it's passed through a logistic
  * curve centered on RT=0 (score 50) and scaled by that per-team reference —
@@ -134,7 +157,7 @@ export function notaTarifacionAbsoluta(
   results: { teamId: number; totalPremium: number; claimsAmount: number }[]
 ): Map<number, number> {
   const map = new Map<number, number>();
-  const goodMarginDenominator = 1 - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
+  const goodMarginDenominator = 1 - FZ.rpndPct - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
   for (const r of results) {
     const rt = computeRt(r);
     if (r.totalPremium <= 0 && r.claimsAmount <= 0) {

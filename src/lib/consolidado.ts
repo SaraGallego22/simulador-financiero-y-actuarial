@@ -10,6 +10,7 @@ import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/conce
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
 import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
+import { FZ } from "@/domain/finance/constants";
 import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import type { SoftSkillCompetency } from "@/lib/softSkills";
 
@@ -18,32 +19,53 @@ export interface MarketLossRatio {
   teamCount: number;
 }
 
+/** teamId -> that team's latest DONE totalPremium (Prima Emitida) for a given day, keyed for cross-day lookups (e.g. Año 2's RPND liberada needs Año 1's own totalPremium per team). Only the latest run per team is kept. */
+async function latestTotalPremiumByTeamId(cohortId: string, day: number): Promise<Map<string, number>> {
+  const results = await prisma.teamSimResult.findMany({
+    where: { simulationRun: { cohortId, day, status: "DONE" } },
+    orderBy: { simulationRun: { createdAt: "desc" } },
+  });
+  const byTeamId = new Map<string, number>();
+  for (const r of results) {
+    if (!byTeamId.has(r.teamId)) byTeamId.set(r.teamId, r.totalPremium); // keep only the latest run per team
+  }
+  return byTeamId;
+}
+
 /**
  * Real, aggregate (never per-team) loss ratio across every team's published
- * result for a given day — siniestros reales de todo el mercado ÷ prima real
- * de todo el mercado, both summed across teams, never broken out per team.
- * Used as an external reference for a team's own Expected Loss Ratio
- * estimate (Día 2's guide §2) — deliberately the real market outcome, not a
- * theoretical benchmark. Shown regardless of how few teams are published
- * (even 1) — an admin running a small test cohort still wants to see it.
+ * result for a given day — siniestros reales de todo el mercado ÷ prima
+ * DEVENGADA real de todo el mercado, both summed across teams, never broken
+ * out per team. Devengada (not emitida), same as computeRt()/finBench()'s
+ * own rt — this is the reference a team's own Loss Ratio Esperado (Día 2's
+ * guide §2, itself now Prima Devengada-based to match) gets contrasted
+ * against, so both sides of that comparison need the same premium base.
+ * Shown regardless of how few teams are published (even 1) — an admin
+ * running a small test cohort still wants to see it.
  */
 export async function computeMarketLossRatio(cohortId: string, day: number): Promise<MarketLossRatio | null> {
   const results = await prisma.teamSimResult.findMany({
     where: { simulationRun: { cohortId, day, status: "DONE" }, published: true },
     orderBy: { simulationRun: { createdAt: "desc" } },
   });
+  // Año 2's rpndLiberada needs each team's own Año 1 totalPremium — only
+  // fetched when actually needed (day===2), never for the much more common
+  // day===1 case (see computeRt()'s doc comment: rpndLiberada omitted means 0).
+  const priorYearPremiumByTeamId = day === 2 ? await latestTotalPremiumByTeamId(cohortId, 1) : null;
+
   const seen = new Set<string>();
-  let totalPremium = 0;
+  let totalPrimaDevengada = 0;
   let totalClaims = 0;
   for (const r of results) {
     if (seen.has(r.teamId)) continue; // keep only the latest run per team
     seen.add(r.teamId);
-    totalPremium += r.totalPremium;
+    const rpndLiberada = priorYearPremiumByTeamId ? FZ.rpndPct * (priorYearPremiumByTeamId.get(r.teamId) ?? 0) : 0;
+    totalPrimaDevengada += r.totalPremium * (1 - FZ.rpndPct) + rpndLiberada;
     totalClaims += r.claimsAmount;
   }
   const teamCount = seen.size;
-  if (teamCount === 0 || totalPremium <= 0) return null;
-  return { lossRatio: totalClaims / totalPremium, teamCount };
+  if (teamCount === 0 || totalPrimaDevengada <= 0) return null;
+  return { lossRatio: totalClaims / totalPrimaDevengada, teamCount };
 }
 
 export interface TeamConsolidado {
@@ -79,6 +101,10 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
   // correct, so publish status only gates which team's own score gets
   // attached below — not which rows feed the ranking itself.
   const tarifByDay = new Map<number, Map<string, number>>();
+  // Año 2's RT needs each team's own Año 1 totalPremium to release its RPND
+  // holdback as this year's revenue (see composite.ts's computeRt()) — fetched
+  // once, before the loop, so day===2's iteration below can look it up per team.
+  const year1TotalPremiumByTeamId = await latestTotalPremiumByTeamId(cohort.id, 1);
   for (const day of [1, 2]) {
     const results = await prisma.teamSimResult.findMany({
       where: { simulationRun: { cohortId: cohort.id, day, status: "DONE" } },
@@ -87,14 +113,15 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
     const seen = new Set<string>();
     const numericIdByTeamId = new Map<string, number>();
     const publishedTeamIds = new Set<string>();
-    const rows: { teamId: number; totalPremium: number; claimsAmount: number }[] = [];
+    const rows: { teamId: number; totalPremium: number; claimsAmount: number; rpndLiberada?: number }[] = [];
     for (const r of results) {
       if (seen.has(r.teamId)) continue; // keep only the latest run per team
       seen.add(r.teamId);
       if (r.published) publishedTeamIds.add(r.teamId);
       const numericId = numericIdByTeamId.size + 1;
       numericIdByTeamId.set(r.teamId, numericId);
-      rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount });
+      const rpndLiberada = day === 2 ? FZ.rpndPct * (year1TotalPremiumByTeamId.get(r.teamId) ?? 0) : undefined;
+      rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount, rpndLiberada });
     }
     // Año 1's actuarial score is anchored to the model's own definition of
     // good performance (see notaTarifacionAbsoluta's doc comment) rather

@@ -223,12 +223,12 @@ describe("Ajuste de siniestralidad (a useTrueValue formula term: true bench fact
 describe("sol_sigmaLR (sample stdev of siniestralidad/prima across Año 1/2/3, graded against the team's OWN P&G lines)", () => {
   function ownValuesFor(overrides: Partial<Record<string, number>> = {}): Map<string, number> {
     const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_primaEmitida"), overrides.p1_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d2", "p1_primaDevengada"), overrides.p1_primaDevengada ?? 1_000_000_000);
     ownValues.set(ownValueKey("d2", "p1_costo"), overrides.p1_costo ?? 400_000_000);
     ownValues.set(ownValueKey("d3", "p2_ajusteSiniestralidad"), overrides.p2_ajusteSiniestralidad ?? 50_000_000);
-    ownValues.set(ownValueKey("d3", "p2_primaEmitida"), overrides.p2_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d3", "p2_primaDevengada"), overrides.p2_primaDevengada ?? 1_000_000_000);
     ownValues.set(ownValueKey("d3", "p2_costo"), overrides.p2_costo ?? 500_000_000);
-    ownValues.set(ownValueKey("d3", "p3_primaEmitida"), overrides.p3_primaEmitida ?? 1_000_000_000);
+    ownValues.set(ownValueKey("d3", "p3_primaDevengada"), overrides.p3_primaDevengada ?? 1_000_000_000);
     ownValues.set(ownValueKey("d3", "p3_costo"), overrides.p3_costo ?? 550_000_000);
     return ownValues;
   }

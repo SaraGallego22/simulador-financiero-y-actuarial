@@ -116,12 +116,16 @@ export interface FinBenchResult {
   /** Same shape as riesgoTasa, but shocking the implied-inflation curve instead — see `riesgo_inflacion` in concepts.ts. */
   riesgoInflacion: number;
   /**
-   * Sample standard deviation (n−1) of siniestralidad/Prima Emitida
-   * (`costo / primaEmitida`) across Año 1, Año 2 and Año 3 (proyectado) —
-   * the team's OWN realized underwriting volatility, replacing the old
-   * flat FZ.primeVol as rPrimas's volatility factor (see rPrimas below and
-   * FZ.primeVol's own comment for why capacity.ts still needs that flat
-   * rate). Reported/graded as `sol_sigmaLR` in concepts.ts.
+   * Sample standard deviation (n−1) of siniestralidad/Prima Devengada
+   * (`costo / primaDevengada`) across Año 1, Año 2 and Año 3 (proyectado) —
+   * the team's OWN realized underwriting volatility, on the same earned-
+   * premium base as computeRt()/RT itself (loss ratio is a performance
+   * measure — how much of what was actually earned went to claims — same
+   * reasoning that keeps rt built on primaDevengada, see PnL.rt's doc
+   * comment), replacing the old flat FZ.primeVol as rPrimas's volatility
+   * factor (see rPrimas below and FZ.primeVol's own comment for why
+   * capacity.ts still needs that flat rate). Reported/graded as
+   * `sol_sigmaLR` in concepts.ts.
    */
   solSigmaLR: number;
 }
@@ -407,16 +411,19 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const balN = bal2 || bal1;
   const pygN = p2 || p1;
   const reservasN = pygN.reservas;
-  // solSigmaLR needs all 3 years' true costo/primaEmitida — only available
+  // solSigmaLR needs all 3 years' true costo/primaDevengada — only available
   // once p2/p3 exist (from Día 3 onward). finBench() is also called earlier
   // (Día 2 grading, year2 undefined) with only Año 1 known; falls back to
   // the old flat FZ.primeVol then, since nothing reads solRk/rPrimas as a
   // graded figure before Día 4 anyway.
-  const solSigmaLR = p2 && p3 ? sampleStdev([p1.costo / p1.primaEmitida, p2.costo / p2.primaEmitida, p3.costo / p3.primaEmitida]) : FZ.primeVol;
-  // Premium risk (rSusc) and rOp are sized off primaEmitida, not
+  const solSigmaLR = p2 && p3 ? sampleStdev([p1.costo / p1.primaDevengada, p2.costo / p2.primaDevengada, p3.costo / p3.primaDevengada]) : FZ.primeVol;
+  // rPrimas itself still applies that volatility rate to primaEmitida, not
   // primaDevengada — the same base gastos use (see PnL.primaEmitida's doc
-  // comment): premium risk is about the volume of business written, not
-  // how much of it has earned out yet.
+  // comment): premium risk-capital is about the volume of business written
+  // (how much is currently on risk), not how much of it has earned out
+  // yet — solSigmaLR only changed *how the rate itself is measured*
+  // (against earned premium, a genuine performance ratio), not what it's
+  // then applied to (written premium, an exposure/volume figure).
   const rPrimas = pygN.primaEmitida * solSigmaLR;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
