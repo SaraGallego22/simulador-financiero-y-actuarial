@@ -88,7 +88,7 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
       <button
         onClick={run}
         disabled={loading}
-        className="rounded bg-[var(--color-brand-blue)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)] disabled:opacity-50"
+        className="rounded-full bg-[image:var(--gradient-brand-primary)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
       >
         {loading ? "Corriendo…" : "Correr simulación"}
       </button>

@@ -197,7 +197,7 @@ export default async function TeamDayPage({
         </div>
         <Link
           href={`/day/${day}/guia`}
-          className="shrink-0 rounded-md px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
+          className="shrink-0 rounded-full px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
         >
           📄 Guía del pasante
         </Link>
@@ -210,7 +210,7 @@ export default async function TeamDayPage({
           {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
           <a
             href="/api/universe/public-csv"
-            className="w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
+            className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
           >
             Descargar CSV público del universo
           </a>
@@ -221,7 +221,7 @@ export default async function TeamDayPage({
             <>
               <a
                 href="/api/universe/chile-csv"
-                className="w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
+                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
               >
                 Descargar dataset Chile (referencia)
               </a>
@@ -348,7 +348,7 @@ export default async function TeamDayPage({
                 <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
                   <a
                     href={`/api/teams/report?day=${day}`}
-                    className="inline-block w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
+                    className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
                   >
                     Descargar reporte de tu cartera (CSV)
                   </a>

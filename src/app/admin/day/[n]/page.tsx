@@ -473,7 +473,7 @@ export default async function AdminDayPage({
                           <form action={togglePublishedAction.bind(null, result.id, day)}>
                             <button
                               type="submit"
-                              className={`rounded px-3 py-1 text-xs font-semibold ${
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
                                 result.published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
                               }`}
                             >
@@ -493,7 +493,7 @@ export default async function AdminDayPage({
             <form action={publishAllAction.bind(null, latestRun.id, day)}>
               <button
                 type="submit"
-                className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
+                className="rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
               >
                 Publicar todos los resultados de este día
               </button>
@@ -1143,7 +1143,7 @@ export default async function AdminDayPage({
                           <form action={toggleMemberEvaluationsPublishedForTeamAction.bind(null, team.id, day)}>
                             <button
                               type="submit"
-                              className={`rounded px-3 py-1 text-xs font-semibold ${
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
                                 published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
                               }`}
                             >
