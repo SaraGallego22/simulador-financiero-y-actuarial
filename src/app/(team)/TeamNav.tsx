@@ -61,7 +61,7 @@ function NavItem({
     <Link
       href={href}
       title={collapsed ? label : undefined}
-      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide transition-colors ${
+      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide transition-colors ${
         collapsed ? "text-center" : ""
       } ${
         active

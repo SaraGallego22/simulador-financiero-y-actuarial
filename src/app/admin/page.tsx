@@ -6,7 +6,7 @@ import { ADMIN_NAV_SECTIONS, type AdminNavLink } from "@/lib/adminNavData";
 
 function ShortBadge({ short }: { short: string }) {
   return (
-    <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue-light)] px-1.5 font-[family-name:var(--font-condensed)] text-[13px] font-bold text-[var(--color-brand-blue-accent)]">
+    <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue-light)] px-1.5 font-[family-name:var(--font-condensed)] text-[15px] font-bold text-[var(--color-brand-blue-accent)]">
       {short}
     </span>
   );
@@ -43,7 +43,7 @@ export default async function AdminHome() {
   const chileDone = universeRuns.find((r) => r.kind === "chile")?.status === "DONE";
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8 sm:p-10">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 p-8 sm:p-10">
       <div className="animate-fade-in-up">
         <p className="font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-brand-cyan)]">
           Panel del profesor

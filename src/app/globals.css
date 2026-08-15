@@ -93,16 +93,17 @@
   --gradient-brand-sidebar: linear-gradient(180deg, var(--color-brand-blue) 0%, var(--color-brand-blue-dark) 100%);
 
   /* Legibility pass: the default Tailwind type scale (12/14/16/18px) read
-     too small/thin across the app. Bumped one step up; line-heights keep
+     too small/thin across the app. Bumped up two steps (round 2 after the
+     first pass still read small on the team portal); line-heights keep
      their original ratio to the new sizes. */
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: calc(1.25 / 0.8125);
-  --text-sm: 0.9375rem;
-  --text-sm--line-height: calc(1.375 / 0.9375);
-  --text-base: 1.0625rem;
-  --text-base--line-height: calc(1.625 / 1.0625);
-  --text-lg: 1.1875rem;
-  --text-lg--line-height: calc(1.75 / 1.1875);
+  --text-xs: 0.875rem;
+  --text-xs--line-height: calc(1.375 / 0.875);
+  --text-sm: 1rem;
+  --text-sm--line-height: calc(1.5 / 1);
+  --text-base: 1.125rem;
+  --text-base--line-height: calc(1.75 / 1.125);
+  --text-lg: 1.25rem;
+  --text-lg--line-height: calc(1.875 / 1.25);
 
   /* Radius scale — replaces ad hoc rounded/rounded-lg usage across the app. */
   --radius-sm: 0.375rem;

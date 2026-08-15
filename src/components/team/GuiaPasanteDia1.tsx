@@ -53,7 +53,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -165,7 +165,7 @@ export function GuiaPasanteDia1() {
       </Section>
 
       <Section n="2" title="Teoría necesaria">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           El modelo exacto (qué variables usar, con qué forma funcional, con qué parámetros) no se revela ni se prescribe — es una decisión de tu
           equipo, y distintos enfoques razonables pueden llegar a tarifas distintas. Esta sección te da los datos y el marco conceptual sobre el que
           se construye cualquier estimación razonable, no la respuesta.
@@ -292,7 +292,7 @@ export function GuiaPasanteDia1() {
               </tbody>
             </table>
           </div>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Con estos valores, el denominador de la fórmula es 1 − 25% − 20% = 0.55. Esto carga tu prima pura de forma pareja para todo el libro —
             no resuelve cuánto debe pagar cada póliza individual frente a otra, que es lo que decide tu propio modelo de frecuencia/severidad, abajo.
           </p>
@@ -382,13 +382,13 @@ export function GuiaPasanteDia1() {
               con una grande se midan con la misma vara relativa.
             </li>
           </ul>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Si tu equipo no alcanza a completar su tarifa a tiempo, la pestaña de Simulación tiene una opción de emergencia — &ldquo;Tercerizar
             tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir
             participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
             revela una vez se publiquen los resultados de ese día. Aplica igual en el 2028.
           </p>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Para calibrar tu propio modelo de frecuencia y severidad tienes disponible, además del universo público, un dataset de referencia con
             siniestros reales (dataset Chile, 100.000 pólizas, descargable desde la pestaña de Simulación de este día) — juzgar qué variables aplican a
             Colombia y cómo ajustarlas es parte del reto.
@@ -407,7 +407,7 @@ export function GuiaPasanteDia1() {
             Tu nota compara la varianza que realmente lograste contra la varianza mínima real (la que un portafolio óptimo habría logrado con el mismo
             rendimiento objetivo) — mientras más cerca de esa varianza mínima, mejor tu nota.
           </p>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Este portafolio también determina qué tan volátil se considera tu perfil de inversión para efectos del tope de cuota de mercado del 2027: un
             portafolio más volátil reduce cuántas pólizas puede sostener tu capital manteniendo un margen de solvencia saludable.
           </p>
@@ -415,7 +415,7 @@ export function GuiaPasanteDia1() {
       </Section>
 
       <Section n="4" title="Conceptos que debes aplicar">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — el modelo exacto de riesgo y la asignación óptima del portafolio son parte de lo que se
           evalúa que tu equipo descubra.
         </p>

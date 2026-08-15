@@ -15,7 +15,7 @@ export default async function TeamStandingsPage() {
   const ranked = rows.filter((r) => r.notaFinal != null);
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
       <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Ranking general
       </h1>

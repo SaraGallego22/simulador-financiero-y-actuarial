@@ -59,7 +59,7 @@ export function AdminNav({ badge }: { badge: string }) {
           ))}
           {section.subgroup && (
             <>
-              <div className="mb-1 mt-2 px-2.5 text-[11px] font-bold uppercase tracking-wider text-white/70">{section.subgroup.label}</div>
+              <div className="mb-1 mt-2 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-white/60">{section.subgroup.label}</div>
               {section.subgroup.links.map((link) => (
                 <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
               ))}
@@ -90,7 +90,7 @@ function NavAccordion({ label, defaultOpen, children }: { label: string; default
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left text-[12px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/5 hover:text-white/80"
+        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-white/60 transition-colors hover:bg-white/5 hover:text-white/80"
       >
         <span className="truncate">{label}</span>
         <ChevronIcon className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />
@@ -105,7 +105,7 @@ function NavItem({ link, active, collapsed }: { link: NavLink; active: boolean; 
     <Link
       href={link.href}
       title={collapsed ? link.label : undefined}
-      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide transition-colors ${
+      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide transition-colors ${
         collapsed ? "text-center" : ""
       } ${
         active
