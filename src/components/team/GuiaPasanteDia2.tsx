@@ -256,29 +256,31 @@ export function GuiaPasanteDia2() {
             <strong>¿De dónde sale tu propio Loss Ratio Esperado?</strong> No de una fórmula genérica igual para todo el cohorte — de tu propio
             modelo de frecuencia × severidad de Día 1, aplicado a las pólizas que <strong>realmente ganaste</strong> (no al universo completo): ya
             estimaste una prima pura para cada una de ellas cuando tarificaste. La razón entre esa prima pura que tú mismo estimaste para tu
-            propio libro y la prima que realmente cobraste por él es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no
-            un número compartido por todo el cohorte:
+            propio libro y la prima <strong>devengada</strong> que le corresponde (el 80% de lo que realmente cobraste por él — ver Resultado
+            Técnico, sección 3) es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no un número compartido por todo el
+            cohorte. Devengada, no cobrada: es la misma base sobre la que se mide cualquier loss ratio en este ejercicio, para que tu propia
+            estimación y la referencia de mercado de abajo sean comparables entre sí:
           </p>
           <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-sm font-bold text-[var(--color-brand-blue-accent)] sm:text-base">
-              Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima cobrada (pólizas ganadas)
+              Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima Devengada (pólizas ganadas)
             </p>
           </div>
           <p>
             Si tarificaste con la fórmula de referencia de Día 1 de forma uniforme para todo tu libro (Prima Comercial = Prima Pura ÷ (1 − %
             Gastos − % Utilidad), con 25% de gastos y 20% de margen), esa fórmula por sí sola <strong>no</strong> te garantiza un loss ratio del
             55% — ese número es lo que la aritmética de la fórmula asume, no lo que el riesgo real produce. Esta metodología (comparar tu propia
-            prima pura contra tu prima cobrada) solo es tan buena como tu propio modelo de frecuencia × severidad: si ese modelo subestima el
+            prima pura contra tu prima devengada) solo es tan buena como tu propio modelo de frecuencia × severidad: si ese modelo subestima el
             riesgo real de tus pólizas, tu Loss Ratio Esperado hereda ese sesgo, y tu costo último estimado con él también.
           </p>
           <p>
             Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
-            prima real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por equipo) — visible arriba, en la
-            pestaña Entregables de este día. No es un número teórico como el 55% de la fórmula de referencia: es lo que el mercado real produjo. Si
-            tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55% &ldquo;de libro&rdquo; sin ajustar), es
-            una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de tu cartera — vale la pena revisarlo antes
-            de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en Colombia) es una tercera referencia útil,
-            aunque no reemplaza tu propio cálculo.
+            prima <strong>devengada</strong> real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por
+            equipo) — visible arriba, en la pestaña Entregables de este día. No es un número teórico como el 55% de la fórmula de referencia: es
+            lo que el mercado real produjo. Si tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55%
+            &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de
+            tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en
+            Colombia) es una tercera referencia útil, aunque no reemplaza tu propio cálculo.
           </p>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso

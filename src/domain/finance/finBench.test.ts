@@ -476,9 +476,9 @@ describe("finBench", () => {
   });
 
   describe("solSigmaLR (Día 4's own siniestralidad/prima volatility, replacing the old flat FZ.primeVol in rPrimas)", () => {
-    it("is the sample stdev (n-1) of true costo/primaEmitida across Año 1/2/3 once all three years exist", () => {
+    it("is the sample stdev (n-1) of true costo/primaDevengada across Año 1/2/3 once all three years exist", () => {
       const bench = finBench(richYear3Input());
-      const ratios = [bench.p1.costo / bench.p1.primaEmitida, bench.p2!.costo / bench.p2!.primaEmitida, bench.p3!.costo / bench.p3!.primaEmitida];
+      const ratios = [bench.p1.costo / bench.p1.primaDevengada, bench.p2!.costo / bench.p2!.primaDevengada, bench.p3!.costo / bench.p3!.primaDevengada];
       const mean = ratios.reduce((a, b) => a + b, 0) / 3;
       const variance = ratios.reduce((s, r) => s + (r - mean) ** 2, 0) / 2;
       expect(bench.solSigmaLR).toBeCloseTo(Math.sqrt(variance), 10);

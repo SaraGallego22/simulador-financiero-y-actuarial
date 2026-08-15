@@ -9,17 +9,18 @@ import {
   GOOD_PERFORMANCE_MARGIN_PCT,
   GOOD_PERFORMANCE_SCORE,
 } from "./composite";
-import { RT_EXPENSE_PCT } from "../finance/constants";
+import { RT_EXPENSE_PCT, FZ } from "../finance/constants";
 
 describe("notaTarifacionAnio", () => {
-  // RT = totalPremium*(1-RT_EXPENSE_PCT) - claimsAmount; all four rows
-  // share the same totalPremium, so the flat expense load subtracted from
-  // every RT is a uniform shift that doesn't change the ordering below.
+  // RT = totalPremium*(1-FZ.rpndPct-RT_EXPENSE_PCT) - claimsAmount (rpndLiberada
+  // omitted -> 0, i.e. Año 1); all four rows share the same totalPremium, so the
+  // flat expense/RPND load subtracted from every RT is a uniform shift that
+  // doesn't change the ordering below.
   const results = [
-    { teamId: 1, totalPremium: 100, claimsAmount: 40 }, // RT = 40
-    { teamId: 2, totalPremium: 100, claimsAmount: 70 }, // RT = 10
-    { teamId: 3, totalPremium: 100, claimsAmount: 10 }, // RT = 70 (best)
-    { teamId: 4, totalPremium: 100, claimsAmount: 200 }, // RT = -120 (catastrophic)
+    { teamId: 1, totalPremium: 100, claimsAmount: 40 }, // RT = 21
+    { teamId: 2, totalPremium: 100, claimsAmount: 70 }, // RT = -9
+    { teamId: 3, totalPremium: 100, claimsAmount: 10 }, // RT = 51 (best)
+    { teamId: 4, totalPremium: 100, claimsAmount: 200 }, // RT = -139 (catastrophic)
   ];
 
   it("ranking mode gives the best result 100 and the worst 0", () => {
@@ -41,18 +42,27 @@ describe("notaTarifacionAnio", () => {
 });
 
 describe("computeRt", () => {
-  it("matches finBench's own rt shape: premium*(1-gastos) - claims", () => {
-    expect(computeRt({ totalPremium: 100, claimsAmount: 40 })).toBeCloseTo(100 * (1 - RT_EXPENSE_PCT) - 40, 6);
+  it("matches finBench's own pyg() shape: primaDevengada - gastos*primaEmitida - claims (Año 1, rpndLiberada omitted -> 0)", () => {
+    const primaDevengada = 100 * (1 - FZ.rpndPct);
+    expect(computeRt({ totalPremium: 100, claimsAmount: 40 })).toBeCloseTo(primaDevengada - 100 * RT_EXPENSE_PCT - 40, 6);
+  });
+
+  it("releases the prior year's RPND holdback as revenue when rpndLiberada is given (Año 2)", () => {
+    const rpndLiberada = 20; // e.g. 20% of a prior-year totalPremium of 100
+    const withoutLiberada = computeRt({ totalPremium: 100, claimsAmount: 40 });
+    const withLiberada = computeRt({ totalPremium: 100, claimsAmount: 40, rpndLiberada });
+    expect(withLiberada).toBeCloseTo(withoutLiberada + rpndLiberada, 6);
   });
 });
 
 describe("notaTarifacionAbsoluta", () => {
-  // premium that makes RT come out to exactly 0 for a given claims amount:
-  // premium*(1-RT_EXPENSE_PCT) - claims = 0
-  const breakevenPremium = (claims: number) => claims / (1 - RT_EXPENSE_PCT);
-  // premium that makes RT land exactly at the "good performance" margin:
-  // premium*(1-RT_EXPENSE_PCT) - claims = premium*GOOD_PERFORMANCE_MARGIN_PCT
-  const goodPremium = (claims: number) => claims / (1 - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT);
+  // premium that makes RT come out to exactly 0 for a given claims amount
+  // (Año 1, rpndLiberada = 0): premium*(1-FZ.rpndPct-RT_EXPENSE_PCT) - claims = 0
+  const breakevenPremium = (claims: number) => claims / (1 - FZ.rpndPct - RT_EXPENSE_PCT);
+  // premium that makes RT land exactly at the "good performance" margin (as a
+  // fraction of that same premium — Prima Emitida, see GOOD_PERFORMANCE_MARGIN_PCT):
+  // premium*(1-FZ.rpndPct-RT_EXPENSE_PCT) - claims = premium*GOOD_PERFORMANCE_MARGIN_PCT
+  const goodPremium = (claims: number) => claims / (1 - FZ.rpndPct - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT);
 
   it("scores RT=0 (breakeven, after gastos) at exactly 50, regardless of book size", () => {
     const map = notaTarifacionAbsoluta([

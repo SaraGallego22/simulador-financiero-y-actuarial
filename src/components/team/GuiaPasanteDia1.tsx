@@ -367,19 +367,23 @@ export function GuiaPasanteDia1() {
             exceso de demanda se redistribuye entre los equipos que todavía tienen cupo disponible.
           </p>
           <p>
-            Tu nota actuarial del día depende de tu resultado técnico (prima cobrada − siniestros − gastos de adquisición/comisión/administración),
-            comparado contra un desempeño de referencia que define el propio modelo — no contra el resultado de los demás equipos. Precios muy altos pierden
-            clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente el riesgo
-            equivocado — y los gastos, al ser un porcentaje fijo de la prima, pesan más cuanto más barato cobres.
+            Tu nota actuarial del día depende de tu resultado técnico (prima devengada − siniestros − gastos de adquisición/comisión — el gasto
+            administrativo tiene su propia línea aparte, Resultado Industrial, y no resta aquí), comparado contra un desempeño de referencia que define
+            el propio modelo — no contra el resultado de los demás equipos. La prima devengada no es toda la prima que cobraste: como en cualquier
+            aseguradora, una parte de la prima de este año todavía no se ha &ldquo;ganado&rdquo; y se reserva como Reserva de Prima No Devengada (RPND) —
+            para tu primer año, la prima devengada es el 80% de lo que efectivamente cobraste (más detalle en la guía de Día 2, cuando armes tu propio
+            P&amp;G). Precios muy altos pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico
+            si atraen selectivamente el riesgo equivocado — y los gastos, al ser un porcentaje fijo de la prima cobrada, pesan más cuanto más barato
+            cobres.
           </p>
           <ul className="list-disc pl-5">
             <li>Resultado técnico en cero (ni ganancia ni pérdida, ya descontados los gastos) → nota 50.</li>
             <li>Resultado técnico positivo → nota por encima de 50, acercándose a 100 mientras mejor sea tu margen.</li>
             <li>Resultado técnico negativo → nota por debajo de 50, acercándose a 0 mientras peor sea, sin llegar nunca a un número negativo.</li>
             <li>
-              El &ldquo;buen desempeño&rdquo; de referencia (el que da una nota de 75) es un margen técnico neto del 20% sobre la prima, después de
-              siniestros y gastos — calculado sobre tu propia siniestralidad real, no un monto fijo en pesos, para que un equipo con una cartera chica y uno
-              con una grande se midan con la misma vara relativa.
+              El &ldquo;buen desempeño&rdquo; de referencia (el que da una nota de 75) es un margen técnico neto del 20% sobre la prima cobrada, después
+              de siniestros, la RPND y gastos — calculado sobre tu propia siniestralidad real, no un monto fijo en pesos, para que un equipo con una
+              cartera chica y uno con una grande se midan con la misma vara relativa.
             </li>
           </ul>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">

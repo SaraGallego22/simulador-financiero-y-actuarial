@@ -1012,21 +1012,24 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "σ Siniestralidad (volatilidad de prima)",
     unit: "x",
-    // True value: sample stdev of costo/primaEmitida across Año 1/2/3, computed
+    // True value: sample stdev of costo/primaDevengada across Año 1/2/3, computed
     // once inside finBench() itself (same number driving its own rPrimas — see
     // FinBenchResult.solSigmaLR) — never recomputed separately here, so the
     // reported concept and the engine's own RK calculation can't drift apart.
     get: (b) => b.solSigmaLR,
     // Graded against the team's OWN P&G lines, not the truth directly: Año 1's
-    // loss ratio uses its own reported Costo/Prima A1 CORRECTED by its own
-    // Día-3 Ajuste de siniestralidad (see LossRatioYearSpec's doc comment),
-    // Año 2 and Año 3 use their own reported Costo/Prima as-is.
+    // loss ratio uses its own reported Costo/Prima Devengada A1 CORRECTED by its
+    // own Día-3 Ajuste de siniestralidad (see LossRatioYearSpec's doc comment),
+    // Año 2 and Año 3 use their own reported Costo/Prima Devengada as-is. Prima
+    // Devengada (not Emitida) in the denominator — loss ratio is a performance
+    // measure of what was actually earned, matching solSigmaLR's own true-value
+    // basis above and computeRt()/RT's (see composite.ts).
     formula: {
       kind: "sampleStdevLossRatio",
       years: [
-        { costConceptId: "p1_costo", premiumConceptId: "p1_primaEmitida", day: "d2", adjustmentConceptId: "p2_ajusteSiniestralidad", adjustmentDay: "d3" },
-        { costConceptId: "p2_costo", premiumConceptId: "p2_primaEmitida", day: "d3" },
-        { costConceptId: "p3_costo", premiumConceptId: "p3_primaEmitida", day: "d3" },
+        { costConceptId: "p1_costo", premiumConceptId: "p1_primaDevengada", day: "d2", adjustmentConceptId: "p2_ajusteSiniestralidad", adjustmentDay: "d3" },
+        { costConceptId: "p2_costo", premiumConceptId: "p2_primaDevengada", day: "d3" },
+        { costConceptId: "p3_costo", premiumConceptId: "p3_primaDevengada", day: "d3" },
       ],
     },
   },

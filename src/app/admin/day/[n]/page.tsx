@@ -20,6 +20,7 @@ import {
   SECTOR_MIN_COUNT,
 } from "@/domain/grading/sectors";
 import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
+import { FZ } from "@/domain/finance/constants";
 import { computeConsolidado } from "@/lib/consolidado";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
@@ -219,27 +220,6 @@ export default async function AdminDayPage({
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
   const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
 
-  // Actuarial (tarifación) score per team for this day's results — same
-  // functions computeConsolidado() uses for the final grade, so what the
-  // admin sees here always matches what actually gets graded. Día 1 is
-  // model-anchored (notaTarifacionAbsoluta); Día 2 stays cohort-relative,
-  // per the rubric's configurable objectiveMode.
-  const actuarialScoreByTeamId = new Map<string, number>();
-  if (includeSim && latestRun?.teamResults.length) {
-    const numericIdByTeamId = new Map(latestRun.teamResults.map((r, i) => [r.teamId, i + 1]));
-    const rows = latestRun.teamResults.map((r) => ({
-      teamId: numericIdByTeamId.get(r.teamId)!,
-      totalPremium: r.totalPremium,
-      claimsAmount: r.claimsAmount,
-    }));
-    const scoreByNumericId =
-      day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, (rubric?.objectiveMode as "relative" | "ranking") ?? "relative");
-    for (const [teamId, numericId] of numericIdByTeamId) {
-      const score = scoreByNumericId.get(numericId);
-      if (score != null) actuarialScoreByTeamId.set(teamId, score);
-    }
-  }
-
   // Día 4 sector exercise: the one true global ranking (never per-team —
   // see sectors.ts's doc comment on why a team's own book is a biased
   // sample), and each team's score against it.
@@ -298,6 +278,30 @@ export default async function AdminDayPage({
     }
   }
   const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
+
+  // Actuarial (tarifación) score per team for this day's results — same
+  // functions computeConsolidado() uses for the final grade, so what the
+  // admin sees here always matches what actually gets graded. Día 1 is
+  // model-anchored (notaTarifacionAbsoluta); Día 2 stays cohort-relative,
+  // per the rubric's configurable objectiveMode. RT (and this score with
+  // it) needs finBenchByTeamId above to release Año 1's own RPND holdback
+  // as Año 2's revenue — see composite.ts's computeRt().
+  const actuarialScoreByTeamId = new Map<string, number>();
+  if (includeSim && latestRun?.teamResults.length) {
+    const numericIdByTeamId = new Map(latestRun.teamResults.map((r, i) => [r.teamId, i + 1]));
+    const rows = latestRun.teamResults.map((r) => ({
+      teamId: numericIdByTeamId.get(r.teamId)!,
+      totalPremium: r.totalPremium,
+      claimsAmount: r.claimsAmount,
+      rpndLiberada: day === 2 ? FZ.rpndPct * (finBenchByTeamId.get(r.teamId)?.p1.primaEmitida ?? 0) : undefined,
+    }));
+    const scoreByNumericId =
+      day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, (rubric?.objectiveMode as "relative" | "ranking") ?? "relative");
+    for (const [teamId, numericId] of numericIdByTeamId) {
+      const score = scoreByNumericId.get(numericId);
+      if (score != null) actuarialScoreByTeamId.set(teamId, score);
+    }
+  }
 
   const capacityByTeamIdByYear = new Map<1 | 2, Map<string, { rejectedCount: number; extra: unknown }>>();
   for (const yr of [1, 2] as const) {
@@ -417,9 +421,16 @@ export default async function AdminDayPage({
                 {teams.map((team) => {
                   const submitted = team.tariffSubmissions[0]?.meanPremium != null;
                   const result = resultByTeamId.get(team.id);
-                  const lossRatio = result && result.totalPremium > 0 ? result.claimsAmount / result.totalPremium : null;
                   const bench = finBenchByTeamId.get(team.id);
-                  const gastos = bench ? bench.p1.gadq + bench.p1.gcom + bench.p1.gadm : null;
+                  // p1 for Día 1, p2 for Día 2 — this table renders on both day pages.
+                  const dayBench = day === 2 ? bench?.p2 : bench?.p1;
+                  // Loss ratio against Prima Devengada (earned, not written) — same base
+                  // as dayBench.rt itself, and dayBench.costo (not the raw simulation
+                  // claimsAmount) so this reconciles with the RT column on the same row —
+                  // for Día 2+ costo can be the developed/ultimate claims (Chain Ladder),
+                  // not the raw avisado amount.
+                  const lossRatio = dayBench && dayBench.primaDevengada > 0 ? dayBench.costo / dayBench.primaDevengada : null;
+                  const gastos = dayBench ? dayBench.gadq + dayBench.gcom + dayBench.gadm : null;
                   const capExtra = result?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
                   const cappedByCapital =
                     capExtra?.capacityLimit != null && capExtra?.rawCapacityLimit != null ? capExtra.rawCapacityLimit <= capExtra.capacityLimit : null;
@@ -448,7 +459,7 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{result ? `$${Math.round(result.claimsAmount).toLocaleString("es-CO")}` : "—"}</td>
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
                       <td className="px-4 py-2">{gastos != null ? `$${Math.round(gastos).toLocaleString("es-CO")}` : "—"}</td>
-                      <td className="px-4 py-2">{bench ? `$${Math.round(bench.p1.rt).toLocaleString("es-CO")}` : "—"}</td>
+                      <td className="px-4 py-2">{dayBench ? `$${Math.round(dayBench.rt).toLocaleString("es-CO")}` : "—"}</td>
                       <td className="px-4 py-2">
                         {capExtra?.capacityLimit != null ? (
                           <>
@@ -885,7 +896,9 @@ export default async function AdminDayPage({
                 <tbody>
                   {teams.map((team) => {
                     const result = resultByTeamId.get(team.id);
-                    const rt = result ? computeRt(result) : null;
+                    // Día 2's RT releases Año 1's own RPND holdback as revenue — see composite.ts's computeRt().
+                    const rpndLiberada = day === 2 ? FZ.rpndPct * (finBenchByTeamId.get(team.id)?.p1.primaEmitida ?? 0) : undefined;
+                    const rt = result ? computeRt({ ...result, rpndLiberada }) : null;
                     const actuarialScore = actuarialScoreByTeamId.get(team.id);
                     const finScore = day === 1 ? minVarScoreByTeamId.get(team.id) : finReportScoreByTeamId.get(team.id);
                     const objective = objectiveByTeamId.get(team.id);

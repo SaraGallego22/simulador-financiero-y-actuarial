@@ -34,13 +34,23 @@ export const CAPACITY_TARGET_MARGIN = 1.0;
 const RESERVE_TO_INCURRED_RATIO = 0.861;
 
 /**
- * Reference loss ratio (siniestros ÷ prima) assumed for capacity sizing —
- * the midpoint of the 0.85 ("grow") / 1.0 ("shrink") healthy band, not a
- * number invented for this feature alone. A team
- * pricing to land inside that band is assumed sustainable; capacity is
+ * Reference loss ratio (siniestros ÷ Prima EMITIDA — deliberately not
+ * Devengada, unlike every other "loss ratio" in this codebase, see below)
+ * assumed for capacity sizing — the midpoint of the 0.85 ("grow") / 1.0
+ * ("shrink") healthy band, not a number invented for this feature alone. A
+ * team pricing to land inside that band is assumed sustainable; capacity is
  * sized as if every team does, since there's no way to know each team's
  * *actual* realized loss ratio before the market that determines it has
  * even cleared.
+ *
+ * Emitida, not Devengada, on purpose: this isn't a performance measure of a
+ * completed year (that's computeRt()/finBench()'s `rt`/solSigmaLR, both
+ * Devengada-based) — it's a forward-looking assumption converting a
+ * reserve into the *written* premium volume needed to justify it, feeding
+ * riskCapitalForPremium()'s `premium` argument, which is itself Prima
+ * Emitida (the market-clearing variable maxPoliciesForCapital() ultimately
+ * solves for — see its own doc comment). There's no earned/unearned split
+ * to speak of before a policy has even been written.
  */
 const REFERENCE_LOSS_RATIO = 0.925;
 
