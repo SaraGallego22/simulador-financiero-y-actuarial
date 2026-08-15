@@ -116,27 +116,52 @@ export const VOL_PENALTY_LAMBDA = 0.35;
  * being carried, i.e. claims, not off a number the team controls).
  *
  * Derivation (measured empirically against generateColombia(42), not
- * guessed): a representative team holding ~10% of the 1,000,000-policy
- * market (100,000 policies) has an expected total Year-1 incurred severity
- * of ≈ $313.9B COP (re-measured after OUTLIER_CLAIM_PROBABILITY/
- * OUTLIER_CLAIM_MULTIPLIER were added to generation/constants.ts — the same
- * reference was ≈$273.9B before catastrophic-outlier claims existed at all;
- * always re-measure this against the live generator rather than trust a
- * stale comment if severity generation changes again); of that, ≈86.1%
- * remains as the post-Year-1 reserve (computeLiabilitySchedules — most
- * development, even for early-year claims, falls past month 12 once the
- * notice lag + 3-month notice-to-payment lag + 3-year development pattern
- * are layered, see README §3) — a reference reserve of ≈$270.3B COP.
- * Applying the same capital-adequacy ratio finBench already used for
- * capital0 pre-this-change (30%, ex-FZ.cap0Pct) gives ≈$81.1B COP; rounded
- * to a clean $81B.
+ * guessed — re-measure against the live generator rather than trust a
+ * stale comment if severity generation ever changes again). Previously
+ * this was sized with a flat "30% of reference reserve" shortcut (the same
+ * ratio finBench used for capital0 pre-this-change, ex-FZ.cap0Pct) — that
+ * shortcut doesn't match the actual formula that spends this capital
+ * (riskCapitalForPremium in capacity.ts: rSusc/rFin/rOp combined via
+ * CORR_MOD, not a flat percentage), so it silently undersized capacity:
+ * $81B only supported ≈$179B of premium at CAPACITY_TARGET_MARGIN=1.0,
+ * well under what a 10%-market-share team actually needs (see below) —
+ * every team ended up capital-constrained regardless of how it priced.
+ *
+ * Corrected derivation inverts the real formula instead:
+ * 1. A representative team holding ~10% of the 1,000,000-policy market has
+ *    an expected total Year-1 incurred severity of ≈$237.1B COP (measured
+ *    by scaling the full-universe total by 10%, not a single 100k-policy
+ *    slice — the heavy gamma/outlier severity tail makes any one 100k
+ *    slice noisy; the full-universe scale and a direct 100k slice agreed
+ *    within ~2.5% of each other, confirming this isn't slice-dependent).
+ * 2. ≈86.1% of that remains as the post-Year-1 reserve
+ *    (computeLiabilitySchedules — most development, even for early-year
+ *    claims, falls past month 12 once the notice lag + 3-month
+ *    notice-to-payment lag + 3-year development pattern are layered, see
+ *    README §3) — a reference reserve of ≈$204.2B COP. This ratio matches
+ *    RESERVE_TO_INCURRED_RATIO in capacity.ts almost exactly (0.8616
+ *    measured here vs. 0.861 there), confirming the same measurement
+ *    methodology.
+ * 3. That reserve implies a reference premium of ≈$256.5B COP via
+ *    capacity.ts's own RESERVE_TO_PREMIUM_RATIO (reserve ÷ ratio — the
+ *    same reserve/premium relationship riskCapitalForPremium() already
+ *    assumes, so this doesn't invent a new loss-ratio assumption).
+ * 4. Solving riskCapitalForPremium(referencePremium, capital, volRatio=1)
+ *    for the capital that makes the solvency margin (capital ÷ risk
+ *    capital) exactly CAPACITY_TARGET_MARGIN (1.0) at that premium — by
+ *    binary search, the same way maxPremiumForCapital() itself solves the
+ *    inverse direction — gives ≈$115.95B COP; rounded to a clean $116B.
+ *    At $116B, a team pricing at the same reference loss ratio capacity.ts
+ *    already assumes for the "healthy" band can sustain the full ~10%
+ *    market share this constant was calibrated against without being
+ *    capital-constrained — the old $81B could not.
  *
  * This single constant now also drives finBench()'s capital0 (see §4/§5 in
  * README) — replacing the old premium-based FZ.cap0Pct*totalPremium, since
  * capital social is meant to be the same starting point for every team,
  * every year, in both the fictitious ALM and the real P&L/Balance it feeds.
  */
-export const CAPITAL_SOCIAL = 81_000_000_000;
+export const CAPITAL_SOCIAL = 116_000_000_000;
 
 /**
  * Día 4 equity-risk capital charge: riesgo de acciones = exposición ×
