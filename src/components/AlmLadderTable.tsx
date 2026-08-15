@@ -18,7 +18,7 @@ import { SIMULATED_YEAR_LABEL } from "@/lib/days";
 export function PortfolioScheduleView({ schedule }: { schedule: MonthlyAllocationEntry[] }) {
   if (schedule.length === 0) return null;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-brand-gray-light)]">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
@@ -56,7 +56,7 @@ export function PortfolioScheduleView({ schedule }: { schedule: MonthlyAllocatio
 
 function ScoreTile({ label, weight, value, formula }: { label: string; weight: string; value: number; formula: string }) {
   return (
-    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+    <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-2">
       <p className="text-xs text-[var(--color-brand-text-secondary)]">
         {label} <span className="font-semibold">({weight})</span>
       </p>
@@ -98,7 +98,7 @@ function pct(n: number, digits = 1): string {
 export function AlmScoreTiles({ score }: { score: FinancialScore }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
         <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
         <p className="font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue-accent)]">{score.nota.toFixed(1)}</p>
         <p className="text-xs italic text-[var(--color-brand-text-secondary)]">
@@ -191,7 +191,7 @@ export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-red)]" /> Capital Social comprometido (ni LIQ ni el resto del portafolio alcanzaron)
         </span>
       </p>
-      <div className="max-h-64 overflow-y-auto overflow-x-auto">
+      <div className="max-h-64 overflow-y-auto overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-brand-gray-light)]">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
             <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
@@ -259,7 +259,7 @@ export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
       <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
         Valor del portafolio mes a mes — Saldo Inicial, Rendimiento devengado, Saldo Final
       </p>
-      <div className="max-h-64 overflow-y-auto overflow-x-auto">
+      <div className="max-h-64 overflow-y-auto overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-brand-gray-light)]">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-[var(--color-brand-surface)]">
             <tr className="text-left uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
@@ -332,7 +332,7 @@ export function AlmPnlBreakdown({
   const incomeFict = year === 1 ? scoreFicticio.incomeY1 : scoreFicticio.incomeY2;
 
   return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-4">
+    <div className="rounded-b-[var(--radius-lg)] rounded-t-none border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-4">
       <h4 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         De dónde sale el Resultado de Inversiones del P&G real — {SIMULATED_YEAR_LABEL[year]}
       </h4>
@@ -344,20 +344,20 @@ export function AlmPnlBreakdown({
         No incluye el capital comprometido (financiamiento externo genuino, ver abajo — eso ya se resta aparte, directamente del patrimonio).
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-2">
           <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con el ALM real (esto es el benchmark real)</p>
           <p className="text-xs">
             <strong>{money(realYear.income)}</strong>
           </p>
         </div>
-        <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-2">
           <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">Con el ALM ficticio (solo la nota de ALM del Día 1/2 usa este)</p>
           <p className="text-xs">
             <strong>{money(incomeFict)}</strong>
           </p>
         </div>
       </div>
-      <div className="mt-3 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-2">
+      <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-2">
         <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
           Capital Social sin necesidad de financiamiento externo
         </p>

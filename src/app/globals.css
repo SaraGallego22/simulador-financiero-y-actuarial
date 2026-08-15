@@ -16,6 +16,13 @@
   --brand-blue-accent: #0033a0;
   --brand-red: #d0021b;
   --brand-green: #007a50;
+  --brand-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --brand-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.1);
+  --brand-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.16);
+  /* Opacity for decorative SVG hero backgrounds (login/dashboard/admin) —
+     higher in dark mode since the same alpha reads fainter on a dark
+     surface than on a light one. */
+  --decorative-opacity: 0.09;
 }
 
 .dark {
@@ -29,6 +36,12 @@
   --brand-blue-accent: #60a5fa;
   --brand-red: #f87171;
   --brand-green: #4ade80;
+  /* Darker/more opaque than the light-mode values above — the light rgba
+     shadows barely read against a dark surface. */
+  --brand-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --brand-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --brand-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --decorative-opacity: 0.16;
 }
 
 @theme inline {
@@ -62,6 +75,28 @@
   --color-brand-text-secondary: var(--brand-text-secondary);
   /* Card/panel background — replaces raw bg-white so surfaces darken with the theme */
   --color-brand-surface: var(--brand-surface);
+
+  /* Vivid tones + gradients for decorative/backdrop use only (TopBar,
+     sidebars, primary buttons, SVG hero backgrounds) — never a solid
+     text/button fill on their own, same rule as --color-brand-cyan below.
+     Fixed across themes like --color-brand-blue, since they're gradient
+     stops rather than surface/text colors. */
+  --color-brand-blue-vivid: #1e4bd8;
+  --color-brand-cyan-vivid: #00c9e6;
+  --color-brand-yellow-soft: #f0f26b;
+  --gradient-brand-primary: linear-gradient(135deg, var(--color-brand-blue) 0%, var(--color-brand-blue-vivid) 55%, var(--color-brand-cyan) 100%);
+  --gradient-brand-sidebar: linear-gradient(180deg, var(--color-brand-blue) 0%, var(--color-brand-blue-dark) 100%);
+
+  /* Radius scale — replaces ad hoc rounded/rounded-lg usage across the app. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Elevation scale — the app previously had almost no shadow usage. */
+  --shadow-sm: var(--brand-shadow-sm);
+  --shadow-md: var(--brand-shadow-md);
+  --shadow-lg: var(--brand-shadow-lg);
 }
 
 /*
@@ -77,6 +112,10 @@
  *   fixed across themes (~5.6:1 on the dark surface).
  * - Brand blue as TEXT/BORDER on a surface must use --color-brand-blue-accent,
  *   not --color-brand-blue directly, or it disappears on dark surfaces.
+ * - --color-brand-blue-vivid/-cyan-vivid/-yellow-soft and the --gradient-brand-*
+ *   tokens are gradient/decorative-stop colors only (TopBar, sidebars, primary
+ *   buttons, SVG backgrounds) — never used as solid text or as a lone button
+ *   fill, same restriction as brand cyan above.
  */
 
 body {
@@ -114,5 +153,70 @@ body {
     color-adjust: exact;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  /* Decorative SVG hero backgrounds (login/dashboard/admin) must never
+     print — they're purely a screen affordance. */
+  .print-light .bg-decorative {
+    display: none;
+  }
+
+  /* A sticky table header pinned via position:sticky has no meaning across
+     paginated print output and can visually duplicate/overlap rows. */
+  .print-light table thead {
+    position: static;
+  }
+}
+
+/* Small, tasteful motion — CSS-only, no animation library. Entrances only;
+   nothing scroll-triggered or physics-based. */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 200ms ease-out both;
+}
+.animate-toast-slide-in {
+  animation: toast-slide-in 200ms ease-out both;
+}
+.animate-modal-pop {
+  animation: modal-pop 150ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-toast-slide-in,
+  .animate-modal-pop {
+    animation: none;
   }
 }

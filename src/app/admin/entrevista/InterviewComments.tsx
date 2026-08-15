@@ -2,6 +2,7 @@
 
 import { addInterviewCommentAction, deleteInterviewCommentAction } from "@/lib/adminActions";
 import { INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
+import { DeleteCommentForm } from "@/components/ui/confirm-modal";
 
 export interface InterviewCommentItem {
   id: string;
@@ -28,22 +29,7 @@ export function InterviewComments({ teamMemberId, comments }: { teamMemberId: st
                   — {INTERVIEW_COMMENT_AUTHOR}, {fmtDate(c.createdAt)}
                 </span>
               </p>
-              <form
-                action={deleteInterviewCommentAction.bind(null, c.id)}
-                onSubmit={(e) => {
-                  if (!confirm("¿Eliminar este comentario? Esta acción no se puede deshacer.")) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <button
-                  type="submit"
-                  className="shrink-0 text-xs text-[var(--color-brand-text-secondary)] hover:text-[var(--color-brand-red)]"
-                  title="Eliminar comentario"
-                >
-                  ✕
-                </button>
-              </form>
+              <DeleteCommentForm action={deleteInterviewCommentAction.bind(null, c.id)} />
             </div>
           ))}
         </div>

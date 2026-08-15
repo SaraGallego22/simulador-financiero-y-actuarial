@@ -60,7 +60,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
       </div>
 
       {teams.length === 0 ? (
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
           Este cohorte todavía no tiene equipos.
         </div>
       ) : (
@@ -68,7 +68,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
           <>
             <TeamSelect teams={teamOptions} selectedTeamId={selectedTeam.id} basePath="/admin/entrevista" />
 
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
               <h3 className="mb-6 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: selectedTeam.color }} />
                 {selectedTeam.name}
@@ -90,7 +90,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
                       .filter(Boolean)
                       .join(" · ");
                     return (
-                      <div key={member.id} className="flex flex-col gap-4 rounded-lg border border-[var(--color-brand-gray-light)] p-5 sm:flex-row">
+                      <div key={member.id} className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] p-5 sm:flex-row">
                         <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
                           <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
                           <div className="text-center">

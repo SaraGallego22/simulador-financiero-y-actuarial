@@ -1,6 +1,7 @@
 "use client";
 
 import { addMemberCommentAction, deleteMemberCommentAction } from "@/lib/adminActions";
+import { DeleteCommentForm } from "@/components/ui/confirm-modal";
 
 export interface MemberCommentItem {
   id: string;
@@ -28,22 +29,7 @@ export function MemberComments({ teamMemberId, day, comments }: { teamMemberId: 
                   — {c.author}, {fmtDate(c.createdAt)}
                 </span>
               </p>
-              <form
-                action={deleteMemberCommentAction.bind(null, c.id, day)}
-                onSubmit={(e) => {
-                  if (!confirm("¿Eliminar este comentario? Esta acción no se puede deshacer.")) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <button
-                  type="submit"
-                  className="shrink-0 text-xs text-[var(--color-brand-text-secondary)] hover:text-[var(--color-brand-red)]"
-                  title="Eliminar comentario"
-                >
-                  ✕
-                </button>
-              </form>
+              <DeleteCommentForm action={deleteMemberCommentAction.bind(null, c.id, day)} />
             </div>
           ))}
         </div>

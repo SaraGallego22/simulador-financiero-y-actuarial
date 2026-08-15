@@ -8,6 +8,8 @@ import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
 import { DayTabBar } from "@/components/DayTabBar";
+import { Table } from "@/components/ui/table";
+import { LockIcon } from "@/components/ui/icons";
 import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -48,8 +50,8 @@ export default async function TeamDayPage({
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Día {day} — {DAY_TITLES[day]}
         </h1>
-        <p className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
-          🔒 Este día todavía no está disponible. El evaluador lo habilita a medida que avanza el reto.
+        <p className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Este día todavía no está disponible. El evaluador lo habilita a medida que avanza el reto.
         </p>
       </main>
     );
@@ -452,29 +454,26 @@ export default async function TeamDayPage({
       )}
 
       {activeTab === "top" && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+        <>
           {!topRows || topRows.every((r) => r.perDay[day - 1]?.nota == null) ? (
-            <p className="p-5 text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados de este día.</p>
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+              <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados de este día.</p>
+            </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
-                </tr>
-              </thead>
+            <Table>
+              <Table.Head>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
+              </Table.Head>
               <tbody>
                 {topRows
                   .filter((r) => r.perDay[day - 1]?.nota != null)
                   .sort((a, b) => (b.perDay[day - 1]!.nota ?? 0) - (a.perDay[day - 1]!.nota ?? 0))
                   .map((r, i) => (
-                    <tr
-                      key={r.teamId}
-                      className={`border-t border-[var(--color-brand-gray-light)] ${r.teamId === teamId ? "bg-[var(--color-brand-blue-light)] font-semibold" : ""}`}
-                    >
+                    <Table.Row key={r.teamId} className={r.teamId === teamId ? "!bg-[var(--color-brand-blue-light)] font-semibold" : ""}>
                       <td className="px-4 py-2">{i + 1}</td>
                       <td className="px-4 py-2">
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
@@ -485,12 +484,12 @@ export default async function TeamDayPage({
                       <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {r.perDay[day - 1]!.nota!.toFixed(1)}
                       </td>
-                    </tr>
+                    </Table.Row>
                   ))}
               </tbody>
-            </table>
+            </Table>
           )}
-        </div>
+        </>
       )}
     </main>
   );

@@ -7,7 +7,7 @@ export function RosterUpload() {
   const [state, formAction, pending] = useActionState<UploadRosterState, FormData>(uploadRosterAction, {});
 
   return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
       <h3 className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Roster de integrantes</h3>
       <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
         Sube un CSV con columnas <code>nombre,equipo</code> para habilitar la calificación subjetiva por integrante

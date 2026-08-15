@@ -72,7 +72,7 @@ export function DeliverablesForm({
   }
 
   return (
-    <form action={formAction} className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+    <form action={formAction} className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
       <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         Reporte financiero/actuarial — Día {day}
       </h3>

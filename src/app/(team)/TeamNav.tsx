@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LockIcon } from "@/components/ui/icons";
 
 const DAY_LINKS = [
   { href: "/day/1", label: "Día 1", day: 1 },
@@ -15,7 +16,7 @@ export function TeamNav({ openDay }: { openDay: number }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue)] text-white print:hidden">
+    <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-brand-gray-light)] bg-[image:var(--gradient-brand-sidebar)] text-white print:hidden">
       <div className="flex flex-col gap-1 px-3 py-5">
         <NavItem href="/dashboard" label="Resumen" active={pathname === "/dashboard"} />
         {DAY_LINKS.map((link) =>
@@ -25,9 +26,9 @@ export function TeamNav({ openDay }: { openDay: number }) {
             <span
               key={link.href}
               title="Aún no disponible"
-              className="flex items-center gap-1 rounded-md border-l-2 border-transparent px-2.5 py-1.5 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide text-white/40"
+              className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border-l-2 border-transparent px-2.5 py-1.5 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide text-white/40"
             >
-              🔒 {link.label}
+              <LockIcon className="h-3.5 w-3.5 shrink-0" /> {link.label}
             </span>
           )
         )}
@@ -41,7 +42,7 @@ function NavItem({ href, label, active }: { href: string; label: string; active:
   return (
     <Link
       href={href}
-      className={`rounded-md border-l-2 px-2.5 py-1.5 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide transition-colors ${
+      className={`rounded-[var(--radius-sm)] border-l-2 px-2.5 py-1.5 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide transition-colors ${
         active
           ? "border-[var(--color-brand-yellow)] bg-white/10 text-white"
           : "border-transparent text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"

@@ -5,7 +5,7 @@ const IDS = INSTRUMENTS.map((i) => i.id);
 
 export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: boolean }) {
   return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 shadow-[var(--shadow-sm)]">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Instrumentos disponibles
@@ -21,7 +21,7 @@ export function InstrumentsPanel({ showCovariance = false }: { showCovariance?: 
           )}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-brand-gray-light)]">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
