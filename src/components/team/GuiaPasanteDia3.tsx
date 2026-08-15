@@ -186,7 +186,7 @@ export function GuiaPasanteDia3() {
       </Section>
 
       <Section n="2" title="Teoría necesaria">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           El desarrollo exacto de tu propia cartera no se revela por adelantado — esta sección explica el método con el que se estima, no tu resultado.
         </p>
 
@@ -312,7 +312,7 @@ export function GuiaPasanteDia3() {
               Costo Último = Monto desarrollado a tu edad más madura observable (~24 meses) × {CHAIN_LADDER_TAIL_FACTOR}
             </p>
           </div>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Un factor pequeño (~0.3%) a propósito: con esta distribución de rezago de aviso, la enorme mayoría de los siniestros ya se conoce a los
             24 meses. No es cero — por eso Chain Ladder real siempre incluye un factor de cola, aunque sea modesto — pero tampoco es el ajuste
             dominante de tu estimación; los factores edad a edad que calculas tú mismo, encadenados, pesan mucho más.
@@ -418,7 +418,7 @@ export function GuiaPasanteDia3() {
             emitida) — aquí aparece como pasivo, junto a las reservas técnicas, no como un cargo del P&G. La última línea, Pasivo + Patrimonio, debe
             cuadrar exactamente con Activos totales — es la identidad contable básica, y una forma de verificar tu propio trabajo antes de enviarlo.
           </p>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Las reservas técnicas de cada año son siempre el saldo real por pagar (RSA + IBNR para el 2027; lo pendiente de ambos orígenes al cierre
             del 2028) — nunca una estimación de mercado, así que se reportan como una línea del Balance, no como un entregable aparte.
           </p>
@@ -426,7 +426,7 @@ export function GuiaPasanteDia3() {
       </Section>
 
       <Section n="4" title="Conceptos que debes aplicar">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — reconstruir la relación exacta entre estos conceptos es parte de lo que se evalúa que tu
           equipo entienda.
         </p>
@@ -447,7 +447,7 @@ export function GuiaPasanteDia3() {
         </SubSection>
 
         <SubSection title="Para la proyección del 2029" accent="fin">
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Sin un mercado real que simular, cada línea necesita su propia regla explícita y consistente — no una intuición libre, y no la misma regla
             para todas.
           </p>

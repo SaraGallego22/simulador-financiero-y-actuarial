@@ -41,7 +41,7 @@ export default function LoginPage() {
         <ThemeToggle />
       </div>
       <div className="animate-fade-in-up w-full max-w-sm overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-lg)]">
-        <div className="flex items-center justify-center bg-[image:var(--gradient-brand-primary)] px-8 py-6">
+        <div className="flex items-center justify-center bg-[var(--color-brand-blue)] px-8 py-6">
           <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-12 w-auto" priority />
         </div>
 

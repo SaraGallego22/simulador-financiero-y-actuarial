@@ -58,7 +58,7 @@ export function SidebarShell({
 
       <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 px-3 py-2.5">
         {!collapsed && (
-          <span className="self-start rounded-full bg-[var(--color-brand-yellow)] px-2.5 py-0.5 font-[family-name:var(--font-condensed)] text-[12px] font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          <span className="self-start rounded-full bg-[var(--color-brand-yellow)] px-2.5 py-0.5 font-[family-name:var(--font-condensed)] text-[14px] font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
             {badge}
           </span>
         )}

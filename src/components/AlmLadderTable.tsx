@@ -65,7 +65,7 @@ function ScoreTile({ label, weight, value, formula }: { label: string; weight: s
       >
         {value.toFixed(1)}
       </p>
-      <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+      <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
     </div>
   );
 }
@@ -75,7 +75,7 @@ function InfoTile({ label, value, formula, danger }: { label: string; value: str
     <div>
       <p className="text-xs text-[var(--color-brand-text-secondary)]">{label}</p>
       <p className={`text-sm font-semibold ${danger ? "text-[var(--color-brand-red)]" : ""}`}>{value}</p>
-      {formula && <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>}
+      {formula && <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>}
     </div>
   );
 }
@@ -365,7 +365,7 @@ export function AlmPnlBreakdown({
           {money(realYear.capitalSocialRestante)}{" "}
           <span className="text-xs font-normal text-[var(--color-brand-text-secondary)]">de {money(CAPITAL_SOCIAL)}</span>
         </p>
-        <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">
           Capital Social − capital comprometido acumulado ({money(realYear.capitalComprometidoAcumulado)}
           {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Capital Social ya está invertido según el calendario mensual desde
           el arranque del 2027 — este número no es &ldquo;lo que queda sin usar&rdquo;, es cuánto de él este equipo ha evitado tener que reponer con
@@ -373,7 +373,7 @@ export function AlmPnlBreakdown({
           Balance real de este año.
         </p>
       </div>
-      <p className="mt-2 text-[12px] italic text-[var(--color-brand-text-secondary)]">
+      <p className="mt-2 text-[14px] italic text-[var(--color-brand-text-secondary)]">
         La Reserva y el Rendimiento nominal del portafolio (portYield) son los mismos entre el ficticio y el real — no dependen de la prima. Lo que sí
         cambia es el ingreso de inversión y el capital comprometido, porque ambos dependen de cuándo entra realmente la caja mes a mes.
       </p>

@@ -33,7 +33,7 @@ function ScoreCard({ label, formula }: { label: string; formula: string }) {
       <p className="my-1 flex h-8 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
         &nbsp;
       </p>
-      <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+      <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -117,7 +117,7 @@ export function GuiaPasanteDia4() {
       </Section>
 
       <Section n="2" title="Teoría necesaria">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           Los sectores reales del mercado y los pesos exactos del modelo de solvencia no se revelan — esta sección explica el marco conceptual, no la
           respuesta.
         </p>
@@ -279,7 +279,7 @@ export function GuiaPasanteDia4() {
       </Section>
 
       <Section n="4" title="Conceptos que debes aplicar">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — identificar qué variables realmente definen un sector, y cómo tu portafolio afecta tu propia
           solvencia, es parte de lo que se evalúa que tu equipo descubra.
         </p>
@@ -402,7 +402,7 @@ export function GuiaPasanteDia4() {
               formula="peor de los dos choques (±20%/-15%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 no se mueve con este choque"
             />
           </div>
-          <p className="mt-1 text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
             &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; (fuera de la fórmula de σ) son los mismos
             números de tu Balance del año vigente (Día 3) — no hay que recalcularlos desde cero. La σ de siniestralidad es la única línea que mira los 3
             años a la vez en lugar de solo el año vigente. Riesgo de tasa, riesgo de inflación y riesgo de acciones son distintos a las demás líneas
@@ -420,7 +420,7 @@ export function GuiaPasanteDia4() {
             rows={3}
             note="Repite esta tabla para tu lista de crecer y tu lista de disminuir (hasta 3 posiciones cada una). Un sector siempre cruza dos dimensiones distintas."
           />
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Nota de calificación: cada posición nombrada vale por dos mitades, 50/50. La primera mitad es la posición — acertar la posición exacta del
             sector real da 100 puntos, decayendo linealmente hasta 0 conforme la diferencia de posición crece; nombrar un sector que ni siquiera
             aparece en el ranking real también da 0. La segunda mitad es el multiplicador estimado — se califica con la misma banda de tolerancia

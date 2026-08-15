@@ -15,7 +15,7 @@ export default async function GuiaPasantePage({ params }: { params: Promise<{ n:
   const cohort = await getOrCreateActiveCohort();
   if (day > cohort.openDay) {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-6 sm:p-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-6 sm:p-8">
         <Link href="/dashboard" className="text-sm text-[var(--color-brand-blue-accent)] underline">
           ← Volver al resumen
         </Link>
@@ -27,7 +27,7 @@ export default async function GuiaPasantePage({ params }: { params: Promise<{ n:
   }
 
   return (
-    <main className="print-light mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 bg-[var(--color-background)] p-6 print:bg-white print:p-0 sm:p-8">
+    <main className="print-light mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 bg-[var(--color-background)] p-6 print:bg-white print:p-0 sm:p-8">
       <div className="flex items-center justify-between print:hidden">
         <Link href={`/day/${day}`} className="text-sm text-[var(--color-brand-blue-accent)] underline">
           ← Volver al Día {day}

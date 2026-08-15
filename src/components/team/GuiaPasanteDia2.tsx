@@ -53,7 +53,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -191,7 +191,7 @@ export function GuiaPasanteDia2() {
       </Section>
 
       <Section n="2" title="Teoría necesaria">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           El ajuste exacto de tu tarifa y la asignación óptima de tu calendario no se revelan — esta sección explica el marco conceptual, no la respuesta.
         </p>
 
@@ -280,7 +280,7 @@ export function GuiaPasanteDia2() {
             de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en Colombia) es una tercera referencia útil,
             aunque no reemplaza tu propio cálculo.
           </p>
-          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso
             subestima sistemáticamente el verdadero costo último, exactamente el error que el método ELR está diseñado para evitar.
           </p>
@@ -376,7 +376,7 @@ export function GuiaPasanteDia2() {
       </Section>
 
       <Section n="4" title="Conceptos que debes aplicar">
-        <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
           Esto es una guía de razonamiento, no una receta — la asignación óptima del portafolio es parte de lo que se evalúa que tu equipo descubra.
         </p>
 
