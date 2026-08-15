@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { AdminHero } from "@/components/backgrounds/AdminHero";
 import { Card } from "@/components/ui/card";
 
 export default async function AdminHome() {
@@ -20,8 +19,7 @@ export default async function AdminHome() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-8">
-      <div className="animate-fade-in-up relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-6 shadow-[var(--shadow-sm)]">
-        <AdminHero />
+      <div className="animate-fade-in-up">
         <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           Panel de administración
         </h1>

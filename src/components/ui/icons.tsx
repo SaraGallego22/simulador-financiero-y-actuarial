@@ -78,6 +78,43 @@ export function InfoIcon({ className = "h-4 w-4", ...props }: IconProps) {
   );
 }
 
+/** Points left when the sidebar is expanded (collapse it), right when collapsed (expand it) — caller flips direction via a CSS transform, not two separate icons. */
+export function ChevronIcon({ className = "h-4 w-4", ...props }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function LogoutIcon({ className = "h-4 w-4", ...props }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  );
+}
+
 /**
  * Rank badge replacing the 🥇🥈🥉 emoji ternary in admin/standings. Ranks
  * 0-2 (1st-3rd place) get a colored trophy; rank >= 3 falls back to plain
