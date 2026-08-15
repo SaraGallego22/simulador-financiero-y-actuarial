@@ -7,6 +7,7 @@ import { CreateTeamForm } from "./CreateTeamForm";
 import { DeleteTeamButton } from "./DeleteTeamButton";
 import { RosterUpload } from "./RosterUpload";
 import { MemberPhotoUpload } from "./MemberPhotoUpload";
+import { Table } from "@/components/ui/table";
 
 export default async function ConfigPage() {
   const cohort = await getOrCreateActiveCohort();
@@ -45,38 +46,34 @@ export default async function ConfigPage() {
           Equipos
         </h2>
 
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[var(--color-brand-blue)] text-left text-white">
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Usuario</th>
-                <th className="px-4 py-2" />
+        <Table>
+          <Table.Head>
+            <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+            <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Usuario</th>
+            <th className="px-4 py-2" />
+          </Table.Head>
+          <tbody>
+            {teams.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-center text-[var(--color-brand-text-secondary)]">
+                  Aún no hay equipos creados.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {teams.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-4 text-center text-[var(--color-brand-text-secondary)]">
-                    Aún no hay equipos creados.
-                  </td>
-                </tr>
-              )}
-              {teams.map((team) => (
-                <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                  <td className="px-4 py-2">
-                    <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                    {team.name}
-                  </td>
-                  <td className="px-4 py-2 text-[var(--color-brand-text-secondary)]">{team.user?.username ?? "—"}</td>
-                  <td className="px-4 py-2 text-right">
-                    <DeleteTeamButton teamId={team.id} teamName={team.name} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            )}
+            {teams.map((team) => (
+              <Table.Row key={team.id}>
+                <td className="px-4 py-2">
+                  <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                  {team.name}
+                </td>
+                <td className="px-4 py-2 text-[var(--color-brand-text-secondary)]">{team.user?.username ?? "—"}</td>
+                <td className="px-4 py-2 text-right">
+                  <DeleteTeamButton teamId={team.id} teamName={team.name} />
+                </td>
+              </Table.Row>
+            ))}
+          </tbody>
+        </Table>
 
         <CreateTeamForm />
         <RosterUpload />

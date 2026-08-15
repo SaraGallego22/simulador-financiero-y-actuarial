@@ -5,6 +5,7 @@ import { GuiaPasanteDia2 } from "@/components/team/GuiaPasanteDia2";
 import { GuiaPasanteDia3 } from "@/components/team/GuiaPasanteDia3";
 import { GuiaPasanteDia4 } from "@/components/team/GuiaPasanteDia4";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { LockIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ export default async function GuiaPasantePage({ params }: { params: Promise<{ n:
         <Link href="/dashboard" className="text-sm text-[var(--color-brand-blue-accent)] underline">
           ← Volver al resumen
         </Link>
-        <p className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
-          🔒 Este día todavía no está disponible. El evaluador lo habilita a medida que avanza el reto.
+        <p className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Este día todavía no está disponible. El evaluador lo habilita a medida que avanza el reto.
         </p>
       </main>
     );

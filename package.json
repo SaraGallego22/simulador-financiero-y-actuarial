@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed-test": "tsx prisma/seedTestData.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -1,4 +1,4 @@
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 type ButtonSize = "sm" | "default" | "lg";
@@ -10,6 +10,8 @@ export interface ButtonProps extends ComponentPropsWithoutRef<"button"> {
   onDark?: boolean;
   loading?: boolean;
   loadingText?: string;
+  leftIcon?: ReactNode;
+  rightIcon?: ReactNode;
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -20,7 +22,11 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 function variantClasses(variant: ButtonVariant, onDark: boolean): string {
   if (variant === "primary") {
-    return "bg-[var(--color-brand-blue)] text-white hover:bg-[var(--color-brand-blue-dark)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
+    // Gradient fill (brand blue -> vivid blue -> cyan) instead of a flat
+    // bg-color, so hover can't rely on a second bg-color swap — a filter
+    // brightness dip reads correctly across a gradient without needing a
+    // second gradient token.
+    return "bg-[image:var(--gradient-brand-primary)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:brightness-[0.92] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   if (variant === "secondary") {
     return "bg-transparent text-[var(--color-brand-blue-accent)] border border-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
@@ -38,6 +44,8 @@ export function Button({
   onDark = false,
   loading = false,
   loadingText,
+  leftIcon,
+  rightIcon,
   disabled,
   className = "",
   children,
@@ -46,10 +54,12 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded font-medium transition-colors duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${sizeClasses[size]} ${variantClasses(variant, onDark)} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:brightness-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${sizeClasses[size]} ${variantClasses(variant, onDark)} ${className}`}
       {...props}
     >
+      {!loading && leftIcon}
       {loading ? loadingText ?? children : children}
+      {!loading && rightIcon}
     </button>
   );
 }

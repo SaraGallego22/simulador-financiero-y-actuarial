@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { DashboardHero } from "@/components/backgrounds/DashboardHero";
+import { Card } from "@/components/ui/card";
+import { LockIcon } from "@/components/ui/icons";
 
 const DAYS = [
   {
@@ -46,16 +49,19 @@ export default async function TeamDashboard() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-8">
-      <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {team?.name ?? "Equipo"}
-      </h1>
-      <p className="text-sm text-[var(--color-brand-text-secondary)]">
-        El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo
-        compite contra los demás equipos del cohorte por una porción de un mercado sintético de 1.000.000 de pólizas
-        en Colombia, tomando decisiones actuariales (tarifa, reservas, recomendaciones sectoriales) y financieras
-        (portafolio de inversión, P&G, Balance, solvencia). Cada día se califica de forma objetiva, contra un motor
-        de referencia, y de forma subjetiva, según la rúbrica del evaluador.
-      </p>
+      <div className="animate-fade-in-up relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-6 shadow-[var(--shadow-sm)]">
+        <DashboardHero />
+        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+          {team?.name ?? "Equipo"}
+        </h1>
+        <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
+          El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo
+          compite contra los demás equipos del cohorte por una porción de un mercado sintético de 1.000.000 de pólizas
+          en Colombia, tomando decisiones actuariales (tarifa, reservas, recomendaciones sectoriales) y financieras
+          (portafolio de inversión, P&G, Balance, solvencia). Cada día se califica de forma objetiva, contra un motor
+          de referencia, y de forma subjetiva, según la rúbrica del evaluador.
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {DAYS.map((d) => {
@@ -73,25 +79,28 @@ export default async function TeamDashboard() {
                 <span className="font-semibold text-[var(--color-brand-blue-accent)]">Financiero — </span>
                 {d.financiero}
               </p>
-              <p className="mt-2 text-xs italic text-[var(--color-brand-text-secondary)]">
-                {locked ? "🔒 Aún no disponible" : completeByDay.get(d.n) ? "Tarifa cargada" : "Tarifa pendiente"}
+              <p className="mt-2 flex items-center gap-1.5 text-xs italic text-[var(--color-brand-text-secondary)]">
+                {locked ? (
+                  <>
+                    <LockIcon className="h-3 w-3 shrink-0" /> Aún no disponible
+                  </>
+                ) : completeByDay.get(d.n) ? (
+                  "Tarifa cargada"
+                ) : (
+                  "Tarifa pendiente"
+                )}
               </p>
             </>
           );
           return locked ? (
-            <div
-              key={d.n}
-              className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4 opacity-60"
-            >
+            <Card key={d.n} accent="gray" className="opacity-60">
               {card}
-            </div>
+            </Card>
           ) : (
-            <Link
-              key={d.n}
-              href={`/day/${d.n}`}
-              className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-4 hover:shadow-sm"
-            >
-              {card}
+            <Link key={d.n} href={`/day/${d.n}`} className="block">
+              <Card accent="blue" hoverable>
+                {card}
+              </Card>
             </Link>
           );
         })}

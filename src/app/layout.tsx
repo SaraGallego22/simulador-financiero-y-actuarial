@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import { AuthSessionProvider } from "@/components/AuthSessionProvider";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { ConfirmModalHost } from "@/components/ui/confirm-modal";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -43,7 +45,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)]">
-        <AuthSessionProvider>{children}</AuthSessionProvider>
+        <AuthSessionProvider>
+          <ToastProvider>
+            <ConfirmModalHost>{children}</ConfirmModalHost>
+          </ToastProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

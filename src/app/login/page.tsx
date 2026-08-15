@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LoginBackground } from "@/components/backgrounds/LoginBackground";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,12 +35,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex flex-1 items-center justify-center p-6">
+    <main className="relative flex flex-1 items-center justify-center overflow-hidden p-6">
+      <LoginBackground />
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-sm overflow-hidden rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-md">
-        <div className="flex items-center justify-center bg-[var(--color-brand-blue)] px-8 py-6">
+      <div className="animate-fade-in-up w-full max-w-sm overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-lg)]">
+        <div className="flex items-center justify-center bg-[image:var(--gradient-brand-primary)] px-8 py-6">
           <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-12 w-auto" priority />
         </div>
 
@@ -59,7 +61,7 @@ export default function LoginPage() {
             name="username"
             required
             autoComplete="username"
-            className="mb-4 h-9 w-full rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
+            className="mb-4 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
           />
 
           <label htmlFor="password" className="mb-1 block text-sm font-medium text-[var(--color-foreground)]">
@@ -71,7 +73,7 @@ export default function LoginPage() {
             type="password"
             required
             autoComplete="current-password"
-            className="mb-4 h-9 w-full rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
+            className="mb-4 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
           />
 
           <div role="alert" aria-live="assertive" className="mb-4 min-h-[1.25rem] text-sm text-[var(--color-brand-red)]">

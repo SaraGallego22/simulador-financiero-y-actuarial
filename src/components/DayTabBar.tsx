@@ -45,7 +45,7 @@ export function DayTabBar({
           <Link
             key={tab.key}
             href={`${basePath}/${day}?tab=${tab.key}`}
-            className={`-mb-px border-b-[3px] px-4 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide transition-colors ${
+            className={`-mb-px border-b-[3px] px-4 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide transition-all duration-150 ${
               active
                 ? "border-[var(--color-brand-yellow)] text-[var(--color-brand-blue-accent)]"
                 : "border-transparent text-[var(--color-brand-text-secondary)] hover:text-[var(--color-brand-blue-accent)]"

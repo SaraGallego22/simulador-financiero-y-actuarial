@@ -393,10 +393,10 @@ export default async function AdminDayPage({
         <div className="flex flex-col gap-4">
           <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
 
-          <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+          <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+                <tr className="bg-[image:var(--gradient-brand-primary)] text-left text-white">
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Tarifa</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
@@ -493,7 +493,7 @@ export default async function AdminDayPage({
             <form action={publishAllAction.bind(null, latestRun.id, day)}>
               <button
                 type="submit"
-                className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+                className="rounded-[var(--radius-md)] border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
               >
                 Publicar todos los resultados de este día
               </button>
@@ -506,7 +506,7 @@ export default async function AdminDayPage({
         <div className="flex flex-col gap-4">
           {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
           {hasMinVariance && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolio de mínima varianza — Día {day}
               </h3>
@@ -575,7 +575,7 @@ export default async function AdminDayPage({
                   // the graded portfolio when the raw total was really 80).
                   const totalW = INSTRUMENTS.reduce((s, ins) => s + (weights[ins.id] ?? 0), 0);
                   return (
-                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                         {team.name} — ver pesos
@@ -598,7 +598,7 @@ export default async function AdminDayPage({
           )}
 
           {hasPortfolioSchedule && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolios de inversión — Día {day}
               </h3>
@@ -633,7 +633,7 @@ export default async function AdminDayPage({
           )}
 
           {reportConcepts.length > 0 && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Reportes numéricos — Día {day}
               </h3>
@@ -681,7 +681,7 @@ export default async function AdminDayPage({
                     </table>
                   );
                   return (
-                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
                         <span>
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
@@ -710,7 +710,7 @@ export default async function AdminDayPage({
           )}
 
           {hasAnalitica && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+            <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Sectores reales — Día {day}
@@ -793,7 +793,7 @@ export default async function AdminDayPage({
           )}
 
           {hasAnalitica && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Recomendación sectorial por equipo — Día {day}
               </h3>
@@ -802,7 +802,7 @@ export default async function AdminDayPage({
                   const score = analiticaScoreByTeamId.get(team.id);
                   const picks = picksByTeamId.get(team.id);
                   return (
-                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
                         <span>
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
@@ -866,7 +866,7 @@ export default async function AdminDayPage({
       {activeTab === "obj" && (
         <div className="flex flex-col gap-4">
           {includeSim && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+            <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Componentes de la nota objetiva — Día {day}
@@ -923,7 +923,7 @@ export default async function AdminDayPage({
           )}
 
           {hasPortfolioSchedule && bookYear && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 ALM — calce del portafolio vs. reservas de {SIMULATED_YEAR_LABEL[bookYear]}
               </h3>
@@ -936,7 +936,7 @@ export default async function AdminDayPage({
                   const rawAllocation = team.portfolioAllocations[0]?.allocation;
                   const decision = isPortfolioDecisionV4(rawAllocation) ? rawAllocation : undefined;
                   return (
-                    <details key={team.id} className="rounded border border-[var(--color-brand-gray-light)]">
+                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
                       <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
                         <span>
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
@@ -993,7 +993,7 @@ export default async function AdminDayPage({
           )}
 
           {day >= 2 && finBenchByTeamId.size > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
+            <div className="overflow-x-auto rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Financiero (finBench) — 2027 / 2028
@@ -1068,7 +1068,7 @@ export default async function AdminDayPage({
           )}
 
           {day >= 3 && finBenchByTeamId.size > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)]">
+            <div className="overflow-x-auto rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Balance y proyección 2029
@@ -1115,11 +1115,11 @@ export default async function AdminDayPage({
       {activeTab === "subj" && (
         <div className="flex flex-col gap-6">
           {day === 1 ? (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               El Día 1 no tiene calificación subjetiva — todavía no ha habido suficiente contacto con los equipos para evaluar a cada integrante. Empieza en el Día 2.
             </div>
           ) : teams.length === 0 ? (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
               Este cohorte todavía no tiene equipos.
             </div>
           ) : (
@@ -1133,7 +1133,7 @@ export default async function AdminDayPage({
                   const team = selectedSubjTeam;
                   const published = teamPublishedByTeamId.get(team.id) ?? false;
                   return (
-                    <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-8">
+                    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-8">
                       <div className="mb-6 flex items-center justify-between">
                         <h3 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
@@ -1191,7 +1191,7 @@ export default async function AdminDayPage({
                                         <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} />
                                       </div>
 
-                                      <div className="rounded border border-[var(--color-brand-gray-light)] p-4">
+                                      <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
                                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                           Entrevista TH
                                         </p>
@@ -1222,7 +1222,7 @@ export default async function AdminDayPage({
                                       </div>
 
                                       {hasHistorial && (
-                                        <details className="rounded border border-[var(--color-brand-gray-light)]">
+                                        <details className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
                                           <summary className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                             Historial (Días anteriores)
                                           </summary>
@@ -1286,10 +1286,10 @@ export default async function AdminDayPage({
       )}
 
       {activeTab === "top" && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)]">
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+              <tr className="bg-[image:var(--gradient-brand-primary)] text-left text-white">
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
