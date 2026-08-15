@@ -24,7 +24,7 @@
      surface than on a light one. Kept low: page text (headings, tab bars)
      sits directly on top of this pattern outside of cards, so anything
      louder fights with legibility. */
-  --decorative-opacity: 0.035;
+  --decorative-opacity: 0.02;
   /* Frosted-glass surface (Apple-style translucent card over a vivid
      ambient background) — semi-transparent + backdrop-blur, used by
      Card's `glass` variant instead of the opaque --brand-surface. */
@@ -47,7 +47,7 @@
   --brand-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --brand-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --brand-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
-  --decorative-opacity: 0.06;
+  --decorative-opacity: 0.035;
   --brand-glass-surface: rgba(30, 41, 59, 0.55);
 }
 

@@ -13,7 +13,7 @@ export function MemberPhotoUpload({ teamMemberId }: { teamMemberId: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="shrink-0 rounded px-2 py-1 text-xs font-medium text-[var(--color-brand-blue-accent)] transition-colors bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15 disabled:opacity-50"
+        className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)] disabled:opacity-50"
       >
         {pending ? "Subiendo…" : "Subir foto"}
       </button>

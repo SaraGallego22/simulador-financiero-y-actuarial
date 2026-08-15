@@ -23,13 +23,12 @@ const sizeClasses: Record<ButtonSize, string> = {
 function variantClasses(variant: ButtonVariant, onDark: boolean): string {
   if (variant === "primary") {
     // Gradient fill (brand blue -> vivid blue -> cyan) instead of a flat
-    // bg-color, so hover can't rely on a second bg-color swap — a filter
-    // brightness dip reads correctly across a gradient without needing a
-    // second gradient token.
-    return "bg-[image:var(--gradient-brand-primary)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:brightness-[0.92] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
+    // bg-color, so hover can't rely on a second bg-color swap — brightening
+    // (not dimming) on hover reads more energetic across a gradient.
+    return "bg-[image:var(--gradient-brand-primary)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-lg)] hover:brightness-110 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   if (variant === "secondary") {
-    return "bg-[var(--color-brand-blue-accent)]/10 text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-accent)]/15 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
+    return "bg-[var(--color-brand-blue-accent)]/12 text-[var(--color-brand-blue-accent)] shadow-[var(--shadow-sm)] hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   // ghost
   if (onDark) {
@@ -54,7 +53,7 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:brightness-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${sizeClasses[size]} ${variantClasses(variant, onDark)} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-150 cursor-pointer hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:brightness-100 disabled:translate-y-0 disabled:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${sizeClasses[size]} ${variantClasses(variant, onDark)} ${className}`}
       {...props}
     >
       {!loading && leftIcon}

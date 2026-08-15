@@ -64,7 +64,7 @@ export function MemberEvaluationForm({
 
       <button
         type="submit"
-        className="rounded bg-[var(--color-brand-blue)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-blue-dark)]"
+        className="rounded-full bg-[image:var(--gradient-brand-primary)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-3 py-1.5 text-xs font-medium text-white hover:brightness-110"
       >
         Guardar
       </button>
