@@ -10,12 +10,12 @@ import { TEAM_DAY_LINKS } from "@/lib/teamNavData";
 const DAY_LINKS = TEAM_DAY_LINKS;
 
 /** Days beyond the cohort's openDay (admin-controlled, see updateOpenDayAction) render locked, not linked. */
-export function TeamNav({ openDay, subtitle, badge }: { openDay: number; subtitle: string; badge: string }) {
+export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
 
   return (
-    <SidebarShell subtitle={subtitle} badge={badge}>
+    <SidebarShell badge={badge}>
       <NavItem href="/dashboard" label="Resumen" short="RES" active={pathname === "/dashboard"} collapsed={collapsed} />
       {DAY_LINKS.map((link) =>
         link.day <= openDay ? (

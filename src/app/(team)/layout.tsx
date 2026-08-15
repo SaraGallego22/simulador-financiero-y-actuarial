@@ -20,11 +20,7 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
   return (
     <div className="flex flex-1">
       <FloatingThemeToggle />
-      <TeamNav
-        openDay={cohort.openDay}
-        subtitle="Panel del Equipo · Seguros de Automóviles · 4 días / 2 años simulados"
-        badge={team?.name ?? "Equipo"}
-      />
+      <TeamNav openDay={cohort.openDay} badge={team?.name ?? "Equipo"} />
       <div className="relative flex flex-1 flex-col overflow-y-auto">
         <DashboardHero />
         {children}

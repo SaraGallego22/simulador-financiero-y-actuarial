@@ -453,7 +453,7 @@ export default async function AdminDayPage({
                         {capExtra?.capacityLimit != null ? (
                           <>
                             {capExtra.capacityLimit.toLocaleString("es-CO")}
-                            <span className={`ml-1 text-[11px] ${cappedByCapital ? "text-[var(--color-brand-blue-accent)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                            <span className={`ml-1 text-[13px] ${cappedByCapital ? "text-[var(--color-brand-blue-accent)]" : "text-[var(--color-brand-text-secondary)]"}`}>
                               ({cappedByCapital ? "solvencia" : "techo fijo"})
                             </span>
                           </>
@@ -493,7 +493,7 @@ export default async function AdminDayPage({
             <form action={publishAllAction.bind(null, latestRun.id, day)}>
               <button
                 type="submit"
-                className="rounded-[var(--radius-md)] border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+                className="rounded-[var(--radius-md)] border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
               >
                 Publicar todos los resultados de este día
               </button>
@@ -510,7 +510,7 @@ export default async function AdminDayPage({
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Portafolio de mínima varianza — Día {day}
               </h3>
-              <div className="mb-4 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+              <div className="mb-4 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
                 <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
                   Portafolio correcto (referencia, a {(TARGET_RETURN * 100).toFixed(0)}% de retorno)
                 </p>
@@ -591,7 +591,7 @@ export default async function AdminDayPage({
                   );
                 })}
               </div>
-              <p className="mt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+              <p className="mt-2 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                 Este portafolio también alimenta el tope de cuota de mercado del 2027 — ver pestaña Simulación.
               </p>
             </div>
@@ -715,7 +715,7 @@ export default async function AdminDayPage({
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Sectores reales — Día {day}
                 </h3>
-                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                <p className="mt-1 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                   Multiplicador = pérdida agregada del sector ÷ pérdida agregada de <strong>todo el universo</strong> (base = 1.0×; por encima es más
                   riesgoso que el promedio del mercado, por debajo menos). Pérdida agregada combina frecuencia y severidad: es la mediana de severidad
                   de los siniestros del sector, ponderada por qué fracción de sus expuestos efectivamente reclamó. Se usa la <strong>mediana</strong>{" "}
@@ -724,14 +724,14 @@ export default async function AdminDayPage({
                   {SECTOR_MIN_COUNT.toLocaleString("es-CO")} expuestos en el universo completo — es la misma verdad global contra la que se califica a
                   todos los equipos, no la cartera propia de ninguno.
                 </p>
-                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                <p className="mt-1 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                   <strong>Nota solo para administradores</strong> (no mencionar a los equipos): los cruces que involucran &quot;historial de
                   siniestros&quot; (hist) se excluyen deliberadamente de estos rankings reales. Es una variable trampa: sigue disponible para que un
                   equipo la elija en su recomendación, pero un conteo de siniestros pasados por póliza no define un sector de mercado, así que
                   cualquier equipo que la priorice debería perder puntos frente a quienes reconocieron que no aporta y buscaron cruces entre las
                   demás variables.
                 </p>
-                <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                <p className="mt-1 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                   Cada posición nombrada vale por dos cosas, 50/50: acertar la posición en el ranking real, y estimar el multiplicador de ese sector
                   dentro de la misma banda de tolerancia que el resto de entregables numéricos — nombrar el sector sin estimar su multiplicador (o
                   nombrar uno que no aparece en el ranking real) da 0 en esa mitad.
@@ -905,13 +905,13 @@ export default async function AdminDayPage({
                 </tbody>
               </table>
               {day === 1 && (
-                <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                <p className="p-4 pt-2 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                   &ldquo;Nota mín var&rdquo; es la nota del ejercicio de mínima varianza (ver pestaña Entregables para el detalle por equipo) — es el
                   único componente financiero de la nota objetiva de este día, ya que Día 1 no tiene reportes financieros propios.
                 </p>
               )}
               {day === 2 && (
-                <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+                <p className="p-4 pt-2 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                   &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Entregables) —{" "}
                   <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM
                   (ver la sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo), que ya no cabe en esta tabla desde que el calendario de
@@ -1060,7 +1060,7 @@ export default async function AdminDayPage({
                   })}
                 </tbody>
               </table>
-              <p className="p-4 pt-2 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+              <p className="p-4 pt-2 text-[13px] italic text-[var(--color-brand-text-secondary)]">
                 El límite de cuota A2 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
                 2027 — un equipo con Margen de solvencia bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en A2.
               </p>

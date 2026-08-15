@@ -72,7 +72,7 @@ export default async function AdminStandingsPage() {
           </h2>
           <a
             href="/api/members/consolidado-csv"
-            className="rounded border border-[var(--color-brand-blue-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+            className="rounded border border-[var(--color-brand-gray-light)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
           >
             Descargar CSV
           </a>

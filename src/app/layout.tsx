@@ -44,7 +44,18 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)]">
+      {/*
+        h-full + overflow-hidden (not min-h-full): pins body to exactly the
+        viewport height so it never itself scrolls. Without this, tall page
+        content made the whole document (sidebar included) scroll together,
+        dragging the sidebar's nav/sign-out out of view — the sidebar's own
+        `overflow-y-auto` on just its <nav> (see SidebarShell) only creates
+        an independent, pinned-header/footer scroll region if this ancestor
+        chain actually has a bounded height for it to scroll *within*.
+        print:overflow-visible / print:h-auto: printed pages (Guía del
+        pasante) still need to paginate content taller than one screen.
+      */}
+      <body className="h-full overflow-hidden flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)] print:h-auto print:overflow-visible">
         <AuthSessionProvider>
           <ToastProvider>
             <ConfirmModalHost>{children}</ConfirmModalHost>

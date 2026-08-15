@@ -65,7 +65,7 @@ function ScoreTile({ label, weight, value, formula }: { label: string; weight: s
       >
         {value.toFixed(1)}
       </p>
-      <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+      <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
     </div>
   );
 }
@@ -75,7 +75,7 @@ function InfoTile({ label, value, formula, danger }: { label: string; value: str
     <div>
       <p className="text-xs text-[var(--color-brand-text-secondary)]">{label}</p>
       <p className={`text-sm font-semibold ${danger ? "text-[var(--color-brand-red)]" : ""}`}>{value}</p>
-      {formula && <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>}
+      {formula && <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>}
     </div>
   );
 }
@@ -98,7 +98,7 @@ function pct(n: number, digits = 1): string {
 export function AlmScoreTiles({ score }: { score: FinancialScore }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
         <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
         <p className="font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue-accent)]">{score.nota.toFixed(1)}</p>
         <p className="text-xs italic text-[var(--color-brand-text-secondary)]">
@@ -357,7 +357,7 @@ export function AlmPnlBreakdown({
           </p>
         </div>
       </div>
-      <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-2">
+      <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-2">
         <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
           Capital Social sin necesidad de financiamiento externo
         </p>
@@ -365,7 +365,7 @@ export function AlmPnlBreakdown({
           {money(realYear.capitalSocialRestante)}{" "}
           <span className="text-xs font-normal text-[var(--color-brand-text-secondary)]">de {money(CAPITAL_SOCIAL)}</span>
         </p>
-        <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">
+        <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">
           Capital Social − capital comprometido acumulado ({money(realYear.capitalComprometidoAcumulado)}
           {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Capital Social ya está invertido según el calendario mensual desde
           el arranque del 2027 — este número no es &ldquo;lo que queda sin usar&rdquo;, es cuánto de él este equipo ha evitado tener que reponer con
@@ -373,7 +373,7 @@ export function AlmPnlBreakdown({
           Balance real de este año.
         </p>
       </div>
-      <p className="mt-2 text-[10px] italic text-[var(--color-brand-text-secondary)]">
+      <p className="mt-2 text-[12px] italic text-[var(--color-brand-text-secondary)]">
         La Reserva y el Rendimiento nominal del portafolio (portYield) son los mismos entre el ficticio y el real — no dependen de la prima. Lo que sí
         cambia es el ingreso de inversión y el capital comprometido, porque ambos dependen de cuándo entra realmente la caja mes a mes.
       </p>

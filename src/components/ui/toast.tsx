@@ -20,7 +20,7 @@ const kindStyles: Record<ToastKind, { icon: (props: { className?: string }) => R
   },
   info: {
     icon: InfoIcon,
-    classes: "border-[var(--color-brand-blue-accent)]/30 text-[var(--color-brand-blue-accent)]",
+    classes: "border-[var(--color-brand-gray-light)] text-[var(--color-brand-blue-accent)]",
   },
 };
 
