@@ -73,7 +73,7 @@ function DatasetCard({
         {downloadHref && latest?.status === "DONE" && (
           <a
             href={downloadHref}
-            className="rounded border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+            className="rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
           >
             Descargar CSV
           </a>

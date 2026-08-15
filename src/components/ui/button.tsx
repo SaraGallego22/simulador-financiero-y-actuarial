@@ -29,7 +29,7 @@ function variantClasses(variant: ButtonVariant, onDark: boolean): string {
     return "bg-[image:var(--gradient-brand-primary)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:brightness-[0.92] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   if (variant === "secondary") {
-    return "bg-transparent text-[var(--color-brand-blue-accent)] border border-[var(--color-brand-gray-light)] hover:bg-[var(--color-brand-blue-light)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
+    return "bg-[var(--color-brand-blue-accent)]/10 text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-accent)]/15 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   // ghost
   if (onDark) {
