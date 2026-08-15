@@ -23,7 +23,7 @@ const paddingClasses: Record<CardPadding, string> = {
 // the top corners and only round the bottom — the accent bar then sits
 // flush against a straight edge instead of fighting the radius.
 const accentClasses: Record<CardAccent, string> = {
-  blue: "rounded-t-none border-t-4 border-t-[var(--color-brand-blue-accent)]",
+  blue: "rounded-t-none border-t-4 border-t-[var(--color-brand-gray-light)]",
   gray: "rounded-t-none border-t-4 border-t-[var(--color-brand-gray-light)]",
   none: "rounded-t-[var(--radius-lg)]",
 };

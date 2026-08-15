@@ -3,7 +3,7 @@ import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
+    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
       <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {n} · {title}
       </h2>
@@ -15,7 +15,7 @@ function Section({ n, title, children }: { n: string; title: string; children: R
 function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
   return (
     <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-blue)] bg-[var(--color-brand-blue-light)]"}`}
+      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
     >
       <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {accent === "act" ? "Actuarial — " : "Financiero — "}
@@ -53,7 +53,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -116,7 +116,7 @@ function GlossaryTable({ rows }: { rows: { term: string; def: string }[] }) {
 export function GuiaPasanteDia1() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-blue)] bg-[var(--color-brand-surface)] p-6">
+      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
@@ -248,7 +248,7 @@ export function GuiaPasanteDia1() {
             sin ningún cargo comercial todavía. La <strong>prima comercial</strong> es lo que efectivamente le cobras al cliente: la prima pura,
             cargada para cubrir los gastos de operar el negocio y dejar un margen de utilidad.
           </p>
-          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
               Prima Comercial = Prima Pura ÷ (1 − % Gastos − % Utilidad)
             </p>
@@ -536,9 +536,9 @@ export function GuiaPasanteDia1() {
         </FlowStep>
 
         <FlowStep n="3" title="5.3 · La nota — plantilla de calificación">
-          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-3">
+          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota del portafolio de mínima varianza</p>
-            <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+            <p className="my-1 flex h-9 w-28 items-center justify-center rounded border border-dashed border-[var(--color-brand-gray-light)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
               &nbsp;
             </p>
             <p className="text-xs italic text-[var(--color-brand-text-secondary)]">

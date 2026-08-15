@@ -18,14 +18,14 @@ function sectionHasActive(section: NavSection, pathname: string): boolean {
 }
 
 /** Admin's sidebar links (11 across 4 former flat groups) as collapsible disclosures — each section opens/closes independently, defaulting open only when it contains the current page. */
-export function AdminNav({ subtitle, badge }: { subtitle: string; badge: string }) {
+export function AdminNav({ badge }: { badge: string }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
 
   if (collapsed) {
     const allLinks = SECTIONS.flatMap((s) => [...s.links, ...(s.subgroup?.links ?? [])]);
     return (
-      <SidebarShell subtitle={subtitle} badge={badge}>
+      <SidebarShell badge={badge}>
         {allLinks.map((link) => (
           <NavItem key={link.href} link={link} active={pathname === link.href} collapsed />
         ))}
@@ -34,7 +34,7 @@ export function AdminNav({ subtitle, badge }: { subtitle: string; badge: string 
   }
 
   return (
-    <SidebarShell subtitle={subtitle} badge={badge}>
+    <SidebarShell badge={badge}>
       {SECTIONS.map((section) => (
         <NavAccordion key={section.label} label={section.label} defaultOpen={sectionHasActive(section, pathname)}>
           {section.links.map((link) => (
@@ -42,7 +42,7 @@ export function AdminNav({ subtitle, badge }: { subtitle: string; badge: string 
           ))}
           {section.subgroup && (
             <>
-              <div className="mb-1 mt-2 px-2.5 text-[9px] font-bold uppercase tracking-wider text-white/40">{section.subgroup.label}</div>
+              <div className="mb-1 mt-2 px-2.5 text-[11px] font-bold uppercase tracking-wider text-white/70">{section.subgroup.label}</div>
               {section.subgroup.links.map((link) => (
                 <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} />
               ))}
@@ -73,7 +73,7 @@ function NavAccordion({ label, defaultOpen, children }: { label: string; default
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
+        className="flex w-full items-center justify-between gap-1 rounded-[var(--radius-sm)] px-2.5 py-1 text-left text-[12px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/5 hover:text-white/80"
       >
         <span className="truncate">{label}</span>
         <ChevronIcon className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "-rotate-90" : "rotate-180"}`} />

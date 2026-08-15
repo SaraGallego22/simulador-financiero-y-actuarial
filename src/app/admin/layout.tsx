@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex flex-1">
       <FloatingThemeToggle />
-      <AdminNav subtitle="Panel del Profesor · Seguros de Automóviles · 4 días / 2 años simulados" badge="Admin" />
+      <AdminNav badge="Admin" />
       <div className="relative flex flex-1 flex-col overflow-y-auto">
         <AdminHero />
         {children}

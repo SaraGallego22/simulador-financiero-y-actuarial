@@ -48,7 +48,7 @@ function DatasetCard({
   downloadHref?: string;
 }) {
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           {title}
@@ -73,7 +73,7 @@ function DatasetCard({
         {downloadHref && latest?.status === "DONE" && (
           <a
             href={downloadHref}
-            className="rounded border border-[var(--color-brand-blue-accent)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+            className="rounded border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
           >
             Descargar CSV
           </a>

@@ -24,12 +24,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     label: "Evaluación (reto por días)",
     links: [
-      { href: "/admin/config", label: "Configuración", short: "CFG", description: "Equipos, rúbrica y qué día está abierto para el cohorte." },
       { href: "/admin/day/1", label: "Día 1", short: "D1", description: "Tarificación 2027 y portafolio de mínima varianza." },
       { href: "/admin/day/2", label: "Día 2", short: "D2", description: "P&G 2027 y retarifación 2028." },
       { href: "/admin/day/3", label: "Día 3", short: "D3", description: "P&G 2028 y Balance." },
       { href: "/admin/day/4", label: "Día 4", short: "D4", description: "Solvencia, dividendos y analítica sectorial." },
       { href: "/admin/standings", label: "Consolidado final", short: "CON", description: "Ranking y nota final de todos los equipos." },
+      { href: "/admin/config", label: "Configuración", short: "CFG", description: "Equipos, rúbrica y qué día está abierto para el cohorte." },
     ],
   },
   {

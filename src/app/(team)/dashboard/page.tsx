@@ -9,7 +9,7 @@ import { TEAM_DAY_LINKS } from "@/lib/teamNavData";
 
 function ShortBadge({ short }: { short: string }) {
   return (
-    <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue-light)] px-1.5 font-[family-name:var(--font-condensed)] text-[11px] font-bold text-[var(--color-brand-blue-accent)]">
+    <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue-light)] px-1.5 font-[family-name:var(--font-condensed)] text-[13px] font-bold text-[var(--color-brand-blue-accent)]">
       {short}
     </span>
   );

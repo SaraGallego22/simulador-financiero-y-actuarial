@@ -52,7 +52,7 @@ export function FlowStep({ n, title, last, children }: { n: string; title: strin
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-xs font-bold text-white">
           {n}
         </span>
-        {!last && <span className="my-1 w-0 flex-1 border-l-2 border-dashed border-[var(--color-brand-blue-accent)]/40" />}
+        {!last && <span className="my-1 w-0 flex-1 border-l-2 border-dashed border-[var(--color-brand-gray-light)]" />}
       </div>
       <div className={`flex flex-1 flex-col gap-3 ${last ? "" : "pb-5"}`}>
         <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{title}</p>

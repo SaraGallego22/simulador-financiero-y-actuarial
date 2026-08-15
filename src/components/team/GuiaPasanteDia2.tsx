@@ -3,7 +3,7 @@ import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
+    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
       <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {n} · {title}
       </h2>
@@ -15,7 +15,7 @@ function Section({ n, title, children }: { n: string; title: string; children: R
 function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
   return (
     <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-blue)] bg-[var(--color-brand-blue-light)]"}`}
+      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
     >
       <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {accent === "act" ? "Actuarial — " : "Financiero — "}
@@ -53,7 +53,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -137,7 +137,7 @@ function ScoreCard({ label, weight, formula }: { label: string; weight: string; 
 export function GuiaPasanteDia2() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-blue)] bg-[var(--color-brand-surface)] p-6">
+      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
@@ -247,7 +247,7 @@ export function GuiaPasanteDia2() {
             El método ELR estima el costo <strong>último</strong> — no solo lo avisado — como un porcentaje asumido de la prima, en vez de partir de
             tu propia experiencia real, precisamente porque un solo año inmaduro no es lo bastante creíble por sí solo:
           </p>
-          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
               Costo Último = Loss Ratio Esperado × Prima Devengada
             </p>
@@ -259,7 +259,7 @@ export function GuiaPasanteDia2() {
             propio libro y la prima que realmente cobraste por él es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no
             un número compartido por todo el cohorte:
           </p>
-          <div className="rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4 text-center">
+          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-sm font-bold text-[var(--color-brand-blue-accent)] sm:text-base">
               Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima cobrada (pólizas ganadas)
             </p>
@@ -536,9 +536,9 @@ export function GuiaPasanteDia2() {
         </FlowStep>
 
         <FlowStep n="5" title="5.5 · Las 4 notas — plantilla de calificación">
-          <div className="flex flex-col gap-3 rounded border border-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-light)] p-4">
+          <div className="flex flex-col gap-3 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4">
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota final del ALM</p>
-            <p className="flex h-10 w-32 items-center justify-center rounded border border-dashed border-[var(--color-brand-blue-accent)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+            <p className="flex h-10 w-32 items-center justify-center rounded border border-dashed border-[var(--color-brand-gray-light)] font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
               &nbsp;
             </p>
             <p className="text-sm leading-relaxed text-[var(--color-brand-text-secondary)]">

@@ -3,7 +3,7 @@ import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-blue-accent)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
+    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
       <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {n} · {title}
       </h2>
@@ -15,7 +15,7 @@ function Section({ n, title, children }: { n: string; title: string; children: R
 function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
   return (
     <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-blue)] bg-[var(--color-brand-blue-light)]"}`}
+      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
     >
       <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
         {accent === "act" ? "Actuarial — " : "Financiero — "}
@@ -33,7 +33,7 @@ function ScoreCard({ label, formula }: { label: string; formula: string }) {
       <p className="my-1 flex h-8 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
         &nbsp;
       </p>
-      <p className="text-[10px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
+      <p className="text-[12px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
           </tbody>
         </table>
       </div>
-      {note && <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
+      {note && <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
     </div>
   );
 }
@@ -73,7 +73,7 @@ function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; 
 export function GuiaPasanteDia4() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-blue)] bg-[var(--color-brand-surface)] p-6">
+      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
         <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
@@ -402,7 +402,7 @@ export function GuiaPasanteDia4() {
               formula="peor de los dos choques (±20%/-15%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 no se mueve con este choque"
             />
           </div>
-          <p className="mt-1 text-[11px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="mt-1 text-[13px] italic text-[var(--color-brand-text-secondary)]">
             &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; (fuera de la fórmula de σ) son los mismos
             números de tu Balance del año vigente (Día 3) — no hay que recalcularlos desde cero. La σ de siniestralidad es la única línea que mira los 3
             años a la vez en lugar de solo el año vigente. Riesgo de tasa, riesgo de inflación y riesgo de acciones son distintos a las demás líneas
@@ -420,7 +420,7 @@ export function GuiaPasanteDia4() {
             rows={3}
             note="Repite esta tabla para tu lista de crecer y tu lista de disminuir (hasta 3 posiciones cada una). Un sector siempre cruza dos dimensiones distintas."
           />
-          <p className="text-[11px] italic text-[var(--color-brand-text-secondary)]">
+          <p className="text-[13px] italic text-[var(--color-brand-text-secondary)]">
             Nota de calificación: cada posición nombrada vale por dos mitades, 50/50. La primera mitad es la posición — acertar la posición exacta del
             sector real da 100 puntos, decayendo linealmente hasta 0 conforme la diferencia de posición crece; nombrar un sector que ni siquiera
             aparece en el ranking real también da 0. La segunda mitad es el multiplicador estimado — se califica con la misma banda de tolerancia

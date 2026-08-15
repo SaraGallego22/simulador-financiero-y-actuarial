@@ -17,7 +17,7 @@ import { useSidebarCollapsed, toggleSidebarCollapsed } from "@/lib/sidebarCollap
  * top-right corner instead (see FloatingThemeToggle, mounted per layout) —
  * it doesn't belong to this panel.
  */
-export function SidebarShell({ subtitle, badge, children }: { subtitle: string; badge: string; children: ReactNode }) {
+export function SidebarShell({ badge, children }: { badge: string; children: ReactNode }) {
   const collapsed = useSidebarCollapsed();
 
   return (
@@ -30,10 +30,7 @@ export function SidebarShell({ subtitle, badge, children }: { subtitle: string; 
       <div className={`flex shrink-0 items-center gap-2 px-3 py-3 ${collapsed ? "justify-center" : ""}`}>
         <Image src="/logo_sura.png" alt="Seguros SURA" width={140} height={55} className="h-6 w-auto shrink-0" priority />
         {!collapsed && (
-          <div className="min-w-0">
-            <p className="truncate font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide">Pasantía Técnica</p>
-            <p className="truncate text-[10px] text-white/60">{subtitle}</p>
-          </div>
+          <p className="truncate font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide">Pasantía Técnica</p>
         )}
       </div>
 
@@ -44,7 +41,7 @@ export function SidebarShell({ subtitle, badge, children }: { subtitle: string; 
 
       <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 px-3 py-2.5">
         {!collapsed && (
-          <span className="self-start rounded-full bg-[var(--color-brand-yellow)] px-2.5 py-0.5 font-[family-name:var(--font-condensed)] text-[10px] font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+          <span className="self-start rounded-full bg-[var(--color-brand-yellow)] px-2.5 py-0.5 font-[family-name:var(--font-condensed)] text-[12px] font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
             {badge}
           </span>
         )}
