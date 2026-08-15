@@ -197,7 +197,7 @@ export default async function TeamDayPage({
         </div>
         <Link
           href={`/day/${day}/guia`}
-          className="shrink-0 rounded-md border border-[var(--color-brand-gray-light)] px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors hover:bg-[var(--color-brand-blue-light)]"
+          className="shrink-0 rounded-md px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] transition-colors bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
         >
           📄 Guía del pasante
         </Link>
@@ -210,7 +210,7 @@ export default async function TeamDayPage({
           {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
           <a
             href="/api/universe/public-csv"
-            className="w-fit rounded border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+            className="w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
           >
             Descargar CSV público del universo
           </a>
@@ -221,7 +221,7 @@ export default async function TeamDayPage({
             <>
               <a
                 href="/api/universe/chile-csv"
-                className="w-fit rounded border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+                className="w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
               >
                 Descargar dataset Chile (referencia)
               </a>
@@ -348,7 +348,7 @@ export default async function TeamDayPage({
                 <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
                   <a
                     href={`/api/teams/report?day=${day}`}
-                    className="inline-block w-fit rounded border border-[var(--color-brand-gray-light)] px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] hover:bg-[var(--color-brand-blue-light)]"
+                    className="inline-block w-fit rounded px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/10 hover:bg-[var(--color-brand-blue-accent)]/15"
                   >
                     Descargar reporte de tu cartera (CSV)
                   </a>
