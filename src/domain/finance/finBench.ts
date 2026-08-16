@@ -1,6 +1,5 @@
-import { FZ, CORR_MOD_SOLVENCIA, CAPITAL_SOCIAL, ACC_STRESS_PCT } from "./constants";
+import { FZ, CORR_MERCADO, CAPITAL_SOCIAL, ACC_STRESS_PCT } from "./constants";
 import { sampleStdev } from "./stats";
-import { VOL_MENU_AVG } from "./instruments";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { DEV_FRAC } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
@@ -21,10 +20,6 @@ export interface AlmYearBenchInput {
   income: number;
   /** Cumulative genuine external financing needed through the end of this year — subtracted directly from patrimonio in balance(), never folded into rinv (see that function's doc comment). Only nonzero once LIQ *and* the entire real portfolio, Capital Social included, were exhausted via ordinary forced liquidation — see almSimRealYear()'s doc comment in alm.ts. */
   capitalComprometido: number;
-  /** This year's book-value-weighted average realized volatility — feeds rFin's volRatio. */
-  avgVol: number;
-  /** Decision-only concentration ratio of the tree (see portfolioConcentrationRatio() in alm.ts) — feeds rConcentracion, independent of avgVol. */
-  concentrationRatio: number;
   /** Realized yield (income ÷ average invested balance) — see almSimRealYear()'s doc comment. Used to project Año 3's rinv off what the portfolio actually earned instead of its nominal `portYield`; undefined falls back to `portYield`. */
   effectiveYield?: number;
   /** This year's real year-end Caja Mínima balance (see AlmRealYearResult.cajaFinalAnio) — feeds the Balance's `caja` line, replacing the old flat FZ.cajaPct×primaEmitida approximation. */
@@ -97,21 +92,16 @@ export interface FinBenchResult {
   solRPrimas: number;
   solRReservas: number;
   solRSusc: number;
-  solRFin: number;
-  /** solRFin's realized-volatility-vs-menu-average ratio (1 = same as the menu's average instrument, >1 = a more volatile portfolio than average) — see rFin. */
-  solVolRatio: number;
+  /** Día 4 Riesgo de Mercado: riesgoTasa/riesgoInflacion/solRAcciones combined via CORR_MERCADO (tasa-inflación correlated 0.5, ambos con acciones en 0). */
+  solRMercado: number;
   solROp: number;
-  /** Solvency capital charge for portfolio concentration, independent of volatility — see rConcentracion. */
-  solRConc: number;
-  /** The concentrationRatio (0-1) rConcentracion is charged on — see portfolioConcentrationRatio(). */
-  solConcRatio: number;
-  /** Día 4 equity-risk capital charge (exposición × ACC_STRESS_PCT) — see FinBenchInput.accBookValue2. Folded into solRk via CORR_MOD_SOLVENCIA's 5th row/column. */
+  /** Día 4 equity-risk capital charge (exposición × ACC_STRESS_PCT) — see FinBenchInput.accBookValue2. Folds into solRMercado (and from there into solRk) via CORR_MERCADO. */
   solRAcciones: number;
   solRk: number;
   solFp: number;
   solMargen: number;
   div: number;
-  /** Adverse-direction NAV move at end of Año 2 under a real-curve shock — see computeMarketRiskAtAño2End() in alm.ts. Reported/graded as `riesgo_tasa` in concepts.ts, NOT folded into solRk (a NAV-mismatch figure, not a capital charge). 0 when there's no real Año 2 ALM to value from. */
+  /** Adverse-direction NAV move at end of Año 2 under a real-curve shock — see computeMarketRiskAtAño2End() in alm.ts. Reported/graded as `riesgo_tasa` in concepts.ts AND folded into solRk via solRMercado/CORR_MERCADO. 0 when there's no real Año 2 ALM to value from. */
   riesgoTasa: number;
   /** Same shape as riesgoTasa, but shocking the implied-inflation curve instead — see `riesgo_inflacion` in concepts.ts. */
   riesgoInflacion: number;
@@ -252,13 +242,18 @@ function balance(
 
 /**
  * Central financial benchmark: builds the Year 1-3 P&L, a simplified balance
- * sheet, and Solvency-II-style capital requirement (underwriting + financial
- * + operational + concentration + equity risk combined via a correlation
- * matrix, see CORR_MOD_SOLVENCIA). Used both to
- * auto-grade uploaded financial deliverables (scoreConcepto) and to compute
- * solvency ratio / dividends (Day 4). Ported from finBench() in the legacy
- * prototype, line ~1113 — same formulas, but parameterized on plain inputs
- * instead of reading mutable globals (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
+ * sheet, and Solvency-II-style standard-formula capital requirement, in two
+ * levels — Riesgo de Mercado (riesgoTasa/riesgoInflacion/riesgoAcciones,
+ * combined via CORR_MERCADO) and Riesgo de Suscripción (primas/reservas,
+ * combined via corrPR) combine into rBasico via the identity matrix (no
+ * assumed correlation between the two), then Riesgo Operacional is added to
+ * rBasico linearly (not correlated — same "just add it" treatment
+ * Solvencia II itself gives operational risk) to get the Total, rk. Used
+ * both to auto-grade uploaded financial deliverables (scoreConcepto) and to
+ * compute solvency ratio / dividends (Day 4). Ported from finBench() in the
+ * legacy prototype, line ~1113 — same P&L/Balance formulas as always, but
+ * parameterized on plain inputs instead of reading mutable globals
+ * (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
   const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention, marketRisk, accBookValue2 } = input;
@@ -427,34 +422,31 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const rPrimas = pygN.primaEmitida * solSigmaLR;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
-  // Financial risk scales with the team's *own* realized portfolio
-  // volatility relative to the instrument menu's average (VOL_MENU_AVG) —
-  // a team that leaned on ACC pays a materially higher capital charge here
-  // than one that stuck to the menu's safer end, even at identical
-  // inversiones; a team with no ALM decision at all falls back to the
-  // pre-volatility flat charge (ratio 1). This is the Día 4 solvency
-  // connection to the Día 1 portfolio choice.
-  const almN = almYear2 ?? almYear1;
-  const volRatio = almN ? almN.avgVol / VOL_MENU_AVG : 1;
-  const rFin = FZ.finRiskPct * balN.inversiones * volRatio;
-  const rOp = FZ.opPct * pygN.primaEmitida;
-  // Concentration risk, independent of volRatio above — see
-  // portfolioConcentrationRatio()'s doc comment on why a low-volatility
-  // single-instrument portfolio (e.g. 100% CDT90) still pays this even
-  // though it barely moves rFin. A team with no ALM decision at all falls
-  // back to 0 (no data to charge from), unlike volRatio's 1 — there's no
-  // pre-concentration legacy default this needs to match.
-  const concRatio = almN?.concentrationRatio ?? 0;
-  const rConc = FZ.concRiskPct * balN.inversiones * concRatio;
-  // Equity risk: exposición × riesgo (see ACC_STRESS_PCT's doc comment) —
-  // exposición is the ACC book value the caller's real ALM ended up
-  // holding at the end of Año 2 (finBenchHelper.ts), not derived from
-  // anything finBench() itself computes.
+
+  // Riesgo de Mercado: riesgoTasa/riesgoInflacion (real-curve/implied-
+  // inflation shocks at the end of Año 2, see computeMarketRiskAtAño2End in
+  // alm.ts) plus riesgoAcciones (exposición × ACC_STRESS_PCT — exposición
+  // is the ACC book value the caller's real ALM ended up holding at the end
+  // of Año 2, finBenchHelper.ts), combined via CORR_MERCADO.
+  const riesgoTasa = marketRisk?.riesgoTasa ?? 0;
+  const riesgoInflacion = marketRisk?.riesgoInflacion ?? 0;
   const rAcciones = (accBookValue2 ?? 0) * ACC_STRESS_PCT;
-  const R = [rSusc, rFin, rOp, rConc, rAcciones];
-  let rk2 = 0;
-  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) rk2 += CORR_MOD_SOLVENCIA[i][j] * R[i] * R[j];
-  const rk = Math.sqrt(rk2);
+  const Rm = [riesgoTasa, riesgoInflacion, rAcciones];
+  let rMercado2 = 0;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) rMercado2 += CORR_MERCADO[i][j] * Rm[i] * Rm[j];
+  const rMercado = Math.sqrt(rMercado2);
+
+  // Básico (BSCR): Mercado ⊕ Suscripción via the identity matrix — no
+  // assumed correlation between market and underwriting risk, so this is
+  // just Pythagorean combination, not a full matrix multiply.
+  const rBasico = Math.sqrt(rMercado * rMercado + rSusc * rSusc);
+
+  // Riesgo operacional: the worse of a primas-based and a reservas-based
+  // charge (Solvencia II's own standard-formula shape for this module) —
+  // added to rBasico linearly below, not correlated.
+  const rOp = Math.max(FZ.opPctPrimas * pygN.primaEmitida, FZ.opPctReservas * reservasN);
+
+  const rk = rBasico + rOp;
   const fondosPropios = balN.patrimonio;
   const margen = rk > 0 ? fondosPropios / rk : 0;
   const dividendos = Math.max(0, fondosPropios - rk * FZ.targetMargin);
@@ -471,18 +463,15 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     solRPrimas: rPrimas,
     solRReservas: rReservas,
     solRSusc: rSusc,
-    solRFin: rFin,
-    solVolRatio: volRatio,
+    solRMercado: rMercado,
     solROp: rOp,
-    solRConc: rConc,
-    solConcRatio: concRatio,
     solRAcciones: rAcciones,
     solRk: rk,
     solFp: fondosPropios,
     solMargen: margen,
     div: dividendos,
     solSigmaLR,
-    riesgoTasa: marketRisk?.riesgoTasa ?? 0,
-    riesgoInflacion: marketRisk?.riesgoInflacion ?? 0,
+    riesgoTasa,
+    riesgoInflacion,
   };
 }

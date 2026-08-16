@@ -116,8 +116,6 @@ export async function computeFinBenchBundlesForCohort(
           portYield: realAlmYear1.portYield,
           income: realAlmYear1.income,
           capitalComprometido: realAlmYear1.capitalComprometidoAcumulado,
-          avgVol: realAlmYear1.avgVol,
-          concentrationRatio: realAlmYear1.concentrationRatio,
           cajaFinalAnio: realAlmYear1.cajaFinalAnio,
           portfolioBookValue: realAlmYear1.portfolioBookValue,
         }
@@ -138,8 +136,6 @@ export async function computeFinBenchBundlesForCohort(
           portYield: realAlmYear2.portYield,
           income: realAlmYear2.income,
           capitalComprometido: realAlmYear2.capitalComprometidoAcumulado,
-          avgVol: realAlmYear2.avgVol,
-          concentrationRatio: realAlmYear2.concentrationRatio,
           effectiveYield: realAlmYear2.effectiveYield,
           cajaFinalAnio: realAlmYear2.cajaFinalAnio,
           portfolioBookValue: realAlmYear2.portfolioBookValue,

@@ -64,8 +64,8 @@ const EQUITY_LOADING: Record<string, number> = { LIQ: 0, CDT90: 0, TES1: 0, TES3
  * strictly-positive diagonal), so this never needs a runtime PSD check.
  * diag(Σ) is pinned to exactly volAnual² (d_i is whatever's left after both
  * factor loadings are subtracted) — nothing calibrated against volAnual
- * elsewhere (VOL_PENALTY_LAMBDA's ordering, finBench's rFin, VOL_MENU_AVG)
- * drifts. See markowitz.test.ts for the positive-definiteness/diagonal
+ * elsewhere (VOL_PENALTY_LAMBDA's ordering, VOL_MENU_AVG) drifts. See
+ * markowitz.test.ts for the positive-definiteness/diagonal
  * checks and README for the resulting correlation matrix.
  *
  * This positive-definiteness guarantee depends on every instrument's own
