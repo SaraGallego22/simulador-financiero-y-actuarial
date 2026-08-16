@@ -196,7 +196,9 @@ export function GuiaPasanteDia1() {
         <SubSection title="Diccionario de datos — dataset Chile (referencia)" accent="act">
           <p>
             100.000 pólizas con 3 años de siniestros reales (2021-2023) — a diferencia del universo Colombia, este sí trae resultados. Sus valores
-            monetarios están en <strong>UF</strong> (Unidad de Fomento, la unidad chilena indexada a la inflación), no en pesos colombianos.
+            monetarios están en <strong>UF</strong> (Unidad de Fomento, la unidad chilena indexada a la inflación), no en pesos colombianos — a
+            diferencia de la UF, el peso no tiene ese mecanismo de indexación automática; la inflación general esperada en Colombia para 2027-2028
+            es del 6% anual.
           </p>
           <DataDictTable
             rows={[
@@ -493,6 +495,12 @@ export function GuiaPasanteDia1() {
         </p>
 
         <FlowStep n="1" title="5.1 · Instrumentos disponibles">
+          <p>
+            Los bonos con cupón de este menú (TES3 y TES UVR 8 años) están tarificados <strong>a la par</strong>: cada año pagan, como flujo de caja
+            real (no como una tasa que se acumula en silencio hasta el vencimiento), exactamente el mismo porcentaje que ves en la columna
+            &ldquo;Rendimiento EA&rdquo; sobre lo que tengas invertido. Para el TES3 esa columna ya te muestra directamente cuánto paga el cupón cada
+            año; para el TES UVR 8 años sigue mostrando el rendimiento neto de inflación, su atractivo real por estar indexado a la UVR.
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
               <thead>

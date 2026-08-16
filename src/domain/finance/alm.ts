@@ -1081,6 +1081,16 @@ export function pvReserva(L: number[], rate: number): number {
  * apart counting back from `remainingMonths`. Shared by pvPortafolio()
  * (fresh position, `remainingMonths = ins.plazoM`) and, at curve rates
  * instead of one flat rate, `pvPositionsAtCurve()` below.
+ *
+ * When `rateAt` returns exactly `couponRate` (TES3/TESUVR8's own base-case
+ * yield, undisturbed by a rate shock — see isCouponBond()'s doc comment in
+ * instruments.ts), this always returns exactly `amt`: the standard bond-
+ * pricing identity `VP = cupón × anualidad + VP(principal)`, discounted at
+ * the coupon's own rate, collapses algebraically to the face value for any
+ * term — F·r·[1-(1+r)⁻ⁿ]/r + F·(1+r)⁻ⁿ = F. That's what "a la par" means
+ * for TES3/TESUVR8 here: priced at exactly their invested amount as long as
+ * the discount rate hasn't moved away from their own coupon — see
+ * instruments.test.ts for this verified directly against the formula.
  */
 function pvCouponCashflows(amt: number, couponRate: number, remainingMonths: number, rateAt: (months: number) => number): number {
   if (remainingMonths <= 0) return amt;

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { isPortfolioDecisionV4, instrumentDurationM, isCouponBond, MAX_SCHEDULE_ENTRIES, INSTRUMENTS, INSTRUMENT_BY_ID } from "./instruments";
+import {
+  isPortfolioDecisionV4,
+  instrumentDurationM,
+  isCouponBond,
+  displayYieldLabel,
+  MAX_SCHEDULE_ENTRIES,
+  INSTRUMENTS,
+  INSTRUMENT_BY_ID,
+} from "./instruments";
 import type { Allocation, MonthlyAllocationEntry } from "./instruments";
 import { ACC_ROLL_M, VOL_PENALTY_LAMBDA } from "./constants";
 
@@ -58,6 +66,41 @@ describe("isCouponBond", () => {
   it("is true only for TES3 and TESUVR8", () => {
     for (const ins of INSTRUMENTS) {
       expect(isCouponBond(ins)).toBe(ins.id === "TES3" || ins.id === "TESUVR8");
+    }
+  });
+
+  it("a coupon bond discounted at its own yield prices to exactly par (VP = cupón × anualidad + VP del principal = valor invertido)", () => {
+    // Same identity pvCouponCashflows()/pvPortafolio() in alm.ts rely on:
+    // for an annual-coupon bond, discounting every cashflow at a flat rate
+    // equal to its own coupon rate always recovers the face value exactly,
+    // regardless of term — F·r·[1-(1+r)^-n]/r + F·(1+r)^-n = F. Verified
+    // here directly against the bond-pricing formula, not against
+    // pvCouponCashflows() itself, so this doesn't just restate that
+    // function's own logic back at it.
+    for (const ins of INSTRUMENTS.filter(isCouponBond)) {
+      const faceValue = 1_000_000;
+      const r = ins.yield;
+      const n = ins.plazoM / 12;
+      const coupon = faceValue * r;
+      const annuityFactor = (1 - Math.pow(1 + r, -n)) / r;
+      const pv = coupon * annuityFactor + faceValue * Math.pow(1 + r, -n);
+      expect(pv).toBeCloseTo(faceValue, 6);
+    }
+  });
+});
+
+describe("displayYieldLabel", () => {
+  it("frames TES3 as its own coupon payment, not a bare yield", () => {
+    expect(displayYieldLabel(INSTRUMENT_BY_ID.TES3)).toBe("Cupón 11.5% anual");
+  });
+
+  it("keeps TESUVR8 on the plain (inflation-net) yield framing", () => {
+    expect(displayYieldLabel(INSTRUMENT_BY_ID.TESUVR8)).toMatch(/^Inflación \+ \d+\.\d%$/);
+  });
+
+  it("shows every non-coupon, non-TESUVR8 instrument as a plain percentage", () => {
+    for (const ins of INSTRUMENTS.filter((i) => i.id !== "TES3" && i.id !== "TESUVR8")) {
+      expect(displayYieldLabel(ins)).toBe(`${(ins.yield * 100).toFixed(1)}%`);
     }
   });
 });
