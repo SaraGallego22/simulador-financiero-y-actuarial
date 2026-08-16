@@ -162,7 +162,7 @@ export interface AlmSimResult {
   liab6: number;
   /** Diagnostic only (not used in scoring) — the largest number of simultaneously open positions, a sanity check that a team's tree isn't spawning a pathological number of live branches. */
   peakOpenPositions: number;
-  /** Book-value-weighted average annualized volatility of everything actually held over the whole horizon (not just the initial allocation) — feeds the risk-adjusted "Rendimiento" sub-score and the Día 4 financial risk charge (see finBench()'s rFin). */
+  /** Book-value-weighted average annualized volatility of everything actually held over the whole horizon (not just the initial allocation) — feeds the risk-adjusted "Rendimiento" sub-score (see RENDIMIENTO_AJUSTADO/scoreFinanciero()). */
   avgVol: number;
   /** Sum of every month's forced-sale amount across the horizon — see ventaForzadaPortafolio on AlmSimRow. */
   totalVentaForzada: number;
@@ -733,11 +733,9 @@ export function portfolioNominalYield(schedule: MonthlyAllocationEntry[]): numbe
  * Decision-only (no simulation) concentration ratio of a schedule's
  * starting (month-0) allocation, normalized to [0, 1] — 0 = risky exposure
  * spread evenly across every non-LIQ instrument in the menu, 1 =
- * concentrated in a single one. Feeds both the Día 2 "Rendimiento"
- * sub-score's discount (see CONCENTRATION_PENALTY_MU in constants.ts) and
- * Día 4's solvency concentration-risk capital charge (see rConcentracion in
- * finBench.ts) — same measurement, two different consequences. Only looks
- * at the month-0 checkpoint, same scope the old tree version only ever gave
+ * concentrated in a single one. Feeds the Día 2 "Rendimiento" sub-score's
+ * discount (see CONCENTRATION_PENALTY_MU in constants.ts). Only looks at
+ * the month-0 checkpoint, same scope the old tree version only ever gave
  * its top-level tranches.
  *
  * LIQ is excluded from the weight base entirely, not just given a low
@@ -747,8 +745,8 @@ export function portfolioNominalYield(schedule: MonthlyAllocationEntry[]): numbe
  * holdings the same way). A team holding half LIQ and half ACC is exactly
  * as concentrated as one holding 100% ACC — the LIQ half isn't
  * "diversifying" the equity risk, it's just holding less of it, which the
- * existing volatility-based rFin/riskAdjustedYield already price in
- * separately. A team with no risky exposure at all (100% LIQ) returns 0 —
+ * existing volatility-based riskAdjustedYield already prices in separately.
+ * A team with no risky exposure at all (100% LIQ) returns 0 —
  * there's nothing to be concentrated in.
  *
  * Normalized against the menu's 5 non-LIQ instruments: an even split
@@ -775,7 +773,7 @@ export interface AlmRealYearResult {
   income: number;
   /** Realized yield actually earned this year (income ÷ average invested book balance across the 12 months) — distinct from `portYield` (the tree's nominal, decision-only yield): a team that had to force-sell or commit capital gets a lower effectiveYield than its tree's nominal rate would suggest. Used to project Año 3's investment income off the *realized* rate instead of the nominal one — see finBench.ts's p3. */
   effectiveYield: number;
-  /** Book-value-weighted average volatility actually held during just this year — feeds finBench()'s rFin volRatio for that year. */
+  /** Book-value-weighted average volatility actually held during just this year — informational only, not currently read by finBench() (Día 4's RK no longer charges a separate volatility-based financial-risk line, see rMercado in finBench.ts). */
   avgVol: number;
   /** Cumulative genuine external financing needed through the end of this year — only nonzero once LIQ *and* the entire real portfolio (Capital Social included, see almSimRealYear()'s doc comment) were exhausted via ordinary forced liquidation. Continues accumulating from whatever initialState carried in, if any. */
   capitalComprometidoAcumulado: number;
@@ -929,10 +927,7 @@ export function almSimRealYear(
  * portfolioConcentrationRatio()) means this isn't beaten by parking
  * everything in that single best instrument either — a genuinely
  * concentrated bet pays a discount here even when the instrument itself is
- * a safe one, the same way Día 4's solvency capital charges a
- * concentration risk independent of volatility (see rConcentracion in
- * finBench.ts) — a team that understands why its Día 2 nota was discounted
- * is exactly the team that reproduces the higher RK correctly on Día 4.
+ * a safe one.
  *
  * ventaForzada penalizes being forced to sell portfolio holdings early to
  * cover a Caja Mínima shortfall LIQ alone couldn't meet — and does so with
@@ -1152,9 +1147,10 @@ export interface AlmNavResult {
  * NAV (assets - liabilities at market value) under base/up/down rate
  * scenarios — a diagnostic of interest-rate sensitivity, informational
  * only (not currently read by finBench()'s solvency capital, which instead
- * charges financial risk off realized portfolio *volatility*, see rFin).
- * Uses a single allocation (the balance-sheet snapshot at the valuation
- * date). Ported from almNAV(), line ~1837.
+ * derives its own real-curve shocks off actual Año-2-end positions — see
+ * computeMarketRiskAtAño2End below). Uses a single allocation (the
+ * balance-sheet snapshot at the valuation date). Ported from almNAV(),
+ * line ~1837.
  */
 export function almNAV(lib: LiabilitySchedule, allocInitial: Allocation): AlmNavResult | null {
   if (!lib.hay || !allocInitial) return null;
@@ -1245,10 +1241,13 @@ function pvLiabilityAtCurve(L: number[], nominalCurve: Curve): number {
  * liabilityYear1.L.slice(12) plus Año 2's own claims' L.slice(12), summed
  * element-wise, both already anchored so index 12 = calendar month 24).
  *
- * Two independent shocks, both ±20%/-15% relative (same convention as
- * ALM_TASA_ALZA/BAJA, applied to the new nominal/real/inflation curves
- * instead — see their own doc comments) — applied to the *whole curve* at
- * every tenor, not a single point:
+ * Two independent shocks, each relative to the curve's own level at every
+ * tenor (same convention as ALM_TASA_ALZA/BAJA, applied to the new
+ * nominal/real/inflation curves instead — see their own doc comments), but
+ * with their own magnitudes: riesgo de tasa shocks the real curve ±50%
+ * (RIESGO_TASA_ALZA_FACTOR/BAJA_FACTOR), riesgo de inflación shocks the
+ * implied-inflation curve ±75% (RIESGO_INFLACION_ALZA_FACTOR/BAJA_FACTOR) —
+ * applied to the *whole curve* at every tenor, not a single point:
  * - Riesgo de tasa shocks the REAL curve, holding each tenor's implied
  *   inflation fixed — the nominal curve moves as a mechanical consequence
  *   (Fisher, per tenor), so this moves TESUVR8 (direct real-curve shock)
@@ -1265,6 +1264,13 @@ function pvLiabilityAtCurve(L: number[], nominalCurve: Curve): number {
  * Both figures are "worse of the two directions," same clipped-to-≥0 shape
  * almNAV()'s own riesgoTasa already uses.
  */
+/** Riesgo de tasa shocks (real curve, relative to its own level at every tenor) — see computeMarketRiskAtAño2End's doc comment. */
+const RIESGO_TASA_ALZA_FACTOR = 1.5;
+const RIESGO_TASA_BAJA_FACTOR = 0.5;
+/** Riesgo de inflación shocks (implied-inflation curve, same convention). */
+const RIESGO_INFLACION_ALZA_FACTOR = 1.75;
+const RIESGO_INFLACION_BAJA_FACTOR = 0.25;
+
 export function computeMarketRiskAtAño2End(positions: Position[], liabilityPostAño2: number[]): MarketRiskAtYearEnd {
   const navAt = (nominalCurve: Curve, realCurve: Curve) =>
     pvPositionsAtCurve(positions, nominalCurve, realCurve) - pvLiabilityAtCurve(liabilityPostAño2, nominalCurve);
@@ -1279,8 +1285,8 @@ export function computeMarketRiskAtAño2End(positions: Position[], liabilityPost
     return (1 + real) * (1 + IMPLIED_INFLATION) - 1;
   };
   const realShocked = (factor: number): Curve => (months) => realCurveRate(months) * factor;
-  const navTasaAlza = navAt(nominalFromShockedReal(1.2), realShocked(1.2));
-  const navTasaBaja = navAt(nominalFromShockedReal(0.85), realShocked(0.85));
+  const navTasaAlza = navAt(nominalFromShockedReal(RIESGO_TASA_ALZA_FACTOR), realShocked(RIESGO_TASA_ALZA_FACTOR));
+  const navTasaBaja = navAt(nominalFromShockedReal(RIESGO_TASA_BAJA_FACTOR), realShocked(RIESGO_TASA_BAJA_FACTOR));
   const riesgoTasa = -Math.min(navTasaAlza - navBase, navTasaBaja - navBase);
 
   // Riesgo de inflación: shock IMPLIED_INFLATION, holding the real curve
@@ -1290,8 +1296,8 @@ export function computeMarketRiskAtAño2End(positions: Position[], liabilityPost
     const infl = IMPLIED_INFLATION * factor;
     return (1 + realCurveRate(months)) * (1 + infl) - 1;
   };
-  const navInflAlza = navAt(nominalFromShockedInflacion(1.2), realCurveRate);
-  const navInflBaja = navAt(nominalFromShockedInflacion(0.85), realCurveRate);
+  const navInflAlza = navAt(nominalFromShockedInflacion(RIESGO_INFLACION_ALZA_FACTOR), realCurveRate);
+  const navInflBaja = navAt(nominalFromShockedInflacion(RIESGO_INFLACION_BAJA_FACTOR), realCurveRate);
   const riesgoInflacion = -Math.min(navInflAlza - navBase, navInflBaja - navBase);
 
   return { riesgoTasa, riesgoInflacion };

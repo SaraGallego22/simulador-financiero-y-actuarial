@@ -5,7 +5,7 @@ export interface Instrument {
   id: string;
   nombre: string;
   yield: number;
-  /** Annualized return volatility (stdev, dimensionless — 0.05 = 5%). Feeds the risk-adjusted "Rendimiento" ALM sub-score and the Día 4 solvency financial-risk charge — see RENDIMIENTO_AJUSTADO in alm.ts and finBench()'s rFin. */
+  /** Annualized return volatility (stdev, dimensionless — 0.05 = 5%). Feeds the risk-adjusted "Rendimiento" ALM sub-score — see RENDIMIENTO_AJUSTADO in alm.ts. Also feeds capacity.ts's own market-share-cap sizing (see VOL_MENU_AVG below). */
   volAnual: number;
   plazoM: number;
   nota: string;

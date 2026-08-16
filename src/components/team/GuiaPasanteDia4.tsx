@@ -88,7 +88,7 @@ export function GuiaPasanteDia4() {
       <InsumosEntregables
         insumos={[
           "Balance de cada año (Día 3): reservas, RPND, cuentas por cobrar/pagar y patrimonio.",
-          "Volatilidad realizada y concentración de tu calendario de portafolio (Día 2).",
+          "Tu portafolio real al cierre de Año 2 (Día 2) — qué quedó en TESUVR8 frente a instrumentos nominales y en ACC, para riesgo de tasa/inflación/acciones.",
           "El menú de instrumentos que ya conoces (Día 1/2) — no hay curvas nuevas que memorizar: la nominal y la real salen de los mismos yields del menú.",
           "Tu propia cartera (parcial, sesgada) y el CSV público del universo, para la recomendación sectorial.",
         ]}
@@ -152,17 +152,25 @@ export function GuiaPasanteDia4() {
 
         <SubSection title="Capital de solvencia y el beneficio de la diversificación" accent="fin">
           <p>
-            Un marco de solvencia basado en riesgo (como el que sigue este ejercicio, inspirado en el estándar de Solvencia II europeo) no exige
-            mantener capital igual a la suma de todo lo que podría salir mal — exige mantener capital suficiente para el escenario adverso combinado,
-            reconociendo que no todos los riesgos se materializan al mismo tiempo ni en la misma dirección. Cada módulo de riesgo (suscripción,
-            financiero, operacional, concentración) se calcula por separado y luego se agregan mediante una matriz de correlación: cuanto menor la
-            correlación asumida entre dos riesgos, menor el capital combinado que exige el modelo frente a sumarlos linealmente — ese ahorro de capital
-            es, literalmente, el beneficio de estar diversificado en distintas fuentes de riesgo, no solo en instrumentos financieros.
+            Un marco de solvencia basado en riesgo (como el que sigue este ejercicio, inspirado en el estándar de Solvencia II europeo — su
+            &ldquo;fórmula estándar&rdquo;) no exige mantener capital igual a la suma de todo lo que podría salir mal — exige mantener capital
+            suficiente para el escenario adverso combinado, reconociendo que no todos los riesgos se materializan al mismo tiempo ni en la misma
+            dirección. El modelo se arma en dos niveles: primero, el <strong>Riesgo de Mercado</strong> (tasa, inflación y acciones) y el{" "}
+            <strong>Riesgo de Suscripción</strong> (primas y reservas) se calculan cada uno por separado, combinando sus propios componentes
+            internos mediante una matriz de correlación — cuanto menor la correlación asumida entre dos componentes, menor el capital combinado que
+            exige el modelo frente a sumarlos linealmente. Esos dos resultados (Mercado y Suscripción) se combinan entre sí para dar el{" "}
+            <strong>Básico</strong>, asumiendo esta vez correlación cero entre ambos — el mercado y la suscripción de un seguro de autos no se mueven
+            por el mismo motivo, así que el modelo no les da ningún beneficio de diversificación adicional el uno con el otro más allá del que ya
+            capturó puertas adentro. Por último, el <strong>Riesgo Operacional</strong> se suma al Básico de forma lineal, sin beneficio de
+            diversificación — el mismo tratamiento conservador que Solvencia II le da a este riesgo, sea cual sea el modelo interno de la
+            aseguradora. Ese ahorro de capital que sí existe (en Mercado y en Suscripción) es, literalmente, el beneficio de estar diversificado en
+            distintas fuentes de riesgo, no solo en instrumentos financieros.
           </p>
           <p>
-            El resultado — el Requerimiento de Capital, o RK — se compara contra los fondos propios reales de la aseguradora (su patrimonio) para
-            obtener el margen de solvencia. Un margen por encima de 100% indica que hay más capital del mínimo exigido; ese excedente, descontado un
-            margen de seguridad objetivo, es lo que queda disponible para repartir como dividendo sin comprometer la solvencia futura de la compañía.
+            El resultado — el Requerimiento de Capital, o RK (Básico + Operacional) — se compara contra los fondos propios reales de la aseguradora
+            (su patrimonio) para obtener el margen de solvencia. Un margen por encima de 100% indica que hay más capital del mínimo exigido; ese
+            excedente, descontado un margen de seguridad objetivo, es lo que queda disponible para repartir como dividendo sin comprometer la
+            solvencia futura de la compañía.
           </p>
         </SubSection>
 
@@ -205,8 +213,14 @@ export function GuiaPasanteDia4() {
           </p>
           <p>
             El riesgo de acciones es más directo: tu exposición real en ACC al cierre de Año 2 (lo que efectivamente terminaste sosteniendo en ese
-            instrumento, según tu propio calendario de Día 2) multiplicada por un cargo regulatorio fijo del 39% — el mismo tipo de cargo que Solvencia II
-            exige para acciones cotizadas.
+            instrumento, según tu propio calendario de Día 2) multiplicada por un cargo fijo del 20% — el mismo tipo de choque de tipo &ldquo;q de
+            acciones&rdquo; que un marco Solvencia II le exige a la renta variable, calibrado para este ejercicio.
+          </p>
+          <p>
+            Riesgo de tasa, riesgo de inflación y riesgo de acciones son los tres componentes del <strong>Riesgo de Mercado</strong> — se combinan
+            entre sí (no se suman directamente) mediante su propia matriz de correlación: tasa e inflación correlacionan 0.5 (ambas se mueven, por
+            distintos mecanismos, con la misma curva nominal — ver Fisher, arriba), y acciones no correlaciona con ninguna de las dos (0) — su choque
+            regulatorio no tiene ningún vínculo real con las curvas de tasa/inflación de este ejercicio.
           </p>
           <p>
             &ldquo;Tu portafolio real al cierre de Año 2&rdquo; incluye tu Capital Social — se invierte según el mismo calendario que tu prima desde el
@@ -237,8 +251,8 @@ export function GuiaPasanteDia4() {
           <p>
             El Riesgo de tasa y el Riesgo de inflación se valoran al cierre de Año 2 — con las posiciones que tu portafolio real efectivamente tiene
             abiertas en ese momento y los flujos de tu pasivo de siniestros que todavía quedan por pagar después de ese punto, no con una simulación
-            hipotética desde cero. El Riesgo de acciones es tu exposición real en ACC en ese mismo momento, multiplicada por el cargo regulatorio del
-            39%.
+            hipotética desde cero. El Riesgo de acciones es tu exposición real en ACC en ese mismo momento, multiplicada por un cargo fijo del 20%.
+            Los tres combinados (vía correlación, ver sección 5) son tu Riesgo de Mercado, uno de los dos insumos del RK.
           </p>
           <p>
             Tu <strong>σ de siniestralidad</strong> no se compara contra un valor del motor calculado aparte: se recalcula a partir de tus propias otras
@@ -249,15 +263,14 @@ export function GuiaPasanteDia4() {
             esas líneas solo te penaliza una vez, no también aquí.
           </p>
           <p>
-            El RK combina cinco riesgos (suscripción, financiero, operacional, concentración y acciones) — los que conectan directamente con tus
-            propias decisiones anteriores son el de prima (tu propia σ de siniestralidad, arriba), el financiero, el de concentración y el de
-            acciones, y son cosas distintas entre sí. El riesgo de prima escala con tu propia volatilidad de siniestralidad, no con un porcentaje
-            plano. El riesgo financiero tampoco es un porcentaje plano sobre tus inversiones: se escala por qué tan volátil resultó realmente tu
-            portafolio frente al promedio del menú de instrumentos. El riesgo de concentración es independiente de eso — se escala por qué tan
-            repartido quedó tu calendario entre los instrumentos con plazo propio (CDT90/TES1/TES3/TESUVR8), sin importar si el instrumento elegido era
-            volátil o no. Un equipo que puso todo en un solo CDT90 (bajo riesgo nominal) sigue pagando este segundo cargo completo, aunque su riesgo
-            financiero sea bajo. El riesgo de acciones es, de los cuatro, el único que depende de un solo instrumento específico (ACC) y de un cargo
-            fijo, no de una fórmula que combina varios factores tuyos. Ver sección 5 para las fórmulas completas.
+            El RK se arma en dos niveles: <strong>Riesgo de Mercado</strong> (tasa, inflación, acciones) y <strong>Riesgo de Suscripción</strong>{" "}
+            (prima, reservas) se combinan entre sí (correlación cero) para dar el <strong>Básico</strong>; el <strong>Riesgo Operacional</strong> se
+            suma encima de forma lineal para dar el Total. El que conecta directamente con tu propia decisión de Día 1/2 es el de prima (tu propia σ
+            de siniestralidad, arriba) dentro de Suscripción, y los tres de Mercado — todos distintos entre sí. El riesgo de prima escala con tu
+            propia volatilidad de siniestralidad, no con un porcentaje plano. Riesgo de tasa y riesgo de inflación son choques reales a tu portafolio
+            y tu pasivo al cierre de Año 2 (ver sección 2) — no una fórmula sobre un agregado, sino el efecto genuino de un choque de curva sobre cada
+            posición y cada flujo de pasivo a su propio plazo. Riesgo de acciones es el único de los tres que depende de un solo instrumento
+            específico (ACC) y de un cargo fijo. Ver sección 5 para las fórmulas completas.
           </p>
         </SubSection>
 
@@ -293,15 +306,15 @@ export function GuiaPasanteDia4() {
               mismo ya sabes que era incorrecta.
             </li>
             <li>
-              <strong>El riesgo financiero no es gratis, aunque el rendimiento haya sido bueno.</strong> Dos equipos con el mismo patrimonio pueden tener
-              un RK muy distinto si uno concentró su portafolio en el instrumento más volátil del menú — revisa tu propia volatilidad realizada, no solo
-              tu rendimiento, antes de reportar.
+              <strong>El riesgo operacional no es un porcentaje plano sobre tu prima.</strong> Es el mayor entre un cargo sobre tu prima emitida y
+              uno sobre tu reserva técnica, ambos al cierre de Año 2 — revisa cuál de los dos domina en tu caso antes de reportar, no asumas que
+              siempre es el mismo.
             </li>
             <li>
-              <strong>Si tu nota de Rendimiento del Día 2 quedó más baja de lo esperado, revisa qué tan repartido quedó tu calendario.</strong> Ese mismo
-              descuento por concentración reaparece aquí como un cargo de capital aparte del financiero — un CDT90 100% concentrado paga este cargo
-              completo aunque su volatilidad sea baja. Entender esa conexión es lo que te permite reportar un RK correcto hoy, no solo recordar que tu
-              nota de Día 2 fue más baja.
+              <strong>Riesgo de Mercado y Riesgo de Suscripción no se suman directamente al combinarse en el Básico.</strong> El modelo asume
+              correlación cero entre ambos, así que el Básico es la combinación pitagórica (raíz de la suma de cuadrados), siempre menor o igual que
+              sumarlos — un equipo con Mercado y Suscripción parecidos en magnitud paga menos capital combinado que uno con toda su exposición
+              concentrada en uno solo de los dos.
             </li>
             <li>
               <strong>El patrimonio que usas es el del año vigente, no un acumulado de todos los años.</strong> Si tuviste que comprometer Capital
@@ -360,8 +373,8 @@ export function GuiaPasanteDia4() {
           <li>¿Qué pasaría con tu RK si el regulador exigiera un margen de seguridad objetivo más alto que 1.5×?</li>
           <li>¿Cómo cambiaría tu recomendación sectorial si tuvieras acceso a la cartera completa del mercado, no solo la tuya?</li>
           <li>
-            ¿Qué le dirías a la junta directiva de tu aseguradora sobre la relación entre la volatilidad de tu portafolio de Día 2 y el dividendo que
-            pueden repartir hoy?
+            ¿Qué le dirías a la junta directiva de tu aseguradora sobre la relación entre qué tanto de tu portafolio de Día 2 quedó en TESUVR8 frente
+            a instrumentos nominales, y el dividendo que pueden repartir hoy?
           </li>
         </PreguntasAbiertas>
       </Section>
@@ -375,31 +388,31 @@ export function GuiaPasanteDia4() {
             />
             <ScoreCard label="Riesgo de prima (rPrimas)" formula="prima × tu propia σ de siniestralidad (sol_sigmaLR, arriba)" />
             <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√(rPrimas² + (reservas×30%)² + 2×0.75×rPrimas×(reservas×30%))" />
-            <ScoreCard label="Riesgo financiero (rFin)" formula="6.6% × inversiones × (tu volatilidad realizada ÷ volatilidad promedio del menú)" />
-            <ScoreCard label="Riesgo operacional (rOp)" formula="3% × prima" />
             <ScoreCard
-              label="Riesgo de concentración (rConcentracion)"
-              formula="3% × inversiones × concentración de tu calendario (0 a 1, excluye LIQ — mismo número que descontó tu Rendimiento en Día 2)"
+              label="Riesgo de tasa"
+              formula="peor de los dos choques (+50%/-50%) a la curva real, en NAV (PV activo real − PV pasivo real) al cierre de Año 2"
             />
-            <ScoreCard label="Riesgo de acciones (rAcciones)" formula="tu exposición real en ACC al cierre de Año 2 × 39%" />
             <ScoreCard
-              label="Requerimiento de Capital (RK)"
-              formula="combinación de rSusc/rFin/rOp/rConcentracion/rAcciones vía matriz de correlación (rSusc-rFin=0.75, rSusc-rConcentracion=0.75, rSusc-rAcciones=0.75, rFin-rAcciones=0.75, rFin-rConcentracion=0.5, rConcentracion-rAcciones=0.5, el resto=1)"
+              label="Riesgo de inflación"
+              formula="peor de los dos choques (+75%/-75%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 no se mueve con este choque"
             />
+            <ScoreCard label="Riesgo de acciones (rAcciones)" formula="tu exposición real en ACC al cierre de Año 2 × 20%" />
+            <ScoreCard
+              label="Riesgo de Mercado (rMercado)"
+              formula="combinación de riesgo de tasa/riesgo de inflación/rAcciones vía matriz de correlación (tasa-inflación=0.5, acciones-cualquiera=0)"
+            />
+            <ScoreCard label="Riesgo Básico" formula="√(rMercado² + rSusc²) — correlación cero entre Mercado y Suscripción" />
+            <ScoreCard
+              label="Riesgo operacional (rOp)"
+              formula="máx(4% × prima emitida al cierre de Año 2, 1.3% × reserva técnica al cierre de Año 2)"
+            />
+            <ScoreCard label="Requerimiento de Capital (RK)" formula="Básico + Riesgo operacional (suma lineal, sin correlación)" />
             <ScoreCard label="Margen de solvencia" formula="Fondos propios (patrimonio) ÷ RK" />
             <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
             <ScoreCard label="EVA (Valor Económico Agregado)" formula="Utilidad Neta (año vigente, Día 3) − 10% × Fondos propios" />
             <ScoreCard
               label="Curvas dadas"
               formula="nominal = yields de CDT90/TES1/TES3 por plazo, interpolación lineal entre puntos y plana fuera de [3,36] meses · inflación implícita = despéjala de (1+nominal)/(1+real) = (1+inflación) en el único plazo donde conoces las dos (TESUVR8, 96 meses) — luego es la misma en cualquier otro plazo · real = (1+nominal)/(1+inflación) − 1 en cada plazo (nunca una resta)"
-            />
-            <ScoreCard
-              label="Riesgo de tasa"
-              formula="peor de los dos choques (±20%/-15%) a la curva real, en NAV (PV activo real − PV pasivo real) al cierre de Año 2"
-            />
-            <ScoreCard
-              label="Riesgo de inflación"
-              formula="peor de los dos choques (±20%/-15%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 no se mueve con este choque"
             />
           </div>
           <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
@@ -432,9 +445,10 @@ export function GuiaPasanteDia4() {
         <FlowStep n="3" title="5.3 · El camino completo, de tus decisiones a tu nota" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
-              Tu Balance de cada año (Día 3) + la volatilidad realizada y la concentración de tu calendario de portafolio (Día 2, la misma concentración que ya
-              descontó tu nota de Rendimiento entonces) → alimentan el RK y tu margen de solvencia (5.1). En paralelo, tu lectura del mercado a través de
-              tu propia cartera y el CSV público → tu recomendación sectorial (5.2), calificada contra el ranking real que nunca ves directamente.
+              Tu Balance de cada año (Día 3) alimenta Riesgo de Suscripción; tu portafolio y pasivo reales al cierre de Año 2 (Día 2) alimentan Riesgo
+              de Mercado — ambos se combinan en el Básico, y el Riesgo Operacional se suma encima → RK y tu margen de solvencia (5.1). En paralelo, tu
+              lectura del mercado a través de tu propia cartera y el CSV público → tu recomendación sectorial (5.2), calificada contra el ranking real
+              que nunca ves directamente.
             </p>
           </div>
         </FlowStep>

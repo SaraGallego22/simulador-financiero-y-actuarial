@@ -19,10 +19,13 @@ export const FZ = {
   primeVol: 0.1476,
   resVol: 0.3,
   corrPR: 0.75,
+  /** Flat financial-risk rate used ONLY by capacity.ts's market-share cap (riskCapitalForPremium(), reusing CORR_MOD) — finBench()'s own Día 4 RK no longer charges a separate volatility-based financial-risk line at all (see rMercado in finBench.ts, which prices interest/inflation/equity risk directly off real curve shocks instead). Kept here because capacity.ts runs during market clearing, before a real Año-2-end portfolio to shock even exists. */
   finRiskPct: 0.066,
-  /** Día 4 solvency capital charge for portfolio concentration — see rConcentracion in finBench.ts and CORR_MOD_CONCENTRACION below. A team maximally concentrated in a single risky instrument (portfolioConcentrationRatio=1) pays 3% of its inversiones on top of the volatility-based rFin charge; a fully spread risky sleeve pays nothing here. */
-  concRiskPct: 0.03,
+  /** Flat operational-risk rate used ONLY by capacity.ts's market-share cap, same reasoning as finRiskPct above — finBench()'s own Día 4 rOp uses opPctPrimas/opPctReservas instead (see below). */
   opPct: 0.03,
+  /** Día 4 operational risk: max(primaEmitida al cierre de Año 2 × opPctPrimas, reserva técnica al cierre de Año 2 × opPctReservas) — see rOp in finBench.ts. Added to rBasico linearly (no correlation benefit), same as Solvencia II's own SCR = BSCR + SCR_operacional. */
+  opPctPrimas: 0.04,
+  opPctReservas: 0.013,
   targetMargin: 1.5,
   cajaPct: 0.15,
   /** Cuentas por cobrar (CxC): fórmula de días de cartera (DSO, days sales outstanding) — cxc = (diasRotacionCxc × primaEmitida) / 365. Reemplaza el antiguo 7% plano; GuiaPasanteDia3 solo comunica el supuesto de 30 días de rotación de cartera, no esta fórmula, para que cada equipo la derive por su cuenta. */
@@ -43,32 +46,23 @@ export const CORR_MOD = [
 ];
 
 /**
- * Correlation matrix for finBench()'s 5-component solvency capital
- * (underwriting/financial/operational/concentration/equity risk), order
- * [rSusc, rFin, rOp, rConcentracion, rAcciones]. The first 4 rows/columns
- * are what used to be CORR_MOD_CONCENTRACION (itself CORR_MOD, 3x3,
- * extended with a 4th for concentration risk — concentration correlates
- * 0.5 with rFin, a related domain but a genuinely different driver: a
- * low-volatility single-instrument portfolio scores high on concentration
- * and low on rFin, and vice versa for an evenly-spread but individually
- * volatile blend — and 0.75 with rSusc, same as rFin's own correlation
- * there, both investment-side risks equally distant from underwriting).
- * The 5th row/column (rAcciones — see ACC_STRESS_PCT, riesgo de acciones
- * in Día 4) follows the same extension logic: 0.75 vs. rSusc (same
- * investment-side distance as rFin/rConc), 0.75 vs. rFin (closely related
- * driver — ACC concentration already feeds rFin's volRatio too), 0.5 vs.
- * rConc (same value and reasoning as rFin<->rConc: a small ACC sleeve
- * inside an otherwise-spread portfolio can score low concentration yet
- * nonzero rAcciones). Like rOp, every module correlates 1 with it — the
- * same conservative "just add it" treatment CORR_MOD already gives
- * operational risk.
+ * Correlation matrix for finBench()'s Riesgo de Mercado sub-module, order
+ * [riesgoTasa, riesgoInflacion, riesgoAcciones] — the three real-curve/
+ * equity shocks valued at the end of Año 2 (see computeMarketRiskAtAño2End
+ * in alm.ts and ACC_STRESS_PCT below). Tasa and inflación correlate 0.5
+ * (both driven by the same nominal curve, but via genuinely different
+ * mechanisms — a real-rate shock vs. an implied-inflation shock, see that
+ * function's doc comment); acciones is priced off a flat regulatory stress
+ * with no real link to the rate/inflation curves, so it's uncorrelated
+ * (0) with both. rMercado itself then combines with rSusc (primas +
+ * reservas, corrPR above) via the identity matrix — no assumed correlation
+ * between underwriting and market risk — to form rBasico; rOp is added to
+ * rBasico linearly on top (see finBench.ts).
  */
-export const CORR_MOD_SOLVENCIA = [
-  [1, 0.75, 1, 0.75, 0.75],
-  [0.75, 1, 1, 0.5, 0.75],
-  [1, 1, 1, 1, 1],
-  [0.75, 0.5, 1, 1, 0.5],
-  [0.75, 0.75, 1, 0.5, 1],
+export const CORR_MERCADO = [
+  [1, 0.5, 0],
+  [0.5, 1, 0],
+  [0, 0, 1],
 ];
 
 /**
@@ -167,12 +161,11 @@ export const CAPITAL_SOCIAL = 116_000_000_000;
  * Día 4 equity-risk capital charge: riesgo de acciones = exposición ×
  * ACC_STRESS_PCT, exposición being the ACC book value a team ends up
  * holding at the end of Año 2 (see computeMarketRiskAtAño2End's sibling
- * computation in finBenchHelper.ts). No in-repo precedent for this figure
- * — 39% is Solvencia II's own standard-formula charge for "tipo 1"
- * (listed/developed-market) equities, taken as the reference value in the
- * absence of one, not derived from anything else in this engine.
+ * computation in finBenchHelper.ts). One of the three Riesgo de Mercado
+ * shocks (see CORR_MERCADO above), calibrated for this exercise rather
+ * than copied from Solvencia II's own (much higher) "tipo 1" equity charge.
  */
-export const ACC_STRESS_PCT = 0.39;
+export const ACC_STRESS_PCT = 0.2;
 
 /**
  * How many months an ACC (renta variable) position stays open before its

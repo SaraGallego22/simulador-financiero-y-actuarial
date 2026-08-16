@@ -1019,7 +1019,7 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Reservas técnicas A1 (Balance)</th>
                     <th className="px-4 py-2">Utilidad neta A1 (P&G)</th>
                     <th className="px-4 py-2">Utilidad neta A2 (P&G)</th>
-                    <th className="px-4 py-2">Riesgo Fin. (volatilidad)</th>
+                    <th className="px-4 py-2">Riesgo Mercado (tasa+inflación+acciones)</th>
                     <th className="px-4 py-2">Capital (RK)</th>
                     <th className="px-4 py-2">Margen solvencia</th>
                     <th className="px-4 py-2">Límite de cuota A1</th>
@@ -1043,9 +1043,7 @@ export default async function AdminDayPage({
                         <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
-                        <td className="px-4 py-2">
-                          ${Math.round(bench.solRFin).toLocaleString("es-CO")} ({bench.solVolRatio.toFixed(2)}× el promedio del menú)
-                        </td>
+                        <td className="px-4 py-2">${Math.round(bench.solRMercado).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
                         <td className="px-4 py-2">

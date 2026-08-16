@@ -17,16 +17,14 @@ const liabilityYear1: LiabilitySchedule = {
 // almSimRealYear() in alm.ts), so a fixture with "some ALM decision but no
 // portfolio value" no longer represents a realistic state.
 function fakeAlmYear(
-  avgVol: number,
   capitalComprometido = 0,
   income = 2_000_000,
   portYield = 0.1,
   effectiveYield?: number,
-  concentrationRatio = 0,
   cajaFinalAnio = 0,
   portfolioBookValue = CAPITAL_SOCIAL
 ): AlmYearBenchInput {
-  return { portYield, income, capitalComprometido, avgVol, concentrationRatio, effectiveYield, cajaFinalAnio, portfolioBookValue };
+  return { portYield, income, capitalComprometido, effectiveYield, cajaFinalAnio, portfolioBookValue };
 }
 
 /** A realistic Año1(100 claims)/Año2(80 claims) development schedule, for exercising finBench()'s Año3 "rich data" path. */
@@ -41,8 +39,8 @@ const richYear3Input = (): FinBenchInput => ({
   year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
   liabilityYear1,
   development: fakeDevelopment(),
-  almYear1: fakeAlmYear(0.05),
-  almYear2: fakeAlmYear(0.05, 0, 2_718_281, 0.1, 0.07),
+  almYear1: fakeAlmYear(),
+  almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07),
   year2Retention: { retainedCount: 800, newCount: 200 },
 });
 
@@ -112,7 +110,7 @@ describe("finBench", () => {
   it("uses Año2's realized effectiveYield for rinv3, not the tree's nominal portYield", () => {
     const withEffective = finBench(richYear3Input());
     const input2 = richYear3Input();
-    input2.almYear2 = fakeAlmYear(0.05, 0, 2_718_281, 0.1, undefined); // no effectiveYield -> falls back to portYield
+    input2.almYear2 = fakeAlmYear(0, 2_718_281, 0.1, undefined); // no effectiveYield -> falls back to portYield
     const withoutEffective = finBench(input2);
     expect(withEffective.p3!.rinv).not.toBeCloseTo(withoutEffective.p3!.rinv, 0);
     // effectiveYield=0.07 in richYear3Input() vs. portYield=0.1 fallback — reservas3 is identical between the two, so rinv3 scales by the yield ratio.
@@ -127,65 +125,58 @@ describe("finBench", () => {
     expect(bench.p3!.costo).toBeCloseTo(bench.p2!.costo * 1.06, 4);
   });
 
-  it("charges more financial risk capital for a team whose ALM decision was materially more volatile", () => {
-    const input = (avgVol: number) => ({
+  it("combines riesgoTasa/riesgoInflacion/riesgoAcciones into solRMercado via CORR_MERCADO, and folds into solRk/solMargen", () => {
+    const base = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(avgVol),
+      almYear1: fakeAlmYear(),
     });
-    const safe = finBench(input(0.01)); // near LIQ's own volatility
-    const volatile = finBench(input(0.2)); // near ACC's own volatility
-    expect(volatile.solRFin).toBeGreaterThan(safe.solRFin);
-    expect(volatile.solRk).toBeGreaterThan(safe.solRk);
-    expect(volatile.solMargen).toBeLessThan(safe.solMargen);
-    expect(volatile.solVolRatio).toBeGreaterThan(safe.solVolRatio);
-  });
-
-  it("falls back to the flat pre-volatility financial risk charge when no ALM decision exists", () => {
-    const bench = finBench({
+    const shocked = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: null,
+      almYear1: fakeAlmYear(),
+      marketRisk: { riesgoTasa: 5_000_000, riesgoInflacion: 3_000_000 },
     });
-    expect(bench.solVolRatio).toBe(1);
+    expect(base.solRMercado).toBe(0);
+    expect(shocked.solRMercado).toBeGreaterThan(0);
+    expect(shocked.solRk).toBeGreaterThan(base.solRk);
+    expect(shocked.solMargen).toBeLessThan(base.solMargen);
+    // Identity combination between Mercado and Suscripción (no correlation) — rBasico is the
+    // Pythagorean sum, not a plain add, so it's strictly less than rMercado + rSusc whenever both are positive.
+    const rBasico = shocked.solRk - shocked.solROp;
+    expect(rBasico).toBeLessThan(shocked.solRMercado + shocked.solRSusc);
   });
 
-  it("charges more concentration-risk capital for a team whose ALM decision was concentrated in a single instrument", () => {
-    const input = (concentrationRatio: number) => ({
-      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
-      liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 0, 2_000_000, 0.1, undefined, concentrationRatio),
-    });
-    const diversified = finBench(input(0));
-    const concentrated = finBench(input(1));
-    expect(concentrated.solRConc).toBeGreaterThan(diversified.solRConc);
-    expect(diversified.solRConc).toBe(0);
-    expect(concentrated.solRk).toBeGreaterThan(diversified.solRk);
-    expect(concentrated.solMargen).toBeLessThan(diversified.solMargen);
-    expect(concentrated.solConcRatio).toBe(1);
-  });
-
-  it("charges no concentration-risk capital when no ALM decision exists", () => {
-    const bench = finBench({
+  it("charges operational risk as the worse of a primas-based and a reservas-based rate", () => {
+    // primaEmitida=500M×4%=20M vs. reserva(20M)×1.3%=260k — primas leg dominates here.
+    const primasWins = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
       almYear1: null,
     });
-    expect(bench.solRConc).toBe(0);
-    expect(bench.solConcRatio).toBe(0);
+    expect(primasWins.solROp).toBeCloseTo(FZ.opPctPrimas * 500_000_000, 4);
+
+    // A tiny premium against a huge reserve flips which leg dominates.
+    const reservasWins = finBench({
+      year1: { totalPremium: 1_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1: { ...liabilityYear1, reserva: 5_000_000_000 },
+      almYear1: null,
+    });
+    expect(reservasWins.solROp).toBeCloseTo(FZ.opPctReservas * 5_000_000_000, 4);
   });
 
-  it("charges equity risk capital proportional to ACC exposure, and it folds into solRk/solMargen", () => {
+  it("charges equity risk capital proportional to ACC exposure, and it folds into solRk/solMargen via solRMercado", () => {
     const input = (accBookValue2: number) => ({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05),
+      almYear1: fakeAlmYear(),
       accBookValue2,
     });
     const noAcc = finBench(input(0));
     const someAcc = finBench(input(100_000_000));
     expect(noAcc.solRAcciones).toBe(0);
-    expect(someAcc.solRAcciones).toBeCloseTo(100_000_000 * 0.39, 4);
+    expect(someAcc.solRAcciones).toBeCloseTo(100_000_000 * 0.2, 4);
+    expect(someAcc.solRMercado).toBeCloseTo(someAcc.solRAcciones, 4); // only nonzero market leg here
     expect(someAcc.solRk).toBeGreaterThan(noAcc.solRk);
     expect(someAcc.solMargen).toBeLessThan(noAcc.solMargen);
   });
@@ -214,15 +205,15 @@ describe("finBench", () => {
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 0),
-      almYear2: fakeAlmYear(0.05, 0),
+      almYear1: fakeAlmYear(0),
+      almYear2: fakeAlmYear(0),
     });
     const eroded = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 10_000_000_000),
-      almYear2: fakeAlmYear(0.05, 25_000_000_000),
+      almYear1: fakeAlmYear(10_000_000_000),
+      almYear2: fakeAlmYear(25_000_000_000),
     });
     expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 4);
     expect(noErosion.bal2!.patrimonio - eroded.bal2!.patrimonio).toBeCloseTo(25_000_000_000, 4);
@@ -235,13 +226,13 @@ describe("finBench", () => {
   it("projects Año 3's capital comprometido off the Año1->Año2 trend instead of flat-carrying Año 2's checkpoint", () => {
     const noTrend = finBench({
       ...richYear3Input(),
-      almYear1: fakeAlmYear(0.05, 10_000_000_000),
-      almYear2: fakeAlmYear(0.05, 10_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 0
+      almYear1: fakeAlmYear(10_000_000_000),
+      almYear2: fakeAlmYear(10_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 0
     });
     const trending = finBench({
       ...richYear3Input(),
-      almYear1: fakeAlmYear(0.05, 10_000_000_000),
-      almYear2: fakeAlmYear(0.05, 25_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 15B
+      almYear1: fakeAlmYear(10_000_000_000),
+      almYear2: fakeAlmYear(25_000_000_000, 2_718_281, 0.1, 0.07), // delta Y1->Y2 = 15B
     });
     // capitalComprometido never touches the P&L (see the "never double-counted" test above) —
     // p3.uneta is identical between the two scenarios, isolating the balance-sheet-only effect.
@@ -275,8 +266,8 @@ describe("finBench", () => {
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 0, 3_141_592),
-      almYear2: fakeAlmYear(0.05, 0, 2_718_281),
+      almYear1: fakeAlmYear(0, 3_141_592),
+      almYear2: fakeAlmYear(0, 2_718_281),
     });
     expect(bench.p1.rinv).toBe(3_141_592);
     // Deliberately not reserva*portYield (20_000_000*0.1=2_000_000) — if it
@@ -289,12 +280,12 @@ describe("finBench", () => {
     const noErosion = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 0),
+      almYear1: fakeAlmYear(0),
     });
     const heavilyEroded = finBench({
       year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
       liabilityYear1,
-      almYear1: fakeAlmYear(0.05, 50_000_000_000),
+      almYear1: fakeAlmYear(50_000_000_000),
     });
     expect(heavilyEroded.p1.rinv).toBe(noErosion.p1.rinv);
     expect(heavilyEroded.p1.uai).toBe(noErosion.p1.uai);
@@ -389,7 +380,7 @@ describe("finBench", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 0, 3_000_000),
+        almYear1: fakeAlmYear(0, 3_000_000),
       });
       expect(bench.p1.ri).toBeCloseTo(bench.p1.rt - bench.p1.gadm, 6);
       expect(bench.p1.uai).toBeCloseTo(bench.p1.ri + bench.p1.rinv, 6);
@@ -402,7 +393,7 @@ describe("finBench", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 0, 3_000_000),
+        almYear1: fakeAlmYear(0, 3_000_000),
       });
       expect(bench.bal1.rpnd).toBeCloseTo(bench.p1.rpndConstituida, 6);
     });
@@ -413,7 +404,7 @@ describe("finBench", () => {
       const bench = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 0, 3_000_000, 0.1, undefined, 0, 0, 259_453_712),
+        almYear1: fakeAlmYear(0, 3_000_000, 0.1, undefined, 0, 259_453_712),
       });
       expect(bench.bal1.inversiones).toBeCloseTo(259_453_712, 0);
     });
@@ -422,12 +413,12 @@ describe("finBench", () => {
       const noErosion = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 0, 3_000_000, 0.1, undefined, 0, 0, 200_000_000),
+        almYear1: fakeAlmYear(0, 3_000_000, 0.1, undefined, 0, 200_000_000),
       });
       const eroded = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 10_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 200_000_000),
+        almYear1: fakeAlmYear(10_000_000_000, 3_000_000, 0.1, undefined, 0, 200_000_000),
       });
       expect(eroded.bal1.inversiones).toBe(noErosion.bal1.inversiones);
       expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 0);
@@ -437,12 +428,12 @@ describe("finBench", () => {
       const modest = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 5_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 0),
+        almYear1: fakeAlmYear(5_000_000_000, 3_000_000, 0.1, undefined, 0, 0),
       });
       const large = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0, 0),
+        almYear1: fakeAlmYear(CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0),
       });
       expect(modest.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(5_000_000_000, 4);
       expect(large.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(CAPITAL_SOCIAL + 9_000_000_000, 4);
@@ -452,12 +443,12 @@ describe("finBench", () => {
       const under = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, 40_000_000_000, 3_000_000, 0.1, undefined, 0, 7_750_000, 259_453_712),
+        almYear1: fakeAlmYear(40_000_000_000, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712),
       });
       const over = finBench({
         year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
         liabilityYear1,
-        almYear1: fakeAlmYear(0.05, CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 7_750_000, 259_453_712),
+        almYear1: fakeAlmYear(CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712),
       });
       const gap = (b: typeof under) =>
         b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.patrimonio - b.bal1.activos;
