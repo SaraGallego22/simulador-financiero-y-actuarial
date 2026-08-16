@@ -4,10 +4,23 @@ import { calcLambda } from "./frequency";
 import { calcMediaSev } from "./severity";
 
 /**
- * Loss ratio the "Tercerizar tarifas" emergency tariff is priced to —
- * deliberately worse than 1.0 (the "shrink"/unhealthy threshold used
- * elsewhere in the model), so a team that outsources always runs at a real
- * technical underwriting loss, not just a thin margin.
+ * Loss ratio (against Prima Emitida — see below) the "Tercerizar tarifas"
+ * emergency tariff is priced to — deliberately worse than 1.0 (the
+ * "shrink"/unhealthy threshold used elsewhere in the model, see
+ * capacity.ts's REFERENCE_LOSS_RATIO), so a team that outsources always
+ * runs at a real technical underwriting loss, not just a thin margin.
+ *
+ * Emitida, not Devengada, on purpose — same reasoning as
+ * capacity.ts's REFERENCE_LOSS_RATIO (see its own doc comment): this
+ * function sets a *price per policy* before any policy has even been
+ * written, let alone earned out over a year, so there's no unearned-premium
+ * split to divide by yet. It's a pricing input, not a performance measure
+ * of a completed year (that's computeRt()/finBench()'s `rt` and
+ * solSigmaLR, both Prima Devengada-based) — confirmed this still produces
+ * a clearly negative RT once the real P&G applies its own RPND holdback on
+ * top: at loss ratio 1.05/(1-0.08)≈1.14 against Prima Emitida, RT =
+ * 0.61×primaEmitida − costo ≈ −0.53×primaEmitida, an even larger loss than
+ * before Prima Devengada was RT's own revenue base.
  */
 export const OUTSOURCED_TARGET_LOSS_RATIO = 1.05;
 
