@@ -11,14 +11,10 @@ const ALL_TABS: { key: DayTabKey; label: string }[] = [
 ];
 
 /**
- * Matches the legacy prototype's per-day sub-tab structure (yr-tab-bar):
- * Días 1-2 have a "sim" tab; Días 3-4 don't, since Year 2 is the last year
- * simulated — see CLAUDE.md's domain glossary. The portfolio/ALM forms live
- * in the "entreg" tab on every day that has one (Día 1's minimum-variance
- * exercise, Día 2's real tree) — as does tariff upload, on every day that
- * has one. On the team view, Día 1's "sim" tab is the tariff/simulation
- * panel; Día 2's is repurposed (see simLabel) to show Día 1's results
- * instead, since Día 2 no longer uses it for tariff upload.
+ * Admin-only now: the team view is a single unmarked panel per day (see
+ * app/(team)/day/[n]/page.tsx), no tab switching. This bar still drives the
+ * admin's per-day sub-tabs (yr-tab-bar in the legacy prototype) — sim,
+ * entregables, resultados objetivos, calificación subjetiva, top del día.
  */
 export function DayTabBar({
   basePath,
@@ -26,7 +22,6 @@ export function DayTabBar({
   activeTab,
   includeSim,
   includeSubj = true,
-  simLabel,
 }: {
   basePath: string;
   day: number;
@@ -34,14 +29,10 @@ export function DayTabBar({
   includeSim: boolean;
   /** Teams never see the "Calificación subjetiva" tab — only the admin does. Individual notas/comentarios aren't for teams; the team's own subjective nota (an aggregate) surfaces in "Top del día" instead. */
   includeSubj?: boolean;
-  /** Overrides the "sim" tab's label — e.g. Día 2's team view repurposes that tab to show Día 1's results instead of a tariff/simulation panel. */
-  simLabel?: string;
 }) {
   // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
   // comment) — not enough contact time yet to judge each member.
-  const tabs = (includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim")).map((t) =>
-    t.key === "sim" && simLabel ? { ...t, label: simLabel } : t
-  ).filter(
+  const tabs = (includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim")).filter(
     (t) => (day !== 1 || t.key !== "subj") && (includeSubj || t.key !== "subj")
   );
   return (

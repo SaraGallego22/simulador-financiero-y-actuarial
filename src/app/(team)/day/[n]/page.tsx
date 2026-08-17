@@ -6,10 +6,7 @@ import { PortfolioForm } from "@/components/team/PortfolioForm";
 import { MinVarianceForm } from "@/components/team/MinVarianceForm";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
-import { DayTabBar } from "@/components/DayTabBar";
-import { Table } from "@/components/ui/table";
 import { LockIcon } from "@/components/ui/icons";
-import type { DayTabKey } from "@/components/DayTabBar";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
@@ -18,7 +15,7 @@ import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVari
 import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { computeConsolidado, computeMarketLossRatio } from "@/lib/consolidado";
+import { computeMarketLossRatio } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
@@ -35,20 +32,26 @@ function TabNote({ children }: { children: string }) {
 
 type MinVarResult = { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number };
 
-/** Shared by the current day's "obj" tab and Día 2's "Resultados 2027" tab (which shows this same card for Día 1). */
+/**
+ * A past year's simulation outcome (asegurados/siniestros/rechazadas, tope de
+ * cuota, reporte descargable) — always shown on the *following* day's page,
+ * never the day the market actually closed: teams submit each year's tariff
+ * blind, and only see how it played out once they're working on the next
+ * year's numbers (Día 2 shows 2027, Día 3 shows 2028). There's no per-team
+ * ranking shown anywhere on the team view anymore — the standalone
+ * "Resultados objetivos" (current day's own results) and "Top del día"
+ * (cross-team ranking) sections were dropped when the team view collapsed
+ * into a single panel per day.
+ */
 function ObjectiveResultsCard({
   yearLabel,
   result,
-  rank,
-  rankedCount,
   reportDay,
 }: {
   yearLabel: string;
   result: { insuredCount: number; claimsCount: number; rejectedCount: number; extra: unknown } | null;
-  rank: number | null;
-  rankedCount: number;
-  /** Day whose CSV report to link — null hides the download (Día 4 has no report). */
-  reportDay: number | null;
+  /** Day whose CSV report to link. */
+  reportDay: number;
 }) {
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
@@ -56,7 +59,7 @@ function ObjectiveResultsCard({
         Resultados objetivos — {yearLabel}
       </h3>
       {result ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Asegurados</p>
             <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
@@ -77,12 +80,6 @@ function ObjectiveResultsCard({
               {result.rejectedCount.toLocaleString("es-CO")}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Posición en el top</p>
-            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-              {rank != null ? `${rank} / ${rankedCount}` : "—"}
-            </p>
-          </div>
           {(() => {
             const extra = result.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
             if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
@@ -92,7 +89,7 @@ function ObjectiveResultsCard({
             // el techo del admin el que te limitó primero.
             const cappedByCapital = extra.rawCapacityLimit <= extra.capacityLimit;
             return (
-              <div className="col-span-2 sm:col-span-4">
+              <div className="col-span-2 sm:col-span-3">
                 <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
                   <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
                   tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
@@ -103,19 +100,17 @@ function ObjectiveResultsCard({
               </div>
             );
           })()}
-          {reportDay != null && (
-            <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
-              <a
-                href={`/api/teams/report?day=${reportDay}`}
-                className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-              >
-                Descargar reporte de tu cartera (CSV)
-              </a>
-              <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-              </p>
-            </div>
-          )}
+          <div className="col-span-2 sm:col-span-3 flex flex-col gap-1">
+            <a
+              href={`/api/teams/report?day=${reportDay}`}
+              className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+            >
+              Descargar reporte de tu cartera (CSV)
+            </a>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+            </p>
+          </div>
         </div>
       ) : (
         <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados objetivos para {yearLabel}.</p>
@@ -124,7 +119,6 @@ function ObjectiveResultsCard({
   );
 }
 
-/** Shared by the current day's "obj" tab (Día 1) and Día 2's "Resultados 2027" tab. */
 function MinVarianceResultCard({ result }: { result: MinVarResult | null }) {
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
@@ -163,13 +157,7 @@ function MinVarianceResultCard({ result }: { result: MinVarResult | null }) {
   );
 }
 
-export default async function TeamDayPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ n: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}) {
+export default async function TeamDayPage({ params }: { params: Promise<{ n: string }> }) {
   const { n } = await params;
   const day = Number(n);
   const cohort = await getOrCreateActiveCohort();
@@ -185,23 +173,6 @@ export default async function TeamDayPage({
       </main>
     );
   }
-  const includeSim = day <= 2;
-  // Día 1 hosts the minimum-variance exercise (a flat weight map, no
-  // checkpoints); the real ALM schedule is submitted once, on Día 2 —
-  // decoupled from includeSim, which stays about the tariff/simulation tab
-  // only. See README's market-clearing section.
-  const hasMinVariance = day === 1;
-  const hasPortfolioSchedule = day === 2;
-  // Día 3 has its own report (/api/teams/report?day=3) — Año 1's claims
-  // widen to a second development diagonal (see that route) — but no tariff
-  // of its own, so it stays outside includeSim.
-  const hasReport = day <= 3;
-  const { tab } = await searchParams;
-  // "subj" isn't a team-facing tab (see DayTabBar's includeSubj) — never
-  // rendered below, but guard the fallback so a hand-typed ?tab=subj doesn't
-  // just land on a blank pane.
-  const requestedTab = tab as DayTabKey | undefined;
-  const activeTab = requestedTab && requestedTab !== "subj" ? requestedTab : includeSim ? "sim" : "entreg";
   const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
@@ -212,75 +183,52 @@ export default async function TeamDayPage({
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
-  // Día 2's first tab shows Día 1's ("2027") objective results instead of a
-  // tariff/simulation panel — see DayTabBar's simLabel and the "sim" section
-  // below.
-  const showDay1Results = day === 2 && activeTab === "sim";
-
-  // Also needed on "obj" (not just "top") to show this team's own rank
-  // alongside its published objective results — see the "obj" section below.
-  // computeConsolidado returns every day's figures per team, so the same
-  // fetch covers Día 1's rank on Día 2's "Resultados 2027" tab too.
-  const topRows =
-    activeTab === "top" || activeTab === "obj" || showDay1Results
-      ? await computeConsolidado((await getOrCreateActiveCohort()).id, true)
-      : null;
   // Real market-wide loss ratio for the closed 2027 market — reference for a
   // team's own Expected Loss Ratio estimate (Día 2's guide §2), not any
   // individual team's figures. See computeMarketLossRatio's doc comment.
-  const marketLossRatio = day === 2 ? await computeMarketLossRatio((await getOrCreateActiveCohort()).id, 1) : null;
+  const marketLossRatio = day === 2 ? await computeMarketLossRatio(cohort.id, 1) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs, day1PublishedResult, day1Allocation] = await Promise.all([
-    teamId
-      ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
-      : null,
-    teamId
-      ? prisma.teamSimResult.findFirst({
-          where: { teamId, published: true, simulationRun: { day } },
-          orderBy: { simulationRun: { createdAt: "desc" } },
-        })
-      : null,
-    teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
-    teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
-    teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
-    showDay1Results && teamId
-      ? prisma.teamSimResult.findFirst({
-          where: { teamId, published: true, simulationRun: { day: 1 } },
-          orderBy: { simulationRun: { createdAt: "desc" } },
-        })
-      : null,
-    showDay1Results && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 1 } } }) : null,
-  ]);
-
-  // This team's own rank by objective score for this day — ranked
-  // separately from the "top" tab's combined nota (subjective grading
-  // often isn't published yet when objective results first are).
-  function rankFor(forDay: number): { rank: number | null; rankedCount: number } {
-    if (!topRows) return { rank: null, rankedCount: 0 };
-    const ranked = topRows
-      .filter((r) => r.perDay[forDay - 1]?.objective != null)
-      .sort((a, b) => (b.perDay[forDay - 1]!.objective ?? 0) - (a.perDay[forDay - 1]!.objective ?? 0));
-    const idx = ranked.findIndex((r) => r.teamId === teamId);
-    return { rank: idx >= 0 ? idx + 1 : null, rankedCount: ranked.length };
-  }
-  const { rank: myObjectiveRank, rankedCount: objectiveRankedCount } = rankFor(day);
-  const { rank: day1Rank, rankedCount: day1RankedCount } = showDay1Results ? rankFor(1) : { rank: null, rankedCount: 0 };
-
-  // Día 4 retrospective: both years' capital-derived market-share limits
-  // side by side, so a team whose growth was capped can connect it to the
-  // solvency figures it's reporting this same day (see README's market
-  // section) — the team's own view never sees finBench's raw bench figures
-  // (only admin does, see admin/day/[n]/page.tsx), so this reuses what's
-  // already published on TeamSimResult from Día 1/2 instead of computing a
-  // fresh finBench() here.
-  const capacityHistory =
-    day === 4 && teamId
-      ? await prisma.teamSimResult.findMany({
-          where: { teamId, published: true, simulationRun: { day: { in: [1, 2] } } },
-          orderBy: { simulationRun: { day: "asc" } },
-          select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
-        })
-      : [];
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs, day1PublishedResult, day1Allocation, day2PublishedResult, day2Allocation, capacityHistory] =
+    await Promise.all([
+      teamId && (day === 1 || day === 2)
+        ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
+        : null,
+      // Gates whether an outsourced tariff's premium is revealed to the team
+      // yet — see TariffUpload's resultsPublished prop and
+      // hasPublishedResults()'s doc comment in lib/tariffAccess.ts. Distinct
+      // from ObjectiveResultsCard above, which shows the *previous* day's
+      // results, not this day's own (never surfaced on the team view).
+      teamId && (day === 1 || day === 2)
+        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        : null,
+      teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
+      teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
+      teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
+      // Día 2 shows Día 1's ("2027") results — see ObjectiveResultsCard's doc comment.
+      day === 2 && teamId
+        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day: 1 } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        : null,
+      day === 2 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 1 } } }) : null,
+      // Día 3 shows Día 2's ("2028") results.
+      day === 3 && teamId
+        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day: 2 } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        : null,
+      day === 3 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 2 } } }) : null,
+      // Día 4 retrospective: both years' capital-derived market-share limits
+      // side by side, so a team whose growth was capped can connect it to the
+      // solvency figures it's reporting this same day (see README's market
+      // section) — the team's own view never sees finBench's raw bench
+      // figures (only admin does, see admin/day/[n]/page.tsx), so this reuses
+      // what's already published on TeamSimResult from Día 1/2 instead of
+      // computing a fresh finBench() here.
+      day === 4 && teamId
+        ? prisma.teamSimResult.findMany({
+            where: { teamId, published: true, simulationRun: { day: { in: [1, 2] } } },
+            orderBy: { simulationRun: { day: "asc" } },
+            select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
+          })
+        : [],
+    ]);
 
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
@@ -290,21 +238,19 @@ export default async function TeamDayPage({
     ])
   );
 
-  // ALM detail (team-scoped): Día 2's tree is graded against Año 1's real
-  // reserves (bookYear=1, same as consolidado.ts) — doesn't depend on a
-  // simulation existing *for this day*, unlike the underwriting card above.
-  // Teams only ever see the fictitious ALM (what's graded) — the
-  // real-premium companion run exists for evaluators only, on the admin day
-  // page, so teams work out their own real P&G figure instead of reading it
-  // off an auto-computed number (see README §5.3).
+  // ALM detail (team-scoped), shown on Día 3: Día 2's calendar is graded
+  // against Año 1's real reserves (bookYear=1, same as consolidado.ts) — this
+  // doesn't depend on Día 2's own tariff/simulation existing, just the
+  // reserves it's benchmarked against. Teams only ever see the fictitious ALM
+  // (what's graded) — the real-premium companion run exists for evaluators
+  // only, on the admin day page, so teams work out their own real P&G figure
+  // instead of reading it off an auto-computed number (see README §5.3).
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
-  const bookYear = day === 2 ? 1 : null;
-  if (activeTab === "obj" && hasPortfolioSchedule && teamId && bookYear) {
-    const decision = isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null;
+  if (day === 3 && teamId) {
+    const decision = isPortfolioDecisionV4(day2Allocation?.allocation) ? day2Allocation.allocation : null;
     if (decision) {
-      const cohort = await getOrCreateActiveCohort();
-      const book = await getTeamBookForDay(cohort.id, bookYear);
+      const book = await getTeamBookForDay(cohort.id, 1);
       const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
       if (reserves) {
         almScore = scoreFinanciero(reserves, decision);
@@ -313,29 +259,18 @@ export default async function TeamDayPage({
     }
   }
 
-  // Día 1's minimum-variance exercise: team-scoped result (achieved vs. true
-  // variance, expected return, score) — never per-team ground truth, see
-  // markowitz.ts. trueVariance is the minimum achievable at TARGET_RETURN —
-  // the same fixed benchmark scoreMinVariance() grades against, so the two
-  // numbers stay consistent.
-  function minVarResultFor(weights: Record<string, number>): MinVarResult {
+  // Día 1's minimum-variance result, shown on Día 2.
+  let day1MinVarResult: MinVarResult | null = null;
+  if (day === 2 && teamId && isMinVarianceAllocation(day1Allocation?.allocation)) {
+    const weights = day1Allocation!.allocation as Record<string, number>;
     const trueSolution = solveLongOnlyMinVariance(TARGET_RETURN);
-    return {
+    day1MinVarResult = {
       weights,
       achievedVariance: portfolioVariance(weights),
       trueVariance: portfolioVariance(trueSolution),
       achievedReturn: portfolioExpectedReturn(weights),
       score: scoreMinVariance(weights),
     };
-  }
-  let minVarResult: MinVarResult | null = null;
-  if (activeTab === "obj" && hasMinVariance && teamId && isMinVarianceAllocation(allocation?.allocation)) {
-    minVarResult = minVarResultFor(allocation!.allocation as Record<string, number>);
-  }
-  // Día 1's minimum-variance result, shown on Día 2's "Resultados 2027" tab.
-  let day1MinVarResult: MinVarResult | null = null;
-  if (showDay1Results && teamId && isMinVarianceAllocation(day1Allocation?.allocation)) {
-    day1MinVarResult = minVarResultFor(day1Allocation!.allocation as Record<string, number>);
   }
 
   return (
@@ -355,240 +290,180 @@ export default async function TeamDayPage({
         </Link>
       </div>
 
-      <DayTabBar
-        basePath="/day"
-        day={day}
-        activeTab={activeTab}
-        includeSim={includeSim}
-        includeSubj={false}
-        simLabel={day === 2 ? "Resultados 2027" : undefined}
-      />
-
-      {activeTab === "sim" && includeSim && (
-        <div className="flex flex-col gap-4">
-          {day === 1 && (
-            <>
-              <a
-                href="/api/universe/public-csv"
-                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-              >
-                Descargar CSV público del universo
-              </a>
-              <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-              </p>
-              <a
-                href="/api/universe/chile-csv"
-                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-              >
-                Descargar dataset Chile (referencia)
-              </a>
-              <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                100,000 pólizas chilenas con 3 años de exposición (2021-2023) y sus siniestros — el universo público de Colombia no trae siniestros ni
-                severidad, así que este es el único dato con el que puedes calibrar frecuencia y severidad antes de tarificar. Ver la guía del pasante
-                para los retos de transferibilidad entre ambos datasets.
-              </p>
-            </>
-          )}
-          {day === 2 && (
-            <>
-              <ObjectiveResultsCard
-                yearLabel={SIMULATED_YEAR_LABEL[1]}
-                result={day1PublishedResult}
-                rank={day1Rank}
-                rankedCount={day1RankedCount}
-                reportDay={1}
-              />
-              <MinVarianceResultCard result={day1MinVarResult} />
-            </>
-          )}
-        </div>
-      )}
-
-      {activeTab === "entreg" && (
-        <div className="flex flex-col gap-4">
-          {hasMinVariance && (
-            <>
-              {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
-              <TariffUpload
-                key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
-                day={day}
-                initialComplete={submission?.meanPremium != null}
-                // An outsourced tariff's premium is withheld from the team until
-                // this day's results are published — see hasPublishedResults()'s
-                // doc comment in lib/tariffAccess.ts. A self-priced tariff has
-                // no such restriction, it's the team's own number.
-                initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
-                initialOutsourced={submission?.outsourced ?? false}
-                resultsPublished={!!publishedResult}
-              />
-              {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
-              <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
-            </>
-          )}
-          {hasPortfolioSchedule && (
-            <>
-              {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
-              <a
-                href="/api/universe/public-csv"
-                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-              >
-                Descargar CSV público del universo
-              </a>
-              <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-              </p>
-              <TariffUpload
-                key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
-                day={day}
-                initialComplete={submission?.meanPremium != null}
-                // An outsourced tariff's premium is withheld from the team until
-                // this day's results are published — see hasPublishedResults()'s
-                // doc comment in lib/tariffAccess.ts. A self-priced tariff has
-                // no such restriction, it's the team's own number.
-                initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
-                initialOutsourced={submission?.outsourced ?? false}
-                resultsPublished={!!publishedResult}
-              />
-              {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
-              <PortfolioForm day={day} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} />
-            </>
-          )}
-          {reportConcepts.length > 0 && (
-            <>
-              {TAB_NOTES[day]?.deliverables && <TabNote>{TAB_NOTES[day].deliverables}</TabNote>}
-              {marketLossRatio && (
-                <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-                  <span className="font-semibold text-[var(--color-brand-blue-accent)]">Referencia — </span>
-                  Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima real, sumados entre los {marketLossRatio.teamCount} equipos
-                  con resultado publicado, nunca desglosado por equipo): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo para
-                  contrastar tu propio Loss Ratio Esperado (ver la guía de este día, sección 2).
-                </div>
-              )}
-              <DeliverablesForm day={day} concepts={reportConcepts} initialValues={deliverableValues} />
-            </>
-          )}
-          {hasAnalitica && (
-            <>
-              {TAB_NOTES[day]?.analytics && <TabNote>{TAB_NOTES[day].analytics}</TabNote>}
-              <AnalyticsForm day={day} initialPicks={analyticsPicksByKey} />
-            </>
-          )}
-          {!hasMinVariance && !hasPortfolioSchedule && reportConcepts.length === 0 && !hasAnalitica && (
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 text-sm text-[var(--color-brand-text-secondary)]">
-              No hay entregables para este día.
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "obj" && (
-        <div className="flex flex-col gap-4">
-        <ObjectiveResultsCard
-          yearLabel={`Día ${day}`}
-          result={publishedResult}
-          rank={myObjectiveRank}
-          rankedCount={objectiveRankedCount}
-          reportDay={hasReport ? day : null}
-        />
-
-        {day === 4 && capacityHistory.length > 0 && (
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              Tu límite de cuota, 2027 vs. 2028
-            </h3>
-            <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-              Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si tu capital se
-              ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás reportando este día.
+      <div className="flex flex-col gap-4">
+        {day === 1 && (
+          <>
+            <a
+              href="/api/universe/public-csv"
+              className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+            >
+              Descargar CSV público del universo
+            </a>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
             </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {capacityHistory.map((r) => {
-                const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                return (
-                  <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
-                    <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[r.simulationRun.day]}</p>
-                    <p className="mt-1 text-sm">
-                      Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                    </p>
-                    <p className="text-sm">
-                      Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                    </p>
-                    <p className="text-sm">
-                      Pólizas rechazadas: <strong className={r.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : ""}>{r.rejectedCount.toLocaleString("es-CO")}</strong>
-                    </p>
+            <a
+              href="/api/universe/chile-csv"
+              className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+            >
+              Descargar dataset Chile (referencia)
+            </a>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              100,000 pólizas chilenas con 3 años de exposición (2021-2023) y sus siniestros — el universo público de Colombia no trae siniestros ni
+              severidad, así que este es el único dato con el que puedes calibrar frecuencia y severidad antes de tarificar. Ver la guía del pasante
+              para los retos de transferibilidad entre ambos datasets.
+            </p>
+            {TAB_NOTES[1]?.sim && <TabNote>{TAB_NOTES[1].sim}</TabNote>}
+            <TariffUpload
+              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+              day={1}
+              initialComplete={submission?.meanPremium != null}
+              // An outsourced tariff's premium is withheld from the team until
+              // this day's results are published — see hasPublishedResults()'s
+              // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+              // no such restriction, it's the team's own number.
+              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+              initialOutsourced={submission?.outsourced ?? false}
+              resultsPublished={!!publishedResult}
+            />
+            {TAB_NOTES[1]?.portfolio && <TabNote>{TAB_NOTES[1].portfolio}</TabNote>}
+            <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
+          </>
+        )}
+
+        {day === 2 && (
+          <>
+            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1PublishedResult} reportDay={1} />
+            <MinVarianceResultCard result={day1MinVarResult} />
+
+            {TAB_NOTES[2]?.sim && <TabNote>{TAB_NOTES[2].sim}</TabNote>}
+            <a
+              href="/api/universe/public-csv"
+              className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+            >
+              Descargar CSV público del universo
+            </a>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+            </p>
+            <TariffUpload
+              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+              day={2}
+              initialComplete={submission?.meanPremium != null}
+              // An outsourced tariff's premium is withheld from the team until
+              // this day's results are published — see hasPublishedResults()'s
+              // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+              // no such restriction, it's the team's own number.
+              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+              initialOutsourced={submission?.outsourced ?? false}
+              resultsPublished={!!publishedResult}
+            />
+
+            {TAB_NOTES[2]?.portfolio && <TabNote>{TAB_NOTES[2].portfolio}</TabNote>}
+            <PortfolioForm day={2} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} />
+
+            {reportConcepts.length > 0 && (
+              <>
+                {TAB_NOTES[2]?.deliverables && <TabNote>{TAB_NOTES[2].deliverables}</TabNote>}
+                {marketLossRatio && (
+                  <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                    <span className="font-semibold text-[var(--color-brand-blue-accent)]">Referencia — </span>
+                    Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima real, sumados entre los {marketLossRatio.teamCount} equipos
+                    con resultado publicado, nunca desglosado por equipo): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo
+                    para contrastar tu propio Loss Ratio Esperado (ver la guía de este día, sección 2).
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {hasMinVariance && <MinVarianceResultCard result={minVarResult} />}
-
-        {hasPortfolioSchedule && (
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[bookYear ?? 1]}
-            </h3>
-            {almScore ? (
-              <div className="flex flex-col gap-3">
-                <AlmScoreTiles score={almScore} />
-                {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
-                {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--color-brand-text-secondary)]">
-                Aún no tienes un portafolio guardado para este día, o las reservas correspondientes todavía no están disponibles.
-              </p>
-            )}
-          </div>
-        )}
-        </div>
-      )}
-
-      {activeTab === "top" && (
-        <>
-          {!topRows || topRows.every((r) => r.perDay[day - 1]?.nota == null) ? (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-              <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados de este día.</p>
-            </div>
-          ) : (
-            <Table>
-              <Table.Head>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
-                {/* Día 1 has no subjective grade at all (see MemberDayEvaluation's doc comment) — omit the column instead of showing "—" for every team, which would read as "not yet published" rather than "doesn't apply". */}
-                {day !== 1 && (
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
                 )}
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
-              </Table.Head>
-              <tbody>
-                {topRows
-                  .filter((r) => r.perDay[day - 1]?.nota != null)
-                  .sort((a, b) => (b.perDay[day - 1]!.nota ?? 0) - (a.perDay[day - 1]!.nota ?? 0))
-                  .map((r, i) => (
-                    <Table.Row key={r.teamId} className={r.teamId === teamId ? "!bg-[var(--color-brand-blue-light)] font-semibold" : ""}>
-                      <td className="px-4 py-2">{i + 1}</td>
-                      <td className="px-4 py-2">
-                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
-                        {r.teamName}
-                      </td>
-                      <td className="px-4 py-2">{r.perDay[day - 1]?.objective != null ? r.perDay[day - 1]!.objective!.toFixed(1) : "—"}</td>
-                      {day !== 1 && (
-                        <td className="px-4 py-2">{r.perDay[day - 1]?.subjective != null ? r.perDay[day - 1]!.subjective!.toFixed(1) : "—"}</td>
-                      )}
-                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
-                        {r.perDay[day - 1]!.nota!.toFixed(1)}
-                      </td>
-                    </Table.Row>
-                  ))}
-              </tbody>
-            </Table>
-          )}
-        </>
-      )}
+                <DeliverablesForm day={2} concepts={reportConcepts} initialValues={deliverableValues} />
+              </>
+            )}
+          </>
+        )}
+
+        {day === 3 && (
+          <>
+            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2PublishedResult} reportDay={3} />
+
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[1]}
+              </h3>
+              {almScore ? (
+                <div className="flex flex-col gap-3">
+                  <AlmScoreTiles score={almScore} />
+                  {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
+                  {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                  Aún no tienes un portafolio guardado, o las reservas correspondientes todavía no están disponibles.
+                </p>
+              )}
+            </div>
+
+            {reportConcepts.length > 0 && (
+              <>
+                {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
+                <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
+              </>
+            )}
+          </>
+        )}
+
+        {day === 4 && (
+          <>
+            {capacityHistory.length > 0 && (
+              <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                  Tu límite de cuota, 2027 vs. 2028
+                </h3>
+                <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
+                  Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si tu
+                  capital se ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás reportando este
+                  día.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {capacityHistory.map((r) => {
+                    const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                    return (
+                      <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
+                        <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                          {SIMULATED_YEAR_LABEL[r.simulationRun.day]}
+                        </p>
+                        <p className="mt-1 text-sm">
+                          Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                        </p>
+                        <p className="text-sm">
+                          Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                        </p>
+                        <p className="text-sm">
+                          Pólizas rechazadas:{" "}
+                          <strong className={r.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : ""}>
+                            {r.rejectedCount.toLocaleString("es-CO")}
+                          </strong>
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {reportConcepts.length > 0 && (
+              <>
+                {TAB_NOTES[4]?.deliverables && <TabNote>{TAB_NOTES[4].deliverables}</TabNote>}
+                <DeliverablesForm day={4} concepts={reportConcepts} initialValues={deliverableValues} />
+              </>
+            )}
+
+            {hasAnalitica && (
+              <>
+                {TAB_NOTES[4]?.analytics && <TabNote>{TAB_NOTES[4].analytics}</TabNote>}
+                <AnalyticsForm day={4} initialPicks={analyticsPicksByKey} />
+              </>
+            )}
+          </>
+        )}
+      </div>
     </main>
   );
 }
