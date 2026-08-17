@@ -152,6 +152,18 @@ body {
   color-scheme: dark;
 }
 
+/* Hides the native increment/decrement spinner on every number input
+   app-wide — Chrome/Safari/Edge (the ::-webkit-* pseudo-elements) and
+   Firefox (-moz-appearance: textfield). */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Printed pages (the Guía del pasante, etc.) must always render with the
    light-mode brand palette and actually paint background colors — without
    this, printing while the site's dark mode is on would produce a dark
