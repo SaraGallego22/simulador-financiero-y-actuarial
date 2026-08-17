@@ -60,8 +60,14 @@ export function GuiaFooter() {
 /** Numbered section header — a circular blue badge with the section number, replacing the old plain "N · Título" text over a flat gray top border. */
 export function Section({ n, title, children }: { n: string; title: string; children: ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] print:break-inside-avoid print:shadow-none">
-      <div className="flex items-center gap-3 border-b border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/60 px-5 py-3">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] print:shadow-none">
+      {/* break-inside-avoid deliberately omitted here — a whole Section (e.g.
+          "Teoría necesaria") routinely spans several printed pages, so
+          forcing it to avoid breaking just pushes the entire thing to the
+          next page and leaves the previous one mostly blank. break-after
+          on the header keeps just the badge/title from being orphaned alone
+          at the bottom of a page. */}
+      <div className="flex items-center gap-3 border-b border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/60 px-5 py-3 print:break-after-avoid">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue)] font-[family-name:var(--font-condensed)] text-sm font-bold text-white shadow-[var(--shadow-sm)]">
           {n}
         </span>
@@ -76,16 +82,27 @@ export function Section({ n, title, children }: { n: string; title: string; chil
 export function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: ReactNode }) {
   const Icon = accent === "act" ? FlaskIcon : BarChartIcon;
   return (
+    // break-inside-avoid deliberately omitted — a SubSection's body (prose +
+    // lists + embedded tables) routinely runs longer than a page, so forcing
+    // it to avoid breaking just displaces the whole block and leaves a gap
+    // behind it (see Section above for the same reasoning).
     <div
-      className={`relative rounded-[var(--radius-md)] border-2 border-dashed p-4 pt-6 print:break-inside-avoid ${
+      className={`relative rounded-[var(--radius-md)] border-2 border-dashed p-4 pt-6 ${
         accent === "act" ? "border-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]/40" : "border-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]/60"
       }`}
     >
-      <span className="absolute -top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-brand-blue)] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-[var(--shadow-sm)]">
+      {/* print:static + print:mb-2: on screen this tab overlaps the card's
+          top border via absolute positioning, which reads fine because the
+          screen never fragments the box. In print, if this SubSection starts
+          a fresh page, that overlap sits right at the page boundary and gets
+          sliced by it — so for print the tab drops back into normal flow
+          (no overlap) instead, guaranteeing it can never render half-off
+          the top of a page. */}
+      <span className="absolute -top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-brand-blue)] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-[var(--shadow-sm)] print:static print:mb-2 print:break-after-avoid">
         <Icon className="h-3.5 w-3.5" />
         {accent === "act" ? "Actuarial" : "Financiero"} — {title}
       </span>
-      <div className="flex flex-col gap-2 pt-1 text-sm">{children}</div>
+      <div className="flex flex-col gap-2 pt-1 text-sm print:pt-0">{children}</div>
     </div>
   );
 }
@@ -127,8 +144,11 @@ export function InsumosEntregables({ insumos, entregables }: { insumos: string[]
 /** Yellow reflection callout — questions that widen the team's thinking beyond the graded/objective criteria. Never scored, so framed explicitly as optional. Chat-bubble badge overlapping the corner instead of a plain heading. */
 export function PreguntasAbiertas({ children }: { children: ReactNode }) {
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-yellow)] px-5 pb-4 pt-6 print:break-inside-avoid">
-      <span className="absolute left-4 top-0 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-white shadow-[var(--shadow-sm)]">
+    <div className="relative rounded-[var(--radius-lg)] bg-[var(--color-brand-yellow)] px-5 pb-4 pt-6 print:break-inside-avoid">
+      {/* print:static + print:translate-y-0: same page-fragmentation fix as
+          SubSection's tab — this badge overlaps the box's top edge on
+          screen, which would get sliced by a page boundary in print. */}
+      <span className="absolute left-4 top-0 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-white shadow-[var(--shadow-sm)] print:static print:mb-2 print:translate-y-0">
         <ChatIcon className="h-4 w-4" />
       </span>
       <p className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
@@ -154,9 +174,13 @@ export function InfoNote({ children }: { children: ReactNode }) {
 /** Notched "flag" callout for hard constraints/rules — the one shape reserved for genuinely non-negotiable statements (a rejected submission, a fixed rule), so it stays rare enough to keep meaning something. Yellow-on-blue keeps the same AA-safe pairing as PreguntasAbiertas; cyan is intentionally never used as a solid text background (see globals.css contrast notes — even brand-blue text on full-strength cyan only reaches ~3.7:1). */
 export function FlagCallout({ children }: { children: ReactNode }) {
   return (
+    // clip-path set as a class (not inline style) so print:[clip-path:none]
+    // can cleanly turn it off — Chromium's print pagination badly mishandles
+    // clip-path combined with break-inside-avoid: it was silently displacing
+    // this whole box to the very end of the document (after the footer) and
+    // corrupting later page-break calculations. Plain rectangle for print.
     <div
-      className="flex items-start gap-2 bg-[var(--color-brand-yellow)] py-3 pl-4 pr-10 text-sm font-medium text-[var(--color-brand-blue)] print:break-inside-avoid"
-      style={{ clipPath: "polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%)" }}
+      className="flex items-start gap-2 bg-[var(--color-brand-yellow)] py-3 pl-4 pr-10 text-sm font-medium text-[var(--color-brand-blue)] [clip-path:polygon(0_0,94%_0,100%_50%,94%_100%,0_100%)] print:break-inside-avoid print:[clip-path:none] print:pr-4"
     >
       <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
       <div>{children}</div>
