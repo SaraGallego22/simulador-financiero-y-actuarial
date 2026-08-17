@@ -391,12 +391,6 @@ export function GuiaPasanteDia1() {
         </p>
 
         <FlowStep n="1" title="5.1 · Instrumentos disponibles">
-          <p>
-            Los bonos con cupón de este menú (TES3 y TES UVR 8 años) están tarificados <strong>a la par</strong>: cada año pagan, como flujo de caja
-            real (no como una tasa que se acumula en silencio hasta el vencimiento), un cupón igual a su propio rendimiento. Para el TES3 la columna
-            &ldquo;Rendimiento EA&rdquo; queda en &ldquo;?&rdquo; — el valor del cupón está en su columna &ldquo;Nota&rdquo;; para el TES UVR 8 años esa
-            columna sigue mostrando el rendimiento neto de inflación, su atractivo real por estar indexado a la UVR.
-          </p>
           <InstrumentsTable />
           <p>
             <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la pieza que necesitas para calcular la varianza de cualquier combinación
