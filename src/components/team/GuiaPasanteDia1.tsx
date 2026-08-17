@@ -26,8 +26,8 @@ export function GuiaPasanteDia1() {
 
       <InsumosEntregables
         insumos={[
-          "Universo público de 1.000.000 exposiciones (13 variables de riesgo, sin resultados) — pestaña Simulación.",
-          "Dataset de referencia Chile (100.000 pólizas con siniestros reales) — misma pestaña.",
+          "Universo público de 1.000.000 exposiciones (13 variables de riesgo, sin resultados) — descargable desde la página del día.",
+          "Dataset de referencia Chile (100.000 pólizas con siniestros reales) — misma página.",
           "Matriz de covarianza de los 6 instrumentos financieros y el rendimiento esperado objetivo de tu portafolio — formulario del portafolio.",
         ]}
         entregables={["CSV de tarifa: id_expuesto, prima — una fila por cada exposición del universo.", "Portafolio de mínima varianza: un peso (%) por instrumento, que sume 100%."]}
@@ -256,7 +256,7 @@ export function GuiaPasanteDia1() {
         <SubSection title="Tarifa 2027" accent="act">
           <p>
             Debes subir un CSV con dos columnas — <code className="rounded bg-black/5 px-1">id_expuesto,prima</code> — con una prima para cada una de las
-            1.000.000 exposiciones del universo público (descargable desde la pestaña de Simulación de este día).
+            1.000.000 exposiciones del universo público (descargable desde la página de este día).
           </p>
           <p>
             <strong>No existe una &ldquo;tarifa correcta&rdquo; única que debas adivinar.</strong> Al cierre del día se corre un mercado de elección: cada
@@ -285,14 +285,14 @@ export function GuiaPasanteDia1() {
             </li>
           </ul>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            Si tu equipo no alcanza a completar su tarifa a tiempo, la pestaña de Simulación tiene una opción de emergencia — &ldquo;Tercerizar
+            Si tu equipo no alcanza a completar su tarifa a tiempo, el formulario de tarifa tiene una opción de emergencia — &ldquo;Tercerizar
             tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir
             participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
             revela una vez se publiquen los resultados de ese día. Aplica igual en el 2028.
           </p>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Para calibrar tu propio modelo de frecuencia y severidad tienes disponible, además del universo público, un dataset de referencia con
-            siniestros reales (dataset Chile, 100.000 pólizas, descargable desde la pestaña de Simulación de este día) — juzgar qué variables aplican a
+            siniestros reales (dataset Chile, 100.000 pólizas, descargable desde la página de este día) — juzgar qué variables aplican a
             Colombia y cómo ajustarlas es parte del reto.
           </p>
         </SubSection>

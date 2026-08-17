@@ -210,7 +210,7 @@ export function GuiaPasanteDia2() {
           <p>
             Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
             prima <strong>devengada</strong> real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por
-            equipo) — visible arriba, en la pestaña Entregables de este día. No es un número teórico como el 55% de la fórmula de referencia: es
+            equipo) — visible arriba, en la página de este día. No es un número teórico como el 55% de la fórmula de referencia: es
             lo que el mercado real produjo. Si tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55%
             &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de
             tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en
@@ -329,7 +329,7 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
-              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado (pestaña Entregables,
+              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado (página de este día,
               sección 2) es el dato real para contrastar. Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de
               frecuencia/severidad antes de reservar con ese número.
             </li>
