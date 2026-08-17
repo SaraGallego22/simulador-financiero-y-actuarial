@@ -69,6 +69,9 @@ function decisionToCheckpoints(decision: PortfolioDecisionV4 | null): Checkpoint
 export function PortfolioForm({ day, initialDecision }: { day: number; initialDecision: PortfolioDecisionV4 | null }) {
   const [state, formAction, pending] = useActionState<SubmitPortfolioState, FormData>(submitPortfolioAction.bind(null, day), {});
 
+  const [capitalSocialRows, setCapitalSocialRows] = useState<GridRows>(() =>
+    initialDecision ? allocationToRows(initialDecision.capitalSocialAllocation) : emptyGridRows()
+  );
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>(() => decisionToCheckpoints(initialDecision));
 
   function updateCheckpointWeight(index: number, instrumentId: string, weight: number) {
@@ -95,7 +98,9 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
   const hasDuplicateMonths = new Set(months).size !== months.length;
   const schedule: MonthlyAllocationEntry[] = sorted.map((c) => ({ month: c.month, allocation: rowsToAllocation(c.rows) }));
   const everyCheckpointHasWeight = schedule.every((e) => Object.values(e.allocation).reduce((s, w) => s + (Number(w) || 0), 0) > 0);
-  const canSubmit = !hasDuplicateMonths && everyCheckpointHasWeight && sorted[0]?.month === 0;
+  const capitalSocialAllocation = rowsToAllocation(capitalSocialRows);
+  const capitalSocialHasWeight = Object.values(capitalSocialAllocation).reduce((s, w) => s + (Number(w) || 0), 0) > 0;
+  const canSubmit = !hasDuplicateMonths && everyCheckpointHasWeight && capitalSocialHasWeight && sorted[0]?.month === 0;
 
   return (
     <form
@@ -119,6 +124,15 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
       </p>
 
       <div className="flex flex-col gap-4">
+        <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
+          <p className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Capital Social — asignación inicial</p>
+          <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
+            Decisión aparte de tu calendario de abajo: cómo se invierte tu Capital Social desde el mes 0 del 2027. Una vez invertido, sigue el mismo
+            calendario que la prima — no es un bolsillo distinto, solo su punto de partida es propio.
+          </p>
+          <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} />
+        </div>
+
         {sorted.map((checkpoint) => {
           const originalIndex = checkpoints.indexOf(checkpoint);
           const isFirst = checkpoint === sorted[0];
@@ -167,7 +181,7 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
           <PortfolioScheduleView schedule={schedule} />
         </div>
 
-        <input type="hidden" name="decisionSchedule" value={JSON.stringify({ schedule })} />
+        <input type="hidden" name="decisionSchedule" value={JSON.stringify({ capitalSocialAllocation, schedule })} />
         <Button type="submit" variant="primary" loading={pending} loadingText="Guardando…" disabled={!canSubmit} className="w-fit">
           Guardar portafolio
         </Button>

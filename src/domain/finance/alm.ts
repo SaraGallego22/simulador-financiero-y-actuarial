@@ -245,9 +245,23 @@ interface StepResult {
  * open position's own `matM` is stamped in this same absolute frame);
  * `mesLabel` is only cosmetic, what ends up in the returned row's `mes`
  * field.
+ *
+ * `scheduleMonth` is separate from `t`: it's the month passed to
+ * activeAllocation() to pick which checkpoint governs THIS month's fresh
+ * surplus. almSim always passes scheduleMonth===t (one continuous 60-month
+ * clock). almSimRealYear passes scheduleMonth=i (0..11, relative to
+ * whichever year is currently funding itself) for BOTH years — so Año 2's
+ * real premium reads the same schedule the same way Año 1's did, restarted
+ * at its own month 0, decoupled from whatever checkpoint an absolute month
+ * >11 happens to hold (that one instead keeps governing the *continuing*
+ * position ledger's own reinvestment — Año 1's still-open positions and any
+ * Capital Social they carry don't reset just because `scheduleMonth` did).
+ * `t` itself is untouched by this — positions/maturities/capital
+ * comprometido keep accruing on the one real absolute calendar.
  */
 function stepMonth(
   t: number,
+  scheduleMonth: number,
   mesLabel: number,
   fase: "a1" | "post",
   primaCobrada: number,
@@ -316,7 +330,7 @@ function stepMonth(
   let capitalComprometido = 0;
   if (neededNeta <= 0) {
     const surplus = -neededNeta;
-    fundFromAllocation(activeAllocation(decision.schedule, t), surplus, t, state.positions);
+    fundFromAllocation(activeAllocation(decision.schedule, scheduleMonth), surplus, t, state.positions);
     inversionNeta = neededNeta;
     cajaFinal = cajaMinima;
   } else {
@@ -604,6 +618,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
 
     const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(
       t,
+      t,
       t - BUILD_MONTHS,
       buildPhase ? "a1" : "post",
       primaCobrada,
@@ -801,18 +816,31 @@ export interface AlmRealYearResult {
  * deliverable against.
  *
  * year===1 starts fresh — but not from zero: Capital Social is funded per
- * the schedule's month-0 checkpoint right away (see below), then run against that team's own
- * Year-1-within-Year-1 claims schedule (typically lib.payY1). year===2 must
- * receive `initialState` —
- * Año 1's `finalState` — and continues the *same* simulation for another
- * 12 months (same open positions still earning yield/maturing on their
- * own original schedule, same capitalComprometidoAcumulado carried
- * forward), now funded by Año 2's real premium against Año 2's own claims
- * schedule (typically Año 1's development landing in Año 2 — lib.L.slice(0,12)
- * — plus Año 2's own new claims' first-year payments, added together by
- * the caller — see finBenchHelper.ts). This is a genuine continuation, not
- * "what if this tree had run from month 0" — that hypothetical is exactly
- * what the fictitious ALM already answers.
+ * decision.capitalSocialAllocation right away (see below, a separate
+ * decision from `schedule`'s own month-0 checkpoint), then run against that
+ * team's own Year-1-within-Year-1 claims schedule (typically lib.payY1).
+ * year===2 must receive `initialState` — Año 1's `finalState` — and
+ * continues the *same* simulation for another 12 months (same open
+ * positions still earning yield/maturing on their own original schedule,
+ * same capitalComprometidoAcumulado carried forward), now funded by Año 2's
+ * real premium against Año 2's own claims schedule (typically Año 1's
+ * development landing in Año 2 — lib.L.slice(0,12) — plus Año 2's own new
+ * claims' first-year payments, added together by the caller — see
+ * finBenchHelper.ts). This is a genuine continuation, not "what if this
+ * tree had run from month 0" — that hypothetical is exactly what the
+ * fictitious ALM already answers.
+ *
+ * What year===2 does NOT inherit from year===1 is which checkpoint governs
+ * its *own* fresh premium: `schedule` is read starting at its own relative
+ * month 0 again (see stepMonth()'s `scheduleMonth` doc comment), the exact
+ * same way Año 1's premium read it — so a team's 12 months of Año 2 prima
+ * get invested the same way its 12 months of Año 1 prima did, unaffected by
+ * whichever checkpoint an absolute month past 11 happens to hold (those
+ * still govern how Año 1's *continuing* positions — Capital Social
+ * included — reinvest on their own maturities, since the position ledger
+ * itself is never reset). Positions/capitalComprometidoAcumulado/cajaFloat
+ * are the only things that actually carry over — the schedule's clock does
+ * not.
  *
  * `mes` in the returned rows matches almSim()'s own labeling for the
  * corresponding calendar year (Año 1: -12..-1, Año 2: 0..11), so a real
@@ -843,20 +871,23 @@ export function almSimRealYear(
       }
     : { positions: [], capitalComprometidoAcumulado: 0, cajaFloat: 0 };
 
-  // Capital Social is genuinely invested — funded per the schedule's month-0
-  // checkpoint, right at Año 1's start, before a single month of prima
-  // runs. Only here, never in almSim() (the fictitious ALM stays on its own
-  // notional reserva/12 funding hypothesis, unrelated to how much real
-  // capital a team has — see this function's own doc comment and README
-  // §5.3). From this point on a Capital-Social-funded position is
-  // mechanically indistinguishable from a prima-funded one: it accrues,
-  // matures, and can be forced-sold via forceLiquidatePortfolio() exactly
-  // like anything else. capitalComprometidoAcumulado (below) now only ever
-  // grows once LIQ *and* this entire real portfolio are exhausted — genuine
-  // external financing needed beyond everything the team has, not a direct
-  // draw against an untouched reserve (see balance()'s necesidadesPatrimonioODeuda).
+  // Capital Social is genuinely invested — funded per its own
+  // capitalSocialAllocation (a separate, one-time decision from `schedule`'s
+  // own month-0 checkpoint, which now only ever governs prima money), right
+  // at Año 1's start, before a single month of prima runs. Only here, never
+  // in almSim() (the fictitious ALM stays on its own notional reserva/12
+  // funding hypothesis, unrelated to how much real capital a team has — see
+  // this function's own doc comment and README §5.3). From this point on a
+  // Capital-Social-funded position is mechanically indistinguishable from a
+  // prima-funded one: it accrues, matures, and can be forced-sold via
+  // forceLiquidatePortfolio() exactly like anything else, and gets
+  // reinvested per `schedule`'s checkpoints on maturity same as any other
+  // surplus. capitalComprometidoAcumulado (below) now only ever grows once
+  // LIQ *and* this entire real portfolio are exhausted — genuine external
+  // financing needed beyond everything the team has, not a direct draw
+  // against an untouched reserve (see balance()'s necesidadesPatrimonioODeuda).
   if (year === 1 && !initialState) {
-    fundFromAllocation(activeAllocation(decision.schedule, 0), CAPITAL_SOCIAL, 0, state.positions);
+    fundFromAllocation(decision.capitalSocialAllocation, CAPITAL_SOCIAL, 0, state.positions);
   }
 
   const acc = freshAccumulators();
@@ -873,7 +904,10 @@ export function almSimRealYear(
     const t = startMonth + i;
     const mesLabel = year === 1 ? i - BUILD_MONTHS : i;
     const pagoSiniestros = claimsSchedule12[i] || 0;
-    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(t, mesLabel, fase, aporteMensual, pagoSiniestros, decision, state, acc);
+    // scheduleMonth=i (not t): Año 2's checkpoint lookup restarts at its own
+    // month 0, mirroring exactly how Año 1's premium read the same schedule
+    // — see stepMonth()'s doc comment.
+    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(t, i, mesLabel, fase, aporteMensual, pagoSiniestros, decision, state, acc);
     rows.push(row);
     income += devengo;
     sumPV += realBookSum;
@@ -1036,7 +1070,10 @@ export function almObjetivo(lib: LiabilitySchedule): FinancialScore | null {
   if (tot <= 0) return null;
 
   const allocation: Allocation = Object.fromEntries(INSTRUMENTS.map((ins) => [ins.id, ((acc[ins.id] || 0) * 100) / tot]));
-  return scoreFinanciero(lib, { schedule: [{ month: 0, allocation }] });
+  // capitalSocialAllocation is unused by scoreFinanciero()/almSim() (the
+  // fictitious ALM never funds Capital Social — see almSim()'s doc comment),
+  // so reusing the same ladder allocation here just satisfies the type.
+  return scoreFinanciero(lib, { capitalSocialAllocation: allocation, schedule: [{ month: 0, allocation }] });
 }
 
 /** Monthly ladder view (Caja Inicial/Prima/Siniestros/Gastos/Vencimientos en caja/Inversión Neta/Caja Final), ported from almLadder(), line ~1809. */

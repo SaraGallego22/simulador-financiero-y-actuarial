@@ -91,6 +91,7 @@ export function GuiaPasanteDia2() {
         ]}
         entregables={[
           "Tarifa 2028 (mismo formato CSV que Día 1: id_expuesto, prima).",
+          "Asignación inicial de tu Capital Social (instrumento, % asignado) — separada del calendario, pero se invierte con él desde el mes 0.",
           "Calendario mensual de decisión de portafolio real (instrumento, % asignado, desde qué mes aplica).",
           "Estado de resultados completo del 2027 (13 líneas).",
         ]}
@@ -287,18 +288,27 @@ export function GuiaPasanteDia2() {
         </SubSection>
         <SubSection title="Calendario de portafolio real (ALM)" accent="fin">
           <p>
-            Construyes un calendario de decisiones de inversión: para cada mes en que quieras cambiar de estrategia, repartes el excedente disponible ese
-            mes entre los instrumentos del menú (tabla en la sección 5). Esa asignación queda vigente desde ese mes en adelante — incluyendo cualquier
-            vencimiento que vaya llegando — hasta que definas un cambio en un mes posterior; no hay una decisión de reinversión por instrumento, todo lo
-            que vence entra a la misma bolsa de excedente disponible del mes en que vence. El sistema simula, mes a mes durante 60 meses, cómo tu
-            calendario enfrenta el flujo de caja real: primas que entran, siniestros y gastos que salen, vencimientos que regresan como caja, y lo que
-            queda se reinvierte según el checkpoint vigente ese mes. TES3 y TES UVR 8 además pagan un cupón en efectivo cada 12 meses mientras siguen
-            abiertos (sin vencer todavía) — ese cupón también entra como caja disponible ese mes, exactamente igual que un vencimiento.
+            Antes del calendario, tomas una decisión aparte: cómo repartir tu Capital Social entre los instrumentos del menú, desde el mes 0. Una vez
+            invertido, un peso de Capital Social ya no se distingue de un peso de prima — se mezcla en el mismo portafolio y sigue exactamente el mismo
+            calendario que defines a continuación, incluyendo sus propios vencimientos y reinversiones. Es un punto de partida propio, no un portafolio
+            aparte.
+          </p>
+          <p>
+            Luego construyes el calendario de decisiones de inversión: para cada mes en que quieras cambiar de estrategia, repartes el excedente
+            disponible ese mes entre los instrumentos del menú (tabla en la sección 5). Esa asignación queda vigente desde ese mes en adelante —
+            incluyendo cualquier vencimiento que vaya llegando — hasta que definas un cambio en un mes posterior; no hay una decisión de reinversión por
+            instrumento, todo lo que vence entra a la misma bolsa de excedente disponible del mes en que vence. El sistema simula, mes a mes durante 60
+            meses, cómo tu calendario enfrenta el flujo de caja real: primas que entran, siniestros y gastos que salen, vencimientos que regresan como
+            caja, y lo que queda se reinvierte según el checkpoint vigente ese mes. TES3 y TES UVR 8 además pagan un cupón en efectivo cada 12 meses
+            mientras siguen abiertos (sin vencer todavía) — ese cupón también entra como caja disponible ese mes, exactamente igual que un vencimiento.
           </p>
           <p>
             Este es tu único calendario para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más
             adelante — no vas a tener una segunda oportunidad de someter uno distinto. Piensa tu calendario pensando en ambos años, no solo en el 2027;
-            puedes agregar tantos cambios de estrategia como quieras a lo largo de los 60 meses simulados.
+            puedes agregar tantos cambios de estrategia como quieras a lo largo de los 60 meses simulados. Los 12 meses de prima del 2028 se invierten
+            con el mismo calendario, leído otra vez desde su propio mes 0 — el checkpoint que uses para tu mes 3 de 2027 es el mismo que va a gobernar tu
+            mes 3 de 2028, aunque hayas agregado después un cambio de estrategia en un mes más adelante en el calendario (ese cambio sigue rigiendo cómo
+            se reinvierten las posiciones que ya llevas abiertas desde 2027, pero no reinicia el conteo de la prima nueva de 2028).
           </p>
           <p>Tu nota (&ldquo;Calce ALM del portafolio&rdquo;) tiene 4 componentes, con estos pesos:</p>
           <ul className="list-disc pl-5">
@@ -394,10 +404,7 @@ export function GuiaPasanteDia2() {
           <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de 2028 de la de 2027?</li>
           <li>¿Cómo cambiaría tu calendario de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
           <li>¿Qué le pasaría a tu Resultado de Inversiones si una recesión bajara el rendimiento de los instrumentos más riesgosos del menú?</li>
-          <li>
-            ACC tiene el rendimiento nominal más alto del menú, pero un portafolio 100% en ACC no gana la nota de Rendimiento ajustado — ¿por qué? ¿Y qué le
-            pasaría a tus notas de Cumplimiento de Caja Mínima y Venta forzada en los meses antes de que esa posición complete su primer ciclo de 12 meses?
-          </li>
+          <li>¿Qué pasa con la solución de esquina ACC = 100%?</li>
         </PreguntasAbiertas>
       </Section>
 
@@ -436,10 +443,15 @@ export function GuiaPasanteDia2() {
         </FlowStep>
 
         <FlowStep n="3" title="5.3 · Tu calendario de decisión — plantilla en blanco">
+          <p className="text-sm text-[var(--color-brand-text-secondary)]">
+            Antes de esta tabla, el formulario te pide una asignación aparte para tu Capital Social (mismo menú de instrumentos, sin fila de mes —
+            entra completo al mes 0). Una vez enviada, esa plata se mezcla con todo lo demás y de ahí en adelante sigue el calendario de abajo igual
+            que la prima.
+          </p>
           <BlankTable
             headers={["¿Desde qué mes aplica?", "Instrumento (del menú de 5.2)", "% asignado"]}
             rows={6}
-            note="La primera fila siempre es el mes 0 (tu asignación inicial). Cada fila adicional es un cambio de estrategia: desde ese mes, el excedente disponible (incluyendo lo que venza) se reparte según esos nuevos porcentajes, hasta el siguiente cambio que definas. LIQ vuelve a estar disponible cada mes, los TES/CDT en su propio plazo, y ACC cada 12 meses — no hay una decisión de reinversión por instrumento, todo entra a la misma bolsa del mes en que vence."
+            note="La primera fila siempre es el mes 0 (tu asignación inicial para la prima). Cada fila adicional es un cambio de estrategia: desde ese mes, el excedente disponible (incluyendo lo que venza) se reparte según esos nuevos porcentajes, hasta el siguiente cambio que definas. LIQ vuelve a estar disponible cada mes, los TES/CDT en su propio plazo, y ACC cada 12 meses — no hay una decisión de reinversión por instrumento, todo entra a la misma bolsa del mes en que vence."
           />
         </FlowStep>
 
@@ -503,11 +515,7 @@ export function GuiaPasanteDia2() {
               (ponderada por cuánto tuviste en libros de cada instrumento a lo largo del horizonte, no solo tu asignación inicial), y 0.03 × qué tan
               concentrado quedó tu riesgo en un solo instrumento (0 = tu exposición fuera de LIQ está repartida pareja entre los demás instrumentos del
               menú, 1 = está toda en uno solo; LIQ no cuenta para esto, porque mantener caja no es una apuesta concentrada, es simplemente no tomar riesgo).
-              El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo — ambos son ese mismo rendimiento ajustado por riesgo, pero medido
-              para dos carteras de referencia corridas por este mismo motor: el piso es 100% LIQ (rendimiento ajustado ≈ 4.6%, el costo de no tomar ningún
-              riesgo), y el techo es una mezcla pareja 25/25/25/25 entre CDT90, TES1, TES3 y TESUVR8 (rendimiento ajustado ≈ 8.9%, la mejor combinación
-              diversificada del menú). Concentrarte en un solo instrumento — incluso en TESUVR8, el de mejor rendimiento ajustado individualmente — rinde
-              menos que ese techo una vez se aplica el descuento por concentración.
+              El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
             </p>
           </InfoNote>
         </FlowStep>

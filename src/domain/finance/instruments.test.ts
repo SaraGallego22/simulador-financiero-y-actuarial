@@ -107,8 +107,10 @@ describe("displayYieldLabel", () => {
 });
 
 describe("isPortfolioDecisionV4", () => {
+  const capitalSocialAllocation = fullAllocation({ LIQ: 100 });
+
   it("accepts a minimal valid schedule (month 0 only)", () => {
-    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(true);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [{ month: 0, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(true);
   });
 
   it("accepts a schedule with additional ascending checkpoints", () => {
@@ -117,20 +119,21 @@ describe("isPortfolioDecisionV4", () => {
       { month: 6, allocation: fullAllocation({ TES1: 100 }) },
       { month: 24, allocation: fullAllocation({ TESUVR8: 100 }) },
     ];
-    expect(isPortfolioDecisionV4({ schedule })).toBe(true);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule })).toBe(true);
   });
 
   it("rejects a schedule whose first entry isn't month 0", () => {
-    expect(isPortfolioDecisionV4({ schedule: [{ month: 1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [{ month: 1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
   });
 
   it("rejects a schedule with an empty allocation entry", () => {
-    expect(isPortfolioDecisionV4({ schedule: [] })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [] })).toBe(false);
   });
 
   it("rejects non-ascending or duplicate months", () => {
     expect(
       isPortfolioDecisionV4({
+        capitalSocialAllocation,
         schedule: [
           { month: 0, allocation: fullAllocation({ LIQ: 100 }) },
           { month: 0, allocation: fullAllocation({ TES1: 100 }) },
@@ -139,6 +142,7 @@ describe("isPortfolioDecisionV4", () => {
     ).toBe(false);
     expect(
       isPortfolioDecisionV4({
+        capitalSocialAllocation,
         schedule: [
           { month: 0, allocation: fullAllocation({ LIQ: 100 }) },
           { month: 12, allocation: fullAllocation({ TES1: 100 }) },
@@ -149,17 +153,17 @@ describe("isPortfolioDecisionV4", () => {
   });
 
   it("rejects a negative month", () => {
-    expect(isPortfolioDecisionV4({ schedule: [{ month: -1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [{ month: -1, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
   });
 
   it("rejects an allocation missing an instrument key, reusing isMinVarianceAllocation's strictness", () => {
     const { LIQ, ...missingLiq } = fullAllocation({ LIQ: 100 });
     void LIQ;
-    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: missingLiq }] })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [{ month: 0, allocation: missingLiq }] })).toBe(false);
   });
 
   it("rejects a negative weight", () => {
-    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: fullAllocation({ LIQ: -5 }) }] })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: [{ month: 0, allocation: fullAllocation({ LIQ: -5 }) }] })).toBe(false);
   });
 
   it("enforces MAX_SCHEDULE_ENTRIES", () => {
@@ -167,13 +171,25 @@ describe("isPortfolioDecisionV4", () => {
       month: i,
       allocation: fullAllocation({ LIQ: 100 }),
     }));
-    expect(isPortfolioDecisionV4({ schedule })).toBe(false);
-    expect(isPortfolioDecisionV4({ schedule: schedule.slice(0, MAX_SCHEDULE_ENTRIES) })).toBe(true);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule })).toBe(false);
+    expect(isPortfolioDecisionV4({ capitalSocialAllocation, schedule: schedule.slice(0, MAX_SCHEDULE_ENTRIES) })).toBe(true);
   });
 
   it("rejects the old tree shape ({tranches: [...]}) gracefully (false, not a throw)", () => {
     const oldTree = { tranches: [{ instrumentId: "LIQ", weight: 100, onMaturity: { action: "cash" } }] };
     expect(() => isPortfolioDecisionV4(oldTree)).not.toThrow();
     expect(isPortfolioDecisionV4(oldTree)).toBe(false);
+  });
+
+  it("rejects a schedule missing capitalSocialAllocation (predates this field)", () => {
+    expect(isPortfolioDecisionV4({ schedule: [{ month: 0, allocation: fullAllocation({ LIQ: 100 }) }] })).toBe(false);
+  });
+
+  it("rejects an invalid capitalSocialAllocation the same way isMinVarianceAllocation would", () => {
+    const { LIQ, ...missingLiq } = capitalSocialAllocation;
+    void LIQ;
+    expect(
+      isPortfolioDecisionV4({ capitalSocialAllocation: missingLiq, schedule: [{ month: 0, allocation: fullAllocation({ LIQ: 100 }) }] })
+    ).toBe(false);
   });
 });

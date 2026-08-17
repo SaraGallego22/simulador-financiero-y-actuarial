@@ -340,7 +340,10 @@ export function AlmPnlBreakdown({
         El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo, no una fórmula aproximada: el ingreso de inversión que el
         portafolio realmente generó, mes a mes, durante los 12 meses de este año{" "}
         {year === 2 && "— continuando exactamente donde quedó el 2027, mismas posiciones abiertas, mismo capital comprometido acumulado — "}
-        corrido con la prima real de este equipo — incluyendo el Capital Social, que se invierte desde el arranque del 2027 (no una reserva aparte).
+        corrido con la prima real de este equipo — incluyendo el Capital Social, que se invierte desde el arranque del 2027 según su propia asignación
+        inicial (no una reserva aparte).
+        {year === 2 &&
+          " La prima 2028 en sí, sin embargo, lee el calendario del equipo desde su propio mes 0 otra vez — no desde el mes 12 del calendario absoluto — así que se invierte con la misma lógica que la prima 2027, aunque las posiciones que ya venían abiertas desde 2027 sigan su propio checkpoint sin reiniciarse."}{" "}
         No incluye el capital comprometido (financiamiento externo genuino, ver abajo — eso ya se resta aparte, directamente del patrimonio).
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
