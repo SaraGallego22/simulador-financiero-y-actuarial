@@ -292,6 +292,7 @@ function buildTeamAlmSchedule(teamRng: Rng): PortfolioDecisionV4 {
     return alloc;
   };
   return {
+    capitalSocialAllocation: randomAllocation(),
     schedule: [
       { month: 0, allocation: randomAllocation() },
       { month: 24, allocation: randomAllocation() },

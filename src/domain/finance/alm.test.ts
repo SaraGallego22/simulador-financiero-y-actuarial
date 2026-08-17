@@ -26,15 +26,21 @@ const claims = [
 ];
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
-/** Builds a PortfolioDecisionV4 with a month-0 checkpoint (`allocation`) plus any additional checkpoints. */
-function decision(allocation: Allocation, extra: MonthlyAllocationEntry[] = []): PortfolioDecisionV4 {
-  return { schedule: [{ month: 0, allocation }, ...extra] };
+/**
+ * Builds a PortfolioDecisionV4 with a month-0 checkpoint (`allocation`) plus
+ * any additional checkpoints. `capitalSocialAllocation` defaults to the same
+ * `allocation` — matching the pre-capitalSocialAllocation behavior for every
+ * test that doesn't care about the two being different — but is a distinct
+ * field a caller can override to test that decoupling explicitly.
+ */
+function decision(allocation: Allocation, extra: MonthlyAllocationEntry[] = [], capitalSocialAllocation: Allocation = allocation): PortfolioDecisionV4 {
+  return { capitalSocialAllocation, schedule: [{ month: 0, allocation }, ...extra] };
 }
 
 describe("almSim / scoreFinanciero", () => {
   it("returns null when there are no recognized instruments", () => {
     expect(almSim(lib, decision({ NOPE: 100 }))).toBeNull();
-    expect(scoreFinanciero(lib, { schedule: [] })).toBeNull();
+    expect(scoreFinanciero(lib, { capitalSocialAllocation: {}, schedule: [] })).toBeNull();
   });
 
   it("produces a composite score within [0, 100] for a diversified allocation", () => {
@@ -411,14 +417,27 @@ describe("almSimRealYear", () => {
     expect(y1!.income).toBeCloseTo(expected, 4);
   });
 
-  it("Capital Social is genuinely funded per the schedule's month-0 checkpoint before Año 1's first month even runs — mes -12's opening balance already reflects it, before a single peso of real prima", () => {
+  it("Capital Social is genuinely funded per its own capitalSocialAllocation before Año 1's first month even runs — mes -12's opening balance already reflects it, before a single peso of real prima", () => {
     const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
-    // fundFromAllocation() splits CAPITAL_SOCIAL across the month-0 checkpoint's
+    // fundFromAllocation() splits CAPITAL_SOCIAL across capitalSocialAllocation's
     // weights with no loss (every instrument here is valid), so month -12's
     // saldoInicialPortafolio — computed before that month's own prima gets
     // invested — is exactly CAPITAL_SOCIAL, not 0 like a prima-only real ALM
     // would start at.
     expect(y1!.rows[0].saldoInicialPortafolio).toBeCloseTo(CAPITAL_SOCIAL, 0);
+  });
+
+  it("capitalSocialAllocation is a genuinely separate decision from schedule's own month-0 checkpoint — funding follows the former, not the latter, when they differ", () => {
+    const decoupled: PortfolioDecisionV4 = { capitalSocialAllocation: { ACC: 100 }, schedule: [{ month: 0, allocation: { LIQ: 100 } }] };
+    const y1 = almSimRealYear(1, new Array(12).fill(0), decoupled, aporte)!;
+    expect(y1).not.toBeNull();
+    // Capital Social went into ACC (capitalSocialAllocation), not LIQ
+    // (schedule's own month-0 checkpoint, which only ever governs prima).
+    // ACC accrues monthly, so its book only ever grows past CAPITAL_SOCIAL —
+    // a lower bound, not an exact match.
+    const accPositions = y1.finalState.positions.filter((p) => p.instrumentId === "ACC");
+    expect(accPositions.length).toBeGreaterThan(0);
+    expect(accPositions.reduce((s, p) => s + p.book, 0)).toBeGreaterThanOrEqual(CAPITAL_SOCIAL);
   });
 
   it("Capital Social's own accrual flows into Resultado de Inversiones — income is meaningfully more than what this fixture's modest prima (~$2.4B/año) could earn on its own", () => {
@@ -471,6 +490,41 @@ describe("almSimRealYear", () => {
     // holds month-to-month within a single almSim() run (see the "identity"
     // test above), now holding *across* the two chained calls.
     expect(y2!.rows[0].saldoInicialPortafolio).toBeCloseTo(y1!.rows[11].saldoFinalPortafolio, 4);
+  });
+
+  it("Año 2's own fresh premium reads the schedule at its own relative month again, not the schedule's absolute month — a checkpoint sitting at absolute month 15 (which Año 1 never reaches) doesn't hijack Año 2's own relative month-3 surplus", () => {
+    // Only two checkpoints: month 0 (LIQ) and month 15 (ACC). Under the old
+    // single-absolute-clock lookup, Año 2's absolute t=15 (its own 4th month,
+    // relative i=3) would already satisfy month<=t for the month-15
+    // checkpoint, funding that month's surplus into ACC. Under the new
+    // relative lookup (scheduleMonth=i=3), no checkpoint exists at relative
+    // month 3, so month 0's LIQ checkpoint stays active instead — ACC is
+    // never funded by Año 2's own premium at all.
+    const noClaimsLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L: new Array(48).fill(0), reserva: 0, hay: true };
+    const scheduleWithLateCheckpoint: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { LIQ: 100 },
+      schedule: [
+        { month: 0, allocation: { LIQ: 100 } },
+        { month: 15, allocation: { ACC: 100 } },
+      ],
+    };
+    const y1 = almSimRealYear(1, noClaimsLib.payY1, scheduleWithLateCheckpoint, aporte)!;
+    const y2 = almSimRealYear(2, new Array(12).fill(0), scheduleWithLateCheckpoint, aporte, y1.finalState)!;
+    expect(y2.finalState.positions.some((p) => p.instrumentId === "ACC")).toBe(false);
+  });
+
+  it("...but a checkpoint placed at Año 2's own relative month (3) does govern Año 2's month-3 surplus, same as it would for Año 1's", () => {
+    const noClaimsLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L: new Array(48).fill(0), reserva: 0, hay: true };
+    const scheduleWithRelativeCheckpoint: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { LIQ: 100 },
+      schedule: [
+        { month: 0, allocation: { LIQ: 100 } },
+        { month: 3, allocation: { ACC: 100 } },
+      ],
+    };
+    const y1 = almSimRealYear(1, noClaimsLib.payY1, scheduleWithRelativeCheckpoint, aporte)!;
+    const y2 = almSimRealYear(2, new Array(12).fill(0), scheduleWithRelativeCheckpoint, aporte, y1.finalState)!;
+    expect(y2.finalState.positions.some((p) => p.instrumentId === "ACC")).toBe(true);
   });
 
   it("Año 2 is labeled 0..11, fase post, and matches almSim()'s own labeling for the same calendar year", () => {

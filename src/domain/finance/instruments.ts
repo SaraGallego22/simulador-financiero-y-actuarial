@@ -172,8 +172,18 @@ export interface MonthlyAllocationEntry {
  * everything that matures becomes available cash that month, and the
  * checkpoint active THAT month decides where it goes next, same as any
  * other month's surplus.
+ *
+ * `capitalSocialAllocation` is a separate, one-time decision — how Capital
+ * Social itself gets funded at Año 1's month 0 (see almSimRealYear() in
+ * alm.ts) — distinct from `schedule`'s own month-0 checkpoint, which now
+ * only ever governs prima money. Once funded, a Capital-Social-derived
+ * position is mechanically indistinguishable from any other: it merges into
+ * the same pool and follows `schedule`'s checkpoints from then on, exactly
+ * like everything else — this is a separate starting allocation, not a
+ * separate ledger.
  */
 export interface PortfolioDecisionV4 {
+  capitalSocialAllocation: Allocation;
   schedule: MonthlyAllocationEntry[];
 }
 
@@ -202,8 +212,9 @@ function isValidMonthlyAllocationEntry(value: unknown): value is MonthlyAllocati
 
 /**
  * Guards against a stored PortfolioAllocation.allocation predating this
- * shape (the old tree-based PortfolioDecisionV3, or anything older) — none
- * of those have a `schedule` key, so they're rejected automatically and
+ * shape (the old tree-based PortfolioDecisionV3, an even older schedule-only
+ * shape missing `capitalSocialAllocation`, or anything older) — none of
+ * those satisfy both required keys, so they're rejected automatically and
  * treated as "no decision submitted yet," the same graceful-degradation
  * pattern the previous version already used for ITS predecessors. This is
  * also the real security boundary for client-submitted JSON (see
@@ -212,6 +223,7 @@ function isValidMonthlyAllocationEntry(value: unknown): value is MonthlyAllocati
 export function isPortfolioDecisionV4(value: unknown): value is PortfolioDecisionV4 {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
+  if (!isMinVarianceAllocation(v.capitalSocialAllocation)) return false;
   if (
     !Array.isArray(v.schedule) ||
     v.schedule.length === 0 ||
