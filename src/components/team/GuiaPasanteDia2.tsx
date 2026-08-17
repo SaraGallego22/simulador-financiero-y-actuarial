@@ -209,8 +209,8 @@ export function GuiaPasanteDia2() {
           </p>
           <p>
             Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
-            prima <strong>devengada</strong> real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por
-            equipo) — visible arriba, en la página de este día. No es un número teórico como el 55% de la fórmula de referencia: es
+            prima <strong>devengada</strong> real, sumados entre todos los equipos del cohorte con resultado publicado — visible arriba, en la
+            página de este día. No es un número teórico como el 55% de la fórmula de referencia: es
             lo que el mercado real produjo. Si tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55%
             &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de
             tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en
