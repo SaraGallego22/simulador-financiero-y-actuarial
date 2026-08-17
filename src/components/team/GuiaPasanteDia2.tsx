@@ -76,7 +76,7 @@ function ScoreCard({ label, weight, formula }: { label: string; weight: string; 
 
 export function GuiaPasanteDia2() {
   return (
-    <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
+    <div className="flex flex-col gap-8 text-[var(--color-foreground)]">
       <GuiaHeader
         dia={2}
         subtitulo="P&G 2027, retarifación 2028 y portafolio real"
@@ -171,15 +171,16 @@ export function GuiaPasanteDia2() {
 
         <SubSection title="Estimar el costo de siniestros de 2027: Expected Loss Ratio" accent="act">
           <p>
-            El costo de siniestros que reportas en tu P&G del 2027 (sección 3) ya no es una simple suma de lo que ves en tu reporte — igual que en
-            Día 1, solo ves los siniestros que ya se avisaron a la fecha; el resto sigue siendo IBNR (Incurred But Not Reported). Con un solo año de
-            experiencia todavía no existe un triángulo de desarrollo real que triangular (eso solo aparece a partir de Día 3, cuando ya hay pagos del
-            2027 dentro del 2028) — así que Chain Ladder no es una opción todavía. El método apropiado para esta madurez es el{" "}
-            <strong>Expected Loss Ratio (ELR)</strong>.
+            En Día 1 no existía todavía ninguna reserva que estimar — el año ni siquiera había ocurrido. Ahora que el 2027 ya pasó, tu cartera
+            empieza a mostrar siniestros reales, pero — igual que en cualquier aseguradora — no todos se han avisado todavía (la misma opacidad de
+            IBNR que ya conoces de Día 1). Una <strong>reserva técnica</strong> es justamente eso: un estimado de lo que falta por conocerse, para
+            que el Costo de Siniestros que reportas en tu P&amp;G (sección 3) se acerque al costo real del año y no solo a la porción ya avisada.
           </p>
           <p>
-            El método ELR estima el costo <strong>último</strong> — no solo lo avisado — como un porcentaje asumido de la prima, en vez de partir de
-            tu propia experiencia real, precisamente porque un solo año inmaduro no es lo bastante creíble por sí solo:
+            Con un solo año de experiencia propia, apoyarte solo en tus propios siniestros avisados todavía es delicado — hay poca información, y
+            esa poca puede no ser representativa. Una forma de manejar esa incertidumbre es el método <strong>Expected Loss Ratio (ELR)</strong>:
+            en vez de partir de lo que tu cartera ya te muestra, asume un loss ratio (siniestros sobre prima) y lo aplica sobre tu prima devengada
+            para llegar a un costo último.
           </p>
           <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
@@ -187,38 +188,42 @@ export function GuiaPasanteDia2() {
             </p>
           </div>
           <p>
-            <strong>¿De dónde sale tu propio Loss Ratio Esperado?</strong> No de una fórmula genérica igual para todo el cohorte — de tu propio
-            modelo de frecuencia × severidad de Día 1, aplicado a las pólizas que <strong>realmente ganaste</strong> (no al universo completo): ya
-            estimaste una prima pura para cada una de ellas cuando tarificaste. La razón entre esa prima pura que tú mismo estimaste para tu
-            propio libro y la prima <strong>devengada</strong> que le corresponde (el 80% de lo que realmente cobraste por él — ver Resultado
-            Técnico, sección 3) es tu Loss Ratio Esperado — específico de tu cartera y de tu propio modelo, no un número compartido por todo el
-            cohorte. Devengada, no cobrada: es la misma base sobre la que se mide cualquier loss ratio en este ejercicio, para que tu propia
-            estimación y la referencia de mercado de abajo sean comparables entre sí:
+            <strong>¿De dónde sale ese loss ratio asumido?</strong> No hay una única respuesta correcta — es una decisión de tu equipo, y distintas
+            referencias razonables te van a dar números distintos. Algunas que puedes considerar, sin que ninguna sea automáticamente la
+            &ldquo;correcta&rdquo;:
           </p>
-          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
-            <p className="font-[family-name:var(--font-condensed)] text-sm font-bold text-[var(--color-brand-blue-accent)] sm:text-base">
-              Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima Devengada (pólizas ganadas)
-            </p>
-          </div>
+          <ul className="list-disc pl-5">
+            <li>
+              <strong>El que implícitamente asumiste al fijar tu prima comercial en Día 1.</strong> Si usaste la fórmula de referencia sin ajustes
+              (Prima Comercial = Prima Pura ÷ (1 − 25% gastos − 20% margen)), esa aritmética asume un loss ratio del 55% — aunque eso es lo que la
+              fórmula supone, no necesariamente lo que el riesgo real de tu cartera produjo.
+            </li>
+            <li>
+              <strong>El que tu propio modelo de frecuencia × severidad de Día 1 implica para las pólizas que realmente ganaste</strong> (no el
+              universo completo): la razón entre la prima pura que estimaste para ellas y la prima <strong>devengada</strong> que le corresponde
+              (el 80% de lo que cobraste por ellas — ver Resultado Técnico, sección 3). Es específico de tu cartera y de tu propio modelo, pero
+              hereda cualquier sesgo que ese modelo ya tuviera.
+              <div className="mt-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3 text-center">
+                <p className="font-[family-name:var(--font-condensed)] text-xs font-bold text-[var(--color-brand-blue-accent)] sm:text-sm">
+                  Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima Devengada (pólizas ganadas)
+                </p>
+              </div>
+            </li>
+            <li>
+              <strong>El loss ratio real de todo el mercado del 2027</strong> — siniestros reales sobre prima devengada real, sumados entre los
+              equipos del cohorte con resultado publicado (nunca por equipo individual) — visible arriba, en la página de este día. Es lo que el
+              mercado realmente produjo, pero mezcla carteras con tarifas distintas a la tuya.
+            </li>
+            <li>
+              <strong>Un benchmark público del sector</strong> (loss ratios típicos de auto en Colombia) — una tercera referencia, aunque no es
+              específico de este mercado sintético ni de tu propia cartera.
+            </li>
+          </ul>
           <p>
-            Si tarificaste con la fórmula de referencia de Día 1 de forma uniforme para todo tu libro (Prima Comercial = Prima Pura ÷ (1 − %
-            Gastos − % Utilidad), con 25% de gastos y 20% de margen), esa fórmula por sí sola <strong>no</strong> te garantiza un loss ratio del
-            55% — ese número es lo que la aritmética de la fórmula asume, no lo que el riesgo real produce. Esta metodología (comparar tu propia
-            prima pura contra tu prima devengada) solo es tan buena como tu propio modelo de frecuencia × severidad: si ese modelo subestima el
-            riesgo real de tus pólizas, tu Loss Ratio Esperado hereda ese sesgo, y tu costo último estimado con él también.
-          </p>
-          <p>
-            Como referencia para contrastar, tienes el loss ratio real de <strong>todo el mercado</strong> del 2027 — siniestros reales sobre
-            prima <strong>devengada</strong> real, sumados entre todos los equipos del cohorte con resultado publicado (nunca desglosado por
-            equipo) — visible arriba, en la página de este día. No es un número teórico como el 55% de la fórmula de referencia: es
-            lo que el mercado real produjo. Si tu propio Loss Ratio Esperado queda muy por debajo de esa referencia (por ejemplo, pegado al 55%
-            &ldquo;de libro&rdquo; sin ajustar), es una señal de que tu modelo de frecuencia/severidad podría estar subestimando el riesgo real de
-            tu cartera — vale la pena revisarlo antes de reservar con ese número. Un benchmark público del sector (loss ratios típicos de auto en
-            Colombia) es una tercera referencia útil, aunque no reemplaza tu propio cálculo.
-          </p>
-          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            Lo que <strong>no</strong> deberías hacer es tomar directamente la siniestralidad avisada hasta ahora como si fuera el costo total — eso
-            subestima sistemáticamente el verdadero costo último, exactamente el error que el método ELR está diseñado para evitar.
+            Cada una de estas referencias tiene su propio punto ciego, y combinarlas o elegir entre ellas es parte de lo que se evalúa. El ELR en
+            general tiene una ventaja clara en este punto del ejercicio — no depende de que tu propia experiencia sea todavía creíble por sí sola,
+            que con un año no lo es — pero también una limitación igual de clara: tu costo último termina siendo tan bueno (o tan malo) como el loss
+            ratio que decidas asumir, y con la poca información que tienes hoy no hay una forma directa de verificar qué tan bien elegiste.
           </p>
         </SubSection>
 
@@ -329,9 +334,10 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
-              lo que la fórmula asume en teoría, no lo que el riesgo real produce — el loss ratio real de todo el mercado (página de este día,
-              sección 2) es el dato real para contrastar. Si tu propio ELR queda muy por debajo de eso, sospecha primero de tu propio modelo de
-              frecuencia/severidad antes de reservar con ese número.
+              lo que la fórmula asume en teoría, no necesariamente lo que el riesgo real produce — el loss ratio real de todo el mercado (página de
+              este día, sección 2) es otra referencia útil para contrastar, aunque tampoco es automáticamente el número correcto para tu propia
+              cartera. Si tu propio ELR queda muy alejado de todas tus referencias disponibles, vale la pena revisar si tu modelo de
+              frecuencia/severidad está capturando el riesgo real de tu cartera.
             </li>
             <li>
               <strong>Prima Devengada, no Prima Emitida.</strong> El costo último se relaciona con la prima que efectivamente cubrió riesgo durante

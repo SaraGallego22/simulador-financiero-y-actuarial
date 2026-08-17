@@ -17,7 +17,7 @@ import {
 
 export function GuiaPasanteDia1() {
   return (
-    <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
+    <div className="flex flex-col gap-8 text-[var(--color-foreground)]">
       <GuiaHeader
         dia={1}
         subtitulo="Tarificación 2027 y portafolio de mínima varianza"

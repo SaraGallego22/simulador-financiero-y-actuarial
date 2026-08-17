@@ -73,7 +73,7 @@ export function Section({ n, title, children }: { n: string; title: string; chil
         </span>
         <h2 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">{title}</h2>
       </div>
-      <div className="flex flex-col gap-3 p-5 text-sm text-[var(--color-foreground)]">{children}</div>
+      <div className="flex flex-col gap-6 p-5 text-sm text-[var(--color-foreground)]">{children}</div>
     </section>
   );
 }

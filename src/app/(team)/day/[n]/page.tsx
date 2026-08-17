@@ -368,9 +368,9 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
                 {marketLossRatio && (
                   <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
                     <span className="font-semibold text-[var(--color-brand-blue-accent)]">Referencia — </span>
-                    Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima real, sumados entre los {marketLossRatio.teamCount} equipos
-                    con resultado publicado, nunca desglosado por equipo): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo
-                    para contrastar tu propio Loss Ratio Esperado (ver la guía de este día, sección 2).
+                    Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima devengada real, sumados entre los {marketLossRatio.teamCount}{" "}
+                    equipos con resultado publicado): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo para contrastar tu propio
+                    Loss Ratio Esperado (ver la guía de este día, sección 2).
                   </div>
                 )}
                 <DeliverablesForm day={2} concepts={reportConcepts} initialValues={deliverableValues} />
