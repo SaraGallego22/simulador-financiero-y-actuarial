@@ -1,44 +1,30 @@
-import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
+import {
+  FlowStep,
+  FormulaNotes,
+  GuiaHeader,
+  InfoNote,
+  InsumosEntregables,
+  PreguntasAbiertas,
+  Section,
+  SubSection,
+  tableClass,
+  tableWrapClass,
+  thClass,
+  tdClass,
+} from "./GuiaShared";
 import { CHAIN_LADDER_TAIL_FACTOR } from "@/domain/reserving/constants";
-
-function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
-      <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {n} · {title}
-      </h2>
-      <div className="flex flex-col gap-3 text-sm text-[var(--color-foreground)]">{children}</div>
-    </section>
-  );
-}
-
-function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
-  return (
-    <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
-    >
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {accent === "act" ? "Actuarial — " : "Financiero — "}
-        {title}
-      </p>
-      <div className="flex flex-col gap-2 text-sm">{children}</div>
-    </div>
-  );
-}
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
 function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+      <div className={`${tableWrapClass} overflow-x-auto`}>
+        <table className={tableClass}>
           <thead>
             <tr>
-              <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                Línea
-              </th>
+              <th className={thClass}>Línea</th>
               {columns.map((c) => (
-                <th key={c} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
+                <th key={c} className={thClass}>
                   {c}
                 </th>
               ))}
@@ -47,13 +33,9 @@ function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes 
           <tbody>
             {rowLabels.map((label) => (
               <tr key={label}>
-                <td
-                  className={`border border-[var(--color-brand-gray-light)] px-2 py-1.5 ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}
-                >
-                  {label}
-                </td>
+                <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
                 {columns.map((c) => (
-                  <td key={c} className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">
+                  <td key={c} className={`h-8 ${tdClass}`}>
                     &nbsp;
                   </td>
                 ))}
@@ -63,19 +45,6 @@ function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes 
         </table>
       </div>
       {formulaNotes && <FormulaNotes lines={formulaNotes} />}
-    </div>
-  );
-}
-
-/** Formula reference notes, one per line with real spacing between them — replaces cramming every formula into one dense paragraph. */
-function FormulaNotes({ lines }: { lines: string[] }) {
-  return (
-    <div className="flex flex-col gap-2.5 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/40 p-3">
-      {lines.map((line, i) => (
-        <p key={i} className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">
-          {line}
-        </p>
-      ))}
     </div>
   );
 }
@@ -135,17 +104,11 @@ const BALANCE_ROWS = [
 export function GuiaPasanteDia3() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
-        <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
-        <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 3 — Estado de resultados 2028/2029 (proy.) y Balance
-        </p>
-        <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tus estados financieros: te explica exactamente qué se
-          va a calificar, con qué criterios, y qué conceptos debes tener en cuenta — sin resolverte el ejercicio.
-        </p>
-      </header>
+      <GuiaHeader
+        dia={3}
+        subtitulo="Estado de resultados 2028/2029 (proy.) y Balance"
+        intro="Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tus estados financieros: te explica exactamente qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta — sin resolverte el ejercicio."
+      />
 
       <InsumosEntregables
         insumos={[
@@ -224,67 +187,45 @@ export function GuiaPasanteDia3() {
             escalera típica de un triángulo — los meses de ocurrencia más antiguos tienen muchas columnas conocidas, los más recientes casi
             ninguna. Un fragmento ilustrativo de 4 de tus 24 filas posibles (números inventados, no los tuyos):
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+          <div className={`${tableWrapClass} overflow-x-auto`}>
+            <table className={tableClass}>
               <thead>
                 <tr>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Mes de ocurrencia
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo 0
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo 1
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo 2
-                  </th>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                    Desarrollo 3
-                  </th>
+                  <th className={thClass}>Mes de ocurrencia</th>
+                  <th className={thClass}>Desarrollo 0</th>
+                  <th className={thClass}>Desarrollo 1</th>
+                  <th className={thClass}>Desarrollo 2</th>
+                  <th className={thClass}>Desarrollo 3</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Oct 2027</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$40</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$55</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$62</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$65</td>
+                  <td className={`${tdClass} font-semibold`}>Oct 2027</td>
+                  <td className={tdClass}>$40</td>
+                  <td className={tdClass}>$55</td>
+                  <td className={tdClass}>$62</td>
+                  <td className={tdClass}>$65</td>
                 </tr>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Nov 2027</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$38</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$52</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$59</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
+                  <td className={`${tdClass} font-semibold`}>Nov 2027</td>
+                  <td className={tdClass}>$38</td>
+                  <td className={tdClass}>$52</td>
+                  <td className={tdClass}>$59</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
                 </tr>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Dic 2027</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$42</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$57</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
+                  <td className={`${tdClass} font-semibold`}>Dic 2027</td>
+                  <td className={tdClass}>$42</td>
+                  <td className={tdClass}>$57</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
                 </tr>
                 <tr>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">Ene 2028</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">$45</td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
-                  <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 italic text-[var(--color-brand-text-secondary)]">
-                    ?
-                  </td>
+                  <td className={`${tdClass} font-semibold`}>Ene 2028</td>
+                  <td className={tdClass}>$45</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
+                  <td className={`${tdClass} italic text-[var(--color-brand-text-secondary)]`}>?</td>
                 </tr>
               </tbody>
             </table>
@@ -554,13 +495,13 @@ export function GuiaPasanteDia3() {
         </FlowStep>
 
         <FlowStep n="3" title="5.2 · Nota — siniestros pagados (no es una línea del P&G)">
-          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+          <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               Además del estado de resultados, reportas una cifra más para el 2028: <strong>Siniestros pagados en A2</strong> (la caja efectivamente
               pagada durante el año, de ambos orígenes). No se suma ni se resta en el estado de resultados — es un desglose/auditoría de flujo de caja,
               distinto del costo incurrido (base contable) que ya reportaste en la sección 5.1.
             </p>
-          </div>
+          </InfoNote>
         </FlowStep>
 
         <FlowStep n="4" title="5.3 · Balance — 2027, 2028 y 2029 (proy.)">

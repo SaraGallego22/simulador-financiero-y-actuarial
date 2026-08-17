@@ -1,108 +1,45 @@
-import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
-import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
-import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
-
-const INSTRUMENT_IDS = INSTRUMENTS.map((ins) => ins.id);
-
-function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
-      <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {n} · {title}
-      </h2>
-      <div className="flex flex-col gap-3 text-sm text-[var(--color-foreground)]">{children}</div>
-    </section>
-  );
-}
-
-function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
-  return (
-    <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
-    >
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {accent === "act" ? "Actuarial — " : "Financiero — "}
-        {title}
-      </p>
-      <div className="flex flex-col gap-2 text-sm">{children}</div>
-    </div>
-  );
-}
-
-function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; note?: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-          <thead>
-            <tr>
-              {headers.map((h) => (
-                <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rows }).map((_, i) => (
-              <tr key={i}>
-                {headers.map((h) => (
-                  <td key={h} className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">
-                    &nbsp;
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
-    </div>
-  );
-}
+import {
+  BlankTable,
+  FlagCallout,
+  FlowStep,
+  FormulaNotes,
+  GuiaHeader,
+  InfoNote,
+  InsumosEntregables,
+  InstrumentsTable,
+  MatrixTable,
+  PreguntasAbiertas,
+  Section,
+  SubSection,
+  tableClass,
+  tableWrapClass,
+  thClass,
+  tdClass,
+} from "./GuiaShared";
 
 /** Vertical financial-statement template with real row labels, matching how DeliverablesForm groups/renders these same lines. */
 function StatementTemplate({ rowLabels, emphasizedLabels, formulaNotes }: { rowLabels: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+      <div className={`${tableWrapClass} overflow-x-auto`}>
+        <table className={tableClass}>
           <thead>
             <tr>
-              <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                Línea
-              </th>
-              <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                2027
-              </th>
+              <th className={thClass}>Línea</th>
+              <th className={thClass}>2027</th>
             </tr>
           </thead>
           <tbody>
             {rowLabels.map((label) => (
               <tr key={label}>
-                <td className={`border border-[var(--color-brand-gray-light)] px-2 py-1.5 ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>
-                  {label}
-                </td>
-                <td className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">&nbsp;</td>
+                <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
+                <td className={`h-8 ${tdClass}`}>&nbsp;</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {formulaNotes && <FormulaNotes lines={formulaNotes} />}
-    </div>
-  );
-}
-
-/** Formula reference notes, one per line with real spacing between them — replaces cramming every formula into one dense paragraph. */
-function FormulaNotes({ lines }: { lines: string[] }) {
-  return (
-    <div className="flex flex-col gap-2.5 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/40 p-3">
-      {lines.map((line, i) => (
-        <p key={i} className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">
-          {line}
-        </p>
-      ))}
     </div>
   );
 }
@@ -125,11 +62,11 @@ const PYG_ROWS = [
 
 function ScoreCard({ label, weight, formula }: { label: string; weight: string; formula: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3">
+    <div className={`flex flex-col gap-2 ${tableWrapClass} p-3`}>
       <p className="text-xs text-[var(--color-brand-text-secondary)]">
         {label} <span className="font-semibold">({weight})</span>
       </p>
-      <p className="flex h-9 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+      <p className="flex h-9 items-center rounded-full border-2 border-dashed border-[var(--color-brand-gray-light)] px-3 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
         &nbsp;
       </p>
       <p className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">{formula}</p>
@@ -140,17 +77,11 @@ function ScoreCard({ label, weight, formula }: { label: string; weight: string; 
 export function GuiaPasanteDia2() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
-        <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
-        <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 2 — P&G 2027, retarifación 2028 y portafolio real
-        </p>
-        <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu calendario de inversión: te explica exactamente qué
-          se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
-        </p>
-      </header>
+      <GuiaHeader
+        dia={2}
+        subtitulo="P&G 2027, retarifación 2028 y portafolio real"
+        intro="Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de construir tu calendario de inversión: te explica exactamente qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio."
+      />
 
       <InsumosEntregables
         insumos={[
@@ -475,69 +406,12 @@ export function GuiaPasanteDia2() {
         </FlowStep>
 
         <FlowStep n="2" title="5.2 · Instrumentos disponibles">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  {["ID", "Instrumento", "Rendimiento EA", "Volatilidad anual", "Plazo", "Nota"].map((h) => (
-                    <th
-                      key={h}
-                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {INSTRUMENTS.map((ins) => (
-                  <tr key={ins.id}>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-mono">{ins.id}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.nombre}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{displayYieldLabel(ins)}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(ins.volAnual * 100).toFixed(1)}%</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.plazoM >= 400 ? "sin venc. fijo" : `${ins.plazoM} meses`}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <InstrumentsTable />
           <p>
             <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la volatilidad de cada uno (columna anterior) sale de su diagonal; el
             resto de la matriz es lo que hace que combinar instrumentos reduzca el riesgo más que cualquiera de ellos por separado.
           </p>
-          <div className="overflow-x-auto">
-            <table className="border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5" />
-                  {INSTRUMENT_IDS.map((id) => (
-                    <th
-                      key={id}
-                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
-                    >
-                      {id}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COVARIANCE_MATRIX.map((row, i) => (
-                  <tr key={INSTRUMENT_IDS[i]}>
-                    <td className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 font-mono font-semibold text-[var(--color-brand-blue-accent)]">
-                      {INSTRUMENT_IDS[i]}
-                    </td>
-                    {row.map((v, j) => (
-                      <td key={INSTRUMENT_IDS[j]} className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">
-                        {v.toFixed(6)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <MatrixTable />
         </FlowStep>
 
         <FlowStep n="3" title="5.3 · Tu calendario de decisión — plantilla en blanco">
@@ -554,25 +428,27 @@ export function GuiaPasanteDia2() {
             rows={4}
             note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Vencimientos en caja incluye tanto lo que vence de verdad como el cupón anual de TES3/TES UVR 8 mientras siguen abiertos."
           />
-          <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
-            primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
-            compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
-            (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según el checkpoint vigente ese mes en tu calendario de la sección
-            5.3 — nunca es la Prima Cobrada cruda.
-            La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
-            cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
-            lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
-            Caja Mínima) — nunca se queda la Caja Mínima sin cubrir.
-          </p>
-          <p className="mt-2 rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-            <span className="font-semibold text-[var(--color-brand-blue-accent)]">Importante — </span>
+          <InfoNote>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
+              primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
+              compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
+              (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según el checkpoint vigente ese mes en tu calendario de la sección
+              5.3 — nunca es la Prima Cobrada cruda.
+              La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
+              cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
+              lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
+              Caja Mínima) — nunca se queda la Caja Mínima sin cubrir.
+            </p>
+          </InfoNote>
+          <FlagCallout>
+            <span className="font-semibold">Importante — </span>
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
             1/12 de tu reserva total, ni más ni menos — no tu prima real, aunque ya la conozcas. Esto es intencional: el ejercicio evalúa la calidad de tu
             calendario de decisión de forma aislada, sin mezclarla con el resultado de tu tarifa (un equipo que tarificó mal no debería tener, solo por
             eso, una nota de ALM peor). Cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la
             plataforma no te lo resuelve, aunque te muestra ambas corridas lado a lado en los resultados objetivos.
-          </p>
+          </FlagCallout>
         </FlowStep>
 
         <FlowStep n="5" title="5.5 · Las 4 notas — plantilla de calificación">

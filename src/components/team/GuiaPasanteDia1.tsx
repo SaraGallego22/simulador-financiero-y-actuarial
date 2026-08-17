@@ -1,135 +1,28 @@
-import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
-import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
-import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
-
-const INSTRUMENT_IDS = INSTRUMENTS.map((ins) => ins.id);
-
-function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
-      <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {n} · {title}
-      </h2>
-      <div className="flex flex-col gap-3 text-sm text-[var(--color-foreground)]">{children}</div>
-    </section>
-  );
-}
-
-function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
-  return (
-    <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
-    >
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {accent === "act" ? "Actuarial — " : "Financiero — "}
-        {title}
-      </p>
-      <div className="flex flex-col gap-2 text-sm">{children}</div>
-    </div>
-  );
-}
-
-function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; note?: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-          <thead>
-            <tr>
-              {headers.map((h) => (
-                <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rows }).map((_, i) => (
-              <tr key={i}>
-                {headers.map((h) => (
-                  <td key={h} className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">
-                    &nbsp;
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
-    </div>
-  );
-}
-
-/** Read-only reference table for a dataset's columns — unlike BlankTable, these rows are filled in (a data dictionary), not inputs to complete. */
-function DataDictTable({ rows }: { rows: { col: string; desc: string; rango: string }[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-        <thead>
-          <tr>
-            {["Columna", "Descripción", "Valores / rango"].map((h) => (
-              <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.col}>
-              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-mono">{r.col}</td>
-              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{r.desc}</td>
-              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{r.rango}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** Two-column term/definition reference table — same read-only pattern as DataDictTable, different shape. */
-function GlossaryTable({ rows }: { rows: { term: string; def: string }[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-        <thead>
-          <tr>
-            {["Término", "Definición"].map((h) => (
-              <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.term}>
-              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-semibold">{r.term}</td>
-              <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{r.def}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+import { INSTRUMENTS } from "@/domain/finance/instruments";
+import {
+  BlankTable,
+  DataDictTable,
+  FlagCallout,
+  FlowStep,
+  GlossaryTable,
+  GuiaHeader,
+  InfoNote,
+  InsumosEntregables,
+  InstrumentsTable,
+  MatrixTable,
+  PreguntasAbiertas,
+  Section,
+  SubSection,
+} from "./GuiaShared";
 
 export function GuiaPasanteDia1() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
-        <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
-        <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 1 — Tarificación 2027 y portafolio de mínima varianza
-        </p>
-        <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de subir tu tarifa o construir tu portafolio: te explica exactamente
-          qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones.
-        </p>
-      </header>
+      <GuiaHeader
+        dia={1}
+        subtitulo="Tarificación 2027 y portafolio de mínima varianza"
+        intro="Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de subir tu tarifa o construir tu portafolio: te explica exactamente qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones."
+      />
 
       <InsumosEntregables
         insumos={[
@@ -223,7 +116,7 @@ export function GuiaPasanteDia1() {
               { col: "monto_uf_2021 / _2022 / _2023", desc: "Monto del siniestro, en UF (vacío si no hubo)", rango: "> 0 UF" },
             ]}
           />
-          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
+          <InfoNote>
             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-blue-accent)]">El desafío de transferibilidad</p>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               Este dataset está en UF y corresponde a 2021-2023 — varios años antes de 2027, el año de este ejercicio. Usarlo como
@@ -244,7 +137,7 @@ export function GuiaPasanteDia1() {
                 antes de usar un dataset de otro país como referencia.
               </li>
             </ul>
-          </div>
+          </InfoNote>
         </SubSection>
 
         <SubSection title="De la prima pura a la prima comercial" accent="act">
@@ -504,69 +397,12 @@ export function GuiaPasanteDia1() {
             &ldquo;Rendimiento EA&rdquo; queda en &ldquo;?&rdquo; — el valor del cupón está en su columna &ldquo;Nota&rdquo;; para el TES UVR 8 años esa
             columna sigue mostrando el rendimiento neto de inflación, su atractivo real por estar indexado a la UVR.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  {["ID", "Instrumento", "Rendimiento EA", "Volatilidad anual", "Plazo", "Nota"].map((h) => (
-                    <th
-                      key={h}
-                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {INSTRUMENTS.map((ins) => (
-                  <tr key={ins.id}>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 font-mono">{ins.id}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.nombre}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{displayYieldLabel(ins)}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(ins.volAnual * 100).toFixed(1)}%</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.plazoM >= 400 ? "sin venc. fijo" : `${ins.plazoM} meses`}</td>
-                    <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <InstrumentsTable />
           <p>
             <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la pieza que necesitas para calcular la varianza de cualquier combinación
             de pesos (ver sección 4).
           </p>
-          <div className="overflow-x-auto">
-            <table className="border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-              <thead>
-                <tr>
-                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5" />
-                  {INSTRUMENT_IDS.map((id) => (
-                    <th
-                      key={id}
-                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
-                    >
-                      {id}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COVARIANCE_MATRIX.map((row, i) => (
-                  <tr key={INSTRUMENT_IDS[i]}>
-                    <td className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 font-mono font-semibold text-[var(--color-brand-blue-accent)]">
-                      {INSTRUMENT_IDS[i]}
-                    </td>
-                    {row.map((v, j) => (
-                      <td key={INSTRUMENT_IDS[j]} className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">
-                        {v.toFixed(6)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <MatrixTable />
         </FlowStep>
 
         <FlowStep n="2" title="5.2 · Tus pesos — plantilla en blanco">
@@ -575,14 +411,12 @@ export function GuiaPasanteDia1() {
             rows={INSTRUMENTS.length}
             note="Aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) está en la sección 5.1."
           />
-          <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
-            <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Restricción — </span>
-              tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que
-              no lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
-              retroalimentación mientras ajustas tus pesos.
-            </p>
-          </div>
+          <FlagCallout>
+            <span className="font-semibold">Restricción — </span>
+            tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que
+            no lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
+            retroalimentación mientras ajustas tus pesos.
+          </FlagCallout>
         </FlowStep>
 
         <FlowStep n="3" title="5.3 · La nota — plantilla de calificación">

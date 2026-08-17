@@ -4,6 +4,7 @@ import { GuiaPasanteDia1 } from "@/components/team/GuiaPasanteDia1";
 import { GuiaPasanteDia2 } from "@/components/team/GuiaPasanteDia2";
 import { GuiaPasanteDia3 } from "@/components/team/GuiaPasanteDia3";
 import { GuiaPasanteDia4 } from "@/components/team/GuiaPasanteDia4";
+import { GuiaFooter } from "@/components/team/GuiaShared";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { LockIcon } from "@/components/ui/icons";
 
@@ -46,6 +47,8 @@ export default async function GuiaPasantePage({ params }: { params: Promise<{ n:
       ) : (
         <p className="text-sm text-[var(--color-brand-text-secondary)]">La guía del pasante para este día todavía no está disponible.</p>
       )}
+
+      <GuiaFooter />
     </main>
   );
 }
