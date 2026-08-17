@@ -171,10 +171,24 @@ export function GuiaPasanteDia2() {
 
         <SubSection title="Estimar el costo de siniestros de 2027: Expected Loss Ratio" accent="act">
           <p>
-            En Día 1 no existía todavía ninguna reserva que estimar — el año ni siquiera había ocurrido. Ahora que el 2027 ya pasó, tu cartera
-            empieza a mostrar siniestros reales, pero — igual que en cualquier aseguradora — no todos se han avisado todavía (la misma opacidad de
-            IBNR que ya conoces de Día 1). Una <strong>reserva técnica</strong> es justamente eso: un estimado de lo que falta por conocerse, para
-            que el Costo de Siniestros que reportas en tu P&amp;G (sección 3) se acerque al costo real del año y no solo a la porción ya avisada.
+            Ahora que el 2027 ya pasó, tu cartera empieza a mostrar siniestros reales, pero — igual que en cualquier aseguradora — todavía no
+            conoces con certeza cuánto te van a costar en total. La cifra que persigues es la siniestralidad <strong>última</strong>: el costo
+            final de los siniestros del año, una vez que todos estén completamente resueltos. Hasta que eso ocurra, dos reservas cubren la
+            distancia entre lo que ya sabes y esa cifra final:
+          </p>
+          <ul className="list-disc pl-5">
+            <li>
+              <strong>Reserva de siniestros avisados (o reserva de aviso).</strong> Cubre los siniestros que ya se reportaron, pero cuyo costo
+              final todavía puede seguir ajustándose — el siniestro es un hecho conocido, su valor exacto no siempre lo es.
+            </li>
+            <li>
+              <strong>Reserva IBNR (Incurred But Not Reported).</strong> Cubre los siniestros que ya ocurrieron dentro del año, pero que la
+              aseguradora todavía ni siquiera conoce — no se han avisado.
+            </li>
+          </ul>
+          <p>
+            En este ejercicio, el monto de un siniestro ya avisado se conoce con certeza — tu trabajo se concentra en estimar la reserva IBNR, y el
+            Costo de Siniestros que reportas en tu P&amp;G (sección 3) debe reflejar esa siniestralidad última, no solo lo ya avisado.
           </p>
           <p>
             Con un solo año de experiencia propia, apoyarte solo en tus propios siniestros avisados todavía es delicado — hay poca información, y
@@ -199,15 +213,10 @@ export function GuiaPasanteDia2() {
               fórmula supone, no necesariamente lo que el riesgo real de tu cartera produjo.
             </li>
             <li>
-              <strong>El que tu propio modelo de frecuencia × severidad de Día 1 implica para las pólizas que realmente ganaste</strong> (no el
-              universo completo): la razón entre la prima pura que estimaste para ellas y la prima <strong>devengada</strong> que le corresponde
-              (el 80% de lo que cobraste por ellas — ver Resultado Técnico, sección 3). Es específico de tu cartera y de tu propio modelo, pero
-              hereda cualquier sesgo que ese modelo ya tuviera.
-              <div className="mt-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3 text-center">
-                <p className="font-[family-name:var(--font-condensed)] text-xs font-bold text-[var(--color-brand-blue-accent)] sm:text-sm">
-                  Loss Ratio Esperado (propio) = Σ Prima Pura estimada (pólizas ganadas) ÷ Σ Prima Devengada (pólizas ganadas)
-                </p>
-              </div>
+              <strong>La brecha entre tu severidad estimada y la real, en los casos que ya se avisaron.</strong> Para las pólizas de tu propia
+              cartera con un siniestro avisado en 2027, ya puedes comparar la severidad que asumiste al tarificar contra la severidad real de ese
+              siniestro — si tu estimación quedó sistemáticamente por debajo (o por encima), tienes una señal concreta de hacia dónde ajustar tu
+              loss ratio asumido, aunque no te diga nada sobre la frecuencia de lo que todavía no se ha avisado.
             </li>
             <li>
               <strong>El loss ratio real de todo el mercado del 2027</strong> — siniestros reales sobre prima devengada real, sumados entre los
@@ -329,8 +338,9 @@ export function GuiaPasanteDia2() {
               verdadero.
             </li>
             <li>
-              <strong>Tu propio modelo de Día 1 ya trae un Loss Ratio Esperado implícito — no lo inventes desde cero.</strong> Compara la prima
-              pura que tú mismo estimaste para las pólizas que ganaste contra lo que realmente cobraste por ellas; esa razón es tu ELR propio.
+              <strong>Ya tienes una primera señal en tus propios siniestros avisados — úsala para calibrar, no para reemplazar tu ELR.</strong> En
+              las pólizas de tu cartera con un siniestro avisado, compara la severidad que asumiste al tarificar contra la severidad real de ese
+              siniestro; una brecha sistemática es una pista de hacia dónde ajustar, aunque no te diga nada sobre lo que todavía no se ha avisado.
             </li>
             <li>
               <strong>No es el mismo número para todo el cohorte, y no es necesariamente el 55% de la fórmula de referencia.</strong> Ese 55% es
