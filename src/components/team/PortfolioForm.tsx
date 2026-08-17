@@ -112,7 +112,7 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
         rendimiento más alto para que valga la pena — perseguir el rendimiento nominal más alto (acciones) sin
         cuidar la volatilidad puede darte una nota peor que un portafolio más balanceado. La volatilidad de cada
         instrumento no se muestra aquí directamente — puedes deducirla de la diagonal de la matriz de covarianza
-        (pestaña de instrumentos, arriba). Si te falta caja en algún mes, el sistema cubre la diferencia vendiendo
+        (guía del pasante, sección 5.2). Si te falta caja en algún mes, el sistema cubre la diferencia vendiendo
         LIQ primero (gratis, es su función) y, si no alcanza, vendiendo el resto de tu portafolio empezando por lo
         menos volátil — pero verte obligado a vender es un castigo aparte en la nota, y vender acciones bajo
         presión pesa mucho más que vender un CDT o un TES.

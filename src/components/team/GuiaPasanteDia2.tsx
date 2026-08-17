@@ -1,5 +1,8 @@
 import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
+import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
 import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
+
+const INSTRUMENT_IDS = INSTRUMENTS.map((ins) => ins.id);
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -495,6 +498,41 @@ export function GuiaPasanteDia2() {
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{(ins.volAnual * 100).toFixed(1)}%</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5">{ins.plazoM >= 400 ? "sin venc. fijo" : `${ins.plazoM} meses`}</td>
                     <td className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">{ins.nota}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la volatilidad de cada uno (columna anterior) sale de su diagonal; el
+            resto de la matriz es lo que hace que combinar instrumentos reduzca el riesgo más que cualquiera de ellos por separado.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+              <thead>
+                <tr>
+                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5" />
+                  {INSTRUMENT_IDS.map((id) => (
+                    <th
+                      key={id}
+                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
+                    >
+                      {id}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {COVARIANCE_MATRIX.map((row, i) => (
+                  <tr key={INSTRUMENT_IDS[i]}>
+                    <td className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 font-mono font-semibold text-[var(--color-brand-blue-accent)]">
+                      {INSTRUMENT_IDS[i]}
+                    </td>
+                    {row.map((v, j) => (
+                      <td key={INSTRUMENT_IDS[j]} className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">
+                        {v.toFixed(6)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
