@@ -394,6 +394,10 @@ export function GuiaPasanteDia2() {
           <li>¿Qué otras variables (más allá del historial de siniestros) usarías para diferenciar la retarifación de 2028 de la de 2027?</li>
           <li>¿Cómo cambiaría tu calendario de portafolio si tu horizonte no fuera de 2 años sino de 10?</li>
           <li>¿Qué le pasaría a tu Resultado de Inversiones si una recesión bajara el rendimiento de los instrumentos más riesgosos del menú?</li>
+          <li>
+            ACC tiene el rendimiento nominal más alto del menú, pero un portafolio 100% en ACC no gana la nota de Rendimiento ajustado — ¿por qué? ¿Y qué le
+            pasaría a tus notas de Cumplimiento de Caja Mínima y Venta forzada en los meses antes de que esa posición complete su primer ciclo de 12 meses?
+          </li>
         </PreguntasAbiertas>
       </Section>
 
@@ -409,14 +413,15 @@ export function GuiaPasanteDia2() {
             rowLabels={PYG_ROWS}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
             formulaNotes={[
-              "RPND constituida = 20% × Prima emitida.",
-              "Prima devengada = Prima emitida − RPND constituida (80% exacto en 2027, porque no hay un año anterior del que liberar nada — esto cambia a partir del 2028).",
-              "Gastos de adquisición / Comisiones / administrativos = los mismos porcentajes de la prima emitida que usaste para tu prima comercial en Día 1.",
-              "Resultado Técnico = Prima devengada − Costo − Gadq − Gcom (sin el gasto administrativo).",
-              "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
-              "Utilidad antes de impuestos = Resultado Industrial + Resultado de inversiones.",
-              "Impuesto = 30% × máx(0, Utilidad antes de impuestos) — nunca negativo.",
-              "Resultado de inversiones sale de tu calendario de portafolio (secciones 5.2-5.6), no de una fórmula aparte.",
+              "RPND constituida. Cuando emites una póliza cobras la prima completa por adelantado, pero la cobertura se presta a lo largo del año siguiente — a cierre de 2027 todavía le debes al asegurado varios meses de protección. La RPND constituida es la porción de esa prima emitida que reservas porque corresponde a riesgo que aún no has corrido: no puedes reconocerla como ingreso ganado todavía. En este ejercicio esa porción es un 20% fijo de la prima emitida, una simplificación del cálculo pro-rata real.",
+              "Prima devengada. Es el complemento de lo anterior: la parte de la prima emitida que sí corresponde a cobertura ya prestada durante el año, y que por tanto sí es ingreso ganado. En 2027 equivale exactamente al 80% de la prima emitida, porque es el primer año del ejercicio — no hay una reserva de un año anterior de la que liberar nada todavía. Desde 2028 esto deja de ser tan directo: a la prima devengada del año también se le suma lo que se libera de la reserva constituida el año anterior, porque esa cobertura ya se prestó.",
+              "Gastos de adquisición / Comisiones / administrativos. Estos tres gastos se calculan como el mismo porcentaje de la prima emitida que usaste en Día 1 para armar tu prima comercial — ahí los sumaste como recargos para fijar el precio; acá los restas como el gasto real que efectivamente representan. Es la misma tasa mirada desde el otro lado del negocio: primero como lo que le cobras al asegurado, ahora como lo que te cuesta operar.",
+              "Resultado Técnico. Mide si el negocio de asumir riesgo, aislado del resto de la operación, es rentable por sí solo: lo que devengaste de prima, menos lo que pagaste en siniestros, menos lo que gastaste en colocar y adquirir las pólizas. El gasto administrativo queda deliberadamente afuera de esta línea — no es un costo de suscribir riesgo, sino de sostener la compañía como estructura, y por eso se resta más abajo.",
+              "Resultado Industrial. Toma el Resultado Técnico y le resta el gasto administrativo, el costo de operar la aseguradora como empresa, independiente de cuántas pólizas coloques. Es la utilidad completa del negocio asegurador — suscripción más administración — antes de mezclarla con lo que ganaste o perdiste invirtiendo el dinero de tus reservas y tu capital.",
+              "Resultado de inversiones. Esta línea no sale de una fórmula del P&G: sale directamente de simular tu calendario de decisiones de portafolio mes a mes contra la caja real (secciones 5.2 a 5.6) — depende de qué instrumentos elegiste, cuánto rindieron y qué tan bien tu caja acompañó esas decisiones.",
+              "Utilidad antes de impuestos. Suma el Resultado Industrial (lo que ganaste asegurando y administrando la compañía) con el Resultado de Inversiones (lo que ganaste o perdiste invirtiendo mientras tanto) — una aseguradora gana por los dos caminos a la vez, y esta línea los junta antes de pagar impuestos.",
+              "Impuesto. Se calcula como el 30% de la utilidad antes de impuestos, pero solo cuando esa utilidad es positiva: un año que cierra en pérdida no genera impuesto por pagar, ni tampoco una devolución — simplemente no hay base sobre la cual tributar.",
+              "Utilidad neta. Es lo que queda para la aseguradora después de restar el impuesto a la utilidad antes de impuestos — la línea final del P&G, y la que resume en un solo número si el año, entre suscripción, administración e inversiones, fue rentable.",
             ]}
           />
         </FlowStep>
@@ -442,19 +447,35 @@ export function GuiaPasanteDia2() {
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja − Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Vencimientos en caja incluye tanto lo que vence de verdad como el cupón anual de TES3/TES UVR 8 mientras siguen abiertos."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja + Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Inversión Neta se suma, no se resta, porque su signo ya lleva la dirección del efectivo: negativa el mes que inviertes un excedente (sale caja hacia el portafolio), positiva el mes que necesitas cubrir un faltante (entra efectivo a la caja) — ver la nota de abajo."
           />
+          <InfoNote>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Qué cuenta como "Vencimientos en caja" — </span>
+              son tres fuentes distintas de efectivo que libera tu portafolio ese mes, no solo lo que vence de verdad. <strong>(1)</strong> Un instrumento
+              (CDT90, TES1, TES3, TESUVR8) que llega a su propio plazo (3, 12, 36 o 96 meses): todo su valor en libros se libera como caja ese mes; si es TES3
+              o TESUVR8, su último cupón viaja empaquetado junto con el principal, como un solo pago final. <strong>(2)</strong> El cupón anual de una
+              posición TES3 o TESUVR8 que sigue abierta: cada 12 meses desde que se fondeó, paga en efectivo un cupón (su valor en libros × su tasa) sin que
+              la posición venza ni se reduzca — el principal se queda invertido exactamente igual, solo entra a caja ese pedazo de rendimiento.{" "}
+              <strong>(3)</strong> LIQ, que el motor trata como si "venciera" cada mes: a diferencia de los bonos, que solo liberan caja en su propio plazo,
+              cualquier saldo asignado a LIQ se cuenta como vencimiento el mes siguiente a que entró. Por eso vas a ver valores en esta columna casi desde el
+              Mes 1 — mucho antes de que el primer CDT90 pueda vencer de verdad — y no es un error: LIQ necesita comportarse como "disponible de inmediato"
+              cada mes, y así es como el motor modela esa disponibilidad.
+            </p>
+          </InfoNote>
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
               primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
               compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
-              (Caja Disponible − Caja Mínima) es la Inversión Neta de ese mes, aplicada según el checkpoint vigente ese mes en tu calendario de la sección
-              5.3 — nunca es la Prima Cobrada cruda.
+              (Caja Disponible − Caja Mínima) se invierte según el checkpoint vigente ese mes en tu calendario de la sección 5.3 — nunca es la Prima Cobrada
+              cruda — y la Inversión Neta de ese mes queda registrada en <strong>negativo</strong>, por ese mismo monto: es efectivo que salió de la caja
+              hacia el portafolio, no un ingreso.
               La Caja Final nunca queda libre: siempre termina siendo exactamente esa Caja Mínima, ni un peso más ni menos. Si la Caja Disponible no alcanza a
               cubrirla, no hay nada que invertir ese mes — en su lugar se drena primero LIQ (sin costo), luego se vende el resto del portafolio empezando por
               lo menos volátil (penaliza tu nota de Venta forzada), y si aun así no alcanza, se compromete Capital Social (penaliza tu nota de Cumplimiento de
-              Caja Mínima) — nunca se queda la Caja Mínima sin cubrir.
+              Caja Mínima); ese faltante cubierto queda registrado en la Inversión Neta en <strong>positivo</strong> — efectivo que entró a la caja ese mes.
+              Nunca se queda la Caja Mínima sin cubrir.
             </p>
           </InfoNote>
           <FlagCallout>
@@ -465,6 +486,30 @@ export function GuiaPasanteDia2() {
             eso, una nota de ALM peor). Cuando reportes el P&G real, vas a necesitar razonar cómo cambiarían estas cifras con tu prima real — la
             plataforma no te lo resuelve, aunque te muestra ambas corridas lado a lado en los resultados objetivos.
           </FlagCallout>
+          <InfoNote>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">
+                ¿El Resultado de inversiones del P&G usa el rendimiento real o el rendimiento ajustado por riesgo?{" "}
+              </span>
+              El real. Resultado de inversiones (sección 5.1) es el ingreso de inversión que tu portafolio efectivamente devengó ese año dentro de esta
+              simulación — la suma mes a mes de lo que rindió cada posición (intereses, cupones, crecimiento de las acciones), un valor en pesos, sin ningún
+              descuento por riesgo. El "Rendimiento ajustado por riesgo" de la sección 5.5 es una nota aparte, en escala 0-100, que solo califica qué tan
+              bien armaste tu calendario de decisión — nunca entra como cifra al P&G.
+            </p>
+            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula el rendimiento ajustado por riesgo — </span>
+              parte del rendimiento efectivo anualizado que tu portafolio realmente generó a lo largo de los 60 meses de esta simulación (el ingreso total
+              acumulado, convertido a una tasa anual equivalente) y le resta dos penalizaciones: 0.35 × la volatilidad promedio de lo que tuviste invertido
+              (ponderada por cuánto tuviste en libros de cada instrumento a lo largo del horizonte, no solo tu asignación inicial), y 0.03 × qué tan
+              concentrado quedó tu riesgo en un solo instrumento (0 = tu exposición fuera de LIQ está repartida pareja entre los demás instrumentos del
+              menú, 1 = está toda en uno solo; LIQ no cuenta para esto, porque mantener caja no es una apuesta concentrada, es simplemente no tomar riesgo).
+              El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo — ambos son ese mismo rendimiento ajustado por riesgo, pero medido
+              para dos carteras de referencia corridas por este mismo motor: el piso es 100% LIQ (rendimiento ajustado ≈ 4.6%, el costo de no tomar ningún
+              riesgo), y el techo es una mezcla pareja 25/25/25/25 entre CDT90, TES1, TES3 y TESUVR8 (rendimiento ajustado ≈ 8.9%, la mejor combinación
+              diversificada del menú). Concentrarte en un solo instrumento — incluso en TESUVR8, el de mejor rendimiento ajustado individualmente — rinde
+              menos que ese techo una vez se aplica el descuento por concentración.
+            </p>
+          </InfoNote>
         </FlowStep>
 
         <FlowStep n="5" title="5.5 · Las 4 notas — plantilla de calificación">
