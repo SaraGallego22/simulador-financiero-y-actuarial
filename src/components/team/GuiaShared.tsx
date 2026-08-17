@@ -127,7 +127,7 @@ export function InsumosEntregables({ insumos, entregables }: { insumos: string[]
 /** Yellow reflection callout — questions that widen the team's thinking beyond the graded/objective criteria. Never scored, so framed explicitly as optional. Chat-bubble badge overlapping the corner instead of a plain heading. */
 export function PreguntasAbiertas({ children }: { children: ReactNode }) {
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-yellow)] px-5 pb-4 pt-6 print:break-inside-avoid">
+    <div className="relative rounded-[var(--radius-lg)] bg-[var(--color-brand-yellow)] px-5 pb-4 pt-6 print:break-inside-avoid">
       <span className="absolute left-4 top-0 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-brand-blue)] text-white shadow-[var(--shadow-sm)]">
         <ChatIcon className="h-4 w-4" />
       </span>
