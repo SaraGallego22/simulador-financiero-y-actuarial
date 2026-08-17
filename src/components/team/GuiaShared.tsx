@@ -341,15 +341,18 @@ export function InstrumentsTable() {
 }
 
 /** Covariance matrix, heat-mapped like a spreadsheet: the diagonal (each instrument's own variance) tinted yellow so it reads at a glance as "this is the variance column the volatilities above come from," same idea as the printed guide's simulation-matrix figures. Shared between Días 1 and 2 (same matrix, same table markup, previously duplicated). */
+const matrixThClass = "border-b border-r border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-3.5 py-2.5 text-left font-semibold text-[var(--color-brand-blue-accent)] last:border-r-0";
+const matrixTdClass = "border-b border-r border-dashed border-[var(--color-brand-gray-light)] px-3.5 py-2.5 last:border-r-0";
+
 export function MatrixTable() {
   return (
     <div className={`${tableWrapClass} overflow-x-auto`}>
-      <table className={tableClass}>
+      <table className={`${tableClass} border-spacing-0`}>
         <thead>
           <tr>
-            <th className={`${thClass} border-r-2`} />
+            <th className={`${matrixThClass} border-r-2`} />
             {INSTRUMENT_IDS.map((id) => (
-              <th key={id} className={thClass}>
+              <th key={id} className={matrixThClass}>
                 {id}
               </th>
             ))}
@@ -358,11 +361,11 @@ export function MatrixTable() {
         <tbody>
           {COVARIANCE_MATRIX.map((row, i) => (
             <tr key={INSTRUMENT_IDS[i]}>
-              <td className={`${tdClass} border-r-2 bg-[var(--color-brand-blue-light)] font-mono font-semibold text-[var(--color-brand-blue-accent)]`}>{INSTRUMENT_IDS[i]}</td>
+              <td className={`${matrixTdClass} border-r-2 bg-[var(--color-brand-blue-light)] font-mono font-semibold text-[var(--color-brand-blue-accent)]`}>{INSTRUMENT_IDS[i]}</td>
               {row.map((v, j) => (
                 <td
                   key={INSTRUMENT_IDS[j]}
-                  className={`${tdClass} text-[var(--color-brand-text-secondary)] ${i === j ? "bg-[var(--color-brand-yellow)]/25 font-semibold" : ""}`}
+                  className={`${matrixTdClass} text-[var(--color-brand-text-secondary)] ${i === j ? "bg-[var(--color-brand-yellow)]/25 font-semibold" : ""}`}
                 >
                   {v.toFixed(6)}
                 </td>
