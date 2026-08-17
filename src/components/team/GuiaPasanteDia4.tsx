@@ -1,36 +1,11 @@
 import { SECTOR_DIMENSIONS } from "@/domain/grading/sectors";
-import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
-
-function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 print:break-inside-avoid">
-      <h2 className="mb-3 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {n} · {title}
-      </h2>
-      <div className="flex flex-col gap-3 text-sm text-[var(--color-foreground)]">{children}</div>
-    </section>
-  );
-}
-
-function SubSection({ title, accent, children }: { title: string; accent: "act" | "fin"; children: React.ReactNode }) {
-  return (
-    <div
-      className={`rounded border-l-4 p-3 ${accent === "act" ? "border-l-[var(--color-brand-cyan)] bg-[var(--color-brand-cyan-light)]" : "border-l-[var(--color-brand-gray)] bg-[var(--color-brand-blue-light)]"}`}
-    >
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        {accent === "act" ? "Actuarial — " : "Financiero — "}
-        {title}
-      </p>
-      <div className="flex flex-col gap-2 text-sm">{children}</div>
-    </div>
-  );
-}
+import { BlankTable, FlowStep, GuiaHeader, InsumosEntregables, PreguntasAbiertas, Section, SubSection, tableWrapClass } from "./GuiaShared";
 
 function ScoreCard({ label, formula }: { label: string; formula: string }) {
   return (
-    <div className="rounded border border-[var(--color-brand-gray-light)] p-2">
+    <div className={`${tableWrapClass} p-2`}>
       <p className="text-xs text-[var(--color-brand-text-secondary)]">{label}</p>
-      <p className="my-1 flex h-8 items-center rounded border border-dashed border-[var(--color-brand-gray-light)] px-2 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
+      <p className="my-1 flex h-8 items-center rounded-full border-2 border-dashed border-[var(--color-brand-gray-light)] px-3 font-[family-name:var(--font-condensed)] text-lg font-bold text-[var(--color-brand-text-secondary)]">
         &nbsp;
       </p>
       <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">{formula}</p>
@@ -38,52 +13,14 @@ function ScoreCard({ label, formula }: { label: string; formula: string }) {
   );
 }
 
-function BlankTable({ headers, rows, note }: { headers: string[]; rows: number; note?: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-[var(--color-brand-gray-light)] text-xs">
-          <thead>
-            <tr>
-              {headers.map((h) => (
-                <th key={h} className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rows }).map((_, i) => (
-              <tr key={i}>
-                {headers.map((h) => (
-                  <td key={h} className="h-8 border border-[var(--color-brand-gray-light)] px-2 py-1.5">
-                    &nbsp;
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {note && <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">{note}</p>}
-    </div>
-  );
-}
-
 export function GuiaPasanteDia4() {
   return (
     <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
-      <header className="rounded-lg border-t-8 border-t-[var(--color-brand-gray)] bg-[var(--color-brand-surface)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">Pasantía Técnica · Seguros SURA</p>
-        <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-3xl font-bold text-[var(--color-brand-blue)]">Guía del pasante</h1>
-        <p className="mt-1 font-[family-name:var(--font-condensed)] text-lg font-semibold text-[var(--color-brand-blue-accent)]">
-          Día 4 — Solvencia, dividendos y analítica sectorial
-        </p>
-        <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
-          Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de reportar tu solvencia o enviar tu recomendación sectorial: te
-          explica exactamente qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta — sin resolverte el ejercicio.
-        </p>
-      </header>
+      <GuiaHeader
+        dia={4}
+        subtitulo="Solvencia, dividendos y analítica sectorial"
+        intro="Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de reportar tu solvencia o enviar tu recomendación sectorial: te explica exactamente qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta — sin resolverte el ejercicio."
+      />
 
       <InsumosEntregables
         insumos={[
