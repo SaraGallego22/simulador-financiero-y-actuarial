@@ -35,7 +35,7 @@ export const TAB_NOTES: Record<
       "Este portafolio de mínima varianza es una decisión aparte del calendario de inversión real (que se somete en Día 2, junto con tus cifras reales de prima y siniestros) — es tu presentación al regulador antes de escribir una sola póliza.",
   },
   2: {
-    sim: "Ya conoces el resultado y el calce del 2027. Ajusta tu modelo de tarificación con tu propio historial de siniestros —ahora es una variable adicional— y sube un nuevo CSV con id_expuesto,prima para los mismos 10.000.000 de expuestos.",
+    sim: "Ya conoces el resultado y el calce del 2027. Ajusta tu modelo de tarificación con tu propio historial de siniestros —ahora es una variable adicional— y sube un nuevo CSV con id_expuesto,prima para los mismos 1.000.000 de expuestos.",
     portfolio:
       "Ahora que ya conoces tus cifras reales de prima y siniestros del 2027, arma el calendario de decisión de tu portafolio real — esta es la decisión que se califica como Nota ALM.",
   },

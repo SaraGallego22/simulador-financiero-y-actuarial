@@ -33,6 +33,136 @@ function TabNote({ children }: { children: string }) {
   );
 }
 
+type MinVarResult = { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number };
+
+/** Shared by the current day's "obj" tab and Día 2's "Resultados 2027" tab (which shows this same card for Día 1). */
+function ObjectiveResultsCard({
+  yearLabel,
+  result,
+  rank,
+  rankedCount,
+  reportDay,
+}: {
+  yearLabel: string;
+  result: { insuredCount: number; claimsCount: number; rejectedCount: number; extra: unknown } | null;
+  rank: number | null;
+  rankedCount: number;
+  /** Day whose CSV report to link — null hides the download (Día 4 has no report). */
+  reportDay: number | null;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
+      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+        Resultados objetivos — {yearLabel}
+      </h3>
+      {result ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Asegurados</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {result.insuredCount.toLocaleString("es-CO")}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Siniestros</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {result.claimsCount.toLocaleString("es-CO")}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Pólizas rechazadas</p>
+            <p
+              className={`font-[family-name:var(--font-condensed)] text-xl font-bold ${result.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
+            >
+              {result.rejectedCount.toLocaleString("es-CO")}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Posición en el top</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {rank != null ? `${rank} / ${rankedCount}` : "—"}
+            </p>
+          </div>
+          {(() => {
+            const extra = result.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+            if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
+            // capacityLimit = min(rawCapacityLimit, techo del admin) — si
+            // son iguales, tu propio capital fue lo que te limitó; si el
+            // límite aplicado es menor que tu capacidad por capital, fue
+            // el techo del admin el que te limitó primero.
+            const cappedByCapital = extra.rawCapacityLimit <= extra.capacityLimit;
+            return (
+              <div className="col-span-2 sm:col-span-4">
+                <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                  <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
+                  tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
+                  manteniendo un margen de solvencia de al menos 1.0x. El límite que realmente se aplicó fue{" "}
+                  {extra.capacityLimit.toLocaleString("es-CO")} — {cappedByCapital ? "tu propio capital fue lo que te limitó primero" : "el techo máximo que fijó el admin te limitó antes de llegar a tu propia capacidad"}.
+                  En el Día 4 puedes ver la conexión completa con tu solvencia real.
+                </p>
+              </div>
+            );
+          })()}
+          {reportDay != null && (
+            <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
+              <a
+                href={`/api/teams/report?day=${reportDay}`}
+                className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+              >
+                Descargar reporte de tu cartera (CSV)
+              </a>
+              <p className="text-xs text-[var(--color-brand-text-secondary)]">
+                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados objetivos para {yearLabel}.</p>
+      )}
+    </div>
+  );
+}
+
+/** Shared by the current day's "obj" tab (Día 1) and Día 2's "Resultados 2027" tab. */
+function MinVarianceResultCard({ result }: { result: MinVarResult | null }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+        Mínima varianza — tu portafolio vs. el óptimo real
+      </h3>
+      {result ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Retorno esperado</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {(result.achievedReturn * 100).toFixed(2)}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza lograda</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {result.achievedVariance.toFixed(6)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza mínima real</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
+              {result.trueVariance.toFixed(6)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">{result.score.toFixed(0)}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">Aún no tienes un portafolio de mínima varianza guardado.</p>
+      )}
+    </div>
+  );
+}
+
 export default async function TeamDayPage({
   params,
   searchParams,
@@ -82,16 +212,25 @@ export default async function TeamDayPage({
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
 
+  // Día 2's first tab shows Día 1's ("2027") objective results instead of a
+  // tariff/simulation panel — see DayTabBar's simLabel and the "sim" section
+  // below.
+  const showDay1Results = day === 2 && activeTab === "sim";
+
   // Also needed on "obj" (not just "top") to show this team's own rank
   // alongside its published objective results — see the "obj" section below.
+  // computeConsolidado returns every day's figures per team, so the same
+  // fetch covers Día 1's rank on Día 2's "Resultados 2027" tab too.
   const topRows =
-    activeTab === "top" || activeTab === "obj" ? await computeConsolidado((await getOrCreateActiveCohort()).id, true) : null;
+    activeTab === "top" || activeTab === "obj" || showDay1Results
+      ? await computeConsolidado((await getOrCreateActiveCohort()).id, true)
+      : null;
   // Real market-wide loss ratio for the closed 2027 market — reference for a
   // team's own Expected Loss Ratio estimate (Día 2's guide §2), not any
   // individual team's figures. See computeMarketLossRatio's doc comment.
   const marketLossRatio = day === 2 ? await computeMarketLossRatio((await getOrCreateActiveCohort()).id, 1) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs] = await Promise.all([
+  const [submission, publishedResult, allocation, deliverables, analyticsRecs, day1PublishedResult, day1Allocation] = await Promise.all([
     teamId
       ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
       : null,
@@ -104,21 +243,28 @@ export default async function TeamDayPage({
     teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
     teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
     teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
+    showDay1Results && teamId
+      ? prisma.teamSimResult.findFirst({
+          where: { teamId, published: true, simulationRun: { day: 1 } },
+          orderBy: { simulationRun: { createdAt: "desc" } },
+        })
+      : null,
+    showDay1Results && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 1 } } }) : null,
   ]);
 
   // This team's own rank by objective score for this day — ranked
   // separately from the "top" tab's combined nota (subjective grading
   // often isn't published yet when objective results first are).
-  let myObjectiveRank: number | null = null;
-  let objectiveRankedCount = 0;
-  if (topRows) {
+  function rankFor(forDay: number): { rank: number | null; rankedCount: number } {
+    if (!topRows) return { rank: null, rankedCount: 0 };
     const ranked = topRows
-      .filter((r) => r.perDay[day - 1]?.objective != null)
-      .sort((a, b) => (b.perDay[day - 1]!.objective ?? 0) - (a.perDay[day - 1]!.objective ?? 0));
-    objectiveRankedCount = ranked.length;
+      .filter((r) => r.perDay[forDay - 1]?.objective != null)
+      .sort((a, b) => (b.perDay[forDay - 1]!.objective ?? 0) - (a.perDay[forDay - 1]!.objective ?? 0));
     const idx = ranked.findIndex((r) => r.teamId === teamId);
-    myObjectiveRank = idx >= 0 ? idx + 1 : null;
+    return { rank: idx >= 0 ? idx + 1 : null, rankedCount: ranked.length };
   }
+  const { rank: myObjectiveRank, rankedCount: objectiveRankedCount } = rankFor(day);
+  const { rank: day1Rank, rankedCount: day1RankedCount } = showDay1Results ? rankFor(1) : { rank: null, rankedCount: 0 };
 
   // Día 4 retrospective: both years' capital-derived market-share limits
   // side by side, so a team whose growth was capped can connect it to the
@@ -172,17 +318,24 @@ export default async function TeamDayPage({
   // markowitz.ts. trueVariance is the minimum achievable at TARGET_RETURN —
   // the same fixed benchmark scoreMinVariance() grades against, so the two
   // numbers stay consistent.
-  let minVarResult: { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number } | null = null;
-  if (activeTab === "obj" && hasMinVariance && teamId && isMinVarianceAllocation(allocation?.allocation)) {
-    const weights = allocation!.allocation as Record<string, number>;
+  function minVarResultFor(weights: Record<string, number>): MinVarResult {
     const trueSolution = solveLongOnlyMinVariance(TARGET_RETURN);
-    minVarResult = {
+    return {
       weights,
       achievedVariance: portfolioVariance(weights),
       trueVariance: portfolioVariance(trueSolution),
       achievedReturn: portfolioExpectedReturn(weights),
       score: scoreMinVariance(weights),
     };
+  }
+  let minVarResult: MinVarResult | null = null;
+  if (activeTab === "obj" && hasMinVariance && teamId && isMinVarianceAllocation(allocation?.allocation)) {
+    minVarResult = minVarResultFor(allocation!.allocation as Record<string, number>);
+  }
+  // Día 1's minimum-variance result, shown on Día 2's "Resultados 2027" tab.
+  let day1MinVarResult: MinVarResult | null = null;
+  if (showDay1Results && teamId && isMinVarianceAllocation(day1Allocation?.allocation)) {
+    day1MinVarResult = minVarResultFor(day1Allocation!.allocation as Record<string, number>);
   }
 
   return (
@@ -202,22 +355,28 @@ export default async function TeamDayPage({
         </Link>
       </div>
 
-      <DayTabBar basePath="/day" day={day} activeTab={activeTab} includeSim={includeSim} includeSubj={false} />
+      <DayTabBar
+        basePath="/day"
+        day={day}
+        activeTab={activeTab}
+        includeSim={includeSim}
+        includeSubj={false}
+        simLabel={day === 2 ? "Resultados 2027" : undefined}
+      />
 
       {activeTab === "sim" && includeSim && (
         <div className="flex flex-col gap-4">
-          {day !== 1 && TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
-          <a
-            href="/api/universe/public-csv"
-            className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-          >
-            Descargar CSV público del universo
-          </a>
-          <p className="text-xs text-[var(--color-brand-text-secondary)]">
-            Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-          </p>
           {day === 1 && (
             <>
+              <a
+                href="/api/universe/public-csv"
+                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+              >
+                Descargar CSV público del universo
+              </a>
+              <p className="text-xs text-[var(--color-brand-text-secondary)]">
+                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+              </p>
               <a
                 href="/api/universe/chile-csv"
                 className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
@@ -231,19 +390,17 @@ export default async function TeamDayPage({
               </p>
             </>
           )}
-          {day !== 1 && (
-            <TariffUpload
-              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
-              day={day}
-              initialComplete={submission?.meanPremium != null}
-              // An outsourced tariff's premium is withheld from the team until
-              // this day's results are published — see hasPublishedResults()'s
-              // doc comment in lib/tariffAccess.ts. A self-priced tariff has
-              // no such restriction, it's the team's own number.
-              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
-              initialOutsourced={submission?.outsourced ?? false}
-              resultsPublished={!!publishedResult}
-            />
+          {day === 2 && (
+            <>
+              <ObjectiveResultsCard
+                yearLabel={SIMULATED_YEAR_LABEL[1]}
+                result={day1PublishedResult}
+                rank={day1Rank}
+                rankedCount={day1RankedCount}
+                reportDay={1}
+              />
+              <MinVarianceResultCard result={day1MinVarResult} />
+            </>
           )}
         </div>
       )}
@@ -271,6 +428,28 @@ export default async function TeamDayPage({
           )}
           {hasPortfolioSchedule && (
             <>
+              {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
+              <a
+                href="/api/universe/public-csv"
+                className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+              >
+                Descargar CSV público del universo
+              </a>
+              <p className="text-xs text-[var(--color-brand-text-secondary)]">
+                Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
+              </p>
+              <TariffUpload
+                key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+                day={day}
+                initialComplete={submission?.meanPremium != null}
+                // An outsourced tariff's premium is withheld from the team until
+                // this day's results are published — see hasPublishedResults()'s
+                // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+                // no such restriction, it's the team's own number.
+                initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+                initialOutsourced={submission?.outsourced ?? false}
+                resultsPublished={!!publishedResult}
+              />
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
               <PortfolioForm day={day} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} />
             </>
@@ -305,76 +484,13 @@ export default async function TeamDayPage({
 
       {activeTab === "obj" && (
         <div className="flex flex-col gap-4">
-        <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
-          <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-            Resultados objetivos — Día {day}
-          </h3>
-          {publishedResult ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Asegurados</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  {publishedResult.insuredCount.toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Siniestros</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  {publishedResult.claimsCount.toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Pólizas rechazadas</p>
-                <p
-                  className={`font-[family-name:var(--font-condensed)] text-xl font-bold ${publishedResult.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : "text-[var(--color-brand-blue-accent)]"}`}
-                >
-                  {publishedResult.rejectedCount.toLocaleString("es-CO")}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Posición en el top</p>
-                <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                  {myObjectiveRank != null ? `${myObjectiveRank} / ${objectiveRankedCount}` : "—"}
-                </p>
-              </div>
-              {(() => {
-                const extra = publishedResult.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
-                // capacityLimit = min(rawCapacityLimit, techo del admin) — si
-                // son iguales, tu propio capital fue lo que te limitó; si el
-                // límite aplicado es menor que tu capacidad por capital, fue
-                // el techo del admin el que te limitó primero.
-                const cappedByCapital = extra.rawCapacityLimit <= extra.capacityLimit;
-                return (
-                  <div className="col-span-2 sm:col-span-4">
-                    <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-                      <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
-                      tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
-                      manteniendo un margen de solvencia de al menos 1.0x. El límite que realmente se aplicó fue{" "}
-                      {extra.capacityLimit.toLocaleString("es-CO")} — {cappedByCapital ? "tu propio capital fue lo que te limitó primero" : "el techo máximo que fijó el admin te limitó antes de llegar a tu propia capacidad"}.
-                      En el Día 4 puedes ver la conexión completa con tu solvencia real.
-                    </p>
-                  </div>
-                );
-              })()}
-              {hasReport && (
-                <div className="col-span-2 sm:col-span-4 flex flex-col gap-1">
-                  <a
-                    href={`/api/teams/report?day=${day}`}
-                    className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-                  >
-                    Descargar reporte de tu cartera (CSV)
-                  </a>
-                  <p className="text-xs text-[var(--color-brand-text-secondary)]">
-                    Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados de este día.</p>
-          )}
-        </div>
+        <ObjectiveResultsCard
+          yearLabel={`Día ${day}`}
+          result={publishedResult}
+          rank={myObjectiveRank}
+          rankedCount={objectiveRankedCount}
+          reportDay={hasReport ? day : null}
+        />
 
         {day === 4 && capacityHistory.length > 0 && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
@@ -407,43 +523,7 @@ export default async function TeamDayPage({
           </div>
         )}
 
-        {hasMinVariance && (
-          <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              Mínima varianza — tu portafolio vs. el óptimo real
-            </h3>
-            {minVarResult ? (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div>
-                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Retorno esperado</p>
-                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                    {(minVarResult.achievedReturn * 100).toFixed(2)}%
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza lograda</p>
-                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                    {minVarResult.achievedVariance.toFixed(6)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Varianza mínima real</p>
-                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                    {minVarResult.trueVariance.toFixed(6)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Nota</p>
-                  <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-                    {minVarResult.score.toFixed(0)}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--color-brand-text-secondary)]">Aún no tienes un portafolio de mínima varianza guardado.</p>
-            )}
-          </div>
-        )}
+        {hasMinVariance && <MinVarianceResultCard result={minVarResult} />}
 
         {hasPortfolioSchedule && (
           <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
