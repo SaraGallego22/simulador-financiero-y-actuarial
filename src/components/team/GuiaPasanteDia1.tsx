@@ -1,5 +1,8 @@
 import { INSTRUMENTS, displayYieldLabel } from "@/domain/finance/instruments";
+import { COVARIANCE_MATRIX } from "@/domain/finance/markowitz";
 import { InsumosEntregables, PreguntasAbiertas, FlowStep } from "./GuiaShared";
+
+const INSTRUMENT_IDS = INSTRUMENTS.map((ins) => ins.id);
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
@@ -124,7 +127,7 @@ export function GuiaPasanteDia1() {
         </p>
         <p className="mt-4 text-sm text-[var(--color-brand-text-secondary)]">
           Esta es tu herramienta principal para abordar el reto de hoy. Léela antes de subir tu tarifa o construir tu portafolio: te explica exactamente
-          qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones — sin resolverte el ejercicio.
+          qué se va a calificar, con qué criterios, y qué conceptos debes tener en cuenta para tomar buenas decisiones.
         </p>
       </header>
 
@@ -152,9 +155,9 @@ export function GuiaPasanteDia1() {
             fijado para el resto del ejercicio — es la base de todo lo que vas a reportar el resto del ejercicio.
           </li>
           <li>
-            <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir una sola póliza, presentas al regulador el portafolio de
-            menor riesgo posible que aún alcance un rendimiento objetivo — una decisión aparte de cómo inviertas tu presupuesto real más adelante en el
-            ejercicio. Este portafolio de mínima varianza también alimenta tu tope de cuota de mercado del 2027 (ver sección 3).
+            <strong>Financiero — el portafolio de mínima varianza.</strong> Antes de escribir cualquier póliza, demuestra que puedes construir un
+            portafolio rentable con riesgo controlado — una decisión aparte de cómo inviertas tu presupuesto real más adelante en el ejercicio. Este
+            portafolio de mínima varianza también alimenta tu tope de cuota de mercado del 2027 (ver sección 3).
           </li>
         </ul>
         <p>
@@ -529,13 +532,48 @@ export function GuiaPasanteDia1() {
               </tbody>
             </table>
           </div>
+          <p>
+            <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la pieza que necesitas para calcular la varianza de cualquier combinación
+            de pesos (ver sección 4).
+          </p>
+          <div className="overflow-x-auto">
+            <table className="border-collapse border border-[var(--color-brand-gray-light)] text-xs">
+              <thead>
+                <tr>
+                  <th className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5" />
+                  {INSTRUMENT_IDS.map((id) => (
+                    <th
+                      key={id}
+                      className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)]"
+                    >
+                      {id}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {COVARIANCE_MATRIX.map((row, i) => (
+                  <tr key={INSTRUMENT_IDS[i]}>
+                    <td className="border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 font-mono font-semibold text-[var(--color-brand-blue-accent)]">
+                      {INSTRUMENT_IDS[i]}
+                    </td>
+                    {row.map((v, j) => (
+                      <td key={INSTRUMENT_IDS[j]} className="border border-[var(--color-brand-gray-light)] px-2 py-1.5 text-[var(--color-brand-text-secondary)]">
+                        {v.toFixed(6)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </FlowStep>
 
         <FlowStep n="2" title="5.2 · Tus pesos — plantilla en blanco">
           <BlankTable
             headers={["Instrumento (del menú de 5.1)", "% asignado"]}
             rows={INSTRUMENTS.length}
-            note="Aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) se te muestra en vivo en el formulario y también es descargable en CSV desde la pestaña de instrumentos — no se repite aquí por ser demasiado extensa para una plantilla en papel."
+            note="Aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) está en la sección 5.1."
           />
           <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2">
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
