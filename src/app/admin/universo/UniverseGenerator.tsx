@@ -66,7 +66,7 @@ function DatasetCard({
         <button
           onClick={onGenerate}
           disabled={loading}
-          className="rounded-full bg-[image:var(--gradient-brand-primary)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+          className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
         >
           {loading ? "Generando…" : latest ? "Regenerar" : "Generar"}
         </button>

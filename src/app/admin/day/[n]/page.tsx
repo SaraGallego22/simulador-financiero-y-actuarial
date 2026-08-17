@@ -400,7 +400,7 @@ export default async function AdminDayPage({
           <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[image:var(--gradient-brand-primary)] text-left text-white">
+                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Tarifa</th>
                   <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
@@ -1300,7 +1300,7 @@ export default async function AdminDayPage({
         <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[image:var(--gradient-brand-primary)] text-left text-white">
+              <tr className="bg-[var(--color-brand-blue)] text-left text-white">
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>

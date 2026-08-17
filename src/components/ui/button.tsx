@@ -22,10 +22,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 function variantClasses(variant: ButtonVariant, onDark: boolean): string {
   if (variant === "primary") {
-    // Gradient fill (brand blue -> vivid blue -> cyan) instead of a flat
-    // bg-color, so hover can't rely on a second bg-color swap — brightening
-    // (not dimming) on hover reads more energetic across a gradient.
-    return "bg-[image:var(--gradient-brand-primary)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-lg)] hover:brightness-110 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
+    return "bg-[var(--color-brand-blue)] text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-lg)] hover:brightness-110 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
   }
   if (variant === "secondary") {
     return "bg-[var(--color-brand-blue-accent)]/12 text-[var(--color-brand-blue-accent)] shadow-[var(--shadow-sm)] hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)] focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-[var(--color-brand-surface)]";
