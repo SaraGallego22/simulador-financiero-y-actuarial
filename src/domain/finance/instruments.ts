@@ -37,7 +37,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     yield: 0.115,
     volAnual: 0.07,
     plazoM: 36,
-    nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración. Paga cupón anual, a la par",
+    nota: "Cubre cola del desarrollo, mayor riesgo de tasa por duración. Paga cupón anual del 11.5%, a la par",
   },
   {
     id: "TESUVR8",
@@ -95,22 +95,22 @@ export function displayYield(ins: Instrument): number {
  * return figure computed from the true nominal `ins.yield` would let a
  * team back out the exact inflation rate by comparing the two.
  *
- * TES3 is framed as its own coupon payment ("Cupón X% anual") instead of a
- * bare yield — the same number either way (a coupon bond priced at par
- * always has coupon rate = yield, see isCouponBond()'s doc comment and
- * pvCouponCashflows() in alm.ts for the identity), but naming it as the
- * cash the position actually pays out each year is what a team needs to
- * apply the bond-pricing equation (VP = cupón × anualidad + VP del
- * principal) directly, rather than re-deriving the coupon from a labeled
- * "yield" first. TESUVR8 deliberately keeps the plain yield framing (still
- * net of inflation, per displayYield() above) — its own coupon-vs-yield
- * relationship is left for a team to work out, same trap as the rest of
- * displayYield()'s doc comment.
+ * TES3 leaves this column as "?" instead of a bare yield — its coupon rate
+ * (same number as the yield, since a coupon bond priced at par always has
+ * coupon rate = yield, see isCouponBond()'s doc comment and
+ * pvCouponCashflows() in alm.ts for the identity) is stated in its `nota`
+ * instead, so a team reads the cash the position actually pays out each
+ * year from there and applies the bond-pricing equation (VP = cupón ×
+ * anualidad + VP del principal) itself, rather than reading it off a
+ * ready-made "Rendimiento EA" label. TESUVR8 deliberately keeps the plain
+ * yield framing (still net of inflation, per displayYield() above) — its
+ * own coupon-vs-yield relationship is left for a team to work out, same
+ * trap as the rest of displayYield()'s doc comment.
  */
 export function displayYieldLabel(ins: Instrument): string {
   const pct = `${(displayYield(ins) * 100).toFixed(1)}%`;
   if (ins.id === "TESUVR8") return `Inflación + ${pct}`;
-  if (ins.id === "TES3") return `Cupón ${pct} anual`;
+  if (ins.id === "TES3") return "?";
   return pct;
 }
 

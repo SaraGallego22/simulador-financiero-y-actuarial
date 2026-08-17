@@ -21,7 +21,7 @@ export function Table({ className = "", children, ...props }: ComponentPropsWith
 function TableHead({ children }: { children: ReactNode }) {
   return (
     <thead className="sticky top-0 z-10">
-      <tr className="bg-[image:var(--gradient-brand-primary)] text-left text-white">{children}</tr>
+      <tr className="bg-[var(--color-brand-blue)] text-left text-white">{children}</tr>
     </thead>
   );
 }

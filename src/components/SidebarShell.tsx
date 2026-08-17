@@ -36,7 +36,7 @@ export function SidebarShell({
   return (
     <aside
       title={collapsed ? badge : undefined}
-      className={`flex shrink-0 flex-col bg-[image:var(--gradient-brand-sidebar)] text-white transition-[width] duration-200 print:hidden ${
+      className={`flex shrink-0 flex-col bg-[var(--color-brand-blue)] text-white transition-[width] duration-200 print:hidden ${
         collapsed ? "w-16" : "w-60"
       }`}
     >

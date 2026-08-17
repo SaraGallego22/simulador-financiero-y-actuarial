@@ -86,7 +86,7 @@ export function ConfirmModalHost({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => settle(true)}
                 className={`inline-flex h-9 cursor-pointer items-center justify-center rounded-[var(--radius-md)] px-4 text-sm font-medium text-white shadow-[var(--shadow-sm)] transition-all hover:shadow-[var(--shadow-md)] hover:brightness-90 ${
-                  pending.options.destructive ? "bg-[var(--color-brand-red)]" : "bg-[image:var(--gradient-brand-primary)]"
+                  pending.options.destructive ? "bg-[var(--color-brand-red)]" : "bg-[var(--color-brand-blue)]"
                 }`}
               >
                 {pending.options.confirmLabel ?? "Confirmar"}

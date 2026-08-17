@@ -83,16 +83,14 @@
   /* Card/panel background — replaces raw bg-white so surfaces darken with the theme */
   --color-brand-surface: var(--brand-surface);
 
-  /* Vivid tones + gradients for decorative/backdrop use only (sidebar,
-     primary buttons, SVG hero backgrounds) — never a solid
-     text/button fill on their own, same rule as --color-brand-cyan below.
-     Fixed across themes like --color-brand-blue, since they're gradient
-     stops rather than surface/text colors. */
+  /* Vivid tones for decorative/backdrop use only (SVG hero backgrounds) —
+     never a solid text/button fill on their own, same rule as
+     --color-brand-cyan below. Fixed across themes like --color-brand-blue,
+     since they're gradient stops rather than surface/text colors. Sidebar
+     and primary buttons are flat --color-brand-blue, not a gradient. */
   --color-brand-blue-vivid: #1e4bd8;
   --color-brand-cyan-vivid: #00c9e6;
   --color-brand-yellow-soft: #f0f26b;
-  --gradient-brand-primary: linear-gradient(135deg, var(--color-brand-blue) 0%, var(--color-brand-blue-vivid) 55%, var(--color-brand-cyan) 100%);
-  --gradient-brand-sidebar: linear-gradient(180deg, var(--color-brand-blue) 0%, var(--color-brand-blue-dark) 100%);
 
   /* Legibility pass: the default Tailwind type scale (12/14/16/18px) read
      too small/thin across the app. Bumped up two steps (round 2 after the
@@ -132,10 +130,9 @@
  *   fixed across themes (~5.6:1 on the dark surface).
  * - Brand blue as TEXT/BORDER on a surface must use --color-brand-blue-accent,
  *   not --color-brand-blue directly, or it disappears on dark surfaces.
- * - --color-brand-blue-vivid/-cyan-vivid/-yellow-soft and the --gradient-brand-*
- *   tokens are gradient/decorative-stop colors only (sidebar, primary
- *   buttons, SVG backgrounds) — never used as solid text or as a lone button
- *   fill, same restriction as brand cyan above.
+ * - --color-brand-blue-vivid/-cyan-vivid/-yellow-soft are gradient/decorative-
+ *   stop colors only (SVG hero backgrounds) — never used as solid text or as
+ *   a lone button fill, same restriction as brand cyan above.
  */
 
 body {

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { TariffUpload } from "@/components/team/TariffUpload";
 import { PortfolioForm } from "@/components/team/PortfolioForm";
 import { MinVarianceForm } from "@/components/team/MinVarianceForm";
-import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
 import { DayTabBar } from "@/components/DayTabBar";
@@ -207,7 +206,7 @@ export default async function TeamDayPage({
 
       {activeTab === "sim" && includeSim && (
         <div className="flex flex-col gap-4">
-          {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
+          {day !== 1 && TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
           <a
             href="/api/universe/public-csv"
             className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
@@ -232,26 +231,40 @@ export default async function TeamDayPage({
               </p>
             </>
           )}
-          <TariffUpload
-            key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
-            day={day}
-            initialComplete={submission?.meanPremium != null}
-            // An outsourced tariff's premium is withheld from the team until
-            // this day's results are published — see hasPublishedResults()'s
-            // doc comment in lib/tariffAccess.ts. A self-priced tariff has
-            // no such restriction, it's the team's own number.
-            initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
-            initialOutsourced={submission?.outsourced ?? false}
-            resultsPublished={!!publishedResult}
-          />
+          {day !== 1 && (
+            <TariffUpload
+              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+              day={day}
+              initialComplete={submission?.meanPremium != null}
+              // An outsourced tariff's premium is withheld from the team until
+              // this day's results are published — see hasPublishedResults()'s
+              // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+              // no such restriction, it's the team's own number.
+              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+              initialOutsourced={submission?.outsourced ?? false}
+              resultsPublished={!!publishedResult}
+            />
+          )}
         </div>
       )}
 
       {activeTab === "entreg" && (
         <div className="flex flex-col gap-4">
-          {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
           {hasMinVariance && (
             <>
+              {TAB_NOTES[day]?.sim && <TabNote>{TAB_NOTES[day].sim}</TabNote>}
+              <TariffUpload
+                key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+                day={day}
+                initialComplete={submission?.meanPremium != null}
+                // An outsourced tariff's premium is withheld from the team until
+                // this day's results are published — see hasPublishedResults()'s
+                // doc comment in lib/tariffAccess.ts. A self-priced tariff has
+                // no such restriction, it's the team's own number.
+                initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+                initialOutsourced={submission?.outsourced ?? false}
+                resultsPublished={!!publishedResult}
+              />
               {TAB_NOTES[day]?.portfolio && <TabNote>{TAB_NOTES[day].portfolio}</TabNote>}
               <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
             </>
@@ -465,7 +478,10 @@ export default async function TeamDayPage({
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Objetivo</th>
-                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
+                {/* Día 1 has no subjective grade at all (see MemberDayEvaluation's doc comment) — omit the column instead of showing "—" for every team, which would read as "not yet published" rather than "doesn't apply". */}
+                {day !== 1 && (
+                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Subjetivo</th>
+                )}
                 <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota del día</th>
               </Table.Head>
               <tbody>
@@ -480,7 +496,9 @@ export default async function TeamDayPage({
                         {r.teamName}
                       </td>
                       <td className="px-4 py-2">{r.perDay[day - 1]?.objective != null ? r.perDay[day - 1]!.objective!.toFixed(1) : "—"}</td>
-                      <td className="px-4 py-2">{r.perDay[day - 1]?.subjective != null ? r.perDay[day - 1]!.subjective!.toFixed(1) : "—"}</td>
+                      {day !== 1 && (
+                        <td className="px-4 py-2">{r.perDay[day - 1]?.subjective != null ? r.perDay[day - 1]!.subjective!.toFixed(1) : "—"}</td>
+                      )}
                       <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                         {r.perDay[day - 1]!.nota!.toFixed(1)}
                       </td>

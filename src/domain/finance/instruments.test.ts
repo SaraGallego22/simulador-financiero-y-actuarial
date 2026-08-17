@@ -90,8 +90,9 @@ describe("isCouponBond", () => {
 });
 
 describe("displayYieldLabel", () => {
-  it("frames TES3 as its own coupon payment, not a bare yield", () => {
-    expect(displayYieldLabel(INSTRUMENT_BY_ID.TES3)).toBe("Cupón 11.5% anual");
+  it("leaves TES3's yield as '?' — its coupon rate is stated in nota instead", () => {
+    expect(displayYieldLabel(INSTRUMENT_BY_ID.TES3)).toBe("?");
+    expect(INSTRUMENT_BY_ID.TES3.nota).toContain("11.5%");
   });
 
   it("keeps TESUVR8 on the plain (inflation-net) yield framing", () => {
