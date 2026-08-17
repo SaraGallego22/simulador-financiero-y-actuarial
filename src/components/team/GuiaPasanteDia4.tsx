@@ -15,7 +15,7 @@ function ScoreCard({ label, formula }: { label: string; formula: string }) {
 
 export function GuiaPasanteDia4() {
   return (
-    <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
+    <div className="flex flex-col gap-8 text-[var(--color-foreground)]">
       <GuiaHeader
         dia={4}
         subtitulo="Solvencia, dividendos y analítica sectorial"

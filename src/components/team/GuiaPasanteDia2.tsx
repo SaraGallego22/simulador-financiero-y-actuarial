@@ -76,7 +76,7 @@ function ScoreCard({ label, weight, formula }: { label: string; weight: string; 
 
 export function GuiaPasanteDia2() {
   return (
-    <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
+    <div className="flex flex-col gap-8 text-[var(--color-foreground)]">
       <GuiaHeader
         dia={2}
         subtitulo="P&G 2027, retarifación 2028 y portafolio real"

@@ -103,7 +103,7 @@ const BALANCE_ROWS = [
 
 export function GuiaPasanteDia3() {
   return (
-    <div className="flex flex-col gap-5 text-[var(--color-foreground)]">
+    <div className="flex flex-col gap-8 text-[var(--color-foreground)]">
       <GuiaHeader
         dia={3}
         subtitulo="Estado de resultados 2028/2029 (proy.) y Balance"
