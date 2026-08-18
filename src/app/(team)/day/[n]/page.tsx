@@ -5,7 +5,9 @@ import { TariffUpload } from "@/components/team/TariffUpload";
 import { PortfolioForm } from "@/components/team/PortfolioForm";
 import { MinVarianceForm } from "@/components/team/MinVarianceForm";
 import { DeliverablesForm } from "@/components/team/DeliverablesForm";
+import { DeliverablesReadOnly } from "@/components/team/DeliverablesReadOnly";
 import { AnalyticsForm } from "@/components/team/AnalyticsForm";
+import { PillTabBar } from "@/components/PillTabBar";
 import { LockIcon } from "@/components/ui/icons";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
@@ -157,9 +159,19 @@ function MinVarianceResultCard({ result }: { result: MinVarResult | null }) {
   );
 }
 
-export default async function TeamDayPage({ params }: { params: Promise<{ n: string }> }) {
+export default async function TeamDayPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ n: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { n } = await params;
+  const { tab } = await searchParams;
   const day = Number(n);
+  // Only Día 3 has tabs — "Respuestas Día 2" (default, reference) vs.
+  // "Entregables Día 3" (this day's own report form). See PillTabBar usage below.
+  const activeTab = tab === "d3" ? "d3" : "d2";
   const cohort = await getOrCreateActiveCohort();
   if (day > cohort.openDay) {
     return (
@@ -182,14 +194,29 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
     .filter((c) => c.tipo === "reporte")
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
+  // Día 2's own P&G/Balance lines, shown read-only on Día 3's "Respuestas Día 2" tab.
+  const day2ReportConcepts = conceptosDia("d2")
+    .filter((c) => c.tipo === "reporte")
+    .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
 
   // Real market-wide loss ratio for the closed 2027 market — reference for a
   // team's own Expected Loss Ratio estimate (Día 2's guide §2), not any
   // individual team's figures. See computeMarketLossRatio's doc comment.
   const marketLossRatio = day === 2 ? await computeMarketLossRatio(cohort.id, 1) : null;
 
-  const [submission, dayResult, allocation, deliverables, analyticsRecs, day1Result, day1Allocation, day2Result, day2Allocation, capacityHistory] =
-    await Promise.all([
+  const [
+    submission,
+    dayResult,
+    allocation,
+    deliverables,
+    analyticsRecs,
+    day1Result,
+    day1Allocation,
+    day2Result,
+    day2Allocation,
+    capacityHistory,
+    day2Deliverables,
+  ] = await Promise.all([
       teamId && (day === 1 || day === 2)
         ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
         : null,
@@ -227,9 +254,11 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
             select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
           })
         : [],
+      day === 3 && teamId && day2ReportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day: 2 } }) : [],
     ]);
 
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
+  const day2DeliverableValues = Object.fromEntries(day2Deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
     analyticsRecs.map((r) => [
       `${r.list}-${r.rank}`,
@@ -380,26 +409,40 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
 
         {day === 3 && (
           <>
-            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
+            <PillTabBar
+              tabs={[
+                { key: "d2", label: "Respuestas Día 2", href: `/day/3?tab=d2` },
+                { key: "d3", label: "Entregables Día 3", href: `/day/3?tab=d3` },
+              ]}
+              activeKey={activeTab}
+            />
 
-            <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[1]}
-              </h3>
-              {almScore ? (
-                <div className="flex flex-col gap-3">
-                  <AlmScoreTiles score={almScore} />
-                  {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
-                  {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
+            {activeTab === "d2" && (
+              <>
+                <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
+
+                <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                  <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                    ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[1]}
+                  </h3>
+                  {almScore ? (
+                    <div className="flex flex-col gap-3">
+                      <AlmScoreTiles score={almScore} />
+                      {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
+                      {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                      Aún no tienes un portafolio guardado, o las reservas correspondientes todavía no están disponibles.
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-sm text-[var(--color-brand-text-secondary)]">
-                  Aún no tienes un portafolio guardado, o las reservas correspondientes todavía no están disponibles.
-                </p>
-              )}
-            </div>
 
-            {reportConcepts.length > 0 && (
+                <DeliverablesReadOnly day={2} concepts={day2ReportConcepts} values={day2DeliverableValues} />
+              </>
+            )}
+
+            {activeTab === "d3" && reportConcepts.length > 0 && (
               <>
                 {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
                 <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
