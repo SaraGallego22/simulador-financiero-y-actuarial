@@ -14,7 +14,8 @@ import type { Dia } from "@/domain/grading/concepts";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getActiveColombiaUniverse } from "@/lib/teamBook";
+import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeMarketLossRatio } from "@/lib/consolidado";
@@ -169,9 +170,10 @@ export default async function TeamDayPage({
   const { n } = await params;
   const { tab } = await searchParams;
   const day = Number(n);
-  // Only Día 3 has tabs — "Respuestas Día 2" (default, reference) vs.
-  // "Entregables Día 3" (this day's own report form). See PillTabBar usage below.
-  const activeTab = tab === "d3" ? "d3" : "d2";
+  // Only Días 3/4 have tabs — "ref" (default: the PREVIOUS day's true
+  // results, read-only) vs. "entreg" (this day's own report form). See
+  // PillTabBar usage below.
+  const activeTab = tab === "entreg" ? "entreg" : "ref";
   const cohort = await getOrCreateActiveCohort();
   if (day > cohort.openDay) {
     return (
@@ -194,8 +196,16 @@ export default async function TeamDayPage({
     .filter((c) => c.tipo === "reporte")
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
-  // Día 2's own P&G/Balance lines, shown read-only on Día 3's "Respuestas Día 2" tab.
+  // Día 2's P&G/Balance lines, shown read-only on Día 3's "Respuestas Día 2"
+  // tab against their TRUE finBench values (not what the team submitted —
+  // see day2TrueValues below), unlike reportConcepts/deliverableValues above,
+  // which are always the team's own submission for whatever `day` this is.
   const day2ReportConcepts = conceptosDia("d2")
+    .filter((c) => c.tipo === "reporte")
+    .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
+  // Same idea for Día 3's own lines (Año 2 real + Año 3 proyectado), shown
+  // read-only on Día 4's "Respuestas Día 3" tab — see day3TrueValues below.
+  const day3ReportConcepts = conceptosDia("d3")
     .filter((c) => c.tipo === "reporte")
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
 
@@ -214,8 +224,8 @@ export default async function TeamDayPage({
     day1Allocation,
     day2Result,
     day2Allocation,
-    capacityHistory,
-    day2Deliverables,
+    day4Capacity1,
+    day4Capacity2,
   ] = await Promise.all([
       teamId && (day === 1 || day === 2)
         ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
@@ -247,18 +257,31 @@ export default async function TeamDayPage({
       // section) — the team's own view never sees finBench's raw bench
       // figures (only admin does, see admin/day/[n]/page.tsx), so this reuses
       // TeamSimResult from Día 1/2 instead of computing a fresh finBench() here.
+      // Two separate findFirst (not one findMany + `day in [1,2]`) — a
+      // findMany returns EVERY DONE SimulationRun for each day, and a
+      // cohort re-simulated more than once (e.g. via db:seed-test, or the
+      // admin re-running a day) has several; findMany with no per-day
+      // recency dedup rendered one duplicate card per stale run instead of
+      // just the current one (same "keep only the latest run per day"
+      // pattern dayResult/day1Result/day2Result above already follow).
       day === 4 && teamId
-        ? prisma.teamSimResult.findMany({
-            where: { teamId, simulationRun: { day: { in: [1, 2] }, status: "DONE" } },
-            orderBy: { simulationRun: { day: "asc" } },
+        ? prisma.teamSimResult.findFirst({
+            where: { teamId, simulationRun: { day: 1, status: "DONE" } },
+            orderBy: { simulationRun: { createdAt: "desc" } },
             select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
           })
-        : [],
-      day === 3 && teamId && day2ReportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day: 2 } }) : [],
+        : null,
+      day === 4 && teamId
+        ? prisma.teamSimResult.findFirst({
+            where: { teamId, simulationRun: { day: 2, status: "DONE" } },
+            orderBy: { simulationRun: { createdAt: "desc" } },
+            select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
+          })
+        : null,
     ]);
+  const capacityHistory = [day4Capacity1, day4Capacity2].filter((r) => r != null);
 
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
-  const day2DeliverableValues = Object.fromEntries(day2Deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
     analyticsRecs.map((r) => [
       `${r.list}-${r.rank}`,
@@ -269,20 +292,50 @@ export default async function TeamDayPage({
   // ALM detail (team-scoped), shown on Día 3: Día 2's calendar is graded
   // against Año 1's real reserves (bookYear=1, same as consolidado.ts) — this
   // doesn't depend on Día 2's own tariff/simulation existing, just the
-  // reserves it's benchmarked against. Teams only ever see the fictitious ALM
-  // (what's graded) — the real-premium companion run exists for evaluators
-  // only, on the admin day page, so teams work out their own real P&G figure
-  // instead of reading it off an auto-computed number (see README §5.3).
+  // reserves it's benchmarked against. This is the fictitious ALM (what's
+  // graded) — the real-premium companion run only feeds finBench (below),
+  // never a "score" of its own.
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
+  // Día 2's TRUE P&G/Balance (Año 1), from finBench — shown as reference on
+  // Día 3's "Respuestas Día 2" tab instead of the team's own Día 2 report
+  // (deliberately the true engine values here, unlike every other day's own
+  // DeliverablesForm, which stays graded against the team's own guess).
+  const day2TrueValues: Record<string, number> = {};
   if (day === 3 && teamId) {
+    // Fetched once, shared with computeFinBenchBundlesForCohort below —
+    // avoids each one regenerating its own 1,000,000-row copy this request
+    // (see getActiveColombiaUniverse's doc comment).
+    const universe = await getActiveColombiaUniverse(cohort.id);
     const decision = isPortfolioDecisionV4(day2Allocation?.allocation) ? day2Allocation.allocation : null;
     if (decision) {
-      const book = await getTeamBookForDay(cohort.id, 1);
+      const book = await getTeamBookForDay(cohort.id, 1, universe ?? undefined);
       const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
       if (reserves) {
         almScore = scoreFinanciero(reserves, decision);
         almLadderRows = almLadder(reserves, decision);
+      }
+    }
+    const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
+    if (bundle) {
+      for (const c of conceptosDia("d2").filter((c) => c.tipo === "reporte")) {
+        const v = c.get?.(bundle.bench);
+        if (v != null) day2TrueValues[c.id] = v;
+      }
+    }
+  }
+
+  // Same idea as day2TrueValues, one day later: Día 3's TRUE P&G/Balance
+  // (Año 2 real + Año 3 proyectado), shown as reference on Día 4's
+  // "Respuestas Día 3" tab.
+  const day3TrueValues: Record<string, number> = {};
+  if (day === 4 && teamId) {
+    const universe = await getActiveColombiaUniverse(cohort.id);
+    const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
+    if (bundle) {
+      for (const c of conceptosDia("d3").filter((c) => c.tipo === "reporte")) {
+        const v = c.get?.(bundle.bench);
+        if (v != null) day3TrueValues[c.id] = v;
       }
     }
   }
@@ -411,13 +464,13 @@ export default async function TeamDayPage({
           <>
             <PillTabBar
               tabs={[
-                { key: "d2", label: "Respuestas Día 2", href: `/day/3?tab=d2` },
-                { key: "d3", label: "Entregables Día 3", href: `/day/3?tab=d3` },
+                { key: "ref", label: "Respuestas Día 2", href: `/day/3?tab=ref` },
+                { key: "entreg", label: "Entregables Día 3", href: `/day/3?tab=entreg` },
               ]}
               activeKey={activeTab}
             />
 
-            {activeTab === "d2" && (
+            {activeTab === "ref" && (
               <>
                 <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
 
@@ -438,11 +491,11 @@ export default async function TeamDayPage({
                   )}
                 </div>
 
-                <DeliverablesReadOnly day={2} concepts={day2ReportConcepts} values={day2DeliverableValues} />
+                <DeliverablesReadOnly concepts={day2ReportConcepts} values={day2TrueValues} title="P&G / Balance real — Año 1" />
               </>
             )}
 
-            {activeTab === "d3" && reportConcepts.length > 0 && (
+            {activeTab === "entreg" && reportConcepts.length > 0 && (
               <>
                 {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
                 <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
@@ -453,54 +506,72 @@ export default async function TeamDayPage({
 
         {day === 4 && (
           <>
-            {capacityHistory.length > 0 && (
-              <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-                <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Tu límite de cuota, 2027 vs. 2028
-                </h3>
-                <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-                  Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si tu
-                  capital se ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás reportando este
-                  día.
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {capacityHistory.map((r) => {
-                    const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                    return (
-                      <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
-                        <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                          {SIMULATED_YEAR_LABEL[r.simulationRun.day]}
-                        </p>
-                        <p className="mt-1 text-sm">
-                          Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                        </p>
-                        <p className="text-sm">
-                          Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                        </p>
-                        <p className="text-sm">
-                          Pólizas rechazadas:{" "}
-                          <strong className={r.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : ""}>
-                            {r.rejectedCount.toLocaleString("es-CO")}
-                          </strong>
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <PillTabBar
+              tabs={[
+                { key: "ref", label: "Respuestas Día 3", href: `/day/4?tab=ref` },
+                { key: "entreg", label: "Entregables Día 4", href: `/day/4?tab=entreg` },
+              ]}
+              activeKey={activeTab}
+            />
 
-            {reportConcepts.length > 0 && (
+            {activeTab === "ref" && (
               <>
-                {TAB_NOTES[4]?.deliverables && <TabNote>{TAB_NOTES[4].deliverables}</TabNote>}
-                <DeliverablesForm day={4} concepts={reportConcepts} initialValues={deliverableValues} />
+                {capacityHistory.length > 0 && (
+                  <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                    <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                      Tu límite de cuota, 2027 vs. 2028
+                    </h3>
+                    <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
+                      Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si
+                      tu capital se ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás
+                      reportando este día.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {capacityHistory.map((r) => {
+                        const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                        return (
+                          <div key={r.simulationRun.day} className="rounded border border-[var(--color-brand-gray-light)] p-3">
+                            <p className="text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                              {SIMULATED_YEAR_LABEL[r.simulationRun.day]}
+                            </p>
+                            <p className="mt-1 text-sm">
+                              Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                            </p>
+                            <p className="text-sm">
+                              Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
+                            </p>
+                            <p className="text-sm">
+                              Pólizas rechazadas:{" "}
+                              <strong className={r.rejectedCount > 0 ? "text-[var(--color-brand-red)]" : ""}>
+                                {r.rejectedCount.toLocaleString("es-CO")}
+                              </strong>
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <DeliverablesReadOnly concepts={day3ReportConcepts} values={day3TrueValues} title="P&G / Balance real — Año 2 y proyección Año 3" />
               </>
             )}
 
-            {hasAnalitica && (
+            {activeTab === "entreg" && (
               <>
-                {TAB_NOTES[4]?.analytics && <TabNote>{TAB_NOTES[4].analytics}</TabNote>}
-                <AnalyticsForm day={4} initialPicks={analyticsPicksByKey} />
+                {reportConcepts.length > 0 && (
+                  <>
+                    {TAB_NOTES[4]?.deliverables && <TabNote>{TAB_NOTES[4].deliverables}</TabNote>}
+                    <DeliverablesForm day={4} concepts={reportConcepts} initialValues={deliverableValues} />
+                  </>
+                )}
+
+                {hasAnalitica && (
+                  <>
+                    {TAB_NOTES[4]?.analytics && <TabNote>{TAB_NOTES[4].analytics}</TabNote>}
+                    <AnalyticsForm day={4} initialPicks={analyticsPicksByKey} />
+                  </>
+                )}
               </>
             )}
           </>

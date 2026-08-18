@@ -14,8 +14,8 @@ function formatValue(value: number | undefined, unit: ConceptoSummary["unit"]): 
   return value.toFixed(0);
 }
 
-/** Read-only rendering of a past day's own DeliverablesForm submission — same grouping/emphasis as the editable form, no input/submit. Used on Día 3 to show the team's own Día 2 P&G/Balance lines as reference. */
-export function DeliverablesReadOnly({ day, concepts, values }: { day: number; concepts: ConceptoSummary[]; values: Record<string, number> }) {
+/** Read-only P&G/Balance display — same grouping/emphasis as the editable DeliverablesForm, no input/submit. Used on Día 3 to show Año 1's TRUE finBench values as reference (see page.tsx's day2TrueValues), not a resubmission of anything the team itself typed. */
+export function DeliverablesReadOnly({ title, concepts, values }: { title: string; concepts: ConceptoSummary[]; values: Record<string, number> }) {
   if (concepts.length === 0) return null;
 
   const grouped = new Map<ConceptGroup, ConceptoSummary[]>();
@@ -32,7 +32,7 @@ export function DeliverablesReadOnly({ day, concepts, values }: { day: number; c
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
       <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        Reporte financiero/actuarial — Día {day}
+        {title}
       </h3>
 
       <div className="flex flex-col gap-5">
