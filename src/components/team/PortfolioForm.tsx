@@ -113,14 +113,7 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Decides cómo invertir cada mes: la asignación que definas para un mes se mantiene fija — incluyendo
         cualquier vencimiento que vaya llegando mes a mes — hasta que agregues un cambio de estrategia en un mes
-        posterior. La nota de rendimiento está ajustada por riesgo: un instrumento con mayor volatilidad exige un
-        rendimiento más alto para que valga la pena — perseguir el rendimiento nominal más alto (acciones) sin
-        cuidar la volatilidad puede darte una nota peor que un portafolio más balanceado. La volatilidad de cada
-        instrumento no se muestra aquí directamente — puedes deducirla de la diagonal de la matriz de covarianza
-        (guía del pasante, sección 5.2). Si te falta caja en algún mes, el sistema cubre la diferencia vendiendo
-        LIQ primero (gratis, es su función) y, si no alcanza, vendiendo el resto de tu portafolio empezando por lo
-        menos volátil — pero verte obligado a vender es un castigo aparte en la nota, y vender acciones bajo
-        presión pesa mucho más que vender un CDT o un TES.
+        posterior.
       </p>
 
       <div className="flex flex-col gap-4">

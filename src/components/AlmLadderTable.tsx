@@ -119,7 +119,7 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
             label="Rendimiento ajustado por riesgo"
             weight="35%"
             value={score.rendimiento}
-            formula="normalizado de (rendimiento efectivo − 0.35×volatilidad) — ver abajo"
+            formula="normalizado de (rendimiento efectivo − 0.35×volatilidad de portafolio, con correlaciones) — ver abajo"
           />
           <ScoreTile
             label="Venta forzada de portafolio"
@@ -141,16 +141,30 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
             formula="suma de todos los meses ÷ Capital Social"
           />
           <InfoTile label="Rendimiento efectivo simulado" value={pct(score.effYield, 2)} formula="ingreso total ÷ (valor promedio invertido × 60 meses), anualizado" />
-          <InfoTile label="Volatilidad promedio realizada" value={pct(score.avgVol, 2)} formula="volatilidad de cada instrumento, ponderada por cuánto se mantuvo invertido" />
+          <InfoTile
+            label="Volatilidad de portafolio (con correlaciones)"
+            value={pct(score.avgPortfolioVol, 2)}
+            formula="√(wᵀΣw) cada mes contra la matriz de covarianza (sección 5.2), ponderado por cuánto se mantuvo invertido — esta es la que descuenta Rendimiento"
+          />
+          <InfoTile
+            label="Volatilidad promedio sin correlaciones (referencia)"
+            value={pct(score.avgVol, 2)}
+            formula="promedio de la volatilidad de cada instrumento por separado, ignorando cómo se mueven entre sí — no es la que califica"
+          />
           <InfoTile
             label="Rendimiento ajustado por riesgo"
             value={pct(score.riskAdjustedYield, 2)}
-            formula={`${pct(score.effYield, 2)} − 0.35 × ${pct(score.avgVol, 2)}`}
+            formula={`${pct(score.effYield, 2)} − 0.35 × ${pct(score.avgPortfolioVol, 2)}`}
           />
           <InfoTile
             label="Total vendido bajo presión (60 meses)"
             value={`${money(score.totalVentaForzada)} (${pct(score.ventaForzadaSeveridad)} de severidad)`}
             formula="monto vendido antes de tiempo, ponderado por la volatilidad de lo vendido"
+          />
+          <InfoTile
+            label="Pérdida por precio de venta anticipada"
+            value={money(score.totalVentaForzadaPerdida)}
+            formula="ya está descontada de Rendimiento efectivo simulado — vender antes de tiempo paga menos que el valor en libros"
           />
           <InfoTile label="Cobertura de liquidez (6 meses)" value={`${money(score.liq6)} / ${money(score.liab6)} (${(score.cobertura * 100).toFixed(0)}%)`} formula="líquido disponible ÷ pagos esperados en 6 meses" />
         </div>
