@@ -11,7 +11,7 @@ const fmt = (v: number | null) => (v != null ? v.toFixed(1) : "—");
 export default async function TeamStandingsPage() {
   const session = await auth();
   const cohort = await getOrCreateActiveCohort();
-  const rows = await computeConsolidado(cohort.id, true);
+  const rows = await computeConsolidado(cohort.id, cohort.openDay);
   const ranked = rows.filter((r) => r.notaFinal != null);
 
   return (
@@ -20,11 +20,11 @@ export default async function TeamStandingsPage() {
         Ranking general
       </h1>
       <p className="text-sm text-[var(--color-brand-text-secondary)]">
-        Nota final ponderada de los días publicados. Solo se muestran los resultados que el evaluador ya publicó.
+        Nota final ponderada de los días habilitados hasta ahora.
       </p>
 
       {ranked.length === 0 ? (
-        <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado resultados.</p>
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">Todavía no hay resultados disponibles.</p>
       ) : (
         <Table>
           <Table.Head>

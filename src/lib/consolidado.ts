@@ -33,19 +33,19 @@ async function latestTotalPremiumByTeamId(cohortId: string, day: number): Promis
 }
 
 /**
- * Real, aggregate (never per-team) loss ratio across every team's published
+ * Real, aggregate (never per-team) loss ratio across every team's DONE
  * result for a given day — siniestros reales de todo el mercado ÷ prima
  * DEVENGADA real de todo el mercado, both summed across teams, never broken
  * out per team. Devengada (not emitida), same as computeRt()/finBench()'s
  * own rt — this is the reference a team's own Loss Ratio Esperado (Día 2's
  * guide §2, itself now Prima Devengada-based to match) gets contrasted
  * against, so both sides of that comparison need the same premium base.
- * Shown regardless of how few teams are published (even 1) — an admin
+ * Shown regardless of how few teams have a result (even 1) — an admin
  * running a small test cohort still wants to see it.
  */
 export async function computeMarketLossRatio(cohortId: string, day: number): Promise<MarketLossRatio | null> {
   const results = await prisma.teamSimResult.findMany({
-    where: { simulationRun: { cohortId, day, status: "DONE" }, published: true },
+    where: { simulationRun: { cohortId, day, status: "DONE" } },
     orderBy: { simulationRun: { createdAt: "desc" } },
   });
   // Año 2's rpndLiberada needs each team's own Año 1 totalPremium — only
@@ -85,8 +85,13 @@ export interface TeamConsolidado {
  * (notaTarifacionAnio, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo,
  * notaDia) are already pure/tested; this is the app-specific plumbing that
  * feeds them from what's actually stored for a cohort.
+ *
+ * `maxDay`, when passed, caps which days count towards the blend — the
+ * team-facing standings page passes `cohort.openDay` so a team's own final
+ * grade never reflects a day it can't see yet (admin's own views pass
+ * nothing, so every day counts as soon as it's graded).
  */
-export async function computeConsolidado(cohortId?: string, respectPublished = false): Promise<TeamConsolidado[]> {
+export async function computeConsolidado(cohortId?: string, maxDay?: number): Promise<TeamConsolidado[]> {
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
   const [teams, rubric] = await Promise.all([
@@ -97,42 +102,38 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
   // Year 1 / Year 2 tariff-quality scores (notaTarifacionAnio), keyed by real
   // team.id via a local numeric remap (the domain fn works in plain numbers).
-  // The relative-percentile ranking needs *every* team's raw result to be
-  // correct, so publish status only gates which team's own score gets
-  // attached below — not which rows feed the ranking itself.
   const tarifByDay = new Map<number, Map<string, number>>();
   // Año 2's RT needs each team's own Año 1 totalPremium to release its RPND
   // holdback as this year's revenue (see composite.ts's computeRt()) — fetched
   // once, before the loop, so day===2's iteration below can look it up per team.
   const year1TotalPremiumByTeamId = await latestTotalPremiumByTeamId(cohort.id, 1);
   for (const day of [1, 2]) {
-    const results = await prisma.teamSimResult.findMany({
-      where: { simulationRun: { cohortId: cohort.id, day, status: "DONE" } },
-      orderBy: { simulationRun: { createdAt: "desc" } },
-    });
-    const seen = new Set<string>();
-    const numericIdByTeamId = new Map<string, number>();
-    const publishedTeamIds = new Set<string>();
-    const rows: { teamId: number; totalPremium: number; claimsAmount: number; rpndLiberada?: number }[] = [];
-    for (const r of results) {
-      if (seen.has(r.teamId)) continue; // keep only the latest run per team
-      seen.add(r.teamId);
-      if (r.published) publishedTeamIds.add(r.teamId);
-      const numericId = numericIdByTeamId.size + 1;
-      numericIdByTeamId.set(r.teamId, numericId);
-      const rpndLiberada = day === 2 ? FZ.rpndPct * (year1TotalPremiumByTeamId.get(r.teamId) ?? 0) : undefined;
-      rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount, rpndLiberada });
-    }
-    // Año 1's actuarial score is anchored to the model's own definition of
-    // good performance (see notaTarifacionAbsoluta's doc comment) rather
-    // than to how the rest of the cohort priced this run — Año 2 keeps the
-    // admin-configurable cohort-relative mode.
-    const map = day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, rubric.objectiveMode as "relative" | "ranking");
     const byTeamId = new Map<string, number>();
-    for (const [teamId, numericId] of numericIdByTeamId) {
-      if (respectPublished && !publishedTeamIds.has(teamId)) continue;
-      const v = map.get(numericId);
-      if (v != null) byTeamId.set(teamId, v);
+    if (maxDay == null || day <= maxDay) {
+      const results = await prisma.teamSimResult.findMany({
+        where: { simulationRun: { cohortId: cohort.id, day, status: "DONE" } },
+        orderBy: { simulationRun: { createdAt: "desc" } },
+      });
+      const seen = new Set<string>();
+      const numericIdByTeamId = new Map<string, number>();
+      const rows: { teamId: number; totalPremium: number; claimsAmount: number; rpndLiberada?: number }[] = [];
+      for (const r of results) {
+        if (seen.has(r.teamId)) continue; // keep only the latest run per team
+        seen.add(r.teamId);
+        const numericId = numericIdByTeamId.size + 1;
+        numericIdByTeamId.set(r.teamId, numericId);
+        const rpndLiberada = day === 2 ? FZ.rpndPct * (year1TotalPremiumByTeamId.get(r.teamId) ?? 0) : undefined;
+        rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount, rpndLiberada });
+      }
+      // Año 1's actuarial score is anchored to the model's own definition of
+      // good performance (see notaTarifacionAbsoluta's doc comment) rather
+      // than to how the rest of the cohort priced this run — Año 2 keeps the
+      // admin-configurable cohort-relative mode.
+      const map = day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, rubric.objectiveMode as "relative" | "ranking");
+      for (const [teamId, numericId] of numericIdByTeamId) {
+        const v = map.get(numericId);
+        if (v != null) byTeamId.set(teamId, v);
+      }
     }
     tarifByDay.set(day, byTeamId);
   }
@@ -210,9 +211,9 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
   const allMemberEvaluations = await prisma.memberDayEvaluation.findMany({
     where: { teamMember: { team: { cohortId: cohort.id } } },
   });
-  const notaGeneralByMemberDay = new Map<string, { value: number | null; published: boolean }>();
+  const notaGeneralByMemberDay = new Map<string, number | null>();
   for (const e of allMemberEvaluations) {
-    notaGeneralByMemberDay.set(`${e.teamMemberId}:${e.day}`, { value: e.notaGeneral, published: e.published });
+    notaGeneralByMemberDay.set(`${e.teamMemberId}:${e.day}`, e.notaGeneral);
   }
 
   const results: TeamConsolidado[] = teams.map((team) => {
@@ -253,15 +254,12 @@ export async function computeConsolidado(cohortId?: string, respectPublished = f
 
       // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
       // comment) — pass an empty array so notaSubjetivaEquipo reports null
-      // without treating it as "still pending".
+      // without treating it as "still pending". Days beyond `maxDay` (a team
+      // can't see them yet) are withheld the same way.
       const memberNotas: (number | null)[] =
-        day === 1
+        day === 1 || (maxDay != null && day > maxDay)
           ? []
-          : team.members.map((m) => {
-              const ev = notaGeneralByMemberDay.get(`${m.id}:${day}`);
-              if (!ev || (respectPublished && !ev.published)) return null;
-              return ev.value;
-            });
+          : team.members.map((m) => notaGeneralByMemberDay.get(`${m.id}:${day}`) ?? null);
       const subjective = notaSubjetivaEquipo(memberNotas).value;
 
       return { objective, subjective, nota: notaDia(objective, subjective, rubric.subjectiveWeight) };
@@ -292,13 +290,13 @@ export interface MemberConsolidadoRow {
   // MemberDayEvaluation.aptitudesRiesgos's doc comment), so this is out of a
   // fixed 3, not out of diasEvaluados like diasAprobados above.
   aptitudesRiesgosCount: number;
-  // Not shown in /admin/standings' on-screen table (which is why this isn't
-  // published-gated like perDay above) — carried only for the CSV export
-  // (/api/members/consolidado-csv), which is the admin's own private copy.
+  // Not shown in /admin/standings' on-screen table — carried only for the
+  // CSV export (/api/members/consolidado-csv), which is the admin's own
+  // private copy.
   comments: { day: number; author: string; text: string }[];
-  // Habilidades blandas: never published to teams (see softSkills.ts's doc
-  // comment) — this whole function is only ever called from admin routes, so
-  // no gating needed here. One nota per competency, averaging
+  // Habilidades blandas: teams never see this (see softSkills.ts's doc
+  // comment) — this whole function is only ever called from admin routes.
+  // One nota per competency, averaging
   // RATING_SCORES across whichever of the 3 activities rated that
   // competency for this member (missing if none did).
   softSkills: Partial<Record<SoftSkillCompetency, number>>;
@@ -310,9 +308,11 @@ export interface MemberConsolidadoRow {
  * subjective grade — see MemberDayEvaluation's doc comment), so an evaluator
  * can compare/rank people across the whole cohort instead of only within
  * their own team's day-by-day view. Sorted by `promedio` like
- * computeConsolidado() sorts teams by `notaFinal`.
+ * computeConsolidado() sorts teams by `notaFinal`. Admin-only (teams never
+ * see subjective grading), so unlike computeConsolidado there's no
+ * team-facing caller and no need to withhold anything.
  */
-export async function computeMemberConsolidado(cohortId?: string, respectPublished = false): Promise<MemberConsolidadoRow[]> {
+export async function computeMemberConsolidado(cohortId?: string): Promise<MemberConsolidadoRow[]> {
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
   const teams = await prisma.team.findMany({
@@ -336,10 +336,9 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
     commentsByMemberId.get(c.teamMemberId)!.push(c);
   }
 
-  // Habilidades blandas: never gated by `respectPublished` (see this
-  // function's doc comment on softSkills) — grouped by member, then by
-  // competency, so each competency's nota can average across whichever
-  // activities actually rated it.
+  // Habilidades blandas: grouped by member, then by competency, so each
+  // competency's nota can average across whichever activities actually
+  // rated it.
   const softSkillEvals = await prisma.softSkillEvaluation.findMany({
     where: { teamMember: { team: { cohortId: cohort.id } } },
   });
@@ -360,7 +359,7 @@ export async function computeMemberConsolidado(cohortId?: string, respectPublish
     for (const member of team.members) {
       const perDay = [2, 3, 4].map((day) => {
         const e = evalByMemberDay.get(`${member.id}:${day}`);
-        if (!e || (respectPublished && !e.published)) return { day, notaGeneral: null, aprobado: null, perfil: null, aptitudesRiesgos: false };
+        if (!e) return { day, notaGeneral: null, aprobado: null, perfil: null, aptitudesRiesgos: false };
         return { day, notaGeneral: e.notaGeneral, aprobado: e.aprobado, perfil: e.perfil, aptitudesRiesgos: e.aptitudesRiesgos };
       });
       const notas = perDay.map((d) => d.notaGeneral).filter((v): v is number => v != null);

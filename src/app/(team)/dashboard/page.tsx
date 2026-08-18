@@ -104,7 +104,7 @@ export default async function TeamDashboard() {
                 </p>
               </div>
               <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
-                Nota final publicada de todos los equipos del cohorte.
+                Nota final de todos los equipos del cohorte.
               </p>
             </Card>
           </Link>

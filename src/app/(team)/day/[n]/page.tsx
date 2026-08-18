@@ -113,7 +113,7 @@ function ObjectiveResultsCard({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-[var(--color-brand-text-secondary)]">El evaluador aún no ha publicado los resultados objetivos para {yearLabel}.</p>
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">Los resultados objetivos de {yearLabel} todavía no están disponibles.</p>
       )}
     </div>
   );
@@ -188,30 +188,30 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
   // individual team's figures. See computeMarketLossRatio's doc comment.
   const marketLossRatio = day === 2 ? await computeMarketLossRatio(cohort.id, 1) : null;
 
-  const [submission, publishedResult, allocation, deliverables, analyticsRecs, day1PublishedResult, day1Allocation, day2PublishedResult, day2Allocation, capacityHistory] =
+  const [submission, dayResult, allocation, deliverables, analyticsRecs, day1Result, day1Allocation, day2Result, day2Allocation, capacityHistory] =
     await Promise.all([
       teamId && (day === 1 || day === 2)
         ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
         : null,
       // Gates whether an outsourced tariff's premium is revealed to the team
-      // yet — see TariffUpload's resultsPublished prop and
-      // hasPublishedResults()'s doc comment in lib/tariffAccess.ts. Distinct
+      // yet — see TariffUpload's resultsRevealed prop and
+      // hasDaySimResult()'s doc comment in lib/tariffAccess.ts. Distinct
       // from ObjectiveResultsCard above, which shows the *previous* day's
       // results, not this day's own (never surfaced on the team view).
       teamId && (day === 1 || day === 2)
-        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
         : null,
       teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day } } }) : null,
       teamId && reportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day } }) : [],
       teamId && hasAnalitica ? prisma.analyticsRecommendation.findMany({ where: { teamId, day } }) : [],
       // Día 2 shows Día 1's ("2027") results — see ObjectiveResultsCard's doc comment.
       day === 2 && teamId
-        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day: 1 } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 1, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
         : null,
       day === 2 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 1 } } }) : null,
       // Día 3 shows Día 2's ("2028") results.
       day === 3 && teamId
-        ? prisma.teamSimResult.findFirst({ where: { teamId, published: true, simulationRun: { day: 2 } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 2, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
         : null,
       day === 3 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 2 } } }) : null,
       // Día 4 retrospective: both years' capital-derived market-share limits
@@ -219,11 +219,10 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
       // solvency figures it's reporting this same day (see README's market
       // section) — the team's own view never sees finBench's raw bench
       // figures (only admin does, see admin/day/[n]/page.tsx), so this reuses
-      // what's already published on TeamSimResult from Día 1/2 instead of
-      // computing a fresh finBench() here.
+      // TeamSimResult from Día 1/2 instead of computing a fresh finBench() here.
       day === 4 && teamId
         ? prisma.teamSimResult.findMany({
-            where: { teamId, published: true, simulationRun: { day: { in: [1, 2] } } },
+            where: { teamId, simulationRun: { day: { in: [1, 2] }, status: "DONE" } },
             orderBy: { simulationRun: { day: "asc" } },
             select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
           })
@@ -315,16 +314,16 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
             </p>
             {TAB_NOTES[1]?.sim && <TabNote>{TAB_NOTES[1].sim}</TabNote>}
             <TariffUpload
-              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!dayResult}`}
               day={1}
               initialComplete={submission?.meanPremium != null}
-              // An outsourced tariff's premium is withheld from the team until
-              // this day's results are published — see hasPublishedResults()'s
+              // An outsourced tariff's premium is withheld from the team
+              // until this day's market has cleared — see hasDaySimResult()'s
               // doc comment in lib/tariffAccess.ts. A self-priced tariff has
               // no such restriction, it's the team's own number.
-              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+              initialMeanPremium={submission?.outsourced && !dayResult ? null : (submission?.meanPremium ?? null)}
               initialOutsourced={submission?.outsourced ?? false}
-              resultsPublished={!!publishedResult}
+              resultsRevealed={!!dayResult}
             />
             {TAB_NOTES[1]?.portfolio && <TabNote>{TAB_NOTES[1].portfolio}</TabNote>}
             <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
@@ -333,7 +332,7 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
 
         {day === 2 && (
           <>
-            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1PublishedResult} reportDay={1} />
+            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1Result} reportDay={1} />
             <MinVarianceResultCard result={day1MinVarResult} />
 
             {TAB_NOTES[2]?.sim && <TabNote>{TAB_NOTES[2].sim}</TabNote>}
@@ -347,16 +346,16 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
               Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
             </p>
             <TariffUpload
-              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!publishedResult}`}
+              key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!dayResult}`}
               day={2}
               initialComplete={submission?.meanPremium != null}
-              // An outsourced tariff's premium is withheld from the team until
-              // this day's results are published — see hasPublishedResults()'s
+              // An outsourced tariff's premium is withheld from the team
+              // until this day's market has cleared — see hasDaySimResult()'s
               // doc comment in lib/tariffAccess.ts. A self-priced tariff has
               // no such restriction, it's the team's own number.
-              initialMeanPremium={submission?.outsourced && !publishedResult ? null : (submission?.meanPremium ?? null)}
+              initialMeanPremium={submission?.outsourced && !dayResult ? null : (submission?.meanPremium ?? null)}
               initialOutsourced={submission?.outsourced ?? false}
-              resultsPublished={!!publishedResult}
+              resultsRevealed={!!dayResult}
             />
 
             {TAB_NOTES[2]?.portfolio && <TabNote>{TAB_NOTES[2].portfolio}</TabNote>}
@@ -369,7 +368,7 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
                   <div className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
                     <span className="font-semibold text-[var(--color-brand-blue-accent)]">Referencia — </span>
                     Loss ratio real de todo el mercado del 2027 (siniestros reales ÷ prima devengada real, sumados entre los {marketLossRatio.teamCount}{" "}
-                    equipos con resultado publicado): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo para contrastar tu propio
+                    equipos): <strong>{(marketLossRatio.lossRatio * 100).toFixed(1)}%</strong>. Úsalo para contrastar tu propio
                     Loss Ratio Esperado (ver la guía de este día, sección 2).
                   </div>
                 )}
@@ -381,7 +380,7 @@ export default async function TeamDayPage({ params }: { params: Promise<{ n: str
 
         {day === 3 && (
           <>
-            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2PublishedResult} reportDay={3} />
+            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
 
             <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
               <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">

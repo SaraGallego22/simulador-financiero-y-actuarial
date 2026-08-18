@@ -1,6 +1,6 @@
 // Data model for the Simulador Financiero y Actuarial platform.
 // See CLAUDE.md §7 for the rationale behind each modeling choice
-// (cohort isolation, Bytes columns instead of a blob service, published flags).
+// (cohort isolation, Bytes columns instead of a blob service, day-gated visibility).
 
 generator client {
   provider = "prisma-client-js"
@@ -40,9 +40,9 @@ model Cohort {
   createdAt DateTime @default(now())
   // Highest day (1-4) teams can currently see, admin-controlled — teams start
   // scoped to Día 1 only and the admin advances this as the challenge
-  // progresses (see updateOpenDayAction). Distinct from a day's own
-  // TeamSimResult.published/MemberDayEvaluation.published: this gates whether
-  // a day's tabs are reachable at all, not whether that day's results are out.
+  // progresses (see updateOpenDayAction). This is the sole gate on what a
+  // team can see: a day's own results/grades become visible as soon as
+  // they're computed, once that day is reachable.
   openDay   Int      @default(1)
 
   teams          Team[]
@@ -151,8 +151,6 @@ model TeamSimResult {
   // Json until the engine port stabilizes their exact shape (see CLAUDE.md §7).
   extra         Json
 
-  published Boolean @default(false)
-
   @@unique([simulationRunId, teamId])
 }
 
@@ -260,8 +258,6 @@ model MemberDayEvaluation {
   // an evaluator can mark per day.
   aptitudesRiesgos Boolean            @default(false)
 
-  published Boolean @default(false)
-
   @@unique([teamMemberId, day])
 }
 
@@ -301,8 +297,8 @@ enum SoftSkillRating {
 
 // Per-participant qualitative rating on one of the 8 fixed competencies, for
 // one of the 3 soft-skills activities (run in parallel to the técnica
-// challenge — see src/lib/softSkills.ts). Internal to admin/TH only: unlike
-// MemberDayEvaluation there is no `published` flag, teams never see this.
+// challenge — see src/lib/softSkills.ts). Internal to admin/TH only, no
+// team-facing route — teams never see this.
 model SoftSkillEvaluation {
   id           String              @id @default(cuid())
   teamMemberId String
