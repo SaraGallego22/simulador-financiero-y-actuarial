@@ -70,8 +70,10 @@ export const CORR_MERCADO = [
  * portfolioConcentrationRatio() in alm.ts) discounts the "Rendimiento"
  * sub-score's riskAdjustedYield, the same mechanism VOL_PENALTY_LAMBDA
  * already uses for volatility: riskAdjustedYield = effYield −
- * VOL_PENALTY_LAMBDA×avgVol − CONCENTRATION_PENALTY_MU×concentrationRatio
- * (see scoreFinanciero() in alm.ts). This is what makes concentration a
+ * VOL_PENALTY_LAMBDA×avgPortfolioVol − CONCENTRATION_PENALTY_MU×concentrationRatio
+ * (see scoreFinanciero() in alm.ts; avgPortfolioVol is the correlation-aware
+ * portfolio volatility from COVARIANCE_MATRIX, not a naive per-instrument
+ * average — see its own doc comment in alm.ts). This is what makes concentration a
  * felt penalty on the same day the team makes the decision, not something
  * that only shows up in Día 4's solvency capital charge (FZ.concRiskPct)
  * three days later — a team should see a worse Día 2 nota from

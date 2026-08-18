@@ -511,11 +511,14 @@ export function GuiaPasanteDia2() {
             <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula el rendimiento ajustado por riesgo — </span>
               parte del rendimiento efectivo anualizado que tu portafolio realmente generó a lo largo de los 60 meses de esta simulación (el ingreso total
-              acumulado, convertido a una tasa anual equivalente) y le resta dos penalizaciones: 0.35 × la volatilidad promedio de lo que tuviste invertido
-              (ponderada por cuánto tuviste en libros de cada instrumento a lo largo del horizonte, no solo tu asignación inicial), y 0.03 × qué tan
-              concentrado quedó tu riesgo en un solo instrumento (0 = tu exposición fuera de LIQ está repartida pareja entre los demás instrumentos del
-              menú, 1 = está toda en uno solo; LIQ no cuenta para esto, porque mantener caja no es una apuesta concentrada, es simplemente no tomar riesgo).
-              El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
+              acumulado, convertido a una tasa anual equivalente) y le resta dos penalizaciones: 0.35 × la volatilidad de portafolio (no el promedio de la
+              volatilidad de cada instrumento por separado — la volatilidad real de la combinación, calculada cada mes contra la misma matriz de covarianza
+              de la sección 5.2, así que sí premia diversificar entre instrumentos que no se mueven igual entre sí, y ponderada por cuánto tuviste en libros
+              de cada uno a lo largo del horizonte, no solo tu asignación inicial), y 0.03 × qué tan concentrado quedó tu riesgo en un solo instrumento (0 =
+              tu exposición fuera de LIQ está repartida pareja entre los demás instrumentos del menú, 1 = está toda en uno solo; LIQ no cuenta para esto,
+              porque mantener caja no es una apuesta concentrada, es simplemente no tomar riesgo). Las dos penalizaciones son distintas y se suman: la
+              primera premia que los instrumentos elegidos no se muevan juntos, la segunda castiga aparte quedarte en muy pocos instrumentos aunque esos
+              pocos ya estén poco correlacionados entre sí. El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
             </p>
           </InfoNote>
         </FlowStep>
@@ -535,11 +538,32 @@ export function GuiaPasanteDia2() {
             <ScoreCard
               label="Rendimiento ajustado por riesgo"
               weight="35%"
-              formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad promedio realizada − 0.03 × concentración del portafolio [0 a 1, excluye LIQ])"
+              formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad de portafolio [con correlaciones, sección 5.2] − 0.03 × concentración del portafolio [0 a 1, excluye LIQ])"
             />
             <ScoreCard label="Venta forzada de portafolio" weight="20%" formula="100 × (1 − severidad de lo vendido bajo presión, ponderada por volatilidad)" />
             <ScoreCard label="Liquidez" weight="10%" formula="100 × min(1, líquido disponible ÷ pagos esperados en los próximos 6 meses)" />
           </div>
+          <InfoNote>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula la severidad de venta forzada — </span>
+              cada vez que el motor te vende algo bajo presión de caja (sección 5.4), ese monto se pondera por la volatilidad anual del instrumento
+              vendido — vender ACC pesa mucho más que vender CDT90 por el mismo monto — y se acumula a lo largo de los 60 meses: Σ (monto vendido bajo
+              presión ese mes × volatilidad anual de ese instrumento). Esa suma se compara contra el peor caso posible: toda la Caja Mínima exigida en
+              el horizonte completo (Σ Caja Mínima de cada mes), si se hubiera tenido que cubrir vendiendo siempre el instrumento más volátil del menú
+              (ACC), y se recorta a un máximo de 1. La nota de Venta forzada es 100 × (1 − esa severidad) — 100 si nunca vendiste bajo presión, y solo
+              llega a 0 en ese caso extremo de cubrir toda tu Caja Mínima del horizonte vendiendo lo más volátil del menú cada vez. Vender LIQ nunca
+              cuenta para esta severidad (drenarlo no tiene costo); el motor siempre lo agota primero antes de tocar el resto del portafolio.
+            </p>
+            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Vender antes de tiempo también paga menos — </span>
+              aparte del castigo a la nota de arriba, cada venta forzada recibe un precio por debajo del valor en libros de la posición: mientras más
+              volátil el instrumento y más plazo le quede por cumplir, mayor el descuento (hasta un 2% en el caso extremo de vender ACC recién comprado).
+              Como el precio es menor, cubrir el mismo faltante de caja consume más posición de la que hubieras necesitado vender a precio pleno — esa
+              diferencia (lo que se vendió menos lo que realmente entró a caja) es una pérdida real que se resta directamente del Rendimiento efectivo
+              simulado de ese mes, aparte de (no en lugar de) la nota de Venta Forzada. Una posición a punto de vencer paga casi nada de este descuento;
+              una recién fondeada paga el descuento completo.
+            </p>
+          </InfoNote>
         </FlowStep>
 
         <FlowStep n="6" title="5.6 · El camino completo, de tu decisión a tu nota" last>

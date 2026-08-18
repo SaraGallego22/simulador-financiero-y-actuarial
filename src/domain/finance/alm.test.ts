@@ -12,7 +12,7 @@ import {
   portfolioNominalYield,
   scoreFinanciero,
 } from "./alm";
-import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA, ACC_ROLL_M } from "./constants";
+import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, ACC_ROLL_M } from "./constants";
 import { INSTRUMENT_BY_ID } from "./instruments";
 import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import type { Position } from "./alm";
@@ -251,6 +251,40 @@ describe("almSim / scoreFinanciero", () => {
     expect(sim).not.toBeNull();
     expect(sim!.totalVentaForzada).toBe(0);
     expect(sim!.ventaForzadaVolWeighted).toBe(0);
+  });
+});
+
+describe("avgPortfolioVol (correlation-aware Rendimiento, not just individual variances)", () => {
+  // A dedicated claims-free liability so forced-sale haircuts never fire —
+  // isolates the correlation effect from the venta-forzada mechanic (a
+  // separate concern, already covered above).
+  const noClaimsLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L: new Array(48).fill(0), reserva: 100_000_000, hay: true };
+
+  it("equals avgVol exactly for a single-instrument portfolio — nothing to correlate against", () => {
+    const sim = almSim(noClaimsLib, decision({ TES1: 100 }));
+    expect(sim).not.toBeNull();
+    expect(sim!.avgPortfolioVol).toBeCloseTo(sim!.avgVol, 6);
+  });
+
+  it("is strictly lower than avgVol for a genuinely mixed, imperfectly-correlated portfolio", () => {
+    const sim = almSim(noClaimsLib, decision({ CDT90: 50, TES1: 50 }));
+    expect(sim).not.toBeNull();
+    expect(sim!.avgPortfolioVol).toBeLessThan(sim!.avgVol);
+  });
+
+  it("riskAdjustedYield is discounted by avgPortfolioVol, not avgVol — reconstructing the score with avgVol instead gives a strictly worse (lower) number for a diversified portfolio", () => {
+    const score = scoreFinanciero(noClaimsLib, decision({ CDT90: 50, TES1: 50 }));
+    expect(score).not.toBeNull();
+    const naiveRiskAdjustedYield = score!.effYield - VOL_PENALTY_LAMBDA * score!.avgVol - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
+    expect(score!.riskAdjustedYield).toBeGreaterThan(naiveRiskAdjustedYield);
+  });
+
+  it("a portfolio split between two lowly-correlated instruments (LIQ, near-zero rate/equity loading, and ACC, almost purely idiosyncratic equity risk) scores a better Rendimiento than the naive per-instrument-average formula would have", () => {
+    const score = scoreFinanciero(noClaimsLib, decision({ LIQ: 50, ACC: 50 }));
+    expect(score).not.toBeNull();
+    const naiveRiskAdjustedYield = score!.effYield - VOL_PENALTY_LAMBDA * score!.avgVol - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
+    expect(score!.avgPortfolioVol).toBeLessThan(score!.avgVol);
+    expect(score!.riskAdjustedYield).toBeGreaterThan(naiveRiskAdjustedYield);
   });
 });
 

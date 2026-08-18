@@ -1,8 +1,9 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, instrumentDurationM, isCouponBond, displayYield } from "./instruments";
-import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
+import type { Allocation, Instrument, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
+import { COVARIANCE_MATRIX, portfolioVariance } from "./markowitz";
 
 export const W_CUMPL_CAJA = 0.35;
 export const W_REND = 0.35;
@@ -20,8 +21,9 @@ export const W_LIQ = 0.1;
  * old nominal-anchored band left almost everything scoring 0.
  *
  * These two constants are the *realized* risk-adjusted yield (`effYield -
- * λ×avgVol - μ×concentrationRatio`, same formula as below, just measured
- * instead of assumed) of a reference portfolio run through
+ * λ×avgPortfolioVol - μ×concentrationRatio`, same formula as below, just
+ * measured instead of assumed — avgPortfolioVol, not the naive avgVol, see
+ * its own doc comment) of a reference portfolio run through
  * `almSim()`/`scoreFinanciero()` end to end — the actual floor and ceiling
  * this engine can produce, not a theoretical one:
  * - MIN ≈ 0.046: 100% LIQ, `durationM=12`, "repeat" forever. LIQ's own 5%
@@ -32,23 +34,37 @@ export const W_LIQ = 0.1;
  *   this reference is unaffected by μ — a single instrument that IS subject
  *   to the concentration discount (e.g. 100% ACC) can score lower still,
  *   which just clips to a Rendimiento of 0 rather than moving this floor.
- * - MAX ≈ 0.089: an even 25%/25%/25%/25% split across CDT90/TES1/TES3/
- *   TESUVR8 (ACC excluded — its volatility never pays for itself even
- *   diluted), each "repeat" forever. Concentrating in any single instrument
- *   scores lower than this even before its own volatility is considered
- *   (e.g. 100% TESUVR8 alone: 0.098 nominal-realized, but 0.068 once its
- *   concentrationRatio=1 is discounted at μ) — confirmed against a coarse
- *   grid search over the 5-instrument simplex (same method as
- *   markowitz.test.ts's cross-check), which found no blend beating this
- *   reference by more than the grid's own discretization slack.
+ *   Unaffected by switching avgVol → avgPortfolioVol: a single-instrument
+ *   portfolio has nothing to correlate against, so the two are identical
+ *   here.
+ * - MAX ≈ 0.078: an even 50%/50% split across CDT90/TES1, each "repeat"
+ *   forever. First recalibrated away from the old reference (an even
+ *   25%/25%/25%/25% split including the long-dated TES3/TESUVR8 legs) after
+ *   `forceLiquidatePortfolio()` started charging a price haircut on early
+ *   sales (see `ventaForzadaHaircut()`) — the haircut scales with an
+ *   instrument's own remaining term, so under this fixture's cash-flow
+ *   timing those two legs get force-sold early often enough that their
+ *   haircut losses outweigh what diversifying into them used to gain, even
+ *   after the concentration discount CDT90/TES1 pay instead for being just
+ *   2 instruments. Re-verified (not just re-guessed) after avgVol was
+ *   replaced by avgPortfolioVol in the formula above: correctly crediting
+ *   diversification via COVARIANCE_MATRIX barely moves this reference
+ *   (0.077 → 0.078) because CDT90/TES1 are themselves fairly correlated
+ *   (~0.68, see markowitz.ts's RATE_LOADING comment) — spreading into the
+ *   less-correlated TES3/TESUVR8 legs still isn't worth their haircut
+ *   exposure under this fixture. Confirmed against a full grid search over
+ *   the 5-instrument simplex (LIQ/CDT90/TES1/TES3/TESUVR8, ACC still
+ *   excluded — its volatility still never pays for itself even diluted),
+ *   which found no blend beating this reference by more than the grid's own
+ *   discretization slack.
  *
  * Recompute both (same harness: run a reference allocation through
  * `scoreFinanciero()`, read off `riskAdjustedYield`) if the instrument
- * menu, `VOL_PENALTY_LAMBDA`, `CONCENTRATION_PENALTY_MU`, or the accrual
- * mechanic ever change.
+ * menu, `VOL_PENALTY_LAMBDA`, `CONCENTRATION_PENALTY_MU`, `VENTA_FORZADA_HAIRCUT_MAX`,
+ * `COVARIANCE_MATRIX`, or the accrual mechanic ever change.
  */
 export const RISK_ADJUSTED_YIELD_MIN = 0.046;
-export const RISK_ADJUSTED_YIELD_MAX = 0.089;
+export const RISK_ADJUSTED_YIELD_MAX = 0.078;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
@@ -162,12 +178,16 @@ export interface AlmSimResult {
   liab6: number;
   /** Diagnostic only (not used in scoring) — the largest number of simultaneously open positions, a sanity check that a team's tree isn't spawning a pathological number of live branches. */
   peakOpenPositions: number;
-  /** Book-value-weighted average annualized volatility of everything actually held over the whole horizon (not just the initial allocation) — feeds the risk-adjusted "Rendimiento" sub-score (see RENDIMIENTO_AJUSTADO/scoreFinanciero()). */
+  /** Book-value-weighted average of each held instrument's OWN volAnual over the whole horizon — blind to how those instruments move together (two instruments with the same volAnual contribute the same here whether they're perfectly correlated or not). Diagnostic only since avgPortfolioVol replaced it in the "Rendimiento" sub-score below — see avgPortfolioVol's own doc comment for why. */
   avgVol: number;
+  /** True book-value-weighted average PORTFOLIO volatility over the whole horizon — sqrt(wᵀΣw) each month against COVARIANCE_MATRIX (markowitz.ts), genuinely crediting diversification into imperfectly-correlated instruments the way avgVol never could. Feeds the risk-adjusted "Rendimiento" sub-score (see scoreFinanciero()). Equal to avgVol whenever a team stays in a single instrument the whole horizon (no correlation to exploit); strictly lower than avgVol for any genuinely mixed portfolio. */
+  avgPortfolioVol: number;
   /** Sum of every month's forced-sale amount across the horizon — see ventaForzadaPortafolio on AlmSimRow. */
   totalVentaForzada: number;
   /** Σ (forced-sale amount × that instrument's volAnual) across the horizon — the raw severity accumulator behind scoreFinanciero()'s ventaForzada sub-score: selling the same dollar amount of ACC contributes far more here than selling CDT90. */
   ventaForzadaVolWeighted: number;
+  /** Σ every month's ventaForzadaHaircut() loss (book value given up beyond the cash actually raised) across the horizon — already folded into totIncome/incomeY1/incomeY2 via devengo (see stepMonth), exposed separately as a diagnostic so evaluators can see how much of a team's Rendimiento hit came specifically from selling early rather than from the underlying instrument's own return. 0 for a team that never needed a forced sale. */
+  totalVentaForzadaPerdida: number;
   /** Diagnostic only — months where LIQ alone wasn't enough and a non-LIQ position had to be sold early. */
   mesesConVentaForzada: number;
   /** Worst single month's draw on Capital Social — tail-risk half of cumplimientoCaja's new formula. */
@@ -206,6 +226,8 @@ export interface AlmYearState {
 interface MonthAccumulators {
   totalVentaForzada: number;
   ventaForzadaVolWeighted: number;
+  /** Sum of every month's ventaForzadaLostValue — see forceLiquidatePortfolio()'s lostValue and stepMonth()'s devengo. */
+  totalVentaForzadaPerdida: number;
   mesesConVentaForzada: number;
   peakCapitalComprometido: number;
   totalCapitalComprometido: number;
@@ -217,6 +239,7 @@ function freshAccumulators(): MonthAccumulators {
   return {
     totalVentaForzada: 0,
     ventaForzadaVolWeighted: 0,
+    totalVentaForzadaPerdida: 0,
     mesesConVentaForzada: 0,
     peakCapitalComprometido: 0,
     totalCapitalComprometido: 0,
@@ -231,6 +254,26 @@ interface StepResult {
   /** Undiminished book value of everything held after this month's execution — feeds avgPV/avgVol, deliberately never netted against capitalComprometidoAcumulado (see the module doc comment on realBookSum in the original inline version of this logic). */
   realBookSum: number;
   volWeightedBookSum: number;
+  /** This month's realBookSum × its true covariance-based portfolio volatility (see portfolioVolThisMonth() below) — feeds avgPortfolioVol the same way volWeightedBookSum feeds avgVol. */
+  portfolioVolWeightedBookSum: number;
+}
+
+/**
+ * True portfolio volatility for whatever's actually held this month —
+ * sqrt(wᵀΣw) over the same COVARIANCE_MATRIX teams see in the Día 2 guide
+ * (§5.2) and use for Día 1's min-variance exercise (markowitz.ts), built
+ * from each open position's own book value (grouped by instrument;
+ * portfolioVariance() normalizes the weights itself). Unlike avgVol (a
+ * book-weighted average of each instrument's OWN volAnual, blind to how
+ * those instruments move together), this genuinely rewards diversifying
+ * into imperfectly-correlated instruments — two positions with the same
+ * combined volAnual can have very different true portfolio risk depending
+ * on their correlation, and only this measure can tell the difference.
+ */
+function portfolioVolThisMonth(positions: Position[]): number {
+  const bookByInstrument: Record<string, number> = {};
+  for (const p of positions) bookByInstrument[p.instrumentId] = (bookByInstrument[p.instrumentId] || 0) + p.book;
+  return Math.sqrt(Math.max(0, portfolioVariance(bookByInstrument, COVARIANCE_MATRIX)));
 }
 
 /**
@@ -328,6 +371,7 @@ function stepMonth(
   let cajaFinal: number;
   let ventaForzada = 0;
   let capitalComprometido = 0;
+  let ventaForzadaLostValue = 0;
   if (neededNeta <= 0) {
     const surplus = -neededNeta;
     fundFromAllocation(activeAllocation(decision.schedule, scheduleMonth), surplus, t, state.positions);
@@ -336,15 +380,19 @@ function stepMonth(
   } else {
     const liqDrawn = drawFromLiq(neededNeta, state.positions);
     const afterLiq = neededNeta - liqDrawn;
-    const { sold, volWeighted } = forceLiquidatePortfolio(afterLiq, state.positions);
+    const { sold, volWeighted, lostValue } = forceLiquidatePortfolio(afterLiq, state.positions, t);
     ventaForzada = sold;
     capitalComprometido = afterLiq - sold;
     inversionNeta = liqDrawn + sold + capitalComprometido;
     cajaFinal = cajaMinima;
+    ventaForzadaLostValue = lostValue;
     if (ventaForzada > 0) {
       acc.totalVentaForzada += ventaForzada;
       acc.ventaForzadaVolWeighted += volWeighted;
       acc.mesesConVentaForzada++;
+    }
+    if (lostValue > 0) {
+      acc.totalVentaForzadaPerdida += lostValue;
     }
     if (capitalComprometido > 0) {
       state.capitalComprometidoAcumulado += capitalComprometido;
@@ -378,7 +426,15 @@ function stepMonth(
   //    already realized via the periodic/final coupons paid in step 1
   //    (folded into devengo via cuponDevengo, seeded below). Every other
   //    instrument keeps compounding monthly exactly as before.
-  let devengo = cuponDevengo;
+  //
+  //    ventaForzadaLostValue (step 3, 0 whenever nothing was force-sold this
+  //    month) is subtracted here rather than left out of devengo entirely —
+  //    it's a real realized loss on the portfolio, not just a cash-flow
+  //    accounting gap, so it belongs in the same accrual line that
+  //    ultimately feeds effYield/Rendimiento and, for the real ALM, the
+  //    P&G's own Resultado de Inversiones. See forceLiquidatePortfolio()'s
+  //    doc comment for why this is separate from the ventaForzada score.
+  let devengo = cuponDevengo - ventaForzadaLostValue;
   for (const p of state.positions) {
     if (p.matM > t) {
       const ins = INSTRUMENT_BY_ID[p.instrumentId];
@@ -398,6 +454,7 @@ function stepMonth(
   const realBookSum = state.positions.reduce((s, p) => s + p.book, 0);
   const saldoFinalPortafolio = realBookSum - state.capitalComprometidoAcumulado;
   const volWeightedBookSum = state.positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.instrumentId].volAnual, 0);
+  const portfolioVolWeightedBookSum = portfolioVolThisMonth(state.positions) * realBookSum;
   acc.peakOpenPositions = Math.max(acc.peakOpenPositions, state.positions.length);
 
   const row: AlmSimRow = {
@@ -417,7 +474,7 @@ function stepMonth(
     capitalComprometidoPortafolio: capitalComprometido,
   };
 
-  return { row, devengo, realBookSum, volWeightedBookSum };
+  return { row, devengo, realBookSum, volWeightedBookSum, portfolioVolWeightedBookSum };
 }
 
 /**
@@ -483,38 +540,81 @@ function drawFromLiq(neededNeta: number, positions: Position[]): number {
 }
 
 /**
+ * Ceiling on ventaForzadaHaircut()'s price discount — reached only by
+ * force-selling the menu's most volatile instrument (ACC) with its entire
+ * term still ahead of it. See ventaForzadaHaircut() for how it scales down
+ * from there.
+ */
+const VENTA_FORZADA_HAIRCUT_MAX = 0.02;
+
+/**
+ * Price discount applied when position `p` gets force-sold at month `t`,
+ * before its own maturity — selling early realizes less cash than the
+ * position's book value, same as unwinding any real bond/equity position
+ * ahead of schedule would. Scales with two things a team can actually see
+ * coming: how volatile the instrument is (ins.volAnual ÷ VOL_MAX — selling
+ * ACC costs far more than selling CDT90) and how much of its own term is
+ * still left to run ((p.matM − t) ÷ its duration — a position one month
+ * from maturing anyway is barely early at all; one just funded pays close
+ * to the full haircut). 0 for a position already at or past its own
+ * maturity month; LIQ is never passed in here at all (see
+ * forceLiquidatePortfolio's own filter — drawing it down is free).
+ */
+function ventaForzadaHaircut(p: Position, ins: Instrument, t: number): number {
+  const dur = Math.max(1, instrumentDurationM(ins));
+  const remainingFraction = Math.max(0, Math.min(1, (p.matM - t) / dur));
+  return VENTA_FORZADA_HAIRCUT_MAX * (ins.volAnual / VOL_MAX) * remainingFraction;
+}
+
+/**
  * Forced liquidation: when LIQ alone can't cover a Caja Mínima shortfall,
  * the team must sell *something else* early — the engine can't just leave
  * the gap unmet while sitting on an untouched bond/equity portfolio. Sells
  * non-LIQ positions in ascending volAnual order (safest/least-volatile
  * first, ACC only as a last resort), so a team that kept some low-vol
  * ladder around gets tapped there before anything touches its equities.
- * Selling reduces a position's book value exactly like a natural maturity
- * payout would (no artificial haircut on the cash side — the consequence
- * lives entirely in the ventaForzada score, not in fabricated losses); it's
- * an early, forced exit from a position that would otherwise have kept
- * accruing until its own matM.
- * Returns { sold, volWeighted }: total $ liquidated and the volatility-
- * weighted amount (Σ sold_i × volAnual_i) used to size the score penalty.
+ *
+ * Selling early raises less cash per peso of book value than a natural
+ * maturity payout would — see ventaForzadaHaircut() — so covering a given
+ * cash shortfall consumes MORE book value than the cash it actually raises;
+ * `remaining` (the cash still needed) is what this function solves for at
+ * each position, so `bookSold` is sized up accordingly. The gap between
+ * book given up and cash received (lostValue) is a genuine realized loss —
+ * the caller (stepMonth) folds it into that month's devengo, so it drags
+ * down effYield/Rendimiento the same way any other bad investment outcome
+ * would, on top of (not instead of) the separate ventaForzada score below,
+ * which still grades on cash actually raised (sold/volWeighted, both
+ * unaffected in size by the haircut whenever there's enough book to sell —
+ * only lostValue changes).
+ *
+ * Returns { sold, volWeighted, lostValue }: sold = total cash actually
+ * raised; volWeighted = Σ cashRaised_i × volAnual_i (sizes the ventaForzada
+ * score's severity, exactly as before this haircut existed); lostValue =
+ * Σ (bookSold_i − cashRaised_i), the raw $ destroyed by selling before
+ * maturity rather than holding to it.
  */
-function forceLiquidatePortfolio(neededNeta: number, positions: Position[]): { sold: number; volWeighted: number } {
+function forceLiquidatePortfolio(neededNeta: number, positions: Position[], t: number): { sold: number; volWeighted: number; lostValue: number } {
   let remaining = neededNeta;
   let sold = 0;
   let volWeighted = 0;
-  if (remaining <= 0) return { sold, volWeighted };
+  let lostValue = 0;
+  if (remaining <= 0) return { sold, volWeighted, lostValue };
   const sellable = positions
     .filter((p) => p.instrumentId !== "LIQ" && p.book > 0)
     .sort((a, b) => INSTRUMENT_BY_ID[a.instrumentId].volAnual - INSTRUMENT_BY_ID[b.instrumentId].volAnual);
   for (const p of sellable) {
     if (remaining <= 0) break;
-    const vol = INSTRUMENT_BY_ID[p.instrumentId].volAnual;
-    const take = Math.min(p.book, remaining);
-    p.book -= take;
-    remaining -= take;
-    sold += take;
-    volWeighted += take * vol;
+    const ins = INSTRUMENT_BY_ID[p.instrumentId];
+    const cashPerBook = 1 - ventaForzadaHaircut(p, ins, t);
+    const bookSold = Math.min(p.book, remaining / cashPerBook);
+    const cashRaised = bookSold * cashPerBook;
+    p.book -= bookSold;
+    remaining -= cashRaised;
+    sold += cashRaised;
+    volWeighted += cashRaised * ins.volAnual;
+    lostValue += bookSold - cashRaised;
   }
-  return { sold, volWeighted };
+  return { sold, volWeighted, lostValue };
 }
 
 /**
@@ -598,6 +698,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
   let incomeY2 = 0;
   let sumPV = 0;
   let sumVolWeighted = 0;
+  let sumPortfolioVolWeighted = 0;
   let liq6 = 0;
   let liab6 = 0;
   let cumLiabReserva = 0;
@@ -616,7 +717,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
     }
     sumCajaMinima += FZ.cajaPct * (primaCobrada + pagoSiniestros);
 
-    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(
+    const { row, devengo, realBookSum, volWeightedBookSum, portfolioVolWeightedBookSum } = stepMonth(
       t,
       t,
       t - BUILD_MONTHS,
@@ -642,6 +743,7 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
     if (t >= BUILD_MONTHS && t < BUILD_MONTHS + 12) incomeY2 += devengo;
     sumPV += realBookSum;
     sumVolWeighted += volWeightedBookSum;
+    sumPortfolioVolWeighted += portfolioVolWeightedBookSum;
 
     if (t === BUILD_MONTHS - 1) capitalComprometidoY1 = state.capitalComprometidoAcumulado;
     if (t === BUILD_MONTHS + 11) capitalComprometidoY2 = state.capitalComprometidoAcumulado;
@@ -655,12 +757,13 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
     }
   }
 
-  const { totalVentaForzada, ventaForzadaVolWeighted, mesesConVentaForzada, peakCapitalComprometido, totalCapitalComprometido, mesesConCapitalComprometido, peakOpenPositions } = acc;
+  const { totalVentaForzada, ventaForzadaVolWeighted, totalVentaForzadaPerdida, mesesConVentaForzada, peakCapitalComprometido, totalCapitalComprometido, mesesConCapitalComprometido, peakOpenPositions } = acc;
 
   const avgPV = sumPV / TOTAL;
   const rMonthly = avgPV > 0 ? totIncome / (avgPV * TOTAL) : Math.pow(1 + INSTRUMENT_BY_ID.LIQ.yield, 1 / 12) - 1;
   const effYield = Math.pow(1 + rMonthly, 12) - 1;
   const avgVol = sumPV > 0 ? sumVolWeighted / sumPV : 0;
+  const avgPortfolioVol = sumPV > 0 ? sumPortfolioVolWeighted / sumPV : 0;
 
   return {
     rows,
@@ -675,8 +778,10 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
     liab6,
     peakOpenPositions,
     avgVol,
+    avgPortfolioVol,
     totalVentaForzada,
     ventaForzadaVolWeighted,
+    totalVentaForzadaPerdida,
     mesesConVentaForzada,
     peakCapitalComprometido,
     totalCapitalComprometido,
@@ -709,14 +814,18 @@ export interface FinancialScore {
   avgPV: number;
   totIncome: number;
   schedule: MonthlyAllocationEntry[];
-  /** Book-value-weighted average volatility actually held over the horizon — see AlmSimResult.avgVol. */
+  /** Book-value-weighted average of each held instrument's OWN volAnual over the horizon — diagnostic only, blind to correlation. See AlmSimResult.avgVol and avgPortfolioVol below (which actually feeds the score). */
   avgVol: number;
+  /** True book-value-weighted average PORTFOLIO volatility over the horizon (correlation-aware, via COVARIANCE_MATRIX) — see AlmSimResult.avgPortfolioVol. This, not avgVol, is what riskAdjustedYield below is discounted by. */
+  avgPortfolioVol: number;
   /** Decision-only concentration ratio of the submitted tree — see portfolioConcentrationRatio(). */
   concentrationRatio: number;
-  /** effYield - VOL_PENALTY_LAMBDA*avgVol - CONCENTRATION_PENALTY_MU*concentrationRatio — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile or concentrated portfolio scores worse than a similar yield achieved safely and diversified. */
+  /** effYield - VOL_PENALTY_LAMBDA*avgPortfolioVol - CONCENTRATION_PENALTY_MU*concentrationRatio — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile/correlated or concentrated portfolio scores worse than a similar yield achieved safely, diversified, and genuinely uncorrelated. */
   riskAdjustedYield: number;
   /** Raw $ forced-liquidated across the horizon (see AlmSimResult.totalVentaForzada) — 0 for a team that never needed to sell early. */
   totalVentaForzada: number;
+  /** Raw $ destroyed by selling early rather than at maturity (see AlmSimResult.totalVentaForzadaPerdida) — already reflected in effYield/rendimiento via devengo, exposed separately as a diagnostic. 0 for a team that never needed to sell early. */
+  totalVentaForzadaPerdida: number;
   /** ventaForzadaVolWeighted / (sumCajaMinima * VOL_MAX), clipped to [0,1] — the severity ratio the ventaForzada sub-score is built from; exposed separately so evaluators can see "how bad," not just the 0-100 score. */
   ventaForzadaSeveridad: number;
   /** Cumulative Capital Social committed through the end of calendar Year 1 — see finBench()'s bal1. */
@@ -799,6 +908,8 @@ export interface AlmRealYearResult {
   /** Undiminished book value of every open position at year close (Σ position.book, never netted against capitalComprometidoAcumulado — see stepMonth()'s realBookSum doc comment) — includes Capital Social (funded into the tree at Año 1's start, see almSimRealYear()'s own doc comment) alongside every month's prima-funded surplus; they're mechanically indistinguishable positions by this point. Feeds the Día 4 Balance's `inversiones` line directly — see finBench()'s balance(), which no longer adds Capital Social back in separately (that would double-count it). */
   portfolioBookValue: number;
   totalVentaForzada: number;
+  /** Raw $ destroyed by force-selling before maturity this year (see AlmSimResult.totalVentaForzadaPerdida) — already reflected in `income`/`effectiveYield` via devengo. */
+  totalVentaForzadaPerdida: number;
   mesesConVentaForzada: number;
   peakCapitalComprometido: number;
   /** Pass this into Año 2's call (as almSimRealYear(2, ..., initialState)) to continue from exactly where Año 1 left off — same open positions, same accumulated capital comprometido. */
@@ -929,6 +1040,7 @@ export function almSimRealYear(
     cajaFinalAnio: rows[11].cajaFinal,
     portfolioBookValue: lastRealBookSum,
     totalVentaForzada: acc.totalVentaForzada,
+    totalVentaForzadaPerdida: acc.totalVentaForzadaPerdida,
     mesesConVentaForzada: acc.mesesConVentaForzada,
     peakCapitalComprometido: acc.peakCapitalComprometido,
     finalState: state,
@@ -957,11 +1069,19 @@ export function almSimRealYear(
  * of effYield directly — an "efficient frontier" trade-off where chasing
  * ACC's raw yield without regard for its volatility scores worse than a
  * portfolio that also leans on TESUVR8, the menu's best risk-adjusted
- * instrument by design. The concentration discount (see
- * portfolioConcentrationRatio()) means this isn't beaten by parking
- * everything in that single best instrument either — a genuinely
+ * instrument by design. The volatility term is avgPortfolioVol, not the
+ * naive avgVol (a book-weighted average of each instrument's OWN volAnual)
+ * — avgPortfolioVol runs the actual held mix through COVARIANCE_MATRIX
+ * (markowitz.ts) every month, so two instruments with the same combined
+ * volAnual but low correlation to each other genuinely lower this term,
+ * the same diversification benefit Día 1's min-variance exercise already
+ * teaches over the same matrix (see §5.2 of the Día 2 guide). The
+ * concentration discount (see portfolioConcentrationRatio()) is a distinct,
+ * additional penalty on top of this — it means parking everything in the
+ * single best-correlated instrument still isn't free: a genuinely
  * concentrated bet pays a discount here even when the instrument itself is
- * a safe one.
+ * a safe one and its covariance-based contribution to avgPortfolioVol is
+ * low.
  *
  * ventaForzada penalizes being forced to sell portfolio holdings early to
  * cover a Caja Mínima shortfall LIQ alone couldn't meet — and does so with
@@ -987,8 +1107,10 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     liab6,
     liq6,
     avgVol,
+    avgPortfolioVol,
     totalVentaForzada,
     ventaForzadaVolWeighted,
+    totalVentaForzadaPerdida,
   } = sim;
 
   const peakCapitalComprometidoRatio = Math.min(1, peakCapitalComprometido / CAPITAL_SOCIAL);
@@ -1001,7 +1123,7 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
 
   const effYield = sim.effYield;
   const concentrationRatio = portfolioConcentrationRatio(decision.schedule);
-  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgVol - CONCENTRATION_PENALTY_MU * concentrationRatio;
+  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgPortfolioVol - CONCENTRATION_PENALTY_MU * concentrationRatio;
   const rendimiento = Math.max(
     0,
     Math.min(100, (100 * (riskAdjustedYield - RISK_ADJUSTED_YIELD_MIN)) / (RISK_ADJUSTED_YIELD_MAX - RISK_ADJUSTED_YIELD_MIN))
@@ -1036,9 +1158,11 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
     totIncome: sim.totIncome,
     schedule: decision.schedule,
     avgVol,
+    avgPortfolioVol,
     concentrationRatio,
     riskAdjustedYield,
     totalVentaForzada,
+    totalVentaForzadaPerdida,
     ventaForzadaSeveridad,
     capitalComprometidoY1,
     capitalComprometidoY2,
