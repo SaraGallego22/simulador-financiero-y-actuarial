@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
 // Chunked upload — see CLAUDE.md §4.3. Each chunk is small (~800KB), well
 // under Vercel's 4.5MB request body limit; maxDuration is generous here
-// mostly for the read-modify-write round trip against Postgres, not compute.
+// mostly for the last chunk's full-blob read (see below), not compute.
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "totalChunks no coincide con el tamaño esperado del universo" }, { status: 400 });
   }
 
-  const chunkBytes = new Uint8Array(await request.arrayBuffer());
+  const chunkBytes = Buffer.from(await request.arrayBuffer());
   const { start, end } = chunkByteRange(chunkIndex, N_COLOMBIA);
   if (chunkBytes.byteLength !== end - start) {
     return NextResponse.json({ error: "El tamaño del fragmento no coincide con lo esperado" }, { status: 400 });
@@ -69,52 +69,64 @@ export async function POST(request: Request) {
 
   const fullByteLength = N_COLOMBIA * BYTES_PER_PREMIUM;
 
-  const existing = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } } });
-  const buffer =
-    existing?.data && existing.data.byteLength === fullByteLength
-      ? Buffer.from(existing.data)
-      : Buffer.alloc(fullByteLength);
-  buffer.set(chunkBytes, start);
+  // Splices this chunk directly into the stored bytea inside Postgres via
+  // overlay(), instead of round-tripping the whole (up to ~4MB) blob through
+  // this app on every one of the 5 chunks — a prior findUnique+upsert of the
+  // full column here cost ~9x the logical upload size in Neon data transfer
+  // per submission (read the growing blob back, then write it whole again,
+  // 5 times), which is what actually exhausted the free-tier transfer quota.
+  // Falls back to a fresh zero-filled blob (built server-side from a length,
+  // never sent over the wire) when there's no row yet or a size mismatch —
+  // same defensive reset the old buffer-alloc fallback did. outsourced is
+  // always reset to false here (even before the last chunk) — a team that
+  // previously hit "Tercerizar tarifas" instead of uploading its own CSV
+  // should stop being treated as outsourced from the first chunk, not just
+  // once the upload completes.
+  await prisma.$executeRaw`
+    INSERT INTO "TariffSubmission" ("id", "teamId", "day", "data", "outsourced", "submittedAt")
+    VALUES (
+      gen_random_uuid()::text, ${teamId}, ${day},
+      overlay(decode(repeat('00', ${fullByteLength}), 'hex') placing ${chunkBytes} from ${start + 1} for ${chunkBytes.byteLength}),
+      false, now()
+    )
+    ON CONFLICT ("teamId", "day") DO UPDATE SET
+      "data" = overlay(
+        CASE WHEN octet_length("TariffSubmission"."data") = ${fullByteLength} THEN "TariffSubmission"."data"
+             ELSE decode(repeat('00', ${fullByteLength}), 'hex') END
+        placing ${chunkBytes} from ${start + 1} for ${chunkBytes.byteLength}
+      ),
+      "outsourced" = false
+  `;
 
   const isLastChunk = chunkIndex === totalChunks - 1;
-  let meanPremium: number | null = existing?.meanPremium ?? null;
-
-  if (isLastChunk) {
-    const view = toFloat32View(buffer, N_COLOMBIA);
-    let sum = 0;
-    let covered = 0;
-    for (let i = 0; i < N_COLOMBIA; i++) {
-      if (view[i] > 0) {
-        sum += view[i];
-        covered++;
-      }
-    }
-    if (covered / N_COLOMBIA < MIN_COVERAGE) {
-      // Still save the partial data so the team can see what's missing, but
-      // don't mark it complete.
-      meanPremium = null;
-      await prisma.tariffSubmission.upsert({
-        where: { teamId_day: { teamId, day } },
-        update: { data: new Uint8Array(buffer), outsourced: false },
-        create: { teamId, day, data: new Uint8Array(buffer), outsourced: false },
-      });
-      return NextResponse.json(
-        { error: `Cobertura insuficiente: solo ${((covered / N_COLOMBIA) * 100).toFixed(1)}% de las pólizas tienen prima > 0 (se requiere ${MIN_COVERAGE * 100}%).` },
-        { status: 422 }
-      );
-    }
-    meanPremium = sum / covered;
+  if (!isLastChunk) {
+    return NextResponse.json({ chunkIndex, complete: false, meanPremium: null });
   }
 
-  // outsourced is always reset to false here (even before the last chunk) —
-  // a team that previously hit "Tercerizar tarifas" and is now uploading its
-  // own CSV should stop being treated as outsourced from the first chunk,
-  // not just once the upload completes.
-  await prisma.tariffSubmission.upsert({
-    where: { teamId_day: { teamId, day } },
-    update: { data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : undefined, outsourced: false },
-    create: { teamId, day, data: new Uint8Array(buffer), meanPremium: isLastChunk ? meanPremium : null, outsourced: false },
-  });
+  // Only the last chunk needs the assembled blob back — one full read
+  // instead of one per chunk — to compute the coverage check and meanPremium.
+  const row = await prisma.tariffSubmission.findUniqueOrThrow({ where: { teamId_day: { teamId, day } }, select: { data: true } });
+  const view = toFloat32View(row.data!, N_COLOMBIA);
+  let sum = 0;
+  let covered = 0;
+  for (let i = 0; i < N_COLOMBIA; i++) {
+    if (view[i] > 0) {
+      sum += view[i];
+      covered++;
+    }
+  }
+  if (covered / N_COLOMBIA < MIN_COVERAGE) {
+    // Data is already persisted (the overlay() above ran regardless of
+    // coverage) so the team can see what's missing — just don't mark it
+    // complete.
+    return NextResponse.json(
+      { error: `Cobertura insuficiente: solo ${((covered / N_COLOMBIA) * 100).toFixed(1)}% de las pólizas tienen prima > 0 (se requiere ${MIN_COVERAGE * 100}%).` },
+      { status: 422 }
+    );
+  }
 
-  return NextResponse.json({ chunkIndex, complete: isLastChunk, meanPremium: isLastChunk ? meanPremium : null });
+  const meanPremium = sum / covered;
+  await prisma.tariffSubmission.update({ where: { teamId_day: { teamId, day } }, data: { meanPremium } });
+
+  return NextResponse.json({ chunkIndex, complete: true, meanPremium });
 }
