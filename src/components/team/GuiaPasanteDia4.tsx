@@ -111,6 +111,29 @@ export function GuiaPasanteDia4() {
           </p>
         </SubSection>
 
+        <SubSection title="El tope de pólizas que ya viviste en Día 1 y Día 2" accent="fin">
+          <p>
+            El tope de cuota de mercado que limitó cuántas pólizas pudiste ganar en el mercado de 2027 (Día 1) y 2028 (Día 2) no era un número parejo
+            para los 12 equipos ni una decisión discrecional del administrador — salía de resolver esta misma estructura de capital de riesgo
+            (Suscripción + Financiero + Operacional, combinados por correlación) para la prima máxima que tu propio capital disponible podía sostener
+            manteniendo un margen de solvencia de exactamente 100% (el piso regulatorio, no el 150% que exige el dividendo de hoy). En ese momento del
+            juego todavía no existían tus reservas ni tu portafolio real, así que el motor usa supuestos fijos (un loss ratio y un patrón de reserva de
+            referencia, iguales para los 12 equipos) en vez de tus cifras reales — por eso el resultado de hoy usa números distintos, aunque la forma
+            sea la misma. Ver sección 5 para la fórmula exacta.
+          </p>
+          <p>
+            En Día 1, tu capital disponible era el mismo Capital Social fijo para los 12 equipos ($116.000 millones), y tu volatilidad de portafolio
+            venía de tu propia asignación de mínima varianza de ese mismo día. En Día 2, tu capital disponible pasó a ser tu patrimonio real de cierre
+            de Año 1 — el que calculó el motor a partir del ALM real de Año 1 que sometiste ese mismo día, no el que reportaste después en el Balance
+            de Día 3 — así que un equipo que comprometió Capital Social en ese ALM para cubrir una caja entró a competir por pólizas de 2028 con menos
+            margen para crecer; y tu volatilidad pasó a venir de la asignación del mes 0 de ese mismo calendario real.
+          </p>
+          <p>
+            La prima máxima se convierte en pólizas máximas dividiendo entre tu propia prima promedio por póliza de ese año — dos equipos con el mismo
+            capital disponible podían terminar con topes de pólizas distintos solo por haber cobrado primas promedio distintas.
+          </p>
+        </SubSection>
+
         <SubSection title="Riesgo de tasa, riesgo de inflación y riesgo de acciones" accent="fin">
           <p>
             Hoy trabajas con dos curvas de descuento — no un solo número plano, sino una tasa que cambia según el plazo del flujo que estás
@@ -193,9 +216,9 @@ export function GuiaPasanteDia4() {
           </p>
           <p>
             Tu <strong>σ de siniestralidad</strong> no se compara contra un valor del motor calculado aparte: se recalcula a partir de tus propias otras
-            líneas ya reportadas — tu Costo de Siniestros y Prima Emitida de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, usa tu propio Costo{" "}
-            <strong>corregido</strong> por tu propio Ajuste de siniestralidad A1 (la misma corrección que ya reportaste en el Estado de resultados de
-            Año 2, Día 3) — no tu cifra original de Día 2, que puede haber estado equivocada. El EVA tampoco se compara contra un valor del motor: se
+            líneas ya reportadas — tu Costo de Siniestros y Prima Emitida de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, suma tu propio Costo{" "}
+            más tu propio Ajuste de siniestralidad A1 (la misma liberación del 10% de reserva que ya reportaste en el Estado de resultados de
+            Año 2, Día 3) — no tu cifra original de Día 2 sola. El EVA tampoco se compara contra un valor del motor: se
             recalcula a partir de tu Utilidad Neta del año vigente de Día 3 y tus Fondos propios de hoy. En ambos casos, un error previo en alguna de
             esas líneas solo te penaliza una vez, no también aquí.
           </p>
@@ -238,9 +261,9 @@ export function GuiaPasanteDia4() {
           <ul className="list-disc pl-5">
             <li>
               <strong>Tu loss ratio de Año 1, para la σ de siniestralidad, no es tu Costo de Siniestros A1 original de Día 2.</strong> Es ese mismo
-              Costo <strong>corregido</strong> por tu propio Ajuste de siniestralidad A1 (reportado en el Estado de resultados de Año 2, Día 3) — si
-              olvidas aplicar esa corrección, tu σ (y por tanto tu riesgo de prima y tu RK) queda calculada sobre una siniestralidad de Año 1 que tú
-              mismo ya sabes que era incorrecta.
+              Costo <strong>más</strong> tu propio Ajuste de siniestralidad A1 (reportado en el Estado de resultados de Año 2, Día 3) — si olvidas
+              sumar esa liberación, tu σ (y por tanto tu riesgo de prima y tu RK) queda calculada sobre una siniestralidad de Año 1 que no incorpora la
+              revisión actuarial del 10%.
             </li>
             <li>
               <strong>El riesgo operacional no es un porcentaje plano sobre tu prima.</strong> Es el mayor entre un cargo sobre tu prima emitida y
@@ -361,7 +384,48 @@ export function GuiaPasanteDia4() {
           </p>
         </FlowStep>
 
-        <FlowStep n="2" title="5.2 · Recomendación sectorial — plantilla en blanco">
+        <FlowStep n="2" title="5.1b · Referencia — el límite de pólizas de Día 1 y Día 2">
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
+            Esto no se califica hoy — es la reconstrucción exacta de un límite que ya viviste, para que puedas relacionarlo con tus propias cifras de
+            Día 1/Día 2. Usa una forma parecida a la de 5.1, pero con supuestos fijos (iguales para los 12 equipos) en vez de tus reservas/inversiones
+            reales — no confundas estos componentes con los de la tabla de arriba.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ScoreCard label="Reserva del límite" formula="79.6% × Prima (86.1% de patrón de reserva de referencia × 92.5% de loss ratio de referencia — fijo, no tu reserva real)" />
+            <ScoreCard
+              label="Riesgo de Suscripción del límite"
+              formula="√((14.76%×Prima)² + (30%×Reserva del límite)² + 2×0.75×(14.76%×Prima)×(30%×Reserva del límite))"
+            />
+            <ScoreCard
+              label="Inversiones del límite"
+              formula="Reserva del límite + 10%×Prima (CxP, cuentas por pagar) + tu capital disponible − 15%×Prima (caja) − (30/365)×Prima (CxC, cuentas por cobrar)"
+            />
+            <ScoreCard
+              label="Riesgo Financiero del límite"
+              formula="6.6% × Inversiones del límite × tu volRatio (tu volatilidad de portafolio ÷ la volatilidad promedio del menú de instrumentos)"
+            />
+            <ScoreCard label="Riesgo Operacional del límite" formula="3% × Prima" />
+            <ScoreCard
+              label="RK del límite"
+              formula="√(Susc² + Fin² + Op² + 1.5×Susc×Fin + 2×Susc×Op + 2×Fin×Op) — misma matriz de correlación (Susc-Fin=0.75, Susc-Op=1, Fin-Op=1)"
+            />
+            <ScoreCard
+              label="Prima máxima"
+              formula="el valor de Prima que hace RK del límite = tu capital disponible (margen de solvencia = 100% exacto) — Prima aparece dentro de la raíz en varios términos a la vez, así que no hay un despeje de una sola línea: se aproxima probando valores de Prima hasta que RK del límite converja a tu capital"
+            />
+            <ScoreCard label="Pólizas máximas" formula="⌊Prima máxima ÷ tu propia prima promedio por póliza de ese año⌋" />
+            <ScoreCard
+              label="Capital disponible"
+              formula="Día 1: $116.000 millones (Capital Social, igual para los 12 equipos) · Día 2: tu patrimonio real de cierre de Año 1 (el que calculó el motor, no tu Balance de Día 3)"
+            />
+            <ScoreCard
+              label="Tu volRatio"
+              formula="Día 1: de tu asignación de mínima varianza (Día 1) · Día 2: del mes 0 de tu calendario real de portafolio (Día 2)"
+            />
+          </div>
+        </FlowStep>
+
+        <FlowStep n="3" title="5.2 · Recomendación sectorial — plantilla en blanco">
           <p className="text-xs text-[var(--color-brand-text-secondary)]">
             Variables disponibles para cruzar: {SECTOR_DIMENSIONS.map((d) => d.label).join(", ")}.
           </p>
@@ -379,7 +443,7 @@ export function GuiaPasanteDia4() {
           </p>
         </FlowStep>
 
-        <FlowStep n="3" title="5.3 · El camino completo, de tus decisiones a tu nota" last>
+        <FlowStep n="4" title="5.3 · El camino completo, de tus decisiones a tu nota" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
               Tu Balance de cada año (Día 3) alimenta Riesgo de Suscripción; tu portafolio y pasivo reales al cierre de Año 2 (Día 2) alimentan Riesgo

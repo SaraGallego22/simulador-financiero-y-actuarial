@@ -162,14 +162,14 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
   });
 });
 
-describe("Ajuste de siniestralidad (a useTrueValue formula term: true bench fact minus the team's own prior submission)", () => {
+describe("Ajuste de siniestralidad (a useTrueValue formula term: a fixed 10% release of the true reserva técnica A1, independent of any team submission)", () => {
   const bench = {
     p1: {
       primaEmitida: 1_000_000_000,
       rpndLiberada: 0,
       rpndConstituida: 200_000_000,
       primaDevengada: 800_000_000,
-      costo: 400_000_000, // true Año-1 claims
+      costo: 400_000_000,
       gadq: 40_000_000,
       gcom: 150_000_000,
       gadm: 60_000_000,
@@ -181,41 +181,27 @@ describe("Ajuste de siniestralidad (a useTrueValue formula term: true bench fact
       uneta: 119_000_000,
       reservas: 300_000_000,
     },
+    bal1: {
+      reservasTec: 300_000_000, // true reserva técnica A1
+    },
   } as unknown as FinBenchResult;
 
-  it("grades against true p1_costo minus the team's own Día 2 p1_costo submission", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_costo"), 350_000_000); // team underestimated the true 400M by 50M
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", 50_000_000, ownValues, TOLERANCE, bench);
-    expect(result!.bench).toBeCloseTo(50_000_000, 6);
+  it("grades against −10% of the true reserva técnica A1, regardless of the team's own Día 2 p1_costo submission", () => {
+    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, new Map(), TOLERANCE, bench);
+    expect(result!.bench).toBeCloseTo(-30_000_000, 6);
     expect(result!.score).toBe(100);
   });
 
-  it("comes out to exactly 0 when the team's own Día 2 guess already matched the truth", () => {
+  it("doesn't change when the team's own Día 2 p1_costo submission is present — it's not an input to this formula", () => {
     const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_costo"), 400_000_000);
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", 0, ownValues, TOLERANCE, bench);
-    expect(result!.bench).toBeCloseTo(0, 6);
+    ownValues.set(ownValueKey("d2", "p1_costo"), 450_000_000);
+    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, ownValues, TOLERANCE, bench);
+    expect(result!.bench).toBeCloseTo(-30_000_000, 6);
     expect(result!.score).toBe(100);
   });
 
-  it("is negative (hands profit back) when the team overestimated its Día 2 Costo de Siniestros A1", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_costo"), 450_000_000); // overestimated the true 400M by 50M
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -50_000_000, ownValues, TOLERANCE, bench);
-    expect(result!.bench).toBeCloseTo(-50_000_000, 6);
-    expect(result!.score).toBe(100);
-  });
-
-  it("is ungradable (null, not 0) when the team never submitted p1_costo on Día 2", () => {
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", 50_000_000, new Map(), TOLERANCE, bench);
-    expect(result!.score).toBeNull();
-  });
-
-  it("is ungradable when no bench is passed at all, even with the team's own p1_costo present", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_costo"), 350_000_000);
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", 50_000_000, ownValues, TOLERANCE); // bench omitted
+  it("is ungradable (null, not 0) when no bench is passed at all", () => {
+    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, new Map(), TOLERANCE); // bench omitted
     expect(result!.score).toBeNull();
   });
 });

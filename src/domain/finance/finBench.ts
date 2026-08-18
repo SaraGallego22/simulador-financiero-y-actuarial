@@ -49,7 +49,7 @@ export interface PnL {
   gadq: number;
   gcom: number;
   gadm: number;
-  /** Resultado Técnico = primaDevengada − costo − gadq − gcom. Deliberately excludes gadm — see `ri`. "Ajuste de siniestralidad" (a team's own correction of its Día 2 Costo de Siniestros A1 guess, graded in concepts.ts against the true year1.claimsAmount) is a separate reported P&G line that the team's own RT formula subtracts — it's not part of this true/reference rt, since it depends on what the team itself submitted, not a pure engine fact. */
+  /** Resultado Técnico = primaDevengada − costo − gadq − gcom. Deliberately excludes gadm — see `ri`. "Ajuste de siniestralidad" (a fixed release of 10% of the true reserva técnica A1, see FZ.sevRevisionA1Pct and p2_ajusteSiniestralidad in concepts.ts) is a separate reported P&G line that the team's own RT formula subtracts — it's not part of this true/reference rt, which stays this year's own accident-year underwriting result only. */
   rt: number;
   /** Resultado Industrial = rt − gadm. The line gadm actually lands on, separated from the underwriting-only `rt`. */
   ri: number;
@@ -290,11 +290,11 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     // ultimate only (development.ultY2) — Año 1's late-emerging claims were
     // already recognized in Año 1's own costo (see liability.ts/development.ts:
     // severity is fixed at generation time regardless of notice lag, so
-    // year1.claimsAmount was already the true full ultimate). A team's own
-    // correction of a wrong Día-2 Costo de Siniestros A1 guess is reported
-    // as its own "Ajuste de siniestralidad" P&G line (concepts.ts), graded
-    // against year1.claimsAmount minus the team's own submitted p1_costo —
-    // not something this pure engine computation has any input for.
+    // year1.claimsAmount was already the true full ultimate). A fixed 10%
+    // release of the true reserva técnica A1 (reservas1 above) is reported
+    // as its own "Ajuste de siniestralidad" P&G line (concepts.ts,
+    // p2_ajusteSiniestralidad) — not something this pure engine computation
+    // has any input for, since it's graded directly, not folded into p2.
     const rpndLiberada2 = FZ.rpndPct * year1.totalPremium;
     p2 = pyg(year2.totalPremium, rpndLiberada2, development.ultY2, rinv2, reservas2);
     p2.pagos = development.pagosY2;
