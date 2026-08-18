@@ -288,7 +288,7 @@ export function GuiaPasanteDia1() {
             Si tu equipo no alcanza a completar su tarifa a tiempo, el formulario de tarifa tiene una opción de emergencia — &ldquo;Tercerizar
             tarifas&rdquo; — que contrata a una consultora chilena, sin experiencia en el mercado colombiano, para definirla por ustedes. Les permite seguir
             participando en el mercado de ese día; el costo de esa consultoría corre por cuenta del equipo, y el detalle de la tarifa asignada solo se
-            revela una vez se publiquen los resultados de ese día. Aplica igual en el 2028.
+            revela una vez el mercado de ese día cierre. Aplica igual en el 2028.
           </p>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Para calibrar tu propio modelo de frecuencia y severidad tienes disponible, además del universo público, un dataset de referencia con

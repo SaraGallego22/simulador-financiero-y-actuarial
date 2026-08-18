@@ -1,7 +1,7 @@
 /**
  * Habilidades blandas: 3 activities run parallel to the técnica challenge
  * (see AdminNav), grading each team member on the same 8 fixed competencies.
- * Internal to admin/TH only — no `published` flag, no team-facing route.
+ * Internal to admin/TH only, no team-facing route.
  */
 
 export const SOFT_SKILL_COMPETENCIES = [

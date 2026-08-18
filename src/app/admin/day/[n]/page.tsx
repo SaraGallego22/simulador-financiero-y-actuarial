@@ -1,6 +1,5 @@
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { publishAllAction, togglePublishedAction, toggleMemberEvaluationsPublishedForTeamAction } from "@/lib/adminActions";
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
@@ -112,8 +111,7 @@ export default async function AdminDayPage({
       : Promise.resolve([]),
     // Historial: earlier days' nota/aprobado/perfil for the same members, so
     // grading Día 3 can show what was recorded on Día 2 without navigating
-    // away. Admin sees its own unpublished work here (unlike the team-facing
-    // page), so no `published` filter.
+    // away.
     day > 2
       ? prisma.memberDayEvaluation.findMany({
           where: { day: { gte: 2, lt: day }, teamMember: { team: { cohortId: cohort.id } } },
@@ -178,10 +176,8 @@ export default async function AdminDayPage({
   ]);
 
   const evaluationByMemberId = new Map<string, (typeof memberEvaluations)[number]>();
-  const teamPublishedByTeamId = new Map<string, boolean>();
   for (const e of memberEvaluations) {
     evaluationByMemberId.set(e.teamMemberId, e);
-    if (!teamPublishedByTeamId.has(e.teamMember.teamId)) teamPublishedByTeamId.set(e.teamMember.teamId, e.published);
   }
 
   const commentsByMemberId = new Map<string, (typeof memberComments)[number][]>();
@@ -414,7 +410,6 @@ export default async function AdminDayPage({
                   {day === 2 && (
                     <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
                   )}
-                  <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -479,37 +474,12 @@ export default async function AdminDayPage({
                             : "—"}
                         </td>
                       )}
-                      <td className="px-4 py-2 text-right">
-                        {result && (
-                          <form action={togglePublishedAction.bind(null, result.id, day)}>
-                            <button
-                              type="submit"
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                result.published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
-                              }`}
-                            >
-                              {result.published ? "Publicado" : "Publicar"}
-                            </button>
-                          </form>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-
-          {latestRun && latestRun.status === "DONE" && (
-            <form action={publishAllAction.bind(null, latestRun.id, day)}>
-              <button
-                type="submit"
-                className="rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-              >
-                Publicar todos los resultados de este día
-              </button>
-            </form>
-          )}
         </div>
       )}
 
@@ -1142,27 +1112,12 @@ export default async function AdminDayPage({
               {selectedSubjTeam &&
                 (() => {
                   const team = selectedSubjTeam;
-                  const published = teamPublishedByTeamId.get(team.id) ?? false;
                   return (
                     <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-8">
-                      <div className="mb-6 flex items-center justify-between">
-                        <h3 className="font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                        </h3>
-                        {team.members.length > 0 && (
-                          <form action={toggleMemberEvaluationsPublishedForTeamAction.bind(null, team.id, day)}>
-                            <button
-                              type="submit"
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                published ? "bg-[var(--color-brand-green)]/15 text-[var(--color-brand-green)]" : "bg-[var(--color-brand-gray-light)] text-[var(--color-brand-text-secondary)]"
-                              }`}
-                            >
-                              {published ? "Publicado" : "Publicar"}
-                            </button>
-                          </form>
-                        )}
-                      </div>
+                      <h3 className="mb-6 font-[family-name:var(--font-condensed)] text-lg font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name}
+                      </h3>
 
                       {team.members.length === 0 ? (
                         <p className="text-sm text-[var(--color-brand-text-secondary)]">

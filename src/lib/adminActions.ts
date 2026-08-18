@@ -99,7 +99,8 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
 /**
  * Sets how many days teams can currently see (Cohort.openDay, 1-4) — the
  * gate TeamNav/dashboard/day pages check before rendering a day's content
- * for a TEAM session, independent of that day's own published results.
+ * for a TEAM session, and the sole gate on when that day's results/grades
+ * become visible to teams.
  */
 export async function updateOpenDayAction(formData: FormData): Promise<void> {
   await requireAdmin();
@@ -109,37 +110,6 @@ export async function updateOpenDayAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/config");
   revalidatePath("/dashboard");
   revalidatePath("/day/[n]", "page");
-}
-
-export async function togglePublishedAction(teamSimResultId: string, day: number): Promise<void> {
-  await requireAdmin();
-  const current = await prisma.teamSimResult.findUnique({ where: { id: teamSimResultId } });
-  if (!current) return;
-  await prisma.teamSimResult.update({ where: { id: teamSimResultId }, data: { published: !current.published } });
-  revalidatePath(`/admin/day/${day}`);
-}
-
-export async function publishAllAction(simulationRunId: string, day: number): Promise<void> {
-  await requireAdmin();
-  await prisma.teamSimResult.updateMany({ where: { simulationRunId }, data: { published: true } });
-  revalidatePath(`/admin/day/${day}`);
-}
-
-
-/**
- * Publishes/unpublishes all of one team's *member*-level Día evaluations for
- * a day at once — subjective grading is person-level only (see
- * CLAUDE.md's domain glossary — notaSubjetivaEquipo averages members' Nota
- * general into the team's grade), so "publish this team's subjective grade"
- * means publishing every member's row together.
- */
-export async function toggleMemberEvaluationsPublishedForTeamAction(teamId: string, day: number): Promise<void> {
-  await requireAdmin();
-  const evaluations = await prisma.memberDayEvaluation.findMany({ where: { day, teamMember: { teamId } } });
-  if (evaluations.length === 0) return;
-  const nextPublished = !evaluations[0].published;
-  await prisma.memberDayEvaluation.updateMany({ where: { day, teamMember: { teamId } }, data: { published: nextPublished } });
-  revalidatePath(`/admin/day/${day}`);
 }
 
 export interface UploadRosterState {
@@ -251,8 +221,8 @@ export async function toggleAptitudesRiesgosAction(teamMemberId: string, day: nu
  * Adds one dated, authored comment for a member/day — never overwrites an
  * existing one, so multiple evaluators can weigh in independently. Also
  * upserts a bare MemberDayEvaluation row if none exists yet, so a
- * comment-only member still has a row for the per-team "Publicar" toggle
- * (toggleMemberEvaluationsPublishedForTeamAction) to act on.
+ * comment-only member still shows up alongside members who already have a
+ * scored evaluation for this day.
  */
 export async function addMemberCommentAction(teamMemberId: string, day: number, formData: FormData): Promise<void> {
   await requireAdmin();

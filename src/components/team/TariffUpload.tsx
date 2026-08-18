@@ -27,19 +27,19 @@ export function TariffUpload({
   initialComplete,
   initialMeanPremium,
   initialOutsourced,
-  resultsPublished,
+  resultsRevealed,
 }: {
   day: number;
   initialComplete: boolean;
-  /** Already withheld (null) by the caller when initialOutsourced && !resultsPublished. */
+  /** Already withheld (null) by the caller when initialOutsourced && !resultsRevealed. */
   initialMeanPremium: number | null;
   initialOutsourced: boolean;
-  resultsPublished: boolean;
+  resultsRevealed: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>(() => {
     if (!initialComplete) return { phase: "idle" };
-    if (initialOutsourced) return { phase: "outsourced", revealed: resultsPublished, meanPremium: initialMeanPremium };
+    if (initialOutsourced) return { phase: "outsourced", revealed: resultsRevealed, meanPremium: initialMeanPremium };
     return { phase: "done", meanPremium: initialMeanPremium ?? 0 };
   });
   const [outsourceStatus, setOutsourceStatus] = useState<OutsourceStatus>({ phase: "idle" });
@@ -113,7 +113,7 @@ export function TariffUpload({
         throw new Error(body?.error ?? "Error al tercerizar la tarifa");
       }
       // The endpoint doesn't return the premium — it stays hidden until this
-      // day's results are published (see hasPublishedResults()).
+      // day's market clears (see hasDaySimResult()).
       setStatus({ phase: "outsourced", revealed: false, meanPremium: null });
       setOutsourceStatus({ phase: "idle" });
       router.refresh();
@@ -185,8 +185,8 @@ export function TariffUpload({
             </>
           ) : (
             <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
-              El detalle de esta tarifa (prima promedio y descarga) estará disponible cuando se publiquen los resultados objetivos de este día. Puedes
-              reemplazarla en cualquier momento subiendo tu propio CSV arriba.
+              El detalle de esta tarifa (prima promedio y descarga) estará disponible cuando el mercado de este día cierre. Puedes reemplazarla en
+              cualquier momento subiendo tu propio CSV arriba.
             </p>
           )}
         </div>

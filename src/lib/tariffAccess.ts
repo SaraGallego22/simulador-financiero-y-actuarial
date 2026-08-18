@@ -22,16 +22,16 @@ export function getTariffArray(
 }
 
 /**
- * Whether a team's objective results for `day` are already published to
- * them — the same signal the team's own results tab already gates on. Used
- * to withhold an *outsourced* tariff's actual premium/CSV until then: seeing
- * it before that day's market has cleared would hint at relative risk
- * levels a team could otherwise only get by doing its own pricing analysis
- * (see the outsource route's doc comment).
+ * Whether a team's objective results for `day` exist yet — the same signal
+ * the team's own results tab already gates on. Used to withhold an
+ * *outsourced* tariff's actual premium/CSV until then: seeing it before that
+ * day's market has cleared would hint at relative risk levels a team could
+ * otherwise only get by doing its own pricing analysis (see the outsource
+ * route's doc comment).
  */
-export async function hasPublishedResults(teamId: string, day: number): Promise<boolean> {
+export async function hasDaySimResult(teamId: string, day: number): Promise<boolean> {
   const result = await prisma.teamSimResult.findFirst({
-    where: { teamId, published: true, simulationRun: { day } },
+    where: { teamId, simulationRun: { day, status: "DONE" } },
     select: { id: true },
   });
   return !!result;

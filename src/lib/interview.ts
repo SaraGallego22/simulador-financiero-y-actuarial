@@ -1,7 +1,7 @@
 /**
  * One-on-one TH interview: a separate checkpoint from the técnica día grading
  * and from habilidades blandas (see softSkills.ts) — internal to admin/TH
- * only, no `published` flag, no team-facing route.
+ * only, no team-facing route.
  */
 
 export const INTERVIEW_SKILLS = ["EXCEL", "PROGRAMACION"] as const;

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
-import { hasPublishedResults } from "@/lib/tariffAccess";
+import { hasDaySimResult } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { generateOutsourcedTariff, meanPremium } from "@/domain/pricing/outsourced";
 
@@ -62,9 +62,9 @@ export async function POST(request: Request) {
   });
 
   // meanPremium is deliberately left out of the response — a team can't see
-  // its own outsourced premium until this day's results are published (see
-  // hasPublishedResults()'s doc comment), and echoing it back here would
-  // defeat that even if the UI itself doesn't display it.
+  // its own outsourced premium until this day's market has cleared (see
+  // hasDaySimResult()'s doc comment), and echoing it back here would defeat
+  // that even if the UI itself doesn't display it.
   return NextResponse.json({ outsourced: true });
 }
 
@@ -81,8 +81,8 @@ export async function GET(request: Request) {
 
   const submission = await prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } } });
   if (!submission?.outsourced) return new Response("Este equipo no tiene una tarifa tercerizada para este día.", { status: 404 });
-  if (!(await hasPublishedResults(teamId, day))) {
-    return new Response("Esta tarifa estará disponible para descargar una vez se publiquen los resultados de este día.", { status: 403 });
+  if (!(await hasDaySimResult(teamId, day))) {
+    return new Response("Esta tarifa estará disponible para descargar una vez el mercado de este día haya cerrado.", { status: 403 });
   }
 
   const cohort = await getOrCreateActiveCohort();

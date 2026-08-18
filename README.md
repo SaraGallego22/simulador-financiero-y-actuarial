@@ -229,7 +229,7 @@ Cada equipo, sin embargo, sí tiene que **estimar** su propia siniestralidad del
 
 **Por qué Día 2 usa ELR y Día 3 puede usar Chain Ladder — un cambio real de mecánica, no solo de guía.** El reporte de Día 2 (`/api/teams/report?day=2`, `src/app/api/teams/report/route.ts`) censura los siniestros propios del Año 1 con la misma regla de IBNR que el reporte de Día 1 (avisado dentro del mismo año de ocurrencia) — un equipo solo ve una diagonal (12 meses de desarrollo), insuficiente para calcular ningún factor de desarrollo, así que el método apropiado es Expected Loss Ratio (Día 2's guide §2). El reporte de Día 3 amplía esa visibilidad del Año 1 a "avisado en su propio año o el siguiente" (24 meses) — segunda diagonal — y expone por primera vez `fecha_siniestro_a1`/`fecha_aviso_a1` (nunca dados antes, con granularidad diaria), suficiente para que un equipo arme su propio triángulo mensual (24 filas posibles, una por mes de ocurrencia entre enero 2027 y diciembre 2028) y calcule sus propios factores edad a edad encadenados, en vez de un único factor anual. Los siniestros propios del Año 2 en ese mismo reporte siguen tan censurados como en Día 2 (avisado en su propio año únicamente) — su propia fila del triángulo solo tiene una columna. Pero al ser un triángulo mensual, esa fila comparte el mismo corte de evaluación (fin de 2028) que las filas de 2027, cuyos meses más maduros ya proveen factores edad a edad encadenables — un equipo no necesita ELR para ninguno de los dos años en Día 3, solo lo necesitaba en Día 2, cuando el reporte todavía no daba ninguna segunda columna para nada. El factor de cola que lleva esos 24 meses a costo último sí se le da directamente al equipo (`CHAIN_LADDER_TAIL_FACTOR = 1.003` en `src/domain/reserving/constants.ts`) porque no hay forma de derivarlo solo con datos propios — depende de la cola de rezago de aviso más allá del propio corte del reporte del equipo. Verificado empíricamente (no solo declarado): generando el universo completo de 1M exposiciones en 5 semillas, el 24 meses captura consistentemente 99.6-99.7% del costo último verdadero (frente a ~88.5% a los 12 meses) — de ahí el factor pequeño (~0.3%), justo lo esperado dado que `sampleReportingLag()` es lognormal(μ=3.0, σ=1.2) con mediana ~20 días, aunque con cola hasta 730 días (~24 meses).
 
-**Qué ve un equipo en los resultados objetivos publicados de Día 1.** Deliberadamente no incluye prima total, monto de siniestros ni loss ratio — esas tres cifras juntas revelarían de inmediato el loss ratio real del Año 1 antes de que el equipo lo estime por su cuenta en Día 2 (ELR, arriba). Lo que sí se muestra: número de asegurados, número de siniestros, pólizas rechazadas (por precio o por el límite de capital/solvencia del equipo, ver §2.1) y la posición del equipo en el ranking objetivo de ese día — suficiente para que un equipo entienda su propio desempeño relativo sin adelantarle la respuesta del ejercicio de reserva.
+**Qué ve un equipo en los resultados objetivos de Día 1.** Deliberadamente no incluye prima total, monto de siniestros ni loss ratio — esas tres cifras juntas revelarían de inmediato el loss ratio real del Año 1 antes de que el equipo lo estime por su cuenta en Día 2 (ELR, arriba). Lo que sí se muestra: número de asegurados, número de siniestros, pólizas rechazadas (por precio o por el límite de capital/solvencia del equipo, ver §2.1) y la posición del equipo en el ranking objetivo de ese día — suficiente para que un equipo entienda su propio desempeño relativo sin adelantarle la respuesta del ejercicio de reserva.
 
 **Cuándo se paga un siniestro, en detalle** — el pago de un siniestro puntual sigue tres tramos consecutivos, no uno solo (una fuente común de confusión al leer la tabla de caja del ALM, ver §5):
 
@@ -661,18 +661,17 @@ flowchart TB
         A2["Configura rúbrica y crea equipos"]
         A3["Corre la simulación de cada año"]
         A4["Revisa entregables y califica lo subjetivo"]
-        A5["Publica resultados por día"]
+        A5["Habilita cada día a medida que avanza el reto"]
     end
     subgraph Team["Equipo (practicante)"]
         T1["Sube tarifa y portafolio"]
         T2["Sube reportes financieros/actuariales"]
-        T3["Ve resultados solo si el admin publicó"]
-        T4["Ve su calificación subjetiva (solo lectura)"]
+        T3["Ve los resultados de un día una vez el admin lo habilita"]
         T5["Ve el ranking general (posiciones, no datos crudos de otros equipos)"]
     end
 ```
 
-Todo acceso a datos de un equipo se filtra por `teamId` en la capa de datos (no solo en la UI), y ningún resultado se expone a una sesión de equipo sin que el flag `published` esté activo.
+Todo acceso a datos de un equipo se filtra por `teamId` en la capa de datos (no solo en la UI). Qué días son visibles se controla con `Cohort.openDay`, que el admin avanza a medida que el reto progresa; la calificación subjetiva nunca se expone a una sesión de equipo, ni siquiera dentro del ranking desglosado.
 
 ## Estructura del repo
 

@@ -221,8 +221,8 @@ export function GuiaPasanteDia2() {
             </li>
             <li>
               <strong>El loss ratio real de todo el mercado del 2027</strong> — siniestros reales sobre prima devengada real, sumados entre los
-              equipos del cohorte con resultado publicado (nunca por equipo individual) — visible arriba, en la página de este día. Es lo que el
-              mercado realmente produjo, pero mezcla carteras con tarifas distintas a la tuya.
+              equipos del cohorte (nunca por equipo individual) — visible arriba, en la página de este día. Es lo que el mercado realmente produjo,
+              pero mezcla carteras con tarifas distintas a la tuya.
             </li>
             <li>
               <strong>Un benchmark público del sector</strong> (loss ratios típicos de auto en Colombia) — una tercera referencia, aunque no es
@@ -561,16 +561,6 @@ export function GuiaPasanteDia2() {
             </p>
             <p className="mt-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 py-2 font-mono text-xs text-[var(--color-foreground)]">
               descuento = 10% × (volatilidad<sub>i</sub> ÷ volatilidad máxima del menú)³ × (plazo restante<sub>i</sub> ÷ plazo total del instrumento<sub>i</sub>)
-            </p>
-            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
-              El 10% es el tope, alcanzado solo vendiendo ACC (el instrumento más volátil del menú, así que su fracción de volatilidad es exactamente 1)
-              justo el mes en que se fondeó (plazo restante = plazo total). El término de volatilidad va <strong>al cubo</strong>, no lineal — eso lo
-              hace crecer mucho más rápido que el de plazo: un instrumento con la mitad de la volatilidad máxima del menú no paga la mitad de ese
-              descuento, paga solo un octavo (0.5³ = 0.125), así que un instrumento poco volátil casi no paga este descuento aunque le quede todo su
-              plazo por delante — una posición a punto de vencer, en cambio, casi no paga nada de descuento sin importar qué tan volátil sea, porque el
-              término de plazo restante se acerca a 0. Como el precio es menor, cubrir el mismo faltante de caja consume más posición de la que hubieras
-              necesitado vender a precio pleno — esa diferencia (lo que se vendió menos lo que realmente entró a caja) es una pérdida real que se resta
-              directamente del Rendimiento efectivo simulado de ese mes, aparte de (no en lugar de) la nota de Venta Forzada.
             </p>
           </InfoNote>
         </FlowStep>

@@ -19,7 +19,7 @@ const FIELDS = [
   "Comentarios TH (habilidades blandas)",
 ];
 
-/** Admin's own export — unpublished scores included, same as /admin/standings itself. */
+/** Admin's own export — same full data as /admin/standings itself. */
 export async function GET() {
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") return new Response("No autorizado", { status: 403 });
