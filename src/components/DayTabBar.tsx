@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PillTabBar } from "./PillTabBar";
 
 export type DayTabKey = "sim" | "entreg" | "obj" | "subj" | "top";
 
@@ -11,10 +11,12 @@ const ALL_TABS: { key: DayTabKey; label: string }[] = [
 ];
 
 /**
- * Admin-only now: the team view is a single unmarked panel per day (see
- * app/(team)/day/[n]/page.tsx), no tab switching. This bar still drives the
- * admin's per-day sub-tabs (yr-tab-bar in the legacy prototype) — sim,
- * entregables, resultados objetivos, calificación subjetiva, top del día.
+ * Drives the admin's per-day sub-tabs (yr-tab-bar in the legacy prototype) —
+ * sim, entregables, resultados objetivos, calificación subjetiva, top del
+ * día. Team days are still a single unmarked panel each, except Día 3, which
+ * reuses the underlying PillTabBar directly (see app/(team)/day/[n]/page.tsx)
+ * for its own two-tab "Respuestas Día 2" / "Entregables Día 3" split — this
+ * component's fixed ALL_TABS/basePath+day shape doesn't fit that case.
  */
 export function DayTabBar({
   basePath,
@@ -36,23 +38,6 @@ export function DayTabBar({
     (t) => (day !== 1 || t.key !== "subj") && (includeSubj || t.key !== "subj")
   );
   return (
-    <div className="inline-flex w-fit flex-wrap gap-1 rounded-full bg-[var(--color-brand-gray-light)] p-1">
-      {tabs.map((tab) => {
-        const active = tab.key === activeTab;
-        return (
-          <Link
-            key={tab.key}
-            href={`${basePath}/${day}?tab=${tab.key}`}
-            className={`rounded-full px-4 py-1.5 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide transition-all duration-150 ${
-              active
-                ? "bg-[var(--color-brand-surface)] text-[var(--color-brand-blue-accent)] shadow-[var(--shadow-sm)]"
-                : "text-[var(--color-brand-text-secondary)] hover:text-[var(--color-brand-blue-accent)]"
-            }`}
-          >
-            {tab.label}
-          </Link>
-        );
-      })}
-    </div>
+    <PillTabBar tabs={tabs.map((t) => ({ key: t.key, label: t.label, href: `${basePath}/${day}?tab=${t.key}` }))} activeKey={activeTab} />
   );
 }
