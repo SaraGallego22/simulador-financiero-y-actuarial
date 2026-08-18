@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
@@ -377,14 +378,22 @@ export default async function AdminDayPage({
 
   return (
     <main className={`mx-auto flex w-full flex-1 flex-col gap-4 p-8 ${activeTab === "subj" ? "max-w-7xl" : "max-w-6xl"}`}>
-      <div>
-        <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-          Día {day} — {DAY_TITLES[day]}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
-        <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
-          {submittedCount} de {teams.length} equipos han subido su tarifa completa.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+            Día {day} — {DAY_TITLES[day]}
+          </h1>
+          <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">{DAY_DESCRIPTIONS[day]}</p>
+          <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
+            {submittedCount} de {teams.length} equipos han subido su tarifa completa.
+          </p>
+        </div>
+        <Link
+          href={`/admin/day/${day}/guia`}
+          className="shrink-0 rounded-full px-3 py-2 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+        >
+          📄 Guía del pasante
+        </Link>
       </div>
 
       <DayTabBar basePath="/admin/day" day={day} activeTab={activeTab} includeSim={includeSim} />

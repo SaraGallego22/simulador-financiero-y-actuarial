@@ -16,7 +16,7 @@ import { AlertIcon, BarChartIcon, ChatIcon, FlaskIcon, InfoIcon } from "@/compon
 const INSTRUMENT_IDS = INSTRUMENTS.map((ins) => ins.id);
 
 /** Shared table shape — dashed "worksheet" borders instead of solid ruled lines, rounded outer wrapper. Exported so day-local tables (StatementTemplate, ScoreCard) that can't fully merge into a shared component still render with the same shape. */
-export const tableWrapClass = "overflow-hidden rounded-[var(--radius-md)] border border-dashed border-[var(--color-brand-gray-light)]";
+export const tableWrapClass = "overflow-hidden rounded-[var(--radius-md)] border border-dashed border-[var(--color-brand-gray-light)] print:overflow-visible";
 export const tableClass = "w-full border-collapse text-xs";
 export const thClass = "border-b border-r border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-left font-semibold text-[var(--color-brand-blue-accent)] last:border-r-0";
 export const tdClass = "border-b border-r border-dashed border-[var(--color-brand-gray-light)] px-2 py-1.5 last:border-r-0";
@@ -60,13 +60,19 @@ export function GuiaFooter() {
 /** Numbered section header — a circular blue badge with the section number, replacing the old plain "N · Título" text over a flat gray top border. */
 export function Section({ n, title, children }: { n: string; title: string; children: ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] print:shadow-none">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] print:overflow-visible print:shadow-none">
       {/* break-inside-avoid deliberately omitted here — a whole Section (e.g.
           "Teoría necesaria") routinely spans several printed pages, so
           forcing it to avoid breaking just pushes the entire thing to the
           next page and leaves the previous one mostly blank. break-after
           on the header keeps just the badge/title from being orphaned alone
-          at the bottom of a page. */}
+          at the bottom of a page. print:overflow-visible: this overflow-hidden
+          is what clips the rounded corners on screen, but combined with a box
+          that's *meant* to fragment across pages, Chromium's print pagination
+          clips whichever child (e.g. a PreguntasAbiertas box near the end of
+          a long Section) lands at the fragment boundary instead of carrying
+          it to the next page — the same class of bug as the layout's
+          print:overflow-visible fix, just one level deeper. */}
       <div className="flex items-center gap-3 border-b border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/60 px-5 py-3 print:break-after-avoid">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-blue)] font-[family-name:var(--font-condensed)] text-sm font-bold text-white shadow-[var(--shadow-sm)]">
           {n}

@@ -13,10 +13,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") redirect("/login");
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 print:h-auto print:min-h-full">
       <FloatingThemeToggle />
       <AdminNav badge="Admin" />
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* print:h-auto + print:overflow-visible: same fix as (team)/layout.tsx —
+          without it, printing the Guía del pasante from the admin view (now
+          linked from every admin/day/[n] page) silently truncates, since
+          Chromium's print layout clips an overflow-y-auto container to its
+          flex-computed height instead of growing to fit content. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto print:h-auto print:overflow-visible">
         <AdminHero />
         {children}
       </div>
