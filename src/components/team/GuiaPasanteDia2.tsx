@@ -282,8 +282,7 @@ export function GuiaPasanteDia2() {
             siniestros) no te va a costar puntos varias veces en cada línea que depende de él, siempre que hayas aplicado la fórmula correctamente sobre
             tu propio número. Prima emitida, costo de siniestros y resultado de inversiones sí se califican contra la cifra real del motor — pero con
             una banda de tolerancia sobre el error relativo, no exigiendo un acierto exacto: tu costo de siniestros en particular es una estimación
-            genuina (ver sección 2), y si quedó lejos del valor real todavía tienes una segunda oportunidad de corregirlo en Día 3
-            (&ldquo;Ajuste de siniestralidad&rdquo;).
+            genuina (ver sección 2).
           </p>
         </SubSection>
         <SubSection title="Calendario de portafolio real (ALM)" accent="fin">

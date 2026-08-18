@@ -67,9 +67,9 @@ const PYG_A2_ROWS = [
   "Utilidad neta",
 ];
 
-// Año 3 no tiene línea de Ajuste de siniestralidad — esa línea corrige el
-// propio Costo de Siniestros A1 que reportaste en Día 2, y no hay un día
-// posterior a Día 3 donde corregir un eventual error de Día 3 (ver sección 4).
+// Año 3 no tiene línea de Ajuste de siniestralidad — esa línea libera un
+// 10% puntual de la reserva técnica real de cierre de 2027 (Año 1), un
+// hecho que no se repite para Año 2 (ver sección 4).
 const PYG_A3_ROWS = [
   "Prima emitida (proy.)",
   "RPND liberada (A2)",
@@ -137,8 +137,8 @@ export function GuiaPasanteDia3() {
           <li>
             <strong>Financiero — estados de resultados completos de 2028 (15 líneas) y 2029 proyectado (14 líneas).</strong> La misma estructura que
             reportaste para el 2027 en Día 2, con dos diferencias: cada año libera la Reserva de Prima No Devengada que el año anterior constituyó
-            (además de constituir la propia), y 2028 además carga &ldquo;Ajuste de siniestralidad&rdquo; — la corrección de tu propio Costo de
-            Siniestros A1 de Día 2 contra el costo real del 2027 — como su propia línea; 2029 no tiene esa última.
+            (además de constituir la propia), y 2028 además carga &ldquo;Ajuste de siniestralidad&rdquo; — la liberación del 10% de la reserva técnica
+            real de cierre de 2027 (ver sección 4) — como su propia línea; 2029 no tiene esa última.
           </li>
           <li>
             <strong>Financiero — Balance de 2027, 2028 y 2029.</strong> El mismo balance simplificado (caja, inversiones, cuentas por cobrar/pagar,
@@ -320,10 +320,11 @@ export function GuiaPasanteDia3() {
           <p>
             El costo de siniestros del 2028 es, en <strong>base fecha de accidente</strong>, únicamente lo ocurrido dentro del 2028 — nunca se mezcla
             con lo del 2027 (eso ya se reconoció como costo en el P&G del 2027 mismo, sin importar cuándo se avisara). Lo que sí es propio de este año
-            es una línea aparte: <strong>Ajuste de siniestralidad (A1)</strong>, la diferencia entre el costo real del 2027 y lo que tú mismo reportaste
-            como Costo de Siniestros A1 en Día 2 — puede ser positivo (subestimaste tu propia siniestralidad) o negativo (la sobreestimaste). Resta junto
-            al costo antes de llegar al Resultado Técnico, pero es conceptualmente distinto: no es costo de siniestros de 2028, es la corrección de tu
-            propia estimación de Día 2.
+            es una línea aparte: <strong>Ajuste de siniestralidad (A1)</strong>. Gracias a una revisión realizada por el equipo actuarial de la compañía,
+            se determinó que la severidad de los casos restantes por pagar de 2027 está sobreestimada en un 10% — tu equipo libera ese 10% de la reserva
+            técnica real de cierre de 2027. Repórtala como un valor negativo (una liberación, no un costo): resta junto al costo antes de llegar al
+            Resultado Técnico, pero al ser negativa termina sumando a tu utilidad. Es conceptualmente distinto de lo del 2028 mismo, y no depende de lo
+            que tú mismo reportaste como Costo de Siniestros A1 en Día 2.
           </p>
           <p>
             Tu prima devengada del 2028 tampoco es un 80% plano de tu prima emitida de este año: liberas el 100% de la Reserva de Prima No Devengada que
@@ -380,9 +381,9 @@ export function GuiaPasanteDia3() {
             </li>
             <li>
               <strong>El costo de siniestros de cada año es siempre en base fecha de accidente — nunca mezcla años.</strong> El Costo de siniestros del
-              2028 es únicamente lo ocurrido en el 2028; la corrección de tu propio Costo de Siniestros A1 de Día 2 es una línea aparte, Ajuste de
-              siniestralidad, no un componente del costo de 2028. Son dos ideas distintas: cuánto costó lo que pasó este año, y qué tan buena fue tu
-              propia estimación de siniestralidad del año anterior.
+              2028 es únicamente lo ocurrido en el 2028; la liberación del 10% de la reserva de 2027 es una línea aparte, Ajuste de siniestralidad, no
+              un componente del costo de 2028. Son dos ideas distintas: cuánto costó lo que pasó este año, y cuánta reserva de 2027 libera la revisión
+              actuarial.
             </li>
           </ul>
         </SubSection>
@@ -399,8 +400,8 @@ export function GuiaPasanteDia3() {
             </li>
             <li>
               <strong>El costo de siniestros de 2029 es solo el siniestro propio de 2029 — sin ajuste de siniestralidad.</strong> A diferencia del
-              2028, no hay una línea de Ajuste de siniestralidad aquí: no hay un día posterior a Día 3 donde corregir un eventual error de esta
-              proyección. Y lo que sigue pagándose de siniestros de 2027 y 2028 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 4
+              2028, no hay una línea de Ajuste de siniestralidad aquí: esa liberación del 10% es un hecho puntual sobre la reserva de 2027 (Año 1), no
+              algo que se repita año a año. Y lo que sigue pagándose de siniestros de 2027 y 2028 (cada siniestro tiene 3 años de desarrollo, no 2 — repasa la sección 4
               de la guía de Día 2 si no la tienes fresca) ya se reconoció como costo en el P&G de su propio año de accidente, así que no se cuenta otra
               vez aquí — solo sigue existiendo como saldo de reserva en el Balance.
             </li>
@@ -475,6 +476,7 @@ export function GuiaPasanteDia3() {
               "RPND constituida = 20% × Prima emitida A2.",
               "Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino, no un 80% plano de la prima de este año.",
               "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la Prima emitida A2.",
+              "Ajuste de siniestralidad (A1) = −10% × tu Reservas técnicas A1 (Balance 2027) — repórtalo en negativo, es una liberación.",
               "Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom.",
               "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
               "Impuesto = 30% × max(0, Utilidad antes de impuestos) — nunca negativo.",

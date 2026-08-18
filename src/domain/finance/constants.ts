@@ -34,6 +34,8 @@ export const FZ = {
   growth3: 0.06,
   /** Reserva de Prima No Devengada (RPND): the fraction of each year's own Prima Emitida held back as unearned — see PnL's rpndConstituida/rpndLiberada in finBench.ts. A 1-year unearned-premium model: what's held back this year is fully released next year, so the Balance's RPND liability at any year's close is simply this same 20% of that year's own Prima Emitida. */
   rpndPct: 0.2,
+  /** Día 3's "Ajuste de siniestralidad A1" P&G line (concepts.ts, p2_ajusteSiniestralidad): a fixed, one-time release of the true reserva técnica A1 (bal1_reservasTec), narrated in the Guía del Pasante as an actuarial-team review finding that 2027's remaining unpaid severity was overestimated by this fraction. Independent of what a team itself submitted for Costo de Siniestros A1 on Día 2 — not a correction of a team's own guess. */
+  sevRevisionA1Pct: 0.1,
   /** Día 4 EVA (Valor Económico Agregado) deliverable: classic corporate-finance definition, EVA = Utilidad Neta − costoCapital × capital invertido, with capital invertido taken as `solFp` (fondos propios/patrimonio) rather than the Solvency-II `solRk` requirement — this is a return-on-equity story (did the team's own capital earn more than its opportunity cost), not a regulatory-capital one. 10% for now, matching a plausible cost of equity for an insurer in an emerging market; revisit if a real rubric calibration says otherwise. */
   costoCapital: 0.1,
 };

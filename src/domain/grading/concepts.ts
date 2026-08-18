@@ -18,7 +18,7 @@ export const GROUP_LABELS: Record<ConceptGroup, string> = {
   bal_a3: "Balance — Año 3 (proyectado)",
 };
 
-/** One term of a linear FormulaSpec: `coeff × (the team's own submitted value for conceptId)`. `day` defaults to the referencing concept's own `dia` — set explicitly only for a genuine cross-day reference (Balance Año 1's %-of-premium lines and Año 2's RPND-liberada both need Día 2's own Prima Emitida, submitted a day earlier). `useTrueValue` swaps that lookup for the concept's own true bench value (via its `get()`) instead of the team's submission — for the rare formula that needs a true engine fact alongside what the team reported (e.g. Ajuste de siniestralidad: true Año-1 claims minus the team's own reported Costo de Siniestros A1). */
+/** One term of a linear FormulaSpec: `coeff × (the team's own submitted value for conceptId)`. `day` defaults to the referencing concept's own `dia` — set explicitly only for a genuine cross-day reference (Balance Año 1's %-of-premium lines and Año 2's RPND-liberada both need Día 2's own Prima Emitida, submitted a day earlier). `useTrueValue` swaps that lookup for the concept's own true bench value (via its `get()`) instead of the team's submission — for the rare formula that needs a true engine fact instead of what the team reported (e.g. Ajuste de siniestralidad: a fixed 10% release of the true reserva técnica A1, independent of any team submission). */
 export interface FormulaTerm {
   conceptId: string;
   coeff: number;
@@ -34,11 +34,12 @@ export interface FormulaTerm {
  * referencing concept's own `dia`, same convention as FormulaTerm.day —
  * `sol_sigmaLR` lives on d4 but every year's own P&G lines live on d2/d3, so
  * every entry sets it explicitly in practice. `adjustmentConceptId` exists
- * only for Año 1: its Día-2 Costo de Siniestros guess gets corrected by Año
- * 2's own "Ajuste de siniestralidad" line (`p2_ajusteSiniestralidad`), so
- * Año 1's loss ratio here uses the team's own CORRECTED Año-1 claims, not
- * their original (possibly wrong) Día-2 guess — the same self-correction
- * the P&G's own Resultado Técnico A2 formula already applies.
+ * only for Año 1: its Día-2 Costo de Siniestros gets adjusted by Año 2's own
+ * "Ajuste de siniestralidad" line (`p2_ajusteSiniestralidad`, a fixed 10%
+ * release of the true reserva técnica A1 — see that concept's own comment),
+ * so Año 1's loss ratio here uses the team's own ADJUSTED Año-1 claims, not
+ * the Día-2 figure alone — the same adjustment the P&G's own Resultado
+ * Técnico A2 formula already applies.
  */
 export interface LossRatioYearSpec {
   costConceptId: string;
@@ -101,21 +102,24 @@ export interface Concepto {
  * of the PRIOR year's own holdback and constitutes a new 20% on its own
  * Prima Emitida (Año 1 has no prior year, so it only constitutes). Costo
  * de siniestros is always that year's own accident-year ultimate only —
- * Año 2 alone carries an extra "Ajuste de siniestralidad" line, correcting
- * the team's own Día 2 Costo de Siniestros A1 guess against the true Año-1
- * claims (see p2_ajusteSiniestralidad's own comment, below). RT excludes
- * Gasto Administrativo, which lands on its own line feeding a new
- * "Resultado Industrial" (RI) instead; UAI = RI + Rendimiento de
- * Inversiones (not RT + Rinv).
+ * Año 2 alone carries an extra "Ajuste de siniestralidad" line: a fixed,
+ * one-time release of 10% of the true reserva técnica A1, narrated in the
+ * Guía del Pasante as an actuarial-team finding that 2027's remaining
+ * unpaid severity was overestimated (see p2_ajusteSiniestralidad's own
+ * comment, below). RT excludes Gasto Administrativo, which lands on its own
+ * line feeding a new "Resultado Industrial" (RI) instead; UAI = RI +
+ * Rendimiento de Inversiones (not RT + Rinv).
  *
  * Every line that's a pure formula of OTHER already-reported lines (RPND
- * constituida/liberada, Prima Devengada, the three expense lines, Ajuste de
- * siniestralidad, RT, RI, UAI, Impuesto, Utilidad Neta, and on the Balance
- * side Activos/Pasivo/Pasivo+Patrimonio/Inversiones) carries a `formula`
- * spec and is graded via scoreFormulaConcepto() against the team's OWN
- * other submitted values (Ajuste de siniestralidad is the one exception
- * that also mixes in a true bench fact — see FormulaTerm.useTrueValue) —
- * never against the true bench directly. This means one upstream mistake
+ * constituida/liberada, Prima Devengada, the three expense lines, RT, RI,
+ * UAI, Impuesto, Utilidad Neta, and on the Balance side Activos/Pasivo/
+ * Pasivo+Patrimonio/Inversiones) carries a `formula` spec and is graded via
+ * scoreFormulaConcepto() against the team's OWN other submitted values —
+ * never against the true bench directly. Ajuste de siniestralidad also
+ * carries a `formula`, but its one term reads a true bench fact instead
+ * (see FormulaTerm.useTrueValue) — it's the one "reporte" line whose expected
+ * value doesn't depend on anything else the team submitted at all. This
+ * means one upstream mistake
  * (e.g. a wrong Costo) costs points exactly once, not once per downstream
  * line that algebraically depends on it. Only genuine primary facts/
  * estimates (Prima Emitida, Costo de Siniestros, Resultado de Inversiones,
@@ -324,18 +328,17 @@ export const CONCEPTOS: Concepto[] = [
     label: "Ajuste de siniestralidad A1",
     unit: "COP",
     group: "pyg_a2",
-    // Corrects the team's own Día 2 guess: true Año-1 claims (p1_costo's own
-    // true value) minus what the team itself reported for p1_costo back on
-    // Día 2. Underestimating A1's siniestralidad costs the team here;
-    // overestimating it hands some profit back — a genuine do-over, not a
-    // fixed fact independent of what they submitted, so there's no plain
-    // `get()` for it (see FormulaTerm.useTrueValue).
+    // A fixed, one-time release: −10% × the true reserva técnica A1
+    // (bal1_reservasTec's own true value, via useTrueValue) — narrated in
+    // the Guía del Pasante as an actuarial-team review finding that 2027's
+    // remaining unpaid severity was overestimated by that 10%. Reported as
+    // a negative number (a release, not a cost); independent of whatever
+    // the team itself submitted for Costo de Siniestros A1 back on Día 2 —
+    // not a correction of that guess.
+    get: (b) => -FZ.sevRevisionA1Pct * b.bal1.reservasTec,
     formula: {
       kind: "linear",
-      terms: [
-        { conceptId: "p1_costo", coeff: 1, day: "d2", useTrueValue: true },
-        { conceptId: "p1_costo", coeff: -1, day: "d2" },
-      ],
+      terms: [{ conceptId: "bal1_reservasTec", coeff: -FZ.sevRevisionA1Pct, useTrueValue: true }],
     },
   },
   {
