@@ -14,7 +14,8 @@ import type { Dia } from "@/domain/grading/concepts";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { getTeamBookForDay, computeReservesForTeams } from "@/lib/teamBook";
+import { getTeamBookForDay, computeReservesForTeams, getActiveColombiaUniverse } from "@/lib/teamBook";
+import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeMarketLossRatio } from "@/lib/consolidado";
@@ -194,7 +195,10 @@ export default async function TeamDayPage({
     .filter((c) => c.tipo === "reporte")
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");
-  // Día 2's own P&G/Balance lines, shown read-only on Día 3's "Respuestas Día 2" tab.
+  // Día 2's P&G/Balance lines, shown read-only on Día 3's "Respuestas Día 2"
+  // tab against their TRUE finBench values (not what the team submitted —
+  // see day2TrueValues below), unlike reportConcepts/deliverableValues above,
+  // which are always the team's own submission for whatever `day` this is.
   const day2ReportConcepts = conceptosDia("d2")
     .filter((c) => c.tipo === "reporte")
     .map((c) => ({ id: c.id, label: c.label, unit: c.unit, group: c.group }));
@@ -215,7 +219,6 @@ export default async function TeamDayPage({
     day2Result,
     day2Allocation,
     capacityHistory,
-    day2Deliverables,
   ] = await Promise.all([
       teamId && (day === 1 || day === 2)
         ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day } }, select: { meanPremium: true, outsourced: true } })
@@ -254,11 +257,9 @@ export default async function TeamDayPage({
             select: { rejectedCount: true, extra: true, simulationRun: { select: { day: true } } },
           })
         : [],
-      day === 3 && teamId && day2ReportConcepts.length > 0 ? prisma.deliverable.findMany({ where: { teamId, day: 2 } }) : [],
     ]);
 
   const deliverableValues = Object.fromEntries(deliverables.map((d) => [d.conceptId, d.value]));
-  const day2DeliverableValues = Object.fromEntries(day2Deliverables.map((d) => [d.conceptId, d.value]));
   const analyticsPicksByKey = Object.fromEntries(
     analyticsRecs.map((r) => [
       `${r.list}-${r.rank}`,
@@ -269,20 +270,35 @@ export default async function TeamDayPage({
   // ALM detail (team-scoped), shown on Día 3: Día 2's calendar is graded
   // against Año 1's real reserves (bookYear=1, same as consolidado.ts) — this
   // doesn't depend on Día 2's own tariff/simulation existing, just the
-  // reserves it's benchmarked against. Teams only ever see the fictitious ALM
-  // (what's graded) — the real-premium companion run exists for evaluators
-  // only, on the admin day page, so teams work out their own real P&G figure
-  // instead of reading it off an auto-computed number (see README §5.3).
+  // reserves it's benchmarked against. This is the fictitious ALM (what's
+  // graded) — the real-premium companion run only feeds finBench (below),
+  // never a "score" of its own.
   let almScore: ReturnType<typeof scoreFinanciero> = null;
   let almLadderRows: ReturnType<typeof almLadder> = null;
+  // Día 2's TRUE P&G/Balance (Año 1), from finBench — shown as reference on
+  // Día 3's "Respuestas Día 2" tab instead of the team's own Día 2 report
+  // (deliberately the true engine values here, unlike every other day's own
+  // DeliverablesForm, which stays graded against the team's own guess).
+  const day2TrueValues: Record<string, number> = {};
   if (day === 3 && teamId) {
+    // Fetched once, shared with computeFinBenchBundlesForCohort below —
+    // avoids each one regenerating its own 1,000,000-row copy this request
+    // (see getActiveColombiaUniverse's doc comment).
+    const universe = await getActiveColombiaUniverse(cohort.id);
     const decision = isPortfolioDecisionV4(day2Allocation?.allocation) ? day2Allocation.allocation : null;
     if (decision) {
-      const book = await getTeamBookForDay(cohort.id, 1);
+      const book = await getTeamBookForDay(cohort.id, 1, universe ?? undefined);
       const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
       if (reserves) {
         almScore = scoreFinanciero(reserves, decision);
         almLadderRows = almLadder(reserves, decision);
+      }
+    }
+    const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
+    if (bundle) {
+      for (const c of conceptosDia("d2").filter((c) => c.tipo === "reporte")) {
+        const v = c.get?.(bundle.bench);
+        if (v != null) day2TrueValues[c.id] = v;
       }
     }
   }
@@ -438,7 +454,7 @@ export default async function TeamDayPage({
                   )}
                 </div>
 
-                <DeliverablesReadOnly day={2} concepts={day2ReportConcepts} values={day2DeliverableValues} />
+                <DeliverablesReadOnly concepts={day2ReportConcepts} values={day2TrueValues} title="P&G / Balance real — Año 1" />
               </>
             )}
 
