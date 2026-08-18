@@ -555,7 +555,15 @@ async function main() {
   const day1MeanPremiumByTeamId = new Map<string, number>();
   const day1TariffByTeamId = new Map<string, Float32Array>();
   for (const team of teams) {
-    const factor = 0.9 + day1FactorRng() * 0.4; // 0.90..1.30 (breakeven ± pricing strategy)
+    // 1.20..2.00 — RT (Resultado Técnico) needs written-premium loss ratio
+    // (costo/primaEmitida) below ~61% (RPND 20% + gAdq 4% + gCom 15%, see
+    // pyg() in finBench.ts), and rawPure/scaleCorrection calibrate factor=1.0
+    // to a ~100% loss ratio (breakeven on claims alone, before expenses) —
+    // so positive RT needs roughly factor > 1/0.61 ≈ 1.64. This range
+    // straddles that threshold so some teams price high enough for a
+    // genuinely positive RT while others don't, instead of everyone
+    // uniformly under it (the old 0.90..1.30 range never crossed 1.64).
+    const factor = 1.2 + day1FactorRng() * 0.8;
     const tariff = scaleTariff(rawPure, scaleCorrection, factor);
     const mp = meanPremium(tariff);
     await prisma.tariffSubmission.upsert({
@@ -590,7 +598,8 @@ async function main() {
   const day2MeanPremiumByTeamId = new Map<string, number>();
   const day2TariffByTeamId = new Map<string, Float32Array>();
   for (const team of teams) {
-    const factor = 0.88 + day2FactorRng() * 0.4;
+    // Same reasoning as Día 1's factor above — straddles the ~1.64 RT breakeven.
+    const factor = 1.15 + day2FactorRng() * 0.85;
     const tariff = scaleTariff(rawPure2, scaleCorrection2, factor);
     const mp = meanPremium(tariff);
     await prisma.tariffSubmission.upsert({
@@ -631,6 +640,7 @@ async function main() {
       continue;
     }
     const noise = (noiseRng() - 0.5) * 0.16; // ±8% de error relativo por equipo
+    console.log(`  ${team.name}: RT A1=${bench.p1.rt.toFixed(0)} RT A2=${bench.p2?.rt.toFixed(0) ?? "—"}`);
     await writeDeliverablesForDay(2, team.id, bench, noise, submittedByTeam);
     await writeDeliverablesForDay(3, team.id, bench, noise, submittedByTeam);
     await writeDeliverablesForDay(4, team.id, bench, noise, submittedByTeam);
