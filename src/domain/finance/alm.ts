@@ -37,34 +37,36 @@ export const W_LIQ = 0.1;
  *   Unaffected by switching avgVol → avgPortfolioVol: a single-instrument
  *   portfolio has nothing to correlate against, so the two are identical
  *   here.
- * - MAX ≈ 0.078: an even 50%/50% split across CDT90/TES1, each "repeat"
- *   forever. First recalibrated away from the old reference (an even
- *   25%/25%/25%/25% split including the long-dated TES3/TESUVR8 legs) after
- *   `forceLiquidatePortfolio()` started charging a price haircut on early
- *   sales (see `ventaForzadaHaircut()`) — the haircut scales with an
- *   instrument's own remaining term, so under this fixture's cash-flow
- *   timing those two legs get force-sold early often enough that their
- *   haircut losses outweigh what diversifying into them used to gain, even
- *   after the concentration discount CDT90/TES1 pay instead for being just
- *   2 instruments. Re-verified (not just re-guessed) after avgVol was
- *   replaced by avgPortfolioVol in the formula above: correctly crediting
- *   diversification via COVARIANCE_MATRIX barely moves this reference
- *   (0.077 → 0.078) because CDT90/TES1 are themselves fairly correlated
- *   (~0.68, see markowitz.ts's RATE_LOADING comment) — spreading into the
- *   less-correlated TES3/TESUVR8 legs still isn't worth their haircut
- *   exposure under this fixture. Confirmed against a full grid search over
- *   the 5-instrument simplex (LIQ/CDT90/TES1/TES3/TESUVR8, ACC still
- *   excluded — its volatility still never pays for itself even diluted),
- *   which found no blend beating this reference by more than the grid's own
- *   discretization slack.
+ * - MAX ≈ 0.079: 40% CDT90 / 10% TES3 / 50% TESUVR8, each "repeat" forever.
+ *   Moved twice since this constant was first introduced. First, off the
+ *   original 25%/25%/25%/25% split, when `forceLiquidatePortfolio()` started
+ *   charging a price haircut on early sales (see `ventaForzadaHaircut()`):
+ *   under this fixture's cash-flow timing, TES3/TESUVR8 got force-sold early
+ *   often enough that a *linear* volatility term in the haircut left
+ *   CDT90/TES1 (short duration, low haircut exposure) winning instead — MAX
+ *   briefly sat at ≈0.078, an even 50%/50% CDT90/TES1 split. Then, once the
+ *   volatility term was cubed instead of linear (see `ventaForzadaHaircut()`'s
+ *   own doc comment — needed to keep 100% TESUVR8 beating 100% ACC on
+ *   riskAdjustedYield once `VENTA_FORZADA_HAIRCUT_MAX` reached 0.10), that
+ *   same cubing sharply discounts CDT90/TES1's own small haircut exposure
+ *   too, and long-dated TES3/TESUVR8 become genuinely worth diversifying
+ *   into again — MAX moved back up to include them. Confirmed against a
+ *   full grid search over the 5-instrument simplex
+ *   (LIQ/CDT90/TES1/TES3/TESUVR8, ACC still excluded — its volatility still
+ *   never pays for itself even diluted, cubing doesn't change that since its
+ *   own vol-ratio term is already 1, the max possible), which found no blend
+ *   beating this reference by more than the grid's own discretization slack.
  *
  * Recompute both (same harness: run a reference allocation through
  * `scoreFinanciero()`, read off `riskAdjustedYield`) if the instrument
  * menu, `VOL_PENALTY_LAMBDA`, `CONCENTRATION_PENALTY_MU`, `VENTA_FORZADA_HAIRCUT_MAX`,
- * `COVARIANCE_MATRIX`, or the accrual mechanic ever change.
+ * the haircut's own volatility exponent, `COVARIANCE_MATRIX`, or the accrual
+ * mechanic ever change — and re-verify the ACC-vs-TESUVR8 riskAdjustedYield
+ * ordering in alm.test.ts at the same time (see `ventaForzadaHaircut()`'s
+ * doc comment for why that ordering isn't automatic).
  */
 export const RISK_ADJUSTED_YIELD_MIN = 0.046;
-export const RISK_ADJUSTED_YIELD_MAX = 0.078;
+export const RISK_ADJUSTED_YIELD_MAX = 0.079;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
@@ -545,25 +547,46 @@ function drawFromLiq(neededNeta: number, positions: Position[]): number {
  * term still ahead of it. See ventaForzadaHaircut() for how it scales down
  * from there.
  */
-const VENTA_FORZADA_HAIRCUT_MAX = 0.02;
+const VENTA_FORZADA_HAIRCUT_MAX = 0.10;
 
 /**
  * Price discount applied when position `p` gets force-sold at month `t`,
  * before its own maturity — selling early realizes less cash than the
  * position's book value, same as unwinding any real bond/equity position
  * ahead of schedule would. Scales with two things a team can actually see
- * coming: how volatile the instrument is (ins.volAnual ÷ VOL_MAX — selling
- * ACC costs far more than selling CDT90) and how much of its own term is
+ * coming: how volatile the instrument is, and how much of its own term is
  * still left to run ((p.matM − t) ÷ its duration — a position one month
  * from maturing anyway is barely early at all; one just funded pays close
  * to the full haircut). 0 for a position already at or past its own
  * maturity month; LIQ is never passed in here at all (see
  * forceLiquidatePortfolio's own filter — drawing it down is free).
+ *
+ * The volatility term is cubed, not linear: (ins.volAnual ÷ VOL_MAX) ** 3.
+ * A coupon-paying, long-dated bond (TES3/TESUVR8) that gets force-sold
+ * shortly after being funded pays close to the FULL time-remaining fraction
+ * every single time — unlike a real bond, this engine funds a brand-new
+ * position each month a checkpoint reinvests a surplus, so a thin-liquidity
+ * cash-flow pattern can force-sell the same "just funded, 96 months left"
+ * TESUVR8 position over and over, each one paying near-maximum haircut on
+ * that axis alone. A linear volatility term left this structural
+ * disadvantage under-compensated: at VENTA_FORZADA_HAIRCUT_MAX values
+ * competitive with what's needed for the haircut to matter economically,
+ * TESUVR8 (volAnual 0.06) started losing to ACC (volAnual 0.2, but far less
+ * exposed to this churn pattern — see ACC_ROLL_M) on riskAdjustedYield,
+ * inverting the instrument menu's own deliberate calibration (see
+ * instruments.ts's top doc comment: "TESUVR8 is deliberately the best
+ * risk-adjusted choice of the whole menu"). Cubing the volatility ratio
+ * fixes this without touching the time-remaining term at all: ACC's ratio
+ * is already 1 (the menu's max), so cubing leaves its own haircut
+ * unchanged, while every lower-volatility instrument's contribution shrinks
+ * much faster than the churn penalty grows — re-verify both this ordering
+ * (alm.test.ts) and RISK_ADJUSTED_YIELD_MIN/MAX (their own doc comment)
+ * together if VENTA_FORZADA_HAIRCUT_MAX or this exponent ever change again.
  */
 function ventaForzadaHaircut(p: Position, ins: Instrument, t: number): number {
   const dur = Math.max(1, instrumentDurationM(ins));
   const remainingFraction = Math.max(0, Math.min(1, (p.matM - t) / dur));
-  return VENTA_FORZADA_HAIRCUT_MAX * (ins.volAnual / VOL_MAX) * remainingFraction;
+  return VENTA_FORZADA_HAIRCUT_MAX * (ins.volAnual / VOL_MAX) ** 3 * remainingFraction;
 }
 
 /**
