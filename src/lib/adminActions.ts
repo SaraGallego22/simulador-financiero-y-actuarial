@@ -32,12 +32,11 @@ async function requireAdmin() {
 export async function createTeamAction(formData: FormData): Promise<{ error?: string }> {
   await requireAdmin();
 
-  const name = String(formData.get("name") ?? "").trim();
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!name || !username || password.length < 8) {
-    return { error: "Nombre, usuario y una contraseña de al menos 8 caracteres son obligatorios." };
+  if (!username || password.length < 8) {
+    return { error: "Usuario y una contraseña de al menos 8 caracteres son obligatorios." };
   }
 
   const existingUser = await prisma.user.findUnique({ where: { username } });
@@ -46,10 +45,13 @@ export async function createTeamAction(formData: FormData): Promise<{ error?: st
   const cohort = await getOrCreateActiveCohort();
   const teamCount = await prisma.team.count({ where: { cohortId: cohort.id } });
 
-  const existingTeamName = await prisma.team.findUnique({
-    where: { cohortId_name: { cohortId: cohort.id, name } },
-  });
-  if (existingTeamName) return { error: `Ya existe un equipo llamado "${name}" en esta cohorte.` };
+  // The admin only sets up login credentials — the team picks its own name later (see updateTeamNameAction).
+  let suffix = teamCount + 1;
+  let name = `Equipo ${suffix}`;
+  while (await prisma.team.findUnique({ where: { cohortId_name: { cohortId: cohort.id, name } } })) {
+    suffix++;
+    name = `Equipo ${suffix}`;
+  }
 
   const team = await prisma.team.create({
     data: { cohortId: cohort.id, name, color: TEAM_COLORS[teamCount % TEAM_COLORS.length] },
