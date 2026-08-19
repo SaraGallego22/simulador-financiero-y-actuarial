@@ -6,6 +6,7 @@ import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { Card } from "@/components/ui/card";
 import { LockIcon } from "@/components/ui/icons";
 import { TEAM_DAY_LINKS } from "@/lib/teamNavData";
+import { TeamNameForm } from "./TeamNameForm";
 
 function ShortBadge({ short }: { short: string }) {
   return (
@@ -37,6 +38,7 @@ export default async function TeamDashboard() {
         <h1 className="mt-1 font-[family-name:var(--font-condensed)] text-4xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)] sm:text-5xl">
           {team?.name ?? "Equipo"}
         </h1>
+        {team && <TeamNameForm currentName={team.name} />}
         <p className="mt-3 max-w-2xl text-sm text-[var(--color-brand-text-secondary)]">
           El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo
           compite contra los demás equipos del cohorte por una porción de un mercado sintético de 1.000.000 de pólizas

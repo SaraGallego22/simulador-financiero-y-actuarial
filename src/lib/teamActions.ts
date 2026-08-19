@@ -16,6 +16,43 @@ async function requireTeam(): Promise<string> {
   return session.user.teamId;
 }
 
+export interface UpdateTeamNameState {
+  error?: string;
+  success?: boolean;
+}
+
+const MAX_TEAM_NAME_LENGTH = 60;
+
+/**
+ * Teams get a generic name (Equipo N) from createTeamAction and rename
+ * themselves here — the admin only sets up login credentials.
+ */
+export async function updateTeamNameAction(_prev: UpdateTeamNameState, formData: FormData): Promise<UpdateTeamNameState> {
+  const teamId = await requireTeam();
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "El nombre no puede estar vacío." };
+  if (name.length > MAX_TEAM_NAME_LENGTH) {
+    return { error: `El nombre no puede tener más de ${MAX_TEAM_NAME_LENGTH} caracteres.` };
+  }
+
+  const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { cohortId: true } });
+  const existing = await prisma.team.findUnique({ where: { cohortId_name: { cohortId: team.cohortId, name } } });
+  if (existing && existing.id !== teamId) {
+    return { error: `Ya existe un equipo llamado "${name}" en esta cohorte.` };
+  }
+
+  await prisma.team.update({ where: { id: teamId }, data: { name } });
+
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/day/[n]", "page");
+  revalidatePath("/standings");
+  revalidatePath("/admin/config");
+  revalidatePath("/admin/standings");
+  revalidatePath("/admin/day/[n]", "page");
+  return { success: true };
+}
+
 export interface SubmitPortfolioState {
   error?: string;
   success?: boolean;

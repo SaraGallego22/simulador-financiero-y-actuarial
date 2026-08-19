@@ -28,13 +28,10 @@ export function CreateTeamForm() {
   return (
     <form action={formAction} className="flex flex-col gap-3 rounded border border-dashed border-[var(--color-brand-gray-light)] p-4">
       <h3 className="text-sm font-semibold text-[var(--color-foreground)]">Crear cuenta de equipo</h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <input
-          name="name"
-          placeholder="Nombre del equipo"
-          required
-          className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm focus:border-[var(--color-brand-cyan)] focus:outline-none"
-        />
+      <p className="text-xs text-[var(--color-brand-text-secondary)]">
+        El equipo queda con un nombre genérico (Equipo 1, Equipo 2…) hasta que lo cambien desde su panel.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input
           name="username"
           placeholder="Usuario"
