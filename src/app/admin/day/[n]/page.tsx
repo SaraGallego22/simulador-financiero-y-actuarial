@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
-import { INSTRUMENTS, isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
+import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
 import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioScheduleView } from "@/components/AlmLadderTable";
 import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
@@ -31,7 +31,7 @@ import type { SoftSkillRating } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
 import type { InterviewSkill } from "@/lib/interview";
 import { SimulationTrigger } from "./SimulationTrigger";
-import { PnlTeamPicker } from "./PnlTeamPicker";
+import { Dia1TeamDetail } from "./Dia1TeamDetail";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
 import { AptitudesRiesgosToggle } from "./AptitudesRiesgosToggle";
@@ -333,8 +333,6 @@ export default async function AdminDayPage({
     }
   }
   const minVarReferenceWeights = solveLongOnlyMinVariance(TARGET_RETURN);
-  const minVarReferenceReturn = portfolioExpectedReturn(minVarReferenceWeights);
-  const minVarReferenceVariance = portfolioVariance(minVarReferenceWeights);
 
   const deliverablesByTeamId = new Map<string, Record<string, number>>();
   // Per-team, keyed `${day}:${conceptId}` — what scoreConcepto()'s formula
@@ -422,6 +420,38 @@ export default async function AdminDayPage({
 
       {activeTab === "resultados" && day === 1 && (
         <div className="flex flex-col gap-4">
+          <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
+            <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              Estado de cargues — Día {day}
+            </h3>
+            <div className="grid grid-cols-2 gap-6">
+              {(
+                [
+                  { label: "Tarifa", check: (t: (typeof teams)[number]) => t.tariffSubmissions[0]?.meanPremium != null },
+                  { label: "Portafolio", check: (t: (typeof teams)[number]) => minVarWeightsByTeamId.has(t.id) },
+                ] as const
+              ).map(({ label, check }) => (
+                <div key={label}>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">{label}</p>
+                  <ul className="flex flex-col gap-1 text-sm">
+                    {teams.map((team) => {
+                      const done = check(team);
+                      return (
+                        <li key={team.id} className="flex items-center gap-2">
+                          <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                          <span className={done ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}>
+                            {done ? "✓" : "— pendiente"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
             <div className="p-4 pb-0">
               <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -435,8 +465,8 @@ export default async function AdminDayPage({
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                   <th className="px-4 py-2">Equipo</th>
-                  <th className="px-4 py-2"># pólizas</th>
                   <th className="px-4 py-2">Market</th>
+                  <th className="px-4 py-2"># pólizas</th>
                   <th className="px-4 py-2">Limite</th>
                   <th className="px-4 py-2">Tarifa mediana</th>
                   <th className="px-4 py-2">Cobro mediano</th>
@@ -460,8 +490,8 @@ export default async function AdminDayPage({
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                         {team.name}
                       </td>
-                      <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(0)}%` : "—"}</td>
+                      <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{capExtra?.capacityLimit != null ? capExtra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
                       <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
@@ -475,41 +505,26 @@ export default async function AdminDayPage({
             </table>
           </div>
 
-          <PnlTeamPicker
+          <Dia1TeamDetail
             teams={teams.map((t) => ({
               id: t.id,
               name: t.name,
               color: t.color,
               pnl: finBenchByTeamId.get(t.id)?.p1 ?? null,
+              weights: minVarWeightsByTeamId.get(t.id) ?? null,
             }))}
+            referenceWeights={minVarReferenceWeights}
           />
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
             <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               Portafolio de mínima varianza — Día {day}
             </h3>
-            <div className="mb-4 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
-              <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                Portafolio correcto (referencia, a {(TARGET_RETURN * 100).toFixed(0)}% de retorno)
-              </p>
-              <div className="flex flex-wrap gap-4 text-sm">
-                {INSTRUMENTS.map((ins) => (
-                  <span key={ins.id}>
-                    <strong>{ins.id}:</strong> {(minVarReferenceWeights[ins.id] * 100).toFixed(1)}%
-                  </span>
-                ))}
-              </div>
-              <p className="mt-2 text-sm">
-                Retorno: {(minVarReferenceReturn * 100).toFixed(2)}% · Varianza: {minVarReferenceVariance.toFixed(6)} · Volatilidad:{" "}
-                {(Math.sqrt(minVarReferenceVariance) * 100).toFixed(2)}%
-              </p>
-            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="py-1 pr-4">Equipo</th>
-                    <th className="py-1 pr-4">Estado</th>
                     <th className="py-1 pr-4">Retorno logrado</th>
                     <th className="py-1 pr-4">Varianza lograda</th>
                     <th className="py-1 pr-4">Nota</th>
@@ -525,13 +540,6 @@ export default async function AdminDayPage({
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                           {team.name}
                         </td>
-                        <td className="py-1 pr-4">
-                          {weights ? (
-                            <span className="text-[var(--color-brand-green)]">Cargado</span>
-                          ) : (
-                            <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
-                          )}
-                        </td>
                         <td className="py-1 pr-4">{weights ? `${(portfolioExpectedReturn(weights) * 100).toFixed(2)}%` : "—"}</td>
                         <td className="py-1 pr-4">{weights ? portfolioVariance(weights).toFixed(6) : "—"}</td>
                         <td className="py-1 pr-4">{score != null ? score.toFixed(0) : "—"}</td>
@@ -540,34 +548,6 @@ export default async function AdminDayPage({
                   })}
                 </tbody>
               </table>
-            </div>
-            <div className="mt-3 flex flex-col gap-2">
-              {teamsByMinVarScoreDesc.map((team) => {
-                const weights = minVarWeightsByTeamId.get(team.id);
-                if (!weights) return null;
-                // Displayed normalized to sum 100 — the same normalization
-                // portfolioVariance()/portfolioExpectedReturn()/scoreMinVariance()
-                // already apply internally before grading, so a submission
-                // that didn't sum to exactly 100 isn't shown misleadingly
-                // (e.g. as if 20% in one instrument were literally 20% of
-                // the graded portfolio when the raw total was really 80).
-                const totalW = INSTRUMENTS.reduce((s, ins) => s + (weights[ins.id] ?? 0), 0);
-                return (
-                  <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                    <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name} — ver pesos
-                    </summary>
-                    <div className="flex flex-wrap gap-4 border-t border-[var(--color-brand-gray-light)] p-3 text-sm">
-                      {INSTRUMENTS.map((ins) => (
-                        <span key={ins.id}>
-                          <strong>{ins.id}:</strong> {(totalW > 0 ? ((weights[ins.id] ?? 0) / totalW) * 100 : 0).toFixed(1)}%
-                        </span>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
             </div>
           </div>
         </div>
