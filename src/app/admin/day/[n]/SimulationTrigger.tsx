@@ -17,6 +17,10 @@ export function SimulationTrigger({ day, defaultCuotaPercent }: { day: number; d
     setLoading(true);
     setError(null);
     try {
+      // Wakes Neon's auto-suspended compute in its own short request, so the
+      // cold-start doesn't eat into /api/simulation's own 300s budget — see
+      // that route's maxDuration comment and /api/warmup's doc comment.
+      await fetch("/api/warmup").catch(() => {});
       const res = await fetch("/api/simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
