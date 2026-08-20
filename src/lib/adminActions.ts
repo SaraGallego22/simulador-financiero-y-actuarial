@@ -29,6 +29,13 @@ async function requireAdmin() {
   return session;
 }
 
+/** For actions behind the "Talento Humano" nav section (entrevista + habilidades blandas) — reachable by both ADMIN and ADMIN_TH, unlike everything else in this file. */
+async function requireAdminOrTH() {
+  const session = await auth();
+  if (!session || (session.user.role !== "ADMIN" && session.user.role !== "ADMIN_TH")) throw new Error("No autorizado");
+  return session;
+}
+
 export async function createTeamAction(formData: FormData): Promise<{ error?: string }> {
   await requireAdmin();
 
@@ -270,7 +277,7 @@ export async function deleteTeamMemberAction(teamMemberId: string, day: number):
  * of writing a null rating (SoftSkillRating has no "sin definir" value).
  */
 export async function submitSoftSkillEvaluationAction(teamMemberId: string, activity: number, formData: FormData): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   if (!isValidSoftSkillActivity(activity)) return;
   const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId } });
   if (!member) return;
@@ -293,7 +300,7 @@ export async function submitSoftSkillEvaluationAction(teamMemberId: string, acti
 
 /** Adds one dated remark for a member/activity — author is always "Equipo TH" (see softSkills.ts), never taken from the form. */
 export async function addSoftSkillCommentAction(teamMemberId: string, activity: number, formData: FormData): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   if (!isValidSoftSkillActivity(activity)) return;
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
@@ -302,7 +309,7 @@ export async function addSoftSkillCommentAction(teamMemberId: string, activity: 
 }
 
 export async function deleteSoftSkillCommentAction(commentId: string, activity: number): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   await prisma.softSkillComment.delete({ where: { id: commentId } });
   revalidatePath(`/admin/actividad/${activity}`);
 }
@@ -313,7 +320,7 @@ export async function deleteSoftSkillCommentAction(commentId: string, activity: 
  * submitSoftSkillEvaluationAction (SoftSkillRating has no "sin definir" value).
  */
 export async function submitInterviewSkillsAction(teamMemberId: string, formData: FormData): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   const member = await prisma.teamMember.findUnique({ where: { id: teamMemberId } });
   if (!member) return;
 
@@ -335,7 +342,7 @@ export async function submitInterviewSkillsAction(teamMemberId: string, formData
 
 /** Adds one dated remark from the TH interview — author is always "Equipo TH" (see interview.ts), never taken from the form. */
 export async function addInterviewCommentAction(teamMemberId: string, formData: FormData): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
   await prisma.interviewComment.create({ data: { teamMemberId, text } });
@@ -343,7 +350,7 @@ export async function addInterviewCommentAction(teamMemberId: string, formData: 
 }
 
 export async function deleteInterviewCommentAction(commentId: string): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   await prisma.interviewComment.delete({ where: { id: commentId } });
   revalidatePath("/admin/entrevista");
 }
@@ -375,7 +382,7 @@ export async function uploadMemberPhotoAction(teamMemberId: string, _prev: Uploa
 
 /** Single note per team/activity — each save overwrites the previous text (see TeamActivityNote's doc comment). */
 export async function upsertTeamActivityNoteAction(teamId: string, activity: number, formData: FormData): Promise<void> {
-  await requireAdmin();
+  await requireAdminOrTH();
   if (!isValidSoftSkillActivity(activity)) return;
   const text = String(formData.get("text") ?? "").trim();
   await prisma.teamActivityNote.upsert({

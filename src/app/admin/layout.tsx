@@ -5,17 +5,18 @@ import { AdminHero } from "@/components/backgrounds/AdminHero";
 import { FloatingThemeToggle } from "@/components/FloatingThemeToggle";
 
 /**
- * Defense-in-depth: proxy.ts already blocks non-admins from /admin/*, but
- * per CLAUDE.md §8 every team-scoped/role-scoped boundary should also be
- * enforced at the data-access layer, not just in the request gate.
+ * Defense-in-depth: proxy.ts already blocks non-admins (and blocks ADMIN_TH
+ * from non-Talento-Humano admin routes) from /admin/*, but per CLAUDE.md §8
+ * every team-scoped/role-scoped boundary should also be enforced at the
+ * data-access layer, not just in the request gate.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect("/login");
+  if (!session || (session.user.role !== "ADMIN" && session.user.role !== "ADMIN_TH")) redirect("/login");
   return (
     <div className="flex min-h-0 flex-1 print:h-auto print:min-h-full">
       <FloatingThemeToggle />
-      <AdminNav badge="Admin" />
+      <AdminNav badge={session.user.role === "ADMIN_TH" ? "Admin TH" : "Admin"} role={session.user.role} />
       {/* print:h-auto + print:overflow-visible: same fix as (team)/layout.tsx —
           without it, printing the Guía del pasante from the admin view (now
           linked from every admin/day/[n] page) silently truncates, since
