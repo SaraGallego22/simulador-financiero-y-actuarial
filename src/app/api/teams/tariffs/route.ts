@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { BYTES_PER_PREMIUM, MIN_COVERAGE, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
 import { toFloat32View } from "@/lib/binary";
-import { hasDaySimResult } from "@/lib/tariffAccess";
+import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
 
 async function requireTeam() {
   const session = await auth();
@@ -126,7 +126,8 @@ export async function POST(request: Request) {
   }
 
   const meanPremium = sum / covered;
-  await prisma.tariffSubmission.update({ where: { teamId_day: { teamId, day } }, data: { meanPremium } });
+  const medianPremium = medianOfPositive(view);
+  await prisma.tariffSubmission.update({ where: { teamId_day: { teamId, day } }, data: { meanPremium, medianPremium } });
 
   return NextResponse.json({ chunkIndex, complete: true, meanPremium });
 }

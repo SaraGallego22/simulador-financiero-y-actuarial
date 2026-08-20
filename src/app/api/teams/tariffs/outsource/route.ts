@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
-import { hasDaySimResult } from "@/lib/tariffAccess";
+import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { generateOutsourcedTariff, meanPremium } from "@/domain/pricing/outsourced";
 
@@ -54,11 +54,12 @@ export async function POST(request: Request) {
 
   const premiums = generateOutsourcedTariff(universe);
   const mean = meanPremium(premiums);
+  const median = medianOfPositive(premiums);
 
   await prisma.tariffSubmission.upsert({
     where: { teamId_day: { teamId, day } },
-    update: { data: null, meanPremium: mean, outsourced: true },
-    create: { teamId, day, data: null, meanPremium: mean, outsourced: true },
+    update: { data: null, meanPremium: mean, medianPremium: median, outsourced: true },
+    create: { teamId, day, data: null, meanPremium: mean, medianPremium: median, outsourced: true },
   });
 
   // meanPremium is deliberately left out of the response — a team can't see
