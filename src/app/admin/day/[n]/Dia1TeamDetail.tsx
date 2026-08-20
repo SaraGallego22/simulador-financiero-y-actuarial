@@ -75,7 +75,7 @@ export function Dia1TeamDetail({
   const referenceVariance = portfolioVariance(referenceWeights);
 
   return (
-    <div className="max-w-3xl rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           P&amp;G y portafolio por equipo
@@ -118,7 +118,7 @@ export function Dia1TeamDetail({
           )}
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 sm:border-l sm:border-[var(--color-brand-gray-light)] sm:pl-12">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">Portafolio de mínima varianza</p>
           {!teamWeights ? (
             <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin portafolio cargado todavía para este equipo.</p>

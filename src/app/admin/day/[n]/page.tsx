@@ -424,30 +424,37 @@ export default async function AdminDayPage({
             <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               Estado de cargues — Día {day}
             </h3>
-            <div className="grid grid-cols-2 gap-6">
-              {(
-                [
-                  { label: "Tarifa", check: (t: (typeof teams)[number]) => t.tariffSubmissions[0]?.meanPremium != null },
-                  { label: "Portafolio", check: (t: (typeof teams)[number]) => minVarWeightsByTeamId.has(t.id) },
-                ] as const
-              ).map(({ label, check }) => (
-                <div key={label}>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">{label}</p>
-                  <ul className="flex flex-col gap-1 text-sm">
-                    {teams.map((team) => {
-                      const done = check(team);
+            <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+              {[teams.slice(0, Math.ceil(teams.length / 2)), teams.slice(Math.ceil(teams.length / 2))].map((group, gi) => (
+                <table key={gi} className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                      <th className="py-1">Equipo</th>
+                      <th className="py-1 text-center">Tarifa</th>
+                      <th className="py-1 text-center">Portafolio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.map((team) => {
+                      const tariffDone = team.tariffSubmissions[0]?.meanPremium != null;
+                      const portfolioDone = minVarWeightsByTeamId.has(team.id);
                       return (
-                        <li key={team.id} className="flex items-center gap-2">
-                          <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                          <span className={done ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}>
-                            {done ? "✓" : "— pendiente"}
-                          </span>
-                        </li>
+                        <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                          <td className="py-1">
+                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                            {team.name}
+                          </td>
+                          <td className={`py-1 text-center ${tariffDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                            {tariffDone ? "✓" : "—"}
+                          </td>
+                          <td className={`py-1 text-center ${portfolioDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                            {portfolioDone ? "✓" : "—"}
+                          </td>
+                        </tr>
                       );
                     })}
-                  </ul>
-                </div>
+                  </tbody>
+                </table>
               ))}
             </div>
           </div>
