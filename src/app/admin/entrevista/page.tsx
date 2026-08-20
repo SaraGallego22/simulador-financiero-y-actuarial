@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { TeamSelect } from "@/components/TeamSelect";
-import type { InterviewSkill } from "@/lib/interview";
-import type { SoftSkillRating } from "@/lib/softSkills";
+import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { InterviewSkillsForm } from "./InterviewSkillsForm";
 import { InterviewComments } from "./InterviewComments";
 
@@ -28,10 +27,10 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
     }),
   ]);
 
-  const ratingsByMemberId = new Map<string, Partial<Record<InterviewSkill, SoftSkillRating>>>();
+  const ratingsByMemberId = new Map<string, Partial<Record<InterviewSkill, InterviewSkillScore>>>();
   for (const r of ratings) {
     if (!ratingsByMemberId.has(r.teamMemberId)) ratingsByMemberId.set(r.teamMemberId, {});
-    ratingsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating as SoftSkillRating;
+    ratingsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating as InterviewSkillScore;
   }
 
   const commentsByMemberId = new Map<string, (typeof comments)[number][]>();
@@ -86,7 +85,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
                 <div className="flex flex-col gap-6">
                   {selectedTeam.members.map((member) => {
                     const memberRatings = ratingsByMemberId.get(member.id) ?? {};
-                    const academic = [member.carrera, member.universidad, member.semestre && `${member.semestre} semestre`]
+                    const academic = [member.carrera, member.universidad, member.semestre && `Prácticas en ${member.semestre}`]
                       .filter(Boolean)
                       .join(" · ");
                     return (

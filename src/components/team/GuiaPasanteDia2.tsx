@@ -242,8 +242,8 @@ export function GuiaPasanteDia2() {
             El estado de resultados de una aseguradora se parece al de cualquier empresa, pero con ajustes que reflejan cómo funciona el negocio de
             seguros: la prima no se &ldquo;gana&rdquo; toda de inmediato (una póliza a 12 meses todavía debe cubrir riesgo en los meses que faltan del
             año, así que una parte se aparta como Reserva de Prima No Devengada — un pasivo, no un ingreso todavía), y el resultado se separa en capas:
-            Resultado Técnico (la rentabilidad pura de suscribir riesgo: prima devengada menos siniestros y gastos de adquisición/comercialización),
-            Resultado Industrial (Resultado Técnico menos gastos administrativos) y, sumando el Resultado de Inversiones, la Utilidad Neta. Esa
+            el Resultado Técnico es el equivalente a la utilidad bruta, con los ingresos y costos propios de la operación de asegurar, mientras que
+            el Resultado Industrial es el equivalente a la utilidad operativa. Sumando el Resultado de Inversiones se llega a la Utilidad Neta. Esa
             separación por capas no es cosmética: permite diagnosticar si un mal resultado viene de suscribir mal el riesgo, de gastos administrativos
             altos, o de un mal año de inversiones — tres causas con remedios distintos.
           </p>
@@ -269,8 +269,7 @@ export function GuiaPasanteDia2() {
             directamente: solo ves los siniestros del 2027 ya avisados (la misma opacidad de IBNR de Día 1) — tu Costo de Siniestros A1 es tu propia
             estimación del costo <strong>último</strong>, vía el método Expected Loss Ratio (sección 2), no una suma de lo avisado. Los gastos de
             adquisición y comisión son los mismos porcentajes fijos sobre la prima <strong>emitida</strong> que ya usaste para calcular tu prima
-            comercial en Día 1; el administrativo también, pero ya no resta dentro del Resultado Técnico — tiene su propia línea (Resultado
-            Industrial, ver sección 5.1). Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
+            comercial en Día 1; el administrativo también. Tu prima emitida no es lo mismo que tu prima devengada: reservas un 20% como Reserva de Prima No
             Devengada (RPND), la parte que todavía no has &ldquo;ganado&rdquo; — solo el 80% restante entra al Resultado Técnico como ingreso. El
             Resultado de inversiones es el ingreso real que tu calendario de portafolio (abajo) devengó durante los 12 meses del 2027 — no una fórmula, el
             resultado de la simulación mes a mes.

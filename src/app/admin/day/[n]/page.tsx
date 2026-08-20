@@ -26,10 +26,9 @@ import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { SoftSkillsRadarChart } from "@/components/SoftSkillsRadarChart";
 import { TeamSelect } from "@/components/TeamSelect";
-import { averageSoftSkillsByMember, RATING_LABELS } from "@/lib/softSkills";
-import type { SoftSkillRating } from "@/lib/softSkills";
+import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
-import type { InterviewSkill } from "@/lib/interview";
+import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { SimulationTrigger } from "./SimulationTrigger";
 import { Dia1TeamDetail } from "./Dia1TeamDetail";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
@@ -203,10 +202,10 @@ export default async function AdminDayPage({
   // Habilidades blandas (radar) and TH interview (read-only summary) for the
   // redesigned "subj" tab below.
   const softSkillsByMemberId = averageSoftSkillsByMember(softSkillEvals);
-  const interviewRatingsByMemberId = new Map<string, Partial<Record<InterviewSkill, SoftSkillRating>>>();
+  const interviewRatingsByMemberId = new Map<string, Partial<Record<InterviewSkill, InterviewSkillScore>>>();
   for (const r of interviewSkillRatings) {
     if (!interviewRatingsByMemberId.has(r.teamMemberId)) interviewRatingsByMemberId.set(r.teamMemberId, {});
-    interviewRatingsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating as SoftSkillRating;
+    interviewRatingsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating as InterviewSkillScore;
   }
   const interviewCommentsByMemberId = new Map<string, (typeof interviewComments)[number][]>();
   for (const c of interviewComments) {
@@ -1240,7 +1239,7 @@ export default async function AdminDayPage({
                                             <p className="text-xs text-[var(--color-foreground)]">
                                               {INTERVIEW_SKILLS.map((skill) => {
                                                 const rating = interviewRatings?.[skill];
-                                                return `${INTERVIEW_SKILL_LABELS[skill]}: ${rating ? RATING_LABELS[rating] : "Sin definir"}`;
+                                                return `${INTERVIEW_SKILL_LABELS[skill]}: ${rating ? `${rating}/5` : "Sin definir"}`;
                                               }).join(" · ")}
                                             </p>
                                             {interviewMemberComments.length > 0 && (
