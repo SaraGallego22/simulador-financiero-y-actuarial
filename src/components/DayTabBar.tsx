@@ -1,8 +1,9 @@
 import { PillTabBar } from "./PillTabBar";
 
-export type DayTabKey = "sim" | "entreg" | "obj" | "subj" | "top";
+export type DayTabKey = "resultados" | "sim" | "entreg" | "obj" | "subj" | "top";
 
 const ALL_TABS: { key: DayTabKey; label: string }[] = [
+  { key: "resultados", label: "Resultados" },
   { key: "sim", label: "Tarifas y simulación" },
   { key: "entreg", label: "Entregables" },
   { key: "obj", label: "Resultados objetivos" },
@@ -32,11 +33,19 @@ export function DayTabBar({
   /** Teams never see the "Calificación subjetiva" tab — only the admin does. Individual notas/comentarios aren't for teams; the team's own subjective nota (an aggregate) surfaces in "Top del día" instead. */
   includeSubj?: boolean;
 }) {
-  // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
-  // comment) — not enough contact time yet to judge each member.
-  const tabs = (includeSim ? ALL_TABS : ALL_TABS.filter((t) => t.key !== "sim")).filter(
-    (t) => (day !== 1 || t.key !== "subj") && (includeSubj || t.key !== "subj")
-  );
+  // Día 1 merges "Tarifas y simulación" + "Entregables" into a single
+  // "Resultados" tab (see admin/day/[n]/page.tsx's "resultados" block)
+  // instead of showing them separately — every other day keeps the
+  // original split and never shows "Resultados" at all. Día 1 also has no
+  // subjective grade (see MemberDayEvaluation's doc comment) — not enough
+  // contact time yet to judge each member.
+  const tabs = ALL_TABS.filter((t) => {
+    if (day === 1) return t.key !== "sim" && t.key !== "entreg" && t.key !== "subj";
+    if (t.key === "resultados") return false;
+    if (t.key === "sim") return includeSim;
+    if (t.key === "subj") return includeSubj;
+    return true;
+  });
   return (
     <PillTabBar tabs={tabs.map((t) => ({ key: t.key, label: t.label, href: `${basePath}/${day}?tab=${t.key}` }))} activeKey={activeTab} />
   );
