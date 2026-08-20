@@ -1,12 +1,10 @@
 "use client";
 
 import { submitInterviewSkillsAction } from "@/lib/adminActions";
-import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS } from "@/lib/interview";
-import { SOFT_SKILL_RATINGS, RATING_LABELS } from "@/lib/softSkills";
-import type { InterviewSkill } from "@/lib/interview";
-import type { SoftSkillRating } from "@/lib/softSkills";
+import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_SKILL_SCALE } from "@/lib/interview";
+import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 
-export function InterviewSkillsForm({ id, initial }: { id: string; initial: Partial<Record<InterviewSkill, SoftSkillRating>> }) {
+export function InterviewSkillsForm({ id, initial }: { id: string; initial: Partial<Record<InterviewSkill, InterviewSkillScore>> }) {
   const action = submitInterviewSkillsAction.bind(null, id);
 
   return (
@@ -20,9 +18,9 @@ export function InterviewSkillsForm({ id, initial }: { id: string; initial: Part
             className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
           >
             <option value="">Sin definir</option>
-            {SOFT_SKILL_RATINGS.map((rating) => (
-              <option key={rating} value={rating}>
-                {RATING_LABELS[rating]}
+            {INTERVIEW_SKILL_SCALE.map((score) => (
+              <option key={score} value={score}>
+                {score}
               </option>
             ))}
           </select>

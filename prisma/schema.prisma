@@ -350,14 +350,14 @@ enum InterviewSkill {
 }
 
 // One-on-one TH interview, separate from the técnica día grading and from
-// habilidades blandas (see src/lib/interview.ts) — reuses SoftSkillRating's
-// qualitative scale so both dropdowns read the same way to an evaluator.
+// habilidades blandas (see src/lib/interview.ts). rating is a 1-5 scale
+// (INTERVIEW_SKILL_SCALE), unlike SoftSkillEvaluation's qualitative one.
 model InterviewSkillRating {
   id           String          @id @default(cuid())
   teamMemberId String
   teamMember   TeamMember      @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
   skill        InterviewSkill
-  rating       SoftSkillRating
+  rating       Int
 
   @@unique([teamMemberId, skill])
 }

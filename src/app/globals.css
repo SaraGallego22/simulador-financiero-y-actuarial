@@ -152,6 +152,17 @@ body {
   color-scheme: dark;
 }
 
+/* color-scheme alone isn't enough for <select>: on Chrome/Edge for Windows
+   the dropdown popup keeps the OS shell's light background even in dark
+   mode, while the select's own text still inherits the dark --foreground
+   color via Tailwind's preflight — unreadable. Painting both explicitly
+   fixes the popup regardless of browser/OS. */
+select,
+select option {
+  background-color: var(--color-brand-surface);
+  color: var(--color-foreground);
+}
+
 /* Hides the native increment/decrement spinner on every number input
    app-wide — Chrome/Safari/Edge (the ::-webkit-* pseudo-elements) and
    Firefox (-moz-appearance: textfield). */

@@ -114,7 +114,7 @@ export default async function ConfigPage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {team.members.map((member) => {
-                    const academic = [member.carrera, member.universidad, member.semestre && `${member.semestre} semestre`]
+                    const academic = [member.carrera, member.universidad, member.semestre && `Prácticas en ${member.semestre}`]
                       .filter(Boolean)
                       .join(" · ");
                     return (

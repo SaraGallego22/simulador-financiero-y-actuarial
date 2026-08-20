@@ -6,7 +6,7 @@ import { prisma } from "./prisma";
 import { auth } from "./auth";
 import { getOrCreateActiveCohort } from "./cohort";
 import { SOFT_SKILL_COMPETENCIES, SOFT_SKILL_RATINGS, isValidSoftSkillActivity } from "./softSkills";
-import { INTERVIEW_SKILLS } from "./interview";
+import { INTERVIEW_SKILLS, INTERVIEW_SKILL_SCALE } from "./interview";
 
 const TEAM_COLORS = [
   "#0033A0",
@@ -315,9 +315,9 @@ export async function deleteSoftSkillCommentAction(commentId: string, activity: 
 }
 
 /**
- * Upserts one member's Excel/Programación ratings from the TH interview in
- * one submit — same blank-clears-the-row behavior as
- * submitSoftSkillEvaluationAction (SoftSkillRating has no "sin definir" value).
+ * Upserts one member's Excel/Programación ratings (1-5, INTERVIEW_SKILL_SCALE)
+ * from the TH interview in one submit — same blank-clears-the-row behavior as
+ * submitSoftSkillEvaluationAction.
  */
 export async function submitInterviewSkillsAction(teamMemberId: string, formData: FormData): Promise<void> {
   await requireAdminOrTH();
@@ -326,8 +326,8 @@ export async function submitInterviewSkillsAction(teamMemberId: string, formData
 
   await Promise.all(
     INTERVIEW_SKILLS.map((skill) => {
-      const raw = String(formData.get(`rating_${skill}`) ?? "");
-      const rating = (SOFT_SKILL_RATINGS as readonly string[]).includes(raw) ? (raw as (typeof SOFT_SKILL_RATINGS)[number]) : null;
+      const raw = Number(formData.get(`rating_${skill}`));
+      const rating = (INTERVIEW_SKILL_SCALE as readonly number[]).includes(raw) ? raw : null;
       return rating
         ? prisma.interviewSkillRating.upsert({
             where: { teamMemberId_skill: { teamMemberId, skill } },
