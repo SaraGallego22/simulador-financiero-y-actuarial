@@ -484,8 +484,7 @@ export default async function AdminDayPage({
           />
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
-            {hasMinVariance && <InstrumentsPanel showCovariance={hasMinVariance} />}
-            <h3 className="mb-2 mt-4 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+            <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
               Portafolio de mínima varianza — Día {day}
             </h3>
             <div className="mb-4 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
@@ -937,7 +936,7 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "obj" && (
+      {activeTab === "obj" && day !== 1 && (
         <div className="flex flex-col gap-4">
           {includeSim && (
             <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
@@ -980,12 +979,6 @@ export default async function AdminDayPage({
                   })}
                 </tbody>
               </table>
-              {day === 1 && (
-                <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                  &ldquo;Nota mín var&rdquo; es la nota del ejercicio de mínima varianza (ver pestaña Entregables para el detalle por equipo) — es el
-                  único componente financiero de la nota objetiva de este día, ya que Día 1 no tiene reportes financieros propios.
-                </p>
-              )}
               {day === 2 && (
                 <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
                   &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Entregables) —{" "}
@@ -1344,7 +1337,47 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "top" && (
+      {activeTab === "top" && day === 1 && (
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[var(--color-brand-blue)] text-left text-white">
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota tarifas</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota mín var</th>
+                <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota objetiva</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(consolidadoRows ?? [])
+                .map((r) => ({ r, nota: r.perDay[day - 1]?.nota ?? -Infinity }))
+                .sort((a, b) => b.nota - a.nota)
+                .map(({ r }, i) => {
+                  const d = r.perDay[day - 1];
+                  const actScore = actuarialScoreByTeamId.get(r.teamId);
+                  const finScore = minVarScoreByTeamId.get(r.teamId);
+                  return (
+                    <tr key={r.teamId} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="px-4 py-2">{i + 1}</td>
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
+                        {r.teamName}
+                      </td>
+                      <td className="px-4 py-2">{actScore != null ? actScore.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2">{finScore != null ? finScore.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
+                        {d?.objective != null ? d.objective.toFixed(1) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeTab === "top" && day !== 1 && (
         <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
           <table className="w-full text-sm">
             <thead>

@@ -35,12 +35,14 @@ export function DayTabBar({
 }) {
   // Día 1 merges "Tarifas y simulación" + "Entregables" into a single
   // "Resultados" tab (see admin/day/[n]/page.tsx's "resultados" block)
-  // instead of showing them separately — every other day keeps the
-  // original split and never shows "Resultados" at all. Día 1 also has no
-  // subjective grade (see MemberDayEvaluation's doc comment) — not enough
-  // contact time yet to judge each member.
+  // instead of showing them separately, and folds "Resultados objetivos"
+  // into "Top del día" (Día 1's own version of that table already carries
+  // the Tarifas/mín-var/objetiva breakdown — a separate "obj" tab would
+  // just repeat it) — every other day keeps the original 5-tab split. Día 1
+  // also has no subjective grade (see MemberDayEvaluation's doc comment) —
+  // not enough contact time yet to judge each member.
   const tabs = ALL_TABS.filter((t) => {
-    if (day === 1) return t.key !== "sim" && t.key !== "entreg" && t.key !== "subj";
+    if (day === 1) return t.key !== "sim" && t.key !== "entreg" && t.key !== "subj" && t.key !== "obj";
     if (t.key === "resultados") return false;
     if (t.key === "sim") return includeSim;
     if (t.key === "subj") return includeSubj;
