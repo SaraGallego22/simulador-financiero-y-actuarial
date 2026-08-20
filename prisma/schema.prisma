@@ -166,6 +166,12 @@ model TariffSubmission {
   // (see CLAUDE.md §4.1).
   data        Bytes?
   meanPremium Float?
+  // Median of the same submitted (or generated, for outsourced) per-policy
+  // premiums meanPremium averages — computed once at submission time,
+  // never re-read from `data` afterward (that ~4MB bytea read is the exact
+  // cost CLAUDE.md §4.1 point 5 warns about; recomputing it per admin page
+  // load would reintroduce it for no reason once this column exists).
+  medianPremium Float?
   // True when this team hit "Tercerizar tarifas" instead of uploading its
   // own CSV for this day — narratively, an emergency-outsourced tariff from
   // an inexperienced consultancy (see the outsource route's doc comment).

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { getTariffArray } from "@/lib/tariffAccess";
+import { getTariffArray, computeMedianWonPremiumByNumericId } from "@/lib/tariffAccess";
 import { runSimulation } from "@/domain/market/runSimulation";
 import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
@@ -143,21 +143,28 @@ export async function POST(request: Request) {
 
   try {
     const aggregateByTeamId = new Map<string, TeamAggregate>();
+    const medianWonPremiumByTeamId = new Map<string, number>();
 
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
       const tariff = getTariffArray(t.tariffSubmissions[0], universe);
+      const fallbackPremium = t.tariffSubmissions[0].meanPremium!;
       aggregateByTeamId.set(
         t.id,
-        aggregateMonopoly(
-          universe.n,
-          monopolyLam,
-          monopolySiniestro,
-          monopolySev,
-          tariff,
-          t.tariffSubmissions[0].meanPremium!
-        )
+        aggregateMonopoly(universe.n, monopolyLam, monopolySiniestro, monopolySev, tariff, fallbackPremium)
       );
+      // A monopoly insures the whole universe by definition (see
+      // aggregateMonopoly's doc comment) — reuse the same median helper with
+      // a single-team "everyone assigned to id 1" array instead of a second
+      // implementation.
+      const wholeUniverseAssignment = new Int32Array(universe.n).fill(1);
+      const median = computeMedianWonPremiumByNumericId(
+        universe.n,
+        wholeUniverseAssignment,
+        new Map([[1, tariff]]),
+        new Map([[1, fallbackPremium]])
+      ).get(1);
+      if (median != null) medianWonPremiumByTeamId.set(t.id, median);
     } else {
       const numericIdByTeamId = new Map<string, number>();
       const teamInfos: TeamInfo[] = eligibleTeams.map((t, i) => {
@@ -186,6 +193,8 @@ export async function POST(request: Request) {
       for (const t of eligibleTeams) {
         capacityByTeamId.set(numericIdByTeamId.get(t.id)!, capacityByRealTeamId.get(t.id) ?? 0);
       }
+      const fallbackPremiumByNumericId = new Map<number, number>();
+      for (const info of teamInfos) fallbackPremiumByNumericId.set(info.id, info.fallbackPremium);
 
       if (day === 2 && year2Claims) {
         const previousAssignment = await getPreviousAssignmentNumeric(cohort.id, 1, numericIdByTeamId, universe.n);
@@ -204,6 +213,11 @@ export async function POST(request: Request) {
           const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
           aggregateByTeamId.set(t.id, agg);
         }
+        const medianByNumericId = computeMedianWonPremiumByNumericId(universe.n, result.assignment, tariffsByTeam, fallbackPremiumByNumericId);
+        for (const t of eligibleTeams) {
+          const median = medianByNumericId.get(numericIdByTeamId.get(t.id)!);
+          if (median != null) medianWonPremiumByTeamId.set(t.id, median);
+        }
         await prisma.simulationRun.update({
           where: { id: run.id },
           data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
@@ -213,6 +227,11 @@ export async function POST(request: Request) {
         for (const t of eligibleTeams) {
           const agg = result.aggregates.get(numericIdByTeamId.get(t.id)!)!;
           aggregateByTeamId.set(t.id, agg);
+        }
+        const medianByNumericId = computeMedianWonPremiumByNumericId(universe.n, result.assignment, tariffsByTeam, fallbackPremiumByNumericId);
+        for (const t of eligibleTeams) {
+          const median = medianByNumericId.get(numericIdByTeamId.get(t.id)!);
+          if (median != null) medianWonPremiumByTeamId.set(t.id, median);
         }
         await prisma.simulationRun.update({
           where: { id: run.id },
@@ -225,6 +244,14 @@ export async function POST(request: Request) {
       prisma.simulationRun.update({ where: { id: run.id }, data: { status: "DONE", finishedAt: new Date() } }),
       ...eligibleTeams.map((t) => {
         const agg = aggregateByTeamId.get(t.id)!;
+        const extra = {
+          sumLambda: agg.sumLambda,
+          retainedCount: agg.retainedCount,
+          newCount: agg.newCount,
+          capacityLimit: agg.capacityLimit,
+          rawCapacityLimit: agg.rawCapacityLimit,
+          medianWonPremium: medianWonPremiumByTeamId.get(t.id) ?? null,
+        };
         return prisma.teamSimResult.upsert({
           where: { simulationRunId_teamId: { simulationRunId: run.id, teamId: t.id } },
           update: {
@@ -233,13 +260,7 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: {
-              sumLambda: agg.sumLambda,
-              retainedCount: agg.retainedCount,
-              newCount: agg.newCount,
-              capacityLimit: agg.capacityLimit,
-              rawCapacityLimit: agg.rawCapacityLimit,
-            },
+            extra,
           },
           create: {
             simulationRunId: run.id,
@@ -249,13 +270,7 @@ export async function POST(request: Request) {
             claimsCount: agg.claimsCount,
             claimsAmount: agg.claimsAmount,
             rejectedCount: agg.rejectedCount,
-            extra: {
-              sumLambda: agg.sumLambda,
-              retainedCount: agg.retainedCount,
-              newCount: agg.newCount,
-              capacityLimit: agg.capacityLimit,
-              rawCapacityLimit: agg.rawCapacityLimit,
-            },
+            extra,
           },
         });
       }),

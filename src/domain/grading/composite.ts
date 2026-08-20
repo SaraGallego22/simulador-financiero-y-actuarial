@@ -122,44 +122,43 @@ export const GOOD_PERFORMANCE_SCORE = 75;
 const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMANCE_SCORE));
 
 /**
- * Maps each team's technical result (RT, see computeRt()) onto a 0-100
- * score anchored to the *model's* own definition of good performance,
+ * Maps each team's loss ratio (claims ÷ Prima Emitida — the written
+ * premium a team actually controls by pricing, not Prima Devengada) onto a
+ * 0-100 score anchored to the *model's* own definition of good performance,
  * instead of to how the rest of the cohort happened to do this run (see
  * notaTarifacionAnio() for the cohort-relative alternative, still used for
  * Año 2). A cohort-relative score means a team's grade depends on who else
- * showed up and how they priced — this doesn't.
+ * showed up and how they priced — this doesn't, and neither does book size:
+ * RT itself is `netPremiumFrac × premium − claims` (see computeRt()), so
+ * `RT ÷ claims = netPremiumFrac ÷ lossRatio − 1` — every `premium` cancels
+ * out. Two teams with the same loss ratio score identically regardless of
+ * how many pesos or policies either one wrote; only the ratio matters.
  *
- * "Good performance" for a given team is defined as: what its RT *would
- * have been* had it priced its own actual book of claims (claimsAmount,
- * already known — not a population estimate) to land exactly at
- * GOOD_PERFORMANCE_MARGIN_PCT net technical margin (as a fraction of the
- * premium it would have had to charge — Prima Emitida, not Devengada; see
- * GOOD_PERFORMANCE_MARGIN_PCT's own comment), after also covering the same
- * RT_EXPENSE_PCT expense load every team pays and the RPND holdback every
- * Año 1 book carries (this function is only ever used for Año 1 — see
- * notaTarifacionAnio() for Año 2 — so rpndLiberada is always 0 here, i.e.
- * Prima Devengada is always exactly 80% of Prima Emitida). Solving
- * `premium*(1-FZ.rpndPct) - premium*RT_EXPENSE_PCT - claims = premium*MARGIN`
- * for premium and substituting back into RT gives `goodRt = claims * MARGIN
- * / (1 - FZ.rpndPct - RT_EXPENSE_PCT - MARGIN)`. That reference RT scales
- * with each team's own claims volume, so a small and a large book are
- * judged on the same relative bar, not on who racked up more absolute COP
- * of technical result by writing more policies.
+ * "Good performance" is the loss ratio that would leave a team at exactly
+ * GOOD_PERFORMANCE_MARGIN_PCT net technical margin on Prima Emitida, after
+ * covering the same RT_EXPENSE_PCT expense load every team pays and the
+ * RPND holdback every Año 1 book carries (this function is only ever used
+ * for Año 1 — see notaTarifacionAnio() for Año 2 — so rpndLiberada is
+ * always 0 here, i.e. Prima Devengada is always exactly 80% of Prima
+ * Emitida): solving `netPremiumFrac − lossRatio = MARGIN` for lossRatio
+ * gives `goodLossRatio = netPremiumFrac − MARGIN`.
  *
- * RT itself ranges over all of (-∞, ∞), so it's passed through a logistic
- * curve centered on RT=0 (score 50) and scaled by that per-team reference —
- * this is what guarantees, by construction and for any input, that RT=0
- * scores exactly 50, every RT>0 scores >50, and every RT<0 scores <50 (the
- * three properties this was required to satisfy), while still asymptoting
- * to [0, 100] instead of the unbounded raw RT range.
+ * The ratio itself ranges over [0, ∞) with "good" on the low side, so it's
+ * remapped through 1/lossRatio (higher is better, like the RT it derives
+ * from) and passed through a logistic curve scaled by goodLossRatio — this
+ * is what guarantees, by construction and for any input, that lossRatio ==
+ * netPremiumFrac (RT exactly 0) scores exactly 50, every lower loss ratio
+ * scores >50, and every higher one scores <50 (the three properties this
+ * was required to satisfy), while still asymptoting to [0, 100] instead of
+ * the unbounded raw RT range.
  */
 export function notaTarifacionAbsoluta(
   results: { teamId: number; totalPremium: number; claimsAmount: number }[]
 ): Map<number, number> {
   const map = new Map<number, number>();
-  const goodMarginDenominator = 1 - FZ.rpndPct - RT_EXPENSE_PCT - GOOD_PERFORMANCE_MARGIN_PCT;
+  const netPremiumFrac = 1 - FZ.rpndPct - RT_EXPENSE_PCT;
+  const goodLossRatio = netPremiumFrac - GOOD_PERFORMANCE_MARGIN_PCT;
   for (const r of results) {
-    const rt = computeRt(r);
     if (r.totalPremium <= 0 && r.claimsAmount <= 0) {
       map.set(r.teamId, 50); // no book at all to judge — neither a good nor a bad signal
       continue;
@@ -168,8 +167,13 @@ export function notaTarifacionAbsoluta(
       map.set(r.teamId, 100); // collected real premium against zero claims — as good as this measure gets
       continue;
     }
-    const goodRt = r.claimsAmount * (GOOD_PERFORMANCE_MARGIN_PCT / goodMarginDenominator);
-    const x = rt / goodRt;
+    // totalPremium===0 here (never negative in practice) makes lossRatio
+    // Infinity, not a throw — netPremiumFrac/Infinity is a well-defined 0 in
+    // IEEE 754, so x still comes out finite (-goodLossRatio/MARGIN) instead
+    // of NaN, same graceful behavior the old RT/goodRt formulation had for
+    // this same edge case (real claims, zero premium collected).
+    const lossRatio = r.claimsAmount / r.totalPremium;
+    const x = (netPremiumFrac / lossRatio - 1) * (goodLossRatio / GOOD_PERFORMANCE_MARGIN_PCT);
     map.set(r.teamId, 100 / (1 + Math.exp(-SIGMOID_STEEPNESS * x)));
   }
   return map;

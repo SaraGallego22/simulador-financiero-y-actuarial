@@ -31,6 +31,7 @@ import type { SoftSkillRating } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
 import type { InterviewSkill } from "@/lib/interview";
 import { SimulationTrigger } from "./SimulationTrigger";
+import { PnlTeamPicker } from "./PnlTeamPicker";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
 import { AptitudesRiesgosToggle } from "./AptitudesRiesgosToggle";
@@ -91,7 +92,7 @@ export default async function AdminDayPage({
     prisma.team.findMany({
       where: { cohortId: cohort.id },
       include: {
-        tariffSubmissions: { where: { day }, select: { meanPremium: true, outsourced: true } },
+        tariffSubmissions: { where: { day }, select: { meanPremium: true, medianPremium: true, outsourced: true } },
         portfolioAllocations: { where: { day }, select: { allocation: true } },
         members: true,
       },
@@ -382,6 +383,7 @@ export default async function AdminDayPage({
   // nota first.
   const fmtM = (v: number | null | undefined, decimals = 1) =>
     v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })} M`;
+  const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
   const totalInsuredDay1 = day === 1 ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
   const teamsByNotaDesc = [...teams].sort(
     (a, b) => (objectiveByTeamId.get(b.id) ?? -Infinity) - (objectiveByTeamId.get(a.id) ?? -Infinity)
@@ -435,7 +437,8 @@ export default async function AdminDayPage({
                   <th className="px-4 py-2"># pólizas</th>
                   <th className="px-4 py-2">Market</th>
                   <th className="px-4 py-2">Limite</th>
-                  <th className="px-4 py-2">Primas</th>
+                  <th className="px-4 py-2">Tarifa mediana</th>
+                  <th className="px-4 py-2">Cobro mediano</th>
                   <th className="px-4 py-2">Loss ratio</th>
                   <th className="px-4 py-2">RT</th>
                   <th className="px-4 py-2">Nota</th>
@@ -447,8 +450,9 @@ export default async function AdminDayPage({
                   const bench = finBenchByTeamId.get(team.id)?.p1;
                   const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
                   const marketShare = result && totalInsuredDay1 > 0 ? result.insuredCount / totalInsuredDay1 : null;
-                  const capExtra = result?.extra as { capacityLimit?: number } | null;
+                  const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null } | null;
                   const actScore = actuarialScoreByTeamId.get(team.id);
+                  const medianTariff = team.tariffSubmissions[0]?.medianPremium;
                   return (
                     <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                       <td className="px-4 py-2">
@@ -458,7 +462,8 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
                       <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(0)}%` : "—"}</td>
                       <td className="px-4 py-2">{capExtra?.capacityLimit != null ? capExtra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
-                      <td className="px-4 py-2">{result ? fmtM(result.totalPremium, 0) : "—"}</td>
+                      <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
+                      <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
                       <td className="px-4 py-2">{bench ? fmtM(bench.rt, 0) : "—"}</td>
                       <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
@@ -469,47 +474,14 @@ export default async function AdminDayPage({
             </table>
           </div>
 
-          {selectedSubjTeam && (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  P&amp;G hasta RT — Día {day}
-                </h3>
-                <TeamSelect teams={teamOptions} selectedTeamId={selectedSubjTeam.id} basePath={`/admin/day/${day}`} extraParams={{ tab: "resultados" }} />
-              </div>
-              {(() => {
-                const p1 = finBenchByTeamId.get(selectedSubjTeam.id)?.p1;
-                if (!p1) {
-                  return <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin resultados de simulación todavía para este equipo.</p>;
-                }
-                const rows: { label: string; value: number; isTotal?: boolean }[] = [
-                  { label: "Prima emitida", value: p1.primaEmitida },
-                  { label: "RPND constituida", value: -p1.rpndConstituida },
-                  { label: "RPND liberada", value: p1.rpndLiberada },
-                  { label: "Prima devengada", value: p1.primaDevengada, isTotal: true },
-                  { label: "Costo siniestros", value: -p1.costo },
-                  { label: "Gastos de adquisición", value: -p1.gadq },
-                  { label: "Gastos de comisión", value: -p1.gcom },
-                  { label: "RT (Resultado Técnico)", value: p1.rt, isTotal: true },
-                ];
-                return (
-                  <table className="w-full max-w-md text-sm">
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr
-                          key={r.label}
-                          className={`border-t border-[var(--color-brand-gray-light)] ${r.isTotal ? "font-semibold text-[var(--color-brand-blue-accent)]" : ""}`}
-                        >
-                          <td className="py-1.5 pr-4">{r.label}</td>
-                          <td className="py-1.5 text-right tabular-nums">{fmtM(r.value)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                );
-              })()}
-            </div>
-          )}
+          <PnlTeamPicker
+            teams={teams.map((t) => ({
+              id: t.id,
+              name: t.name,
+              color: t.color,
+              pnl: finBenchByTeamId.get(t.id)?.p1 ?? null,
+            }))}
+          />
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
             {hasMinVariance && <InstrumentsPanel showCovariance={hasMinVariance} />}
