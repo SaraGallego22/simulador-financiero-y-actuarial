@@ -6,22 +6,26 @@ import { useState, type ReactNode } from "react";
 import { SidebarShell } from "@/components/SidebarShell";
 import { useSidebarCollapsed } from "@/lib/sidebarCollapse";
 import { BarChartIcon, ChatIcon, ChevronIcon, FlaskIcon, GlobeIcon, HomeIcon, SettingsIcon } from "@/components/ui/icons";
-import { ADMIN_NAV_SECTIONS, type AdminNavLink, type AdminNavSection } from "@/lib/adminNavData";
+import { navSectionsForRole, type AdminNavLink, type AdminNavSection } from "@/lib/adminNavData";
 
 type NavLink = AdminNavLink;
 type NavSection = AdminNavSection;
-
-const SECTIONS = ADMIN_NAV_SECTIONS;
+type AdminRole = "ADMIN" | "ADMIN_TH";
 
 // Configuración is pinned in the sidebar footer (above "Cerrar sesión") instead
 // of living inside the scrollable accordion — it's used every session and
-// shouldn't require opening/scrolling a section to reach. Still listed in
-// ADMIN_NAV_SECTIONS itself, so the admin home menu grid keeps showing it.
+// shouldn't require opening/scrolling a section to reach. Also listed inside
+// ADMIN_NAV_SECTIONS' "Reto por días" (ADMIN-only), so the admin home menu
+// grid still shows it as a tile there — but pinned here as a plain constant,
+// independent of that role-filtered section, so ADMIN_TH also gets it (its
+// own admin/page.tsx home renders a Talento-Humano-only menu grid without
+// a Configuración tile, yet still gets the pinned link, which opens a
+// read-only render of the same page — see admin/config/page.tsx).
 const CONFIG_HREF = "/admin/config";
-const CONFIG_LINK = SECTIONS.flatMap((s) => s.links).find((l) => l.href === CONFIG_HREF)!;
+const CONFIG_LINK: NavLink = { href: CONFIG_HREF, label: "Configuración", short: "CFG", description: "Equipos, rúbrica y qué día está abierto para el cohorte." };
 
 const HOME_HREF = "/admin";
-const HOME_LINK: NavLink = { href: HOME_HREF, label: "Resumen", short: "RES", description: "Panel del profesor." };
+const HOME_LINK: NavLink = { href: HOME_HREF, label: "Resumen", short: "RES", description: "Panel general." };
 
 // A collapsed sidebar showing "UNI"/"MOD"/"ENT" reads as a wall of similar
 // abbreviations — a per-link icon is far more scannable. Only links with a
@@ -45,8 +49,8 @@ function sectionHasActive(section: NavSection, pathname: string): boolean {
   return section.links.some((l) => l.href === pathname) || (section.subgroup?.links.some((l) => l.href === pathname) ?? false);
 }
 
-function defaultOpenMap(pathname: string): Record<string, boolean> {
-  return Object.fromEntries(SECTIONS.map((s) => [s.label, sectionHasActive(s, pathname)]));
+function defaultOpenMap(sections: NavSection[], pathname: string): Record<string, boolean> {
+  return Object.fromEntries(sections.map((s) => [s.label, sectionHasActive(s, pathname)]));
 }
 
 /**
@@ -56,20 +60,26 @@ function defaultOpenMap(pathname: string): Record<string, boolean> {
  * (not inside each accordion) so the collapsed icon rail can mirror it:
  * only sections the admin actually has open show their links there too,
  * instead of dumping every link from every section into one flat list.
+ *
+ * `role` narrows which sections render at all — ADMIN_TH only ever gets
+ * "Talento Humano" (see navSectionsForRole()), plus the pinned Resumen/
+ * Configuración links both roles share (Configuración renders read-only for
+ * ADMIN_TH — see admin/config/page.tsx).
  */
-export function AdminNav({ badge }: { badge: string }) {
+export function AdminNav({ badge, role }: { badge: string; role: AdminRole }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
+  const SECTIONS = navSectionsForRole(role);
   const footerExtra = <NavItem link={CONFIG_LINK} active={pathname === CONFIG_HREF} collapsed={collapsed} />;
 
-  const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => defaultOpenMap(pathname));
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => defaultOpenMap(SECTIONS, pathname));
   // Auto-open (never auto-close) a section when navigation brings the active
   // page into it, without discarding sections the admin opened/closed by
   // hand. Adjusting state during render (React's documented alternative to
   // an effect for "sync state to a changed prop") instead of useEffect,
   // which would call setState after commit and force an extra render pass.
   const [prevDefaults, setPrevDefaults] = useState(openMap);
-  const defaults = defaultOpenMap(pathname);
+  const defaults = defaultOpenMap(SECTIONS, pathname);
   if (SECTIONS.some((s) => defaults[s.label] !== prevDefaults[s.label])) {
     setPrevDefaults(defaults);
     setOpenMap((prev) => {

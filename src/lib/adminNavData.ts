@@ -10,12 +10,15 @@ export interface AdminNavSection {
   links: AdminNavLink[];
   /** "Talento Humano" groups the interview together with the 3 soft-skill activities under one disclosure/menu group, with its own sub-label. */
   subgroup?: { label: string; links: AdminNavLink[] };
+  /** Which admin roles see this section — defaults to ADMIN-only when omitted. ADMIN_TH only ever sees the "Talento Humano" section. */
+  roles?: readonly ("ADMIN" | "ADMIN_TH")[];
 }
 
 /** Single source of truth for AdminNav's sidebar accordion and the admin home menu grid — keeps both in sync instead of maintaining two link lists. */
 export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     label: "Preparación",
+    roles: ["ADMIN"],
     links: [
       { href: "/admin/universo", label: "Universo y dataset Chile", short: "UNI", description: "Genera el mercado sintético de Colombia y el dataset de referencia de Chile." },
       { href: "/admin/modelo", label: "Modelo técnico", short: "MOD", description: "Cómo funciona el motor: generación, mercado, reservas, finanzas y analítica." },
@@ -23,6 +26,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   },
   {
     label: "Reto por días",
+    roles: ["ADMIN"],
     links: [
       { href: "/admin/day/1", label: "Día 1", short: "D1", description: "Tarificación 2027 y portafolio de mínima varianza." },
       { href: "/admin/day/2", label: "Día 2", short: "D2", description: "P&G 2027 y retarifación 2028." },
@@ -34,6 +38,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   },
   {
     label: "Talento Humano",
+    roles: ["ADMIN", "ADMIN_TH"],
     links: [{ href: "/admin/entrevista", label: "Entrevista individual", short: "ENT", description: "Notas y comentarios de la entrevista con TH." }],
     subgroup: {
       label: "Habilidades blandas",
@@ -45,3 +50,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     },
   },
 ];
+
+/** Sections visible to a given admin role — ADMIN sees everything (unset `roles` defaults to ADMIN-only), ADMIN_TH only "Talento Humano". */
+export function navSectionsForRole(role: "ADMIN" | "ADMIN_TH"): AdminNavSection[] {
+  return ADMIN_NAV_SECTIONS.filter((s) => (s.roles ?? ["ADMIN"]).includes(role));
+}

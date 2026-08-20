@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { updateRubricWeightsAction, updateOpenDayAction } from "@/lib/adminActions";
@@ -10,6 +11,13 @@ import { MemberPhotoUpload } from "./MemberPhotoUpload";
 import { Table } from "@/components/ui/table";
 
 export default async function ConfigPage() {
+  const session = await auth();
+  // ADMIN_TH reaches this route too (see proxy.ts), but read-only: every
+  // mutating control below is gated on `isAdmin`, and the actions
+  // themselves (updateRubricWeightsAction/updateOpenDayAction/etc.) still
+  // call requireAdmin() regardless of what this page renders — this check
+  // is presentation-only, not the actual permission boundary.
+  const isAdmin = session?.user.role === "ADMIN";
   const cohort = await getOrCreateActiveCohort();
 
   const [teams, rubric, membersByTeam] = await Promise.all([
@@ -39,6 +47,11 @@ export default async function ConfigPage() {
         <p className="text-sm text-[var(--color-brand-text-secondary)]">
           Cohorte activa: <strong>{cohort.name}</strong>
         </p>
+        {!isAdmin && (
+          <p className="mt-2 inline-block rounded-full bg-[var(--color-brand-blue-light)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+            Solo lectura
+          </p>
+        )}
       </div>
 
       <section className="flex flex-col gap-4">
@@ -67,16 +80,18 @@ export default async function ConfigPage() {
                   {team.name}
                 </td>
                 <td className="px-4 py-2 text-[var(--color-brand-text-secondary)]">{team.user?.username ?? "—"}</td>
-                <td className="px-4 py-2 text-right">
-                  <DeleteTeamButton teamId={team.id} teamName={team.name} />
-                </td>
+                <td className="px-4 py-2 text-right">{isAdmin && <DeleteTeamButton teamId={team.id} teamName={team.name} />}</td>
               </Table.Row>
             ))}
           </tbody>
         </Table>
 
-        <CreateTeamForm />
-        <RosterUpload />
+        {isAdmin && (
+          <>
+            <CreateTeamForm />
+            <RosterUpload />
+          </>
+        )}
       </section>
 
       <section className="flex flex-col gap-4">
@@ -109,7 +124,7 @@ export default async function ConfigPage() {
                           {member.name}
                           {academic && <span className="block text-xs text-[var(--color-brand-text-secondary)]">{academic}</span>}
                         </span>
-                        <MemberPhotoUpload teamMemberId={member.id} />
+                        {isAdmin && <MemberPhotoUpload teamMemberId={member.id} />}
                       </div>
                     );
                   })}
@@ -131,19 +146,26 @@ export default async function ConfigPage() {
         <form action={updateOpenDayAction} className="flex items-end gap-3 rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Día visible para los equipos
-            <select name="openDay" defaultValue={cohort.openDay} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm">
+            <select
+              name="openDay"
+              defaultValue={cohort.openDay}
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
+            >
               <option value={1}>Día 1</option>
               <option value={2}>Día 2</option>
               <option value={3}>Día 3</option>
               <option value={4}>Día 4</option>
             </select>
           </label>
-          <button
-            type="submit"
-            className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110"
-          >
-            Guardar
-          </button>
+          {isAdmin && (
+            <button
+              type="submit"
+              className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110"
+            >
+              Guardar
+            </button>
+          )}
         </form>
       </section>
 
@@ -162,7 +184,8 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.subjectiveWeight}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
@@ -174,12 +197,18 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.actuarialWeight}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Modo de normalización objetiva
-            <select name="objectiveMode" defaultValue={rubric.objectiveMode} className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm">
+            <select
+              name="objectiveMode"
+              defaultValue={rubric.objectiveMode}
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
+            >
               <option value="relative">Relativa (percentil 10-90)</option>
               <option value="ranking">Ranking (posición)</option>
             </select>
@@ -193,7 +222,8 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.tolerancePerfect}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
@@ -205,18 +235,21 @@ export default async function ConfigPage() {
               min="0"
               max="1"
               defaultValue={rubric.toleranceZero}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm"
+              disabled={!isAdmin}
+              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
             />
           </label>
 
-          <div className="sm:col-span-2">
-            <button
-              type="submit"
-              className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110"
-            >
-              Guardar pesos
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110"
+              >
+                Guardar pesos
+              </button>
+            </div>
+          )}
         </form>
       </section>
     </main>
