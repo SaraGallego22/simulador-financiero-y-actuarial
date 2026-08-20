@@ -50,12 +50,17 @@ function ObjectiveResultsCard({
   yearLabel,
   result,
   reportDay,
+  medianTariff,
 }: {
   yearLabel: string;
   result: { insuredCount: number; claimsCount: number; rejectedCount: number; extra: unknown } | null;
   /** Day whose CSV report to link. */
   reportDay: number;
+  /** This team's own median submitted tariff for `reportDay` (TariffSubmission.medianPremium). */
+  medianTariff?: number | null;
 }) {
+  const medianWonPremium = (result?.extra as { medianWonPremium?: number | null } | null)?.medianWonPremium ?? null;
+  const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
       <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -83,22 +88,23 @@ function ObjectiveResultsCard({
               {result.rejectedCount.toLocaleString("es-CO")}
             </p>
           </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Prima mediana</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">{fmtCop(medianTariff)}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Cobro mediano</p>
+            <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">{fmtCop(medianWonPremium)}</p>
+          </div>
           {(() => {
             const extra = result.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
             if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
-            // capacityLimit = min(rawCapacityLimit, techo del admin) — si
-            // son iguales, tu propio capital fue lo que te limitó; si el
-            // límite aplicado es menor que tu capacidad por capital, fue
-            // el techo del admin el que te limitó primero.
-            const cappedByCapital = extra.rawCapacityLimit <= extra.capacityLimit;
             return (
               <div className="col-span-2 sm:col-span-3">
                 <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
                   <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
                   tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
-                  manteniendo un margen de solvencia de al menos 1.0x. El límite que realmente se aplicó fue{" "}
-                  {extra.capacityLimit.toLocaleString("es-CO")} — {cappedByCapital ? "tu propio capital fue lo que te limitó primero" : "el techo máximo que fijó el admin te limitó antes de llegar a tu propia capacidad"}.
-                  En el Día 4 puedes ver la conexión completa con tu solvencia real.
+                  manteniendo un margen de solvencia de al menos 1.0x. En el Día 4 puedes ver la conexión completa con tu solvencia real.
                 </p>
               </div>
             );
@@ -222,6 +228,7 @@ export default async function TeamDayPage({
     analyticsRecs,
     day1Result,
     day1Allocation,
+    day1TariffMedian,
     day2Result,
     day2Allocation,
     day4Capacity1,
@@ -246,6 +253,12 @@ export default async function TeamDayPage({
         ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 1, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
         : null,
       day === 2 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 1 } } }) : null,
+      // This team's own Día 1 tariff, for the "Prima mediana" tile on
+      // ObjectiveResultsCard — same medianPremium the admin view shows
+      // (admin/day/[n]/page.tsx's "Tarifa mediana" column).
+      day === 2 && teamId
+        ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day: 1 } }, select: { medianPremium: true } })
+        : null,
       // Día 3 shows Día 2's ("2028") results.
       day === 3 && teamId
         ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 2, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
@@ -414,19 +427,10 @@ export default async function TeamDayPage({
 
         {day === 2 && (
           <>
-            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1Result} reportDay={1} />
+            <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1Result} reportDay={1} medianTariff={day1TariffMedian?.medianPremium} />
             <MinVarianceResultCard result={day1MinVarResult} />
 
             {TAB_NOTES[2]?.sim && <TabNote>{TAB_NOTES[2].sim}</TabNote>}
-            <a
-              href="/api/universe/public-csv"
-              className="w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-            >
-              Descargar CSV público del universo
-            </a>
-            <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              Como en cualquier dataset real, revisa la calidad de los datos antes de usarlos — no asumas que todas las columnas llegan limpias.
-            </p>
             <TariffUpload
               key={`${submission?.meanPremium ?? "none"}-${submission?.outsourced ?? false}-${!!dayResult}`}
               day={2}
