@@ -1,5 +1,6 @@
 import { seedRand } from "../generation/rng";
 import type { ColombiaUniverse } from "../generation/generateColombia";
+import { enforceMinPoliciesFloor } from "./minPoliciesFloor";
 
 export interface TeamInfo {
   id: number;
@@ -189,6 +190,9 @@ export function runSimulation(
     assignment[k] = bestTeam.id;
     remainingCapacity.set(bestTeam.id, (remainingCapacity.get(bestTeam.id) ?? 0) - 1);
   }
+
+  // Phase 4: no team leaves the market empty-handed — see enforceMinPoliciesFloor()'s doc comment.
+  enforceMinPoliciesFloor(n, assignment, tariffsByTeam, teams);
 
   // Aggregate results per team
   const aggregates = new Map<number, TeamSimAggregate>();

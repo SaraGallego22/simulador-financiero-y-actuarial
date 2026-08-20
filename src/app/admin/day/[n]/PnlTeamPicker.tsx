@@ -51,7 +51,7 @@ export function PnlTeamPicker({ teams }: { teams: PnlTeamOption[] }) {
     : [];
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
+    <div className="max-w-md rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
           P&amp;G hasta RT
@@ -74,7 +74,7 @@ export function PnlTeamPicker({ teams }: { teams: PnlTeamOption[] }) {
       {!p1 ? (
         <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin resultados de simulación todavía para este equipo.</p>
       ) : (
-        <table className="w-full max-w-md text-sm">
+        <table className="w-full text-sm">
           <tbody>
             {rows.map((r) => (
               <tr

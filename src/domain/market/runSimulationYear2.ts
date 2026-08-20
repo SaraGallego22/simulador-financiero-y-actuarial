@@ -2,6 +2,7 @@ import { seedRand } from "../generation/rng";
 import type { ColombiaUniverse } from "../generation/generateColombia";
 import type { Year2Claims } from "../generation/generateYear2Claims";
 import type { TeamInfo, RunSimulationParams } from "./runSimulation";
+import { enforceMinPoliciesFloor } from "./minPoliciesFloor";
 
 export interface RunSimulationYear2Params extends RunSimulationParams {
   /** Scales an extra Gumbel bonus applied when an exposure's Year-1 team is still an option — the higher this is, the harder it is for a team to lose a customer to switching. */
@@ -161,6 +162,9 @@ export function runSimulationYear2(
     assignment[k] = bestTeam.id;
     remainingCapacity.set(bestTeam.id, (remainingCapacity.get(bestTeam.id) ?? 0) - 1);
   }
+
+  // Phase 4: no team leaves the market empty-handed — see enforceMinPoliciesFloor()'s doc comment.
+  enforceMinPoliciesFloor(n, assignment, tariffsByTeam, teams);
 
   // Aggregate results per team, using Year-2 claims and tracking retention.
   const aggregates = new Map<number, Year2TeamAggregate>();

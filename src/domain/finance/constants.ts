@@ -159,7 +159,7 @@ export const VOL_PENALTY_LAMBDA = 0.35;
  * capital social is meant to be the same starting point for every team,
  * every year, in both the fictitious ALM and the real P&L/Balance it feeds.
  */
-export const CAPITAL_SOCIAL = 116_000_000_000;
+export const CAPITAL_SOCIAL = 120_000_000_000;
 
 /**
  * Día 4 equity-risk capital charge: riesgo de acciones = exposición ×
