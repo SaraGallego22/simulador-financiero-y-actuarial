@@ -380,11 +380,17 @@ export default async function AdminDayPage({
   // the P&G down to RT for one selected team, and the min-variance
   // portfolio, all ranked/formatted the same way: millones de pesos, best
   // nota first.
-  const fmtM = (v: number | null | undefined) =>
-    v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} M`;
+  const fmtM = (v: number | null | undefined, decimals = 1) =>
+    v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })} M`;
   const totalInsuredDay1 = day === 1 ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
   const teamsByNotaDesc = [...teams].sort(
     (a, b) => (objectiveByTeamId.get(b.id) ?? -Infinity) - (objectiveByTeamId.get(a.id) ?? -Infinity)
+  );
+  // Results table (below) ranks by the Tarifas/actuarial score alone
+  // (notaTarifacionAbsoluta), not the blended objective nota — see
+  // actuarialScoreByTeamId above.
+  const teamsByActScoreDesc = [...teams].sort(
+    (a, b) => (actuarialScoreByTeamId.get(b.id) ?? -Infinity) - (actuarialScoreByTeamId.get(a.id) ?? -Infinity)
   );
 
   return (
@@ -426,8 +432,9 @@ export default async function AdminDayPage({
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                   <th className="px-4 py-2">Equipo</th>
-                  <th className="px-4 py-2">Cuota de mercado</th>
-                  <th className="px-4 py-2">Límite de solvencia</th>
+                  <th className="px-4 py-2"># pólizas</th>
+                  <th className="px-4 py-2">Market</th>
+                  <th className="px-4 py-2">Limite</th>
                   <th className="px-4 py-2">Primas</th>
                   <th className="px-4 py-2">Loss ratio</th>
                   <th className="px-4 py-2">RT</th>
@@ -435,25 +442,26 @@ export default async function AdminDayPage({
                 </tr>
               </thead>
               <tbody>
-                {teamsByNotaDesc.map((team) => {
+                {teamsByActScoreDesc.map((team) => {
                   const result = resultByTeamId.get(team.id);
                   const bench = finBenchByTeamId.get(team.id)?.p1;
                   const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
                   const marketShare = result && totalInsuredDay1 > 0 ? result.insuredCount / totalInsuredDay1 : null;
                   const capExtra = result?.extra as { capacityLimit?: number } | null;
-                  const nota = objectiveByTeamId.get(team.id);
+                  const actScore = actuarialScoreByTeamId.get(team.id);
                   return (
                     <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                       <td className="px-4 py-2">
                         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                         {team.name}
                       </td>
-                      <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
+                      <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(0)}%` : "—"}</td>
                       <td className="px-4 py-2">{capExtra?.capacityLimit != null ? capExtra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
-                      <td className="px-4 py-2">{result ? fmtM(result.totalPremium) : "—"}</td>
-                      <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
-                      <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
-                      <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{nota != null ? nota.toFixed(1) : "—"}</td>
+                      <td className="px-4 py-2">{result ? fmtM(result.totalPremium, 0) : "—"}</td>
+                      <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
+                      <td className="px-4 py-2">{bench ? fmtM(bench.rt, 0) : "—"}</td>
+                      <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
                     </tr>
                   );
                 })}
