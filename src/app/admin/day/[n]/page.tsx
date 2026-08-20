@@ -385,14 +385,17 @@ export default async function AdminDayPage({
     v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })} M`;
   const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
   const totalInsuredDay1 = day === 1 ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
-  const teamsByNotaDesc = [...teams].sort(
-    (a, b) => (objectiveByTeamId.get(b.id) ?? -Infinity) - (objectiveByTeamId.get(a.id) ?? -Infinity)
-  );
   // Results table (below) ranks by the Tarifas/actuarial score alone
   // (notaTarifacionAbsoluta), not the blended objective nota — see
   // actuarialScoreByTeamId above.
   const teamsByActScoreDesc = [...teams].sort(
     (a, b) => (actuarialScoreByTeamId.get(b.id) ?? -Infinity) - (actuarialScoreByTeamId.get(a.id) ?? -Infinity)
+  );
+  // Min-variance portfolio table ranks by its own score, not the blended
+  // objective nota — a team's tariff pricing shouldn't affect where its
+  // portfolio submission lands in this list.
+  const teamsByMinVarScoreDesc = [...teams].sort(
+    (a, b) => (minVarScoreByTeamId.get(b.id) ?? -Infinity) - (minVarScoreByTeamId.get(a.id) ?? -Infinity)
   );
 
   return (
@@ -419,8 +422,6 @@ export default async function AdminDayPage({
 
       {activeTab === "resultados" && day === 1 && (
         <div className="flex flex-col gap-4">
-          <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
-
           <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
             <div className="p-4 pb-0">
               <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -515,7 +516,7 @@ export default async function AdminDayPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {teamsByNotaDesc.map((team) => {
+                  {teamsByMinVarScoreDesc.map((team) => {
                     const weights = minVarWeightsByTeamId.get(team.id);
                     const score = minVarScoreByTeamId.get(team.id);
                     return (
@@ -541,7 +542,7 @@ export default async function AdminDayPage({
               </table>
             </div>
             <div className="mt-3 flex flex-col gap-2">
-              {teamsByNotaDesc.map((team) => {
+              {teamsByMinVarScoreDesc.map((team) => {
                 const weights = minVarWeightsByTeamId.get(team.id);
                 if (!weights) return null;
                 // Displayed normalized to sum 100 — the same normalization
