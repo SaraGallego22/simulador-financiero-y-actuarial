@@ -60,7 +60,7 @@ export default async function AdminDayPage({
   const hasPortfolioSchedule = day === 2;
   const bookYear = day === 2 ? 1 : null;
   const { tab, team: selectedTeamId } = await searchParams;
-  const activeTab = (tab as DayTabKey) ?? (includeSim ? "sim" : "entreg");
+  const activeTab = (tab as DayTabKey) ?? (day === 1 ? "resultados" : includeSim ? "sim" : "entreg");
   const cohort = await getOrCreateActiveCohort();
 
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
@@ -129,7 +129,7 @@ export default async function AdminDayPage({
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, teamResults: true },
     }),
-    activeTab === "top" || activeTab === "obj" ? computeConsolidado(cohort.id) : Promise.resolve(null),
+    activeTab === "top" || activeTab === "obj" || activeTab === "resultados" ? computeConsolidado(cohort.id) : Promise.resolve(null),
     // Generated once and reused below for every call that would otherwise
     // regenerate its own copy this same request (getTeamBookForDay,
     // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
@@ -376,6 +376,17 @@ export default async function AdminDayPage({
   // cloned").
   const teamOptions = teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
+  // Día 1's merged "Resultados" tab (see DayTabBar.tsx) — market results,
+  // the P&G down to RT for one selected team, and the min-variance
+  // portfolio, all ranked/formatted the same way: millones de pesos, best
+  // nota first.
+  const fmtM = (v: number | null | undefined) =>
+    v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} M`;
+  const totalInsuredDay1 = day === 1 ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
+  const teamsByNotaDesc = [...teams].sort(
+    (a, b) => (objectiveByTeamId.get(b.id) ?? -Infinity) - (objectiveByTeamId.get(a.id) ?? -Infinity)
+  );
+
   return (
     <main className={`mx-auto flex w-full flex-1 flex-col gap-4 p-8 ${activeTab === "subj" ? "max-w-7xl" : "max-w-6xl"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -398,7 +409,191 @@ export default async function AdminDayPage({
 
       <DayTabBar basePath="/admin/day" day={day} activeTab={activeTab} includeSim={includeSim} />
 
-      {activeTab === "sim" && includeSim && (
+      {activeTab === "resultados" && day === 1 && (
+        <div className="flex flex-col gap-4">
+          <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
+
+          <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
+            <div className="p-4 pb-0">
+              <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Resultados por equipo — Día {day}
+              </h3>
+              <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+                Cifras en millones de pesos · ordenado de mejor a peor nota.
+              </p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                  <th className="px-4 py-2">Equipo</th>
+                  <th className="px-4 py-2">Cuota de mercado</th>
+                  <th className="px-4 py-2">Límite de solvencia</th>
+                  <th className="px-4 py-2">Primas</th>
+                  <th className="px-4 py-2">Loss ratio</th>
+                  <th className="px-4 py-2">RT</th>
+                  <th className="px-4 py-2">Nota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamsByNotaDesc.map((team) => {
+                  const result = resultByTeamId.get(team.id);
+                  const bench = finBenchByTeamId.get(team.id)?.p1;
+                  const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
+                  const marketShare = result && totalInsuredDay1 > 0 ? result.insuredCount / totalInsuredDay1 : null;
+                  const capExtra = result?.extra as { capacityLimit?: number } | null;
+                  const nota = objectiveByTeamId.get(team.id);
+                  return (
+                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="px-4 py-2">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name}
+                      </td>
+                      <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-2">{capExtra?.capacityLimit != null ? capExtra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
+                      <td className="px-4 py-2">{result ? fmtM(result.totalPremium) : "—"}</td>
+                      <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
+                      <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{nota != null ? nota.toFixed(1) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {selectedSubjTeam && (
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                  P&amp;G hasta RT — Día {day}
+                </h3>
+                <TeamSelect teams={teamOptions} selectedTeamId={selectedSubjTeam.id} basePath={`/admin/day/${day}`} extraParams={{ tab: "resultados" }} />
+              </div>
+              {(() => {
+                const p1 = finBenchByTeamId.get(selectedSubjTeam.id)?.p1;
+                if (!p1) {
+                  return <p className="text-sm text-[var(--color-brand-text-secondary)]">Sin resultados de simulación todavía para este equipo.</p>;
+                }
+                const rows: { label: string; value: number; isTotal?: boolean }[] = [
+                  { label: "Prima emitida", value: p1.primaEmitida },
+                  { label: "RPND constituida", value: -p1.rpndConstituida },
+                  { label: "RPND liberada", value: p1.rpndLiberada },
+                  { label: "Prima devengada", value: p1.primaDevengada, isTotal: true },
+                  { label: "Costo siniestros", value: -p1.costo },
+                  { label: "Gastos de adquisición", value: -p1.gadq },
+                  { label: "Gastos de comisión", value: -p1.gcom },
+                  { label: "RT (Resultado Técnico)", value: p1.rt, isTotal: true },
+                ];
+                return (
+                  <table className="w-full max-w-md text-sm">
+                    <tbody>
+                      {rows.map((r) => (
+                        <tr
+                          key={r.label}
+                          className={`border-t border-[var(--color-brand-gray-light)] ${r.isTotal ? "font-semibold text-[var(--color-brand-blue-accent)]" : ""}`}
+                        >
+                          <td className="py-1.5 pr-4">{r.label}</td>
+                          <td className="py-1.5 text-right tabular-nums">{fmtM(r.value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          )}
+
+          <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
+            {hasMinVariance && <InstrumentsPanel showCovariance={hasMinVariance} />}
+            <h3 className="mb-2 mt-4 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              Portafolio de mínima varianza — Día {day}
+            </h3>
+            <div className="mb-4 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
+              <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                Portafolio correcto (referencia, a {(TARGET_RETURN * 100).toFixed(0)}% de retorno)
+              </p>
+              <div className="flex flex-wrap gap-4 text-sm">
+                {INSTRUMENTS.map((ins) => (
+                  <span key={ins.id}>
+                    <strong>{ins.id}:</strong> {(minVarReferenceWeights[ins.id] * 100).toFixed(1)}%
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-sm">
+                Retorno: {(minVarReferenceReturn * 100).toFixed(2)}% · Varianza: {minVarReferenceVariance.toFixed(6)} · Volatilidad:{" "}
+                {(Math.sqrt(minVarReferenceVariance) * 100).toFixed(2)}%
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                    <th className="py-1 pr-4">Equipo</th>
+                    <th className="py-1 pr-4">Estado</th>
+                    <th className="py-1 pr-4">Retorno logrado</th>
+                    <th className="py-1 pr-4">Varianza lograda</th>
+                    <th className="py-1 pr-4">Nota</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamsByNotaDesc.map((team) => {
+                    const weights = minVarWeightsByTeamId.get(team.id);
+                    const score = minVarScoreByTeamId.get(team.id);
+                    return (
+                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                        <td className="py-1 pr-4">
+                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                          {team.name}
+                        </td>
+                        <td className="py-1 pr-4">
+                          {weights ? (
+                            <span className="text-[var(--color-brand-green)]">Cargado</span>
+                          ) : (
+                            <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
+                          )}
+                        </td>
+                        <td className="py-1 pr-4">{weights ? `${(portfolioExpectedReturn(weights) * 100).toFixed(2)}%` : "—"}</td>
+                        <td className="py-1 pr-4">{weights ? portfolioVariance(weights).toFixed(6) : "—"}</td>
+                        <td className="py-1 pr-4">{score != null ? score.toFixed(0) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {teamsByNotaDesc.map((team) => {
+                const weights = minVarWeightsByTeamId.get(team.id);
+                if (!weights) return null;
+                // Displayed normalized to sum 100 — the same normalization
+                // portfolioVariance()/portfolioExpectedReturn()/scoreMinVariance()
+                // already apply internally before grading, so a submission
+                // that didn't sum to exactly 100 isn't shown misleadingly
+                // (e.g. as if 20% in one instrument were literally 20% of
+                // the graded portfolio when the raw total was really 80).
+                const totalW = INSTRUMENTS.reduce((s, ins) => s + (weights[ins.id] ?? 0), 0);
+                return (
+                  <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
+                    <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name} — ver pesos
+                    </summary>
+                    <div className="flex flex-wrap gap-4 border-t border-[var(--color-brand-gray-light)] p-3 text-sm">
+                      {INSTRUMENTS.map((ins) => (
+                        <span key={ins.id}>
+                          <strong>{ins.id}:</strong> {(totalW > 0 ? ((weights[ins.id] ?? 0) / totalW) * 100 : 0).toFixed(1)}%
+                        </span>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "sim" && includeSim && day !== 1 && (
         <div className="flex flex-col gap-4">
           <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
 
@@ -492,100 +687,9 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "entreg" && (
+      {activeTab === "entreg" && day !== 1 && (
         <div className="flex flex-col gap-4">
           {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
-          {hasMinVariance && (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
-              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                Portafolio de mínima varianza — Día {day}
-              </h3>
-              <div className="mb-4 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
-                <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                  Portafolio correcto (referencia, a {(TARGET_RETURN * 100).toFixed(0)}% de retorno)
-                </p>
-                <div className="flex flex-wrap gap-4 text-sm">
-                  {INSTRUMENTS.map((ins) => (
-                    <span key={ins.id}>
-                      <strong>{ins.id}:</strong> {(minVarReferenceWeights[ins.id] * 100).toFixed(1)}%
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm">
-                  Retorno: {(minVarReferenceReturn * 100).toFixed(2)}% · Varianza: {minVarReferenceVariance.toFixed(6)} · Volatilidad:{" "}
-                  {(Math.sqrt(minVarReferenceVariance) * 100).toFixed(2)}%
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                      <th className="py-1 pr-4">Equipo</th>
-                      <th className="py-1 pr-4">Estado</th>
-                      <th className="py-1 pr-4">Retorno logrado</th>
-                      <th className="py-1 pr-4">Varianza lograda</th>
-                      <th className="py-1 pr-4">Nota</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teams.map((team) => {
-                      const weights = minVarWeightsByTeamId.get(team.id);
-                      const score = minVarScoreByTeamId.get(team.id);
-                      return (
-                        <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                          <td className="py-1 pr-4">
-                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                            {team.name}
-                          </td>
-                          <td className="py-1 pr-4">
-                            {weights ? (
-                              <span className="text-[var(--color-brand-green)]">Cargado</span>
-                            ) : (
-                              <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
-                            )}
-                          </td>
-                          <td className="py-1 pr-4">{weights ? `${(portfolioExpectedReturn(weights) * 100).toFixed(2)}%` : "—"}</td>
-                          <td className="py-1 pr-4">{weights ? portfolioVariance(weights).toFixed(6) : "—"}</td>
-                          <td className="py-1 pr-4">{score != null ? score.toFixed(0) : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-3 flex flex-col gap-2">
-                {teams.map((team) => {
-                  const weights = minVarWeightsByTeamId.get(team.id);
-                  if (!weights) return null;
-                  // Displayed normalized to sum 100 — the same normalization
-                  // portfolioVariance()/portfolioExpectedReturn()/scoreMinVariance()
-                  // already apply internally before grading, so a submission
-                  // that didn't sum to exactly 100 isn't shown misleadingly
-                  // (e.g. as if 20% in one instrument were literally 20% of
-                  // the graded portfolio when the raw total was really 80).
-                  const totalW = INSTRUMENTS.reduce((s, ins) => s + (weights[ins.id] ?? 0), 0);
-                  return (
-                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
-                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                        {team.name} — ver pesos
-                      </summary>
-                      <div className="flex flex-wrap gap-4 border-t border-[var(--color-brand-gray-light)] p-3 text-sm">
-                        {INSTRUMENTS.map((ins) => (
-                          <span key={ins.id}>
-                            <strong>{ins.id}:</strong> {(totalW > 0 ? ((weights[ins.id] ?? 0) / totalW) * 100 : 0).toFixed(1)}%
-                          </span>
-                        ))}
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                Este portafolio también alimenta el tope de cuota de mercado del 2027 — ver pestaña Simulación.
-              </p>
-            </div>
-          )}
 
           {hasPortfolioSchedule && (
             <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
