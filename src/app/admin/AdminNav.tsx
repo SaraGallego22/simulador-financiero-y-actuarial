@@ -62,9 +62,11 @@ function defaultOpenMap(sections: NavSection[], pathname: string): Record<string
  * instead of dumping every link from every section into one flat list.
  *
  * `role` narrows which sections render at all — ADMIN_TH only ever gets
- * "Talento Humano" (see navSectionsForRole()), plus the pinned Resumen/
- * Configuración links both roles share (Configuración renders read-only for
- * ADMIN_TH — see admin/config/page.tsx).
+ * "Talento Humano" (see navSectionsForRole()), rendered flat without the
+ * accordion since it's the only section that role has, plus the pinned
+ * Resumen/Configuración links both roles share (Configuración renders
+ * read-only for ADMIN_TH — see admin/config/page.tsx). ADMIN no longer
+ * sees "Talento Humano" at all — that section is TH's own view now.
  */
 export function AdminNav({ badge, role }: { badge: string; role: AdminRole }) {
   const pathname = usePathname();
@@ -89,6 +91,36 @@ export function AdminNav({ badge, role }: { badge: string; role: AdminRole }) {
       }
       return next;
     });
+  }
+
+  // ADMIN_TH only ever has one section ("Talento Humano" — see navSectionsForRole()),
+  // so wrapping it in a collapsible accordion just adds a click for no grouping
+  // benefit. Render its links directly instead.
+  if (role === "ADMIN_TH") {
+    const section = SECTIONS[0];
+    const allLinks = withoutConfig([...section.links, ...(section.subgroup?.links ?? [])]);
+    return (
+      <SidebarShell badge={badge} homeHref={HOME_HREF} footerExtra={footerExtra}>
+        <NavItem link={HOME_LINK} active={pathname === HOME_HREF} collapsed={collapsed} />
+        {collapsed
+          ? allLinks.map((link) => <NavItem key={link.href} link={link} active={pathname === link.href} collapsed />)
+          : (
+            <>
+              {withoutConfig(section.links).map((link) => (
+                <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} nested />
+              ))}
+              {section.subgroup && (
+                <>
+                  <div className="mb-1 mt-2 pl-5 pr-2.5 font-[family-name:var(--font-condensed)] text-base font-bold uppercase tracking-wide text-white/80">{section.subgroup.label}</div>
+                  {section.subgroup.links.map((link) => (
+                    <NavItem key={link.href} link={link} active={pathname === link.href} collapsed={false} nested />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+      </SidebarShell>
+    );
   }
 
   if (collapsed) {

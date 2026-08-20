@@ -38,7 +38,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   },
   {
     label: "Talento Humano",
-    roles: ["ADMIN", "ADMIN_TH"],
+    roles: ["ADMIN_TH"],
     links: [{ href: "/admin/entrevista", label: "Entrevista individual", short: "ENT", description: "Notas y comentarios de la entrevista con TH." }],
     subgroup: {
       label: "Habilidades blandas",
