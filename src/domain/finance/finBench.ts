@@ -76,7 +76,9 @@ export interface BalanceSheet {
   inversiones: number;
   /** Equals capitalComprometido directly — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team's entire real portfolio (Capital Social included) was exhausted via ordinary forced liquidation and LIQ still wasn't enough: genuinely external financing (equity or debt) needed beyond everything the team had. Zero for the vast majority of teams — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
   necesidadesPatrimonioODeuda: number;
-  /** caja + inversiones + cxc. Because caja/inversiones are real, independently-computed facts (not solved for), this generally does NOT sum to the exact same peso as Pasivo+Patrimonio — a small residual is a known property of this simplified model (see README §4.3), not something necesidadesPatrimonioODeuda is meant to absorb. */
+  /** Equals this year's own PnL.imp directly — this year's income tax expense, already recognized in patrimonio (via retenido) but not yet paid in cash. Standard "Impuesto por pagar" liability, the same treatment rpnd/cxp already get: real ALM cash flow never models a tax payment at all (see almSimRealYear()'s doc comment in alm.ts), so without this line Activos ran ahead of Pasivo+Patrimonio by exactly the unpaid tax bill — this was the dominant driver of Año 1/2's "known small residual" (see balance()'s own doc comment). */
+  impuestoPorPagar: number;
+  /** caja + inversiones + cxc. */
   activos: number;
 }
 
@@ -229,7 +231,13 @@ function balance(
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
   const necesidadesPatrimonioODeuda = capitalComprometido;
-  const pasivo = reservasTec + rpnd + cxp + necesidadesPatrimonioODeuda;
+  // Impuesto por pagar: this year's own tax expense (pygY.imp), already
+  // recognized in patrimonio via retenido but never modeled as a real cash
+  // outflow anywhere in almSimRealYear() (see AlmYearBenchInput doc comment)
+  // — without this line, Activos ran ahead of Pasivo+Patrimonio by exactly
+  // the unpaid tax bill, the dominant driver of Año 1/2's old residual.
+  const impuestoPorPagar = pygY.imp;
+  const pasivo = reservasTec + rpnd + cxp + necesidadesPatrimonioODeuda + impuestoPorPagar;
   // Año 3 (solveInversiones=true, see finBench()'s doc comment on bal3) has
   // no real ALM run of its own to draw inversiones from at all — every other
   // line is already a mechanical projection (reservasTec is a runoff
@@ -254,6 +262,7 @@ function balance(
     cxp,
     inversiones,
     necesidadesPatrimonioODeuda,
+    impuestoPorPagar,
     activos: caja + inversiones + cxc,
   };
 }
