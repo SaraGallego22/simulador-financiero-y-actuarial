@@ -1,8 +1,8 @@
 "use client";
 
-import { addInterviewCommentAction, deleteInterviewCommentAction } from "@/lib/adminActions";
+import { addInterviewCommentAction, deleteInterviewCommentAction, updateInterviewCommentAction } from "@/lib/adminActions";
 import { INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
-import { DeleteCommentForm } from "@/components/ui/confirm-modal";
+import { EditableComment } from "@/components/ui/editable-comment";
 
 export interface InterviewCommentItem {
   id: string;
@@ -22,15 +22,13 @@ export function InterviewComments({ teamMemberId, comments }: { teamMemberId: st
       {comments.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {comments.map((c) => (
-            <div key={c.id} className="flex items-start justify-between gap-2 rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-sm">
-              <p className="text-[var(--color-foreground)]">
-                {c.text}
-                <span className="ml-1 text-xs text-[var(--color-brand-text-secondary)]">
-                  — {INTERVIEW_COMMENT_AUTHOR}, {fmtDate(c.createdAt)}
-                </span>
-              </p>
-              <DeleteCommentForm action={deleteInterviewCommentAction.bind(null, c.id)} />
-            </div>
+            <EditableComment
+              key={c.id}
+              text={c.text}
+              meta={`— ${INTERVIEW_COMMENT_AUTHOR}, ${fmtDate(c.createdAt)}`}
+              editAction={updateInterviewCommentAction.bind(null, c.id)}
+              deleteAction={deleteInterviewCommentAction.bind(null, c.id)}
+            />
           ))}
         </div>
       )}
