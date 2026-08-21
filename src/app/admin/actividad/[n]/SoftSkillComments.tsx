@@ -1,8 +1,8 @@
 "use client";
 
-import { addSoftSkillCommentAction, deleteSoftSkillCommentAction } from "@/lib/adminActions";
+import { addSoftSkillCommentAction, deleteSoftSkillCommentAction, updateSoftSkillCommentAction } from "@/lib/adminActions";
 import { SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
-import { DeleteCommentForm } from "@/components/ui/confirm-modal";
+import { EditableComment } from "@/components/ui/editable-comment";
 
 export interface SoftSkillCommentItem {
   id: string;
@@ -22,15 +22,13 @@ export function SoftSkillComments({ teamMemberId, activity, comments }: { teamMe
       {comments.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {comments.map((c) => (
-            <div key={c.id} className="flex items-start justify-between gap-2 rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-sm">
-              <p className="text-[var(--color-foreground)]">
-                {c.text}
-                <span className="ml-1 text-xs text-[var(--color-brand-text-secondary)]">
-                  — {SOFT_SKILL_COMMENT_AUTHOR}, {fmtDate(c.createdAt)}
-                </span>
-              </p>
-              <DeleteCommentForm action={deleteSoftSkillCommentAction.bind(null, c.id, activity)} />
-            </div>
+            <EditableComment
+              key={c.id}
+              text={c.text}
+              meta={`— ${SOFT_SKILL_COMMENT_AUTHOR}, ${fmtDate(c.createdAt)}`}
+              editAction={updateSoftSkillCommentAction.bind(null, c.id, activity)}
+              deleteAction={deleteSoftSkillCommentAction.bind(null, c.id, activity)}
+            />
           ))}
         </div>
       )}

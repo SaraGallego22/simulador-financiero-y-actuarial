@@ -1,7 +1,7 @@
 "use client";
 
-import { addMemberCommentAction, deleteMemberCommentAction } from "@/lib/adminActions";
-import { DeleteCommentForm } from "@/components/ui/confirm-modal";
+import { addMemberCommentAction, deleteMemberCommentAction, updateMemberCommentAction } from "@/lib/adminActions";
+import { EditableComment } from "@/components/ui/editable-comment";
 
 export interface MemberCommentItem {
   id: string;
@@ -22,15 +22,13 @@ export function MemberComments({ teamMemberId, day, comments }: { teamMemberId: 
       {comments.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {comments.map((c) => (
-            <div key={c.id} className="flex items-start justify-between gap-2 rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5 text-sm">
-              <p className="text-[var(--color-foreground)]">
-                {c.text}
-                <span className="ml-1 text-xs text-[var(--color-brand-text-secondary)]">
-                  — {c.author}, {fmtDate(c.createdAt)}
-                </span>
-              </p>
-              <DeleteCommentForm action={deleteMemberCommentAction.bind(null, c.id, day)} />
-            </div>
+            <EditableComment
+              key={c.id}
+              text={c.text}
+              meta={`— ${c.author}, ${fmtDate(c.createdAt)}`}
+              editAction={updateMemberCommentAction.bind(null, c.id, day)}
+              deleteAction={deleteMemberCommentAction.bind(null, c.id, day)}
+            />
           ))}
         </div>
       )}

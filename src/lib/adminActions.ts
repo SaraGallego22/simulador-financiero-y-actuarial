@@ -250,6 +250,14 @@ export async function addMemberCommentAction(teamMemberId: string, day: number, 
   revalidatePath(`/admin/day/${day}`);
 }
 
+export async function updateMemberCommentAction(commentId: string, day: number, formData: FormData): Promise<void> {
+  await requireAdmin();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await prisma.memberComment.update({ where: { id: commentId }, data: { text } });
+  revalidatePath(`/admin/day/${day}`);
+}
+
 export async function deleteMemberCommentAction(commentId: string, day: number): Promise<void> {
   await requireAdmin();
   await prisma.memberComment.delete({ where: { id: commentId } });
@@ -308,6 +316,14 @@ export async function addSoftSkillCommentAction(teamMemberId: string, activity: 
   revalidatePath(`/admin/actividad/${activity}`);
 }
 
+export async function updateSoftSkillCommentAction(commentId: string, activity: number, formData: FormData): Promise<void> {
+  await requireAdminOrTH();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await prisma.softSkillComment.update({ where: { id: commentId }, data: { text } });
+  revalidatePath(`/admin/actividad/${activity}`);
+}
+
 export async function deleteSoftSkillCommentAction(commentId: string, activity: number): Promise<void> {
   await requireAdminOrTH();
   await prisma.softSkillComment.delete({ where: { id: commentId } });
@@ -346,6 +362,14 @@ export async function addInterviewCommentAction(teamMemberId: string, formData: 
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
   await prisma.interviewComment.create({ data: { teamMemberId, text } });
+  revalidatePath("/admin/entrevista");
+}
+
+export async function updateInterviewCommentAction(commentId: string, formData: FormData): Promise<void> {
+  await requireAdminOrTH();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await prisma.interviewComment.update({ where: { id: commentId }, data: { text } });
   revalidatePath("/admin/entrevista");
 }
 
