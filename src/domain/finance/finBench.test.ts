@@ -262,14 +262,50 @@ describe("finBench", () => {
       year2Retention: { retainedCount: 300, newCount: 50 },
     });
     const b = shrinking.bal3!;
-    const pasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.patrimonio;
+    const pasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.impuestoPorPagar + b.patrimonio;
     expect(b.activos).toBeCloseTo(pasivoPatrim, 4);
 
     // Same property holds for the well-behaved richYear3Input() fixture too.
     const bench = finBench({ ...richYear3Input(), almYear1: fakeAlmYear(), almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07) });
     const b2 = bench.bal3!;
-    const pasivoPatrim2 = b2.reservasTec + b2.rpnd + b2.cxp + b2.necesidadesPatrimonioODeuda + b2.patrimonio;
+    const pasivoPatrim2 = b2.reservasTec + b2.rpnd + b2.cxp + b2.necesidadesPatrimonioODeuda + b2.impuestoPorPagar + b2.patrimonio;
     expect(b2.activos).toBeCloseTo(pasivoPatrim2, 4);
+  });
+
+  it("impuestoPorPagar equals this year's own Impuesto — a standard 'tax payable' liability, same treatment rpnd/cxp already get for their own accrual-vs-cash gap", () => {
+    const bench = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 200_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmYear(),
+    });
+    expect(bench.bal1.impuestoPorPagar).toBeCloseTo(bench.p1.imp, 6);
+  });
+
+  it("impuestoPorPagar shrinks the Activos-vs-Pasivo+Patrimonio gap by exactly that year's own unpaid tax bill, compared to the old formula that omitted it", () => {
+    // Not asserting the gap lands near zero here: that identity only holds
+    // when caja/inversiones genuinely derive from this scenario's own
+    // primaEmitida/costo/gastos via the real ALM cash flow (verified against
+    // the live cohort instead — see finBench()'s doc comment on balance());
+    // fakeAlmYear()'s income/portfolioBookValue are arbitrary fixture
+    // constants, not derived from this fixture's own P&G. What's fixture-
+    // independent, and what this asserts, is the pure algebraic effect of
+    // adding impuestoPorPagar to pasivo: it must shift the gap by exactly
+    // -impuestoPorPagar relative to the old (pre-fix) formula, for any bench.
+    const bench = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 200_000_000, insuredCount: 1000 },
+      year2: { totalPremium: 520_000_000, claimsAmount: 210_000_000, insuredCount: 1000 },
+      liabilityYear1,
+      development: fakeDevelopment(),
+      almYear1: fakeAlmYear(),
+      almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07),
+    });
+    for (const b of [bench.bal1, bench.bal2!]) {
+      const oldPasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.patrimonio;
+      const newPasivoPatrim = oldPasivoPatrim + b.impuestoPorPagar;
+      const oldGap = b.activos - oldPasivoPatrim;
+      const newGap = b.activos - newPasivoPatrim;
+      expect(oldGap - newGap).toBeCloseTo(b.impuestoPorPagar, 4);
+    }
   });
 
   it("every team starts capital0 from the same fixed Capital Social, independent of its own premium", () => {

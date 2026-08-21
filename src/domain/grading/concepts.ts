@@ -621,7 +621,7 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
 
-  // Día 3 — Balance Año 1 (10 líneas — las %-de-prima cruzan a Día 2's Prima Emitida A1)
+  // Día 3 — Balance Año 1 (11 líneas — las %-de-prima cruzan a Día 2's Prima Emitida A1)
   {
     id: "bal1_caja",
     dia: "d3",
@@ -720,6 +720,20 @@ export const CONCEPTOS: Concepto[] = [
     // liability side (feeds bal1_pasivo below), not activos.
   },
   {
+    id: "bal1_impuestoPorPagar",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Impuesto por pagar A1",
+    unit: "COP",
+    group: "bal_a1",
+    get: (b) => b.bal1.impuestoPorPagar,
+    // This year's own Impuesto (p1_imp), already recognized against
+    // patrimonio but not yet paid in cash — see BalanceSheet.impuestoPorPagar's
+    // doc comment for why this line exists.
+    formula: { kind: "linear", terms: [{ conceptId: "p1_imp", coeff: 1 }] },
+  },
+  {
     id: "bal1_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -727,7 +741,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A1",
     unit: "COP",
     group: "bal_a1",
-    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda,
+    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.impuestoPorPagar,
     formula: {
       kind: "linear",
       terms: [
@@ -735,6 +749,7 @@ export const CONCEPTOS: Concepto[] = [
         { conceptId: "bal1_rpnd", coeff: 1 },
         { conceptId: "bal1_cxp", coeff: 1 },
         { conceptId: "bal1_necesidadesPatrimonioODeuda", coeff: 1 },
+        { conceptId: "bal1_impuestoPorPagar", coeff: 1 },
       ],
     },
   },
@@ -747,7 +762,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A1",
     unit: "COP",
     group: "bal_a1",
-    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.patrimonio,
+    get: (b) => b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.impuestoPorPagar + b.bal1.patrimonio,
     formula: {
       kind: "linear",
       terms: [
@@ -757,7 +772,7 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
 
-  // Día 3 — Balance Año 2 (10 líneas — mismo día que p2_primaEmitida, sin cruce de día)
+  // Día 3 — Balance Año 2 (11 líneas — mismo día que p2_primaEmitida, sin cruce de día)
   {
     id: "bal2_caja",
     dia: "d3",
@@ -844,6 +859,18 @@ export const CONCEPTOS: Concepto[] = [
     // No formula — see bal1_necesidadesPatrimonioODeuda's doc comment.
   },
   {
+    id: "bal2_impuestoPorPagar",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Impuesto por pagar A2",
+    unit: "COP",
+    group: "bal_a2",
+    get: (b) => b.bal2?.impuestoPorPagar ?? null,
+    // See bal1_impuestoPorPagar's doc comment.
+    formula: { kind: "linear", terms: [{ conceptId: "p2_imp", coeff: 1 }] },
+  },
+  {
     id: "bal2_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -851,7 +878,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A2",
     unit: "COP",
     group: "bal_a2",
-    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda : null),
+    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda + b.bal2.impuestoPorPagar : null),
     formula: {
       kind: "linear",
       terms: [
@@ -859,6 +886,7 @@ export const CONCEPTOS: Concepto[] = [
         { conceptId: "bal2_rpnd", coeff: 1 },
         { conceptId: "bal2_cxp", coeff: 1 },
         { conceptId: "bal2_necesidadesPatrimonioODeuda", coeff: 1 },
+        { conceptId: "bal2_impuestoPorPagar", coeff: 1 },
       ],
     },
   },
@@ -871,7 +899,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A2",
     unit: "COP",
     group: "bal_a2",
-    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda + b.bal2.patrimonio : null),
+    get: (b) => (b.bal2 ? b.bal2.reservasTec + b.bal2.rpnd + b.bal2.cxp + b.bal2.necesidadesPatrimonioODeuda + b.bal2.impuestoPorPagar + b.bal2.patrimonio : null),
     formula: {
       kind: "linear",
       terms: [
@@ -881,7 +909,7 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
 
-  // Día 3 — Balance Año 3 (proyectado, 10 líneas) — reservas técnicas aquí son proyección mecánica, no reserving genuino, por eso perfil "fin"
+  // Día 3 — Balance Año 3 (proyectado, 11 líneas) — reservas técnicas aquí son proyección mecánica, no reserving genuino, por eso perfil "fin"
   {
     id: "bal3_caja",
     dia: "d3",
@@ -974,6 +1002,18 @@ export const CONCEPTOS: Concepto[] = [
     // No formula — see bal1_necesidadesPatrimonioODeuda's doc comment.
   },
   {
+    id: "bal3_impuestoPorPagar",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Impuesto por pagar A3 (proy.)",
+    unit: "COP",
+    group: "bal_a3",
+    get: (b) => b.bal3?.impuestoPorPagar ?? null,
+    // See bal1_impuestoPorPagar's doc comment.
+    formula: { kind: "linear", terms: [{ conceptId: "p3_imp", coeff: 1 }] },
+  },
+  {
     id: "bal3_pasivo",
     dia: "d3",
     perfil: "fin",
@@ -981,7 +1021,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo total A3 (proy.)",
     unit: "COP",
     group: "bal_a3",
-    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda : null),
+    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda + b.bal3.impuestoPorPagar : null),
     formula: {
       kind: "linear",
       terms: [
@@ -989,6 +1029,7 @@ export const CONCEPTOS: Concepto[] = [
         { conceptId: "bal3_rpnd", coeff: 1 },
         { conceptId: "bal3_cxp", coeff: 1 },
         { conceptId: "bal3_necesidadesPatrimonioODeuda", coeff: 1 },
+        { conceptId: "bal3_impuestoPorPagar", coeff: 1 },
       ],
     },
   },
@@ -1001,7 +1042,7 @@ export const CONCEPTOS: Concepto[] = [
     label: "Pasivo + Patrimonio A3 (proy.)",
     unit: "COP",
     group: "bal_a3",
-    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda + b.bal3.patrimonio : null),
+    get: (b) => (b.bal3 ? b.bal3.reservasTec + b.bal3.rpnd + b.bal3.cxp + b.bal3.necesidadesPatrimonioODeuda + b.bal3.impuestoPorPagar + b.bal3.patrimonio : null),
     formula: {
       kind: "linear",
       terms: [
