@@ -70,19 +70,32 @@ export const CORR_MERCADO = [
 /**
  * How much a Día 2 ALM decision's portfolio-concentration ratio (see
  * portfolioConcentrationRatio() in alm.ts) discounts the "Rendimiento"
- * sub-score's riskAdjustedYield, the same mechanism VOL_PENALTY_LAMBDA
- * already uses for volatility: riskAdjustedYield = effYield −
- * VOL_PENALTY_LAMBDA×avgPortfolioVol − CONCENTRATION_PENALTY_MU×concentrationRatio
- * (see scoreFinanciero() in alm.ts; avgPortfolioVol is the correlation-aware
- * portfolio volatility from COVARIANCE_MATRIX, not a naive per-instrument
- * average — see its own doc comment in alm.ts). This is what makes concentration a
- * felt penalty on the same day the team makes the decision, not something
- * that only shows up in Día 4's solvency capital charge (FZ.concRiskPct)
- * three days later — a team should see a worse Día 2 nota from
- * concentrating, and understand why when it separately has to reproduce a
- * higher RK on Día 4.
+ * sub-score's riskAdjustedYield: riskAdjustedYield = sharpeRatio −
+ * CONCENTRATION_PENALTY_MU×concentrationRatio, where sharpeRatio =
+ * (effYield − RISK_FREE_RATE) ÷ avgPortfolioVol (see scoreFinanciero() in
+ * alm.ts; avgPortfolioVol is the correlation-aware portfolio volatility
+ * from COVARIANCE_MATRIX, not a naive per-instrument average — see its own
+ * doc comment in alm.ts). Additive, not multiplicative, deliberately —
+ * sharpeRatio can go negative (a portfolio that underperforms
+ * RISK_FREE_RATE after forced sales/capital comprometido), and a
+ * multiplicative discount would make concentration look like it HELPS a
+ * negative score (moving it toward 0 instead of further away). This is
+ * what makes concentration a felt penalty on the same day the team makes
+ * the decision, not something that only shows up in Día 4's solvency
+ * capital charge (FZ.concRiskPct) three days later — a team should see a
+ * worse Día 2 nota from concentrating, and understand why when it
+ * separately has to reproduce a higher RK on Día 4.
+ *
+ * Calibrated (not just carried over from the old formula's 0.03 — that was
+ * sized for `effYield` units, roughly [0.05, 0.12]; sharpeRatio lives on a
+ * different scale, roughly [0, 1.6] across the menu, so the penalty needed
+ * re-deriving from scratch) so that a genuinely diversified portfolio can
+ * still beat a concentrated bet on the menu's single best-Sharpe instrument
+ * (CDT90) even though CDT90 alone has the higher raw sharpeRatio — see
+ * RISK_ADJUSTED_YIELD_MIN/MAX's doc comment in alm.ts for the reference
+ * portfolios this was checked against.
  */
-export const CONCENTRATION_PENALTY_MU = 0.03;
+export const CONCENTRATION_PENALTY_MU = 0.5;
 
 /** Total expense ratio (adquisición + comisión + administración), reused at
  * monthly granularity in the ALM ladder — same ratios finBench's pyg() uses
@@ -91,19 +104,6 @@ export const GASTOS_TOTAL_PCT = FZ.gAdq + FZ.gCom + FZ.gAdmin;
 
 /** Expense ratio Resultado Técnico (RT) actually subtracts — adquisición + comisión only, deliberately excluding gAdmin (which now lands on its own line, Resultado Industrial = RT − gadm, see finBench.ts's pyg()). Kept apart from GASTOS_TOTAL_PCT (used by the ALM's cash-flow "Gastos" line, which still consumes all three) so the two ratios can't silently drift into meaning different things under the same name. */
 export const RT_EXPENSE_PCT = FZ.gAdq + FZ.gCom;
-
-/**
- * How much a portfolio's realized volatility discounts its "Rendimiento"
- * ALM sub-score: riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA*avgVol
- * (see scoreFinanciero() in alm.ts). Calibrated (against the yields/
- * volAnual in instruments.ts) so that, of the whole instrument menu,
- * TESUVR8 has the single best risk-adjusted yield and ACC the worst —
- * deliberately: any λ in (0.143, 0.625) preserves that ordering, 0.35 sits
- * comfortably in the middle of that range rather than at either edge.
- * Recheck this ordering with instruments.test.ts if either file's numbers
- * change.
- */
-export const VOL_PENALTY_LAMBDA = 0.35;
 
 /**
  * Capital social: every team's ALM simulation (almSim, see alm.ts) starts

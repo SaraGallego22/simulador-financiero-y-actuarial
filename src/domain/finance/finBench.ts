@@ -76,7 +76,7 @@ export interface BalanceSheet {
   inversiones: number;
   /** Equals capitalComprometido directly — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team's entire real portfolio (Capital Social included) was exhausted via ordinary forced liquidation and LIQ still wasn't enough: genuinely external financing (equity or debt) needed beyond everything the team had. Zero for the vast majority of teams — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
   necesidadesPatrimonioODeuda: number;
-  /** Equals this year's own PnL.imp directly — this year's income tax expense, already recognized in patrimonio (via retenido) but not yet paid in cash. Standard "Impuesto por pagar" liability, the same treatment rpnd/cxp already get: real ALM cash flow never models a tax payment at all (see almSimRealYear()'s doc comment in alm.ts), so without this line Activos ran ahead of Pasivo+Patrimonio by exactly the unpaid tax bill — this was the dominant driver of Año 1/2's "known small residual" (see balance()'s own doc comment). */
+  /** Cumulative unpaid income tax through the end of THIS year — every year's own PnL.imp to date (p1.imp for bal1, p1.imp+p2.imp for bal2, ...), not just this year's own, since the real ALM cash flow never models a tax payment in ANY year (see almSimRealYear()'s doc comment in alm.ts): a prior year's tax bill is exactly as unpaid at this year's close as it was at its own. Standard "Impuesto por pagar" liability, the same treatment rpnd/cxp already get. Without this line (or using only this year's own imp instead of the cumulative sum), Activos ran ahead of Pasivo+Patrimonio by whatever prior years' unpaid tax bills were missing — the dominant driver of Año 2's Balance not squaring. */
   impuestoPorPagar: number;
   /** caja + inversiones + cxc. */
   activos: number;
@@ -209,11 +209,15 @@ function pyg(primaEmitida: number, rpndLiberada: number, costo: number, rinv: nu
  * (asset side, since the real ALM's own book value reflects however much
  * had to be liquidated) — adding it again into activos would double-count
  * that deduction's sign, not undo it. This is NOT the line that forces the
- * sheet to close in general — caja/inversiones being real,
- * independently-computed facts (not solved for) means Activos and
- * Pasivo+Patrimonio generally don't sum to the exact same peso even for a
- * healthy team; that small residual is a known property of this simplified
- * model (see README §4.3), not something this line is meant to absorb.
+ * sheet to close — caja/inversiones being real, independently-computed
+ * facts (not solved for) means this line alone doesn't guarantee Activos =
+ * Pasivo+Patrimonio; as of the cxcHoldback0/cxpHoldback0 adjustment in
+ * almSimRealYear() (alm.ts) making the real ALM's own cash mechanics
+ * genuinely consistent with cxc/cxp instead of silently assuming zero
+ * collection/payment lag, plus impuestoAcumulado below being the cumulative
+ * unpaid tax rather than just this year's own, Año 1/2 now close exactly
+ * for the same reason Año 3 always has (see README §4.3) — there's no
+ * remaining residual left to document as "known and small".
  */
 function balance(
   pygY: PnL | null,
@@ -221,6 +225,7 @@ function balance(
   retenido: number,
   capitalComprometido: number,
   almYear: AlmYearBenchInput | null,
+  impuestoAcumulado: number,
   solveInversiones?: boolean
 ): BalanceSheet | null {
   if (!pygY) return null;
@@ -231,12 +236,15 @@ function balance(
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
   const necesidadesPatrimonioODeuda = capitalComprometido;
-  // Impuesto por pagar: this year's own tax expense (pygY.imp), already
-  // recognized in patrimonio via retenido but never modeled as a real cash
-  // outflow anywhere in almSimRealYear() (see AlmYearBenchInput doc comment)
-  // — without this line, Activos ran ahead of Pasivo+Patrimonio by exactly
-  // the unpaid tax bill, the dominant driver of Año 1/2's old residual.
-  const impuestoPorPagar = pygY.imp;
+  // Impuesto por pagar: the real ALM never models a tax payment as a real
+  // cash outflow, in ANY year (see AlmYearBenchInput's doc comment) — so
+  // it's not just THIS year's own tax expense (pygY.imp) still unpaid, it's
+  // every prior year's too, since none of them was ever paid either.
+  // impuestoAcumulado is the caller's running sum (p1.imp for bal1, p1.imp +
+  // p2.imp for bal2, etc — see finBench()'s own call sites) — using only
+  // pygY.imp here would leave Año 2's Balance short by exactly Año 1's own
+  // unpaid tax bill, since patrimonio (via retenido) already subtracted it.
+  const impuestoPorPagar = impuestoAcumulado;
   const pasivo = reservasTec + rpnd + cxp + necesidadesPatrimonioODeuda + impuestoPorPagar;
   // Año 3 (solveInversiones=true, see finBench()'s doc comment on bal3) has
   // no real ALM run of its own to draw inversiones from at all — every other
@@ -413,8 +421,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const capitalComprometidoY1 = almYear1?.capitalComprometido ?? 0;
   const almY2 = almYear2 ?? almYear1;
   const capitalComprometidoY2 = almY2?.capitalComprometido ?? 0;
-  const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1, almYear1)!;
-  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2, almY2) : null;
+  const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1, almYear1, p1.imp)!;
+  const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2, almY2, p1.imp + p2.imp) : null;
   // Year 3 is a projection, not an independently ALM-simulated year (see
   // README §5) — there's no third ALM run to measure a real erosion from,
   // so capitalComprometido is projected off the Año1->Año2 trend instead of
@@ -466,7 +474,8 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // a real, independently-simulated ALM fact with a balancing plug — there
   // is no such fact for Año 3 to override.
   const retenidoY3 = p1.uneta + (p2 ? p2.uneta : 0) + (p3 ? p3.uneta : 0);
-  const bal3 = p3 ? balance(p3, capital0, retenidoY3, capitalComprometidoY3, null, true) : null;
+  const impuestoAcumuladoY3 = p1.imp + (p2 ? p2.imp : 0) + (p3 ? p3.imp : 0);
+  const bal3 = p3 ? balance(p3, capital0, retenidoY3, capitalComprometidoY3, null, impuestoAcumuladoY3, true) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;

@@ -11,13 +11,21 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
 
 /**
  * Phase 4, shared by runSimulation()/runSimulationYear2(): tops up any team
- * below MIN_POLICIES_PER_TEAM by reassigning exposures away from teams with
- * a surplus above that floor — each donor's *cheapest* (to itself) policies
- * first, so a donor gives up its least profitable business, not its best.
- * Mutates `assignment` in place; called after Phase 3 (every exposure
- * already has a real team, no -1s left) and before aggregates are tallied,
- * so the floor is reflected everywhere downstream (insuredCount,
- * totalPremium, claims, etc.) without a second bookkeeping pass.
+ * below MIN_POLICIES_PER_TEAM by reassigning exposures until it reaches the
+ * floor. The floor is unconditional — it overrides a team's own
+ * solvency-derived capacityLimit on purpose: staying in the game takes
+ * priority over the capital constraint in this one guaranteed-minimum case
+ * (see README's Año 2 solvency section). Mutates `assignment` in place;
+ * called after Phase 3 and before aggregates are tallied, so the floor is
+ * reflected everywhere downstream (insuredCount, totalPremium, claims, etc.)
+ * without a second bookkeeping pass.
+ *
+ * Exposure -1 (uninsured — only possible in Year 2, see
+ * runSimulationYear2.ts's Phase 3) is preferred first to fill a deficient
+ * team's gap, since claiming one doesn't take business away from another
+ * team. Only once the uninsured pool runs out does the top-up fall back to
+ * each surplus team's *cheapest* (to itself) policies, so a donor gives up
+ * its least profitable business, not its best.
  *
  * No-ops if the universe can't even mathematically support the floor for
  * every team (teams.length * MIN_POLICIES_PER_TEAM > n) — never happens at
@@ -29,16 +37,25 @@ export function enforceMinPoliciesFloor(n: number, assignment: Int32Array, tarif
 
   const countByTeamId = new Map<number, number>();
   for (const team of teams) countByTeamId.set(team.id, 0);
-  for (let k = 0; k < n; k++) countByTeamId.set(assignment[k], (countByTeamId.get(assignment[k]) ?? 0) + 1);
+  for (let k = 0; k < n; k++) {
+    if (assignment[k] === -1) continue;
+    countByTeamId.set(assignment[k], (countByTeamId.get(assignment[k]) ?? 0) + 1);
+  }
 
   const deficientTeams = teams.filter((t) => (countByTeamId.get(t.id) ?? 0) < MIN_POLICIES_PER_TEAM);
   if (deficientTeams.length === 0) return;
 
   const indicesByTeamId = new Map<number, number[]>();
   for (const team of teams) indicesByTeamId.set(team.id, []);
-  for (let k = 0; k < n; k++) indicesByTeamId.get(assignment[k])!.push(k);
+  for (let k = 0; k < n; k++) {
+    if (assignment[k] === -1) continue;
+    indicesByTeamId.get(assignment[k])!.push(k);
+  }
 
   const donationPool: number[] = [];
+  for (let k = 0; k < n; k++) {
+    if (assignment[k] === -1) donationPool.push(k);
+  }
   for (const team of teams) {
     const surplus = (countByTeamId.get(team.id) ?? 0) - MIN_POLICIES_PER_TEAM;
     if (surplus <= 0) continue;

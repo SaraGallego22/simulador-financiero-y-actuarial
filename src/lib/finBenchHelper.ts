@@ -130,7 +130,7 @@ export async function computeFinBenchBundlesForCohort(
       const desarrolloAnio1 = liabilityYear1.L.slice(0, 12);
       const siniestrosPropiosAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(0, 12) ?? new Array(12).fill(0);
       const claimsYear2 = desarrolloAnio1.map((v, i) => (v || 0) + (siniestrosPropiosAnio2[i] || 0));
-      realAlmYear2 = almSimRealYear(2, claimsYear2, alloc1, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState);
+      realAlmYear2 = almSimRealYear(2, claimsYear2, alloc1, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState, year1.totalPremium);
       if (realAlmYear2) {
         almYear2 = {
           portYield: realAlmYear2.portYield,

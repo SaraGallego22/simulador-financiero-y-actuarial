@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateColombia } from "../generation/generateColombia";
 import { runSimulation } from "./runSimulation";
 import type { TeamInfo } from "./runSimulation";
-import { MIN_POLICIES_PER_TEAM } from "./minPoliciesFloor";
+import { MIN_POLICIES_PER_TEAM, enforceMinPoliciesFloor } from "./minPoliciesFloor";
 
 // Large enough for teams.length * MIN_POLICIES_PER_TEAM <= N (3 * 5000 =
 // 15000) so the floor actually engages — runSimulation.test.ts's own N=2000
@@ -80,5 +80,69 @@ describe("enforceMinPoliciesFloor (via runSimulation)", () => {
     const runA = runSimulation(universe, tariffs, teams, params);
     const runB = runSimulation(universe, tariffs, teams, params);
     expect(Array.from(runA.assignment)).toEqual(Array.from(runB.assignment));
+  });
+});
+
+// Direct, deterministic tests against enforceMinPoliciesFloor itself (no market
+// simulation / RNG involved) — covers the two things that only apply once -1
+// (uninsured, Year-2-only) exposures exist: the floor draws on them before
+// touching another team's book, and it overrides a team's own solvency cap on
+// purpose once that pool runs out. See minPoliciesFloor.ts's doc comment.
+describe("enforceMinPoliciesFloor (direct)", () => {
+  const n = 20_000;
+  const floorTeams: TeamInfo[] = [
+    { id: 1, fallbackPremium: 1_000_000 },
+    { id: 2, fallbackPremium: 1_000_000 },
+    { id: 3, fallbackPremium: 1_000_000 },
+  ];
+  const emptyTariffs = new Map<number, Float32Array>();
+
+  // First team1Count entries -> team 1, next team2Count -> team 2, next
+  // team3Count -> team 3, everything else stays -1 (uninsured).
+  function buildAssignment(team1Count: number, team2Count: number, team3Count: number): Int32Array {
+    const a = new Int32Array(n).fill(-1);
+    let idx = 0;
+    for (let i = 0; i < team1Count; i++) a[idx++] = 1;
+    for (let i = 0; i < team2Count; i++) a[idx++] = 2;
+    for (let i = 0; i < team3Count; i++) a[idx++] = 3;
+    return a;
+  }
+
+  function countAll(assignment: Int32Array) {
+    let t1 = 0,
+      t2 = 0,
+      t3 = 0,
+      uninsured = 0;
+    for (let k = 0; k < n; k++) {
+      if (assignment[k] === 1) t1++;
+      else if (assignment[k] === 2) t2++;
+      else if (assignment[k] === 3) t3++;
+      else uninsured++;
+    }
+    return { t1, t2, t3, uninsured };
+  }
+
+  it("fills a deficient team from uninsured (-1) exposures first, leaving other teams' books untouched", () => {
+    const assignment = buildAssignment(6000, 6000, 100); // 7900 exposures left as -1 — plenty to cover team 3's deficit alone
+    enforceMinPoliciesFloor(n, assignment, emptyTariffs, floorTeams);
+    const { t1, t2, t3, uninsured } = countAll(assignment);
+    expect(t3).toBe(MIN_POLICIES_PER_TEAM);
+    expect(t1).toBe(6000);
+    expect(t2).toBe(6000);
+    expect(uninsured).toBe(7900 - (MIN_POLICIES_PER_TEAM - 100));
+  });
+
+  it("falls back to donor teams' surplus once the uninsured pool runs out, and can push a team above what would be its capacityLimit", () => {
+    const assignment = buildAssignment(6000, 6000, 100); // only 100 team-3 policies live outside the pool this time
+    // Shrink the uninsured pool to 500 by handing the rest to team 1 first (team 1 stays well above the floor either way).
+    for (let k = 12100; k < 20000 - 500; k++) assignment[k] = 1;
+    enforceMinPoliciesFloor(n, assignment, emptyTariffs, floorTeams);
+    const { t3, uninsured } = countAll(assignment);
+    // Team 3's deficit (4900) exceeds the 500-strong uninsured pool, so the
+    // floor reaches into donor surplus — team 3 still lands exactly on the
+    // floor, well above a hypothetical solvency-derived capacityLimit of 100.
+    expect(t3).toBe(MIN_POLICIES_PER_TEAM);
+    expect(t3).toBeGreaterThan(100);
+    expect(uninsured).toBe(0);
   });
 });

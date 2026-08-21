@@ -4,6 +4,8 @@ import type { AlmYearBenchInput, FinBenchInput } from "./finBench";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { computeDevelopment } from "../reserving/development";
 import { FZ, CAPITAL_SOCIAL } from "./constants";
+import { almSimRealYear } from "./alm";
+import type { PortfolioDecisionV4 } from "./instruments";
 
 const liabilityYear1: LiabilitySchedule = {
   L: new Array(48).fill(0),
@@ -279,6 +281,67 @@ describe("finBench", () => {
       almYear1: fakeAlmYear(),
     });
     expect(bench.bal1.impuestoPorPagar).toBeCloseTo(bench.p1.imp, 6);
+  });
+
+  it("bal2.impuestoPorPagar is CUMULATIVE (p1.imp + p2.imp), not just Año 2's own — Año 1's tax bill is exactly as unpaid at Año 2's close as it was at its own, since the real ALM never models a tax payment in any year", () => {
+    const bench = finBench({
+      year1: { totalPremium: 500_000_000, claimsAmount: 100_000_000, insuredCount: 1000 },
+      year2: { totalPremium: 520_000_000, claimsAmount: 110_000_000, insuredCount: 1000 },
+      liabilityYear1,
+      development: fakeDevelopment(),
+      almYear1: fakeAlmYear(),
+      almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07),
+    });
+    expect(bench.p1.imp).toBeGreaterThan(0);
+    expect(bench.bal2!.impuestoPorPagar).toBeCloseTo(bench.p1.imp + bench.p2!.imp, 4);
+  });
+
+  it("Balance Año 1/2 closes Activos = Pasivo + Patrimonio EXACTLY against a genuine almSimRealYear() run, not just the ~1-2% documented residual — the cxc/cxp holdback in almSimRealYear() plus cumulative impuestoPorPagar together account for the whole gap", () => {
+    const decision: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { CDT90: 40, TES1: 30, TESUVR8: 30 },
+      schedule: [{ month: 0, allocation: { LIQ: 20, CDT90: 40, TES1: 20, TESUVR8: 20 } }],
+    };
+    const totalPremium1 = 500_000_000;
+    const totalPremium2 = 520_000_000;
+    const U1 = 250_000_000;
+    const U2 = 260_000_000;
+    const reserva1 = U1 * 0.5;
+    const payY1 = new Array(12).fill((U1 * 0.5) / 12);
+    // Año 2's own claims payment schedule = Año 1's tail (fully paid off,
+    // matching reserva1) plus Año 2's own new claims — mirrors how
+    // finBenchHelper.ts actually wires production claims into Año 2.
+    const claimsYear2 = new Array(12).fill((U2 * 0.5) / 12 + reserva1 / 12);
+
+    const real1 = almSimRealYear(1, payY1, decision, totalPremium1 / 12)!;
+    const real2 = almSimRealYear(2, claimsYear2, decision, totalPremium2 / 12, real1.finalState, totalPremium1)!;
+
+    const bench = finBench({
+      year1: { totalPremium: totalPremium1, claimsAmount: U1, insuredCount: 1000 },
+      year2: { totalPremium: totalPremium2, claimsAmount: U2, insuredCount: 1000 },
+      liabilityYear1: { L: new Array(48).fill(0), payY1, reserva: reserva1, hay: true },
+      almYear1: {
+        portYield: real1.portYield,
+        income: real1.income,
+        capitalComprometido: real1.capitalComprometidoAcumulado,
+        cajaFinalAnio: real1.cajaFinalAnio,
+        portfolioBookValue: real1.portfolioBookValue,
+      },
+      almYear2: {
+        portYield: real2.portYield,
+        income: real2.income,
+        capitalComprometido: real2.capitalComprometidoAcumulado,
+        effectiveYield: real2.effectiveYield,
+        cajaFinalAnio: real2.cajaFinalAnio,
+        portfolioBookValue: real2.portfolioBookValue,
+      },
+      // No `development` — uses finBench()'s ratio-based reservas2 fallback,
+      // self-consistent with claimsYear2's own 50% payment pattern above.
+    });
+
+    for (const b of [bench.bal1, bench.bal2!]) {
+      const pasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.impuestoPorPagar + b.patrimonio;
+      expect(b.activos).toBeCloseTo(pasivoPatrim, 3);
+    }
   });
 
   it("impuestoPorPagar shrinks the Activos-vs-Pasivo+Patrimonio gap by exactly that year's own unpaid tax bill, compared to the old formula that omitted it", () => {
