@@ -657,37 +657,58 @@ export default async function AdminDayPage({
         <div className="flex flex-col gap-4">
           {(hasMinVariance || hasPortfolioSchedule) && <InstrumentsPanel showCovariance={hasMinVariance || hasPortfolioSchedule} />}
 
-          {hasPortfolioSchedule && (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-5">
-              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                Portafolios de inversión — Día {day}
+          {day === 2 && (
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
+              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Estado de cargues — Día {day}
               </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                      <th className="py-1 pr-4">Equipo</th>
-                      <th className="py-1 pr-4">Portafolio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teams.map((team) => (
-                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                        <td className="py-1 pr-4">
-                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                        </td>
-                        <td className="py-1 pr-4">
-                          {team.portfolioAllocations[0] ? (
-                            <span className="text-[var(--color-brand-green)]">Cargado</span>
-                          ) : (
-                            <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
-                          )}
-                        </td>
+              <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+                {[teams.slice(0, Math.ceil(teams.length / 2)), teams.slice(Math.ceil(teams.length / 2))].map((group, gi) => (
+                  <table key={gi} className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                        <th className="py-1">Equipo</th>
+                        <th className="py-1 text-center">Tarifa</th>
+                        <th className="py-1 text-center">Portafolio</th>
+                        <th className="py-1 text-center">Reportes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {group.map((team) => {
+                        const tariffDone = team.tariffSubmissions[0]?.meanPremium != null;
+                        const portfolioDone = team.portfolioAllocations[0] != null;
+                        const values = deliverablesByTeamId.get(team.id) ?? {};
+                        const reportsDone = reportConcepts.filter((c) => values[c.id] != null).length;
+                        const reportsTotal = reportConcepts.length;
+                        return (
+                          <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                            <td className="py-1">
+                              <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                              {team.name}
+                            </td>
+                            <td className={`py-1 text-center ${tariffDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                              {tariffDone ? "✓" : "—"}
+                            </td>
+                            <td className={`py-1 text-center ${portfolioDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+                              {portfolioDone ? "✓" : "—"}
+                            </td>
+                            <td
+                              className={`py-1 text-center ${
+                                reportsDone === reportsTotal
+                                  ? "text-[var(--color-brand-green)]"
+                                  : reportsDone > 0
+                                    ? "text-[var(--color-brand-yellow)]"
+                                    : "text-[var(--color-brand-text-secondary)]"
+                              }`}
+                            >
+                              {reportsDone === reportsTotal ? "✓" : `${reportsDone}/${reportsTotal}`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ))}
               </div>
             </div>
           )}
