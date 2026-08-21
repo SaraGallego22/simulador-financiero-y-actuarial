@@ -245,6 +245,33 @@ describe("finBench", () => {
     expect(projectedDelta(trending)).toBeCloseTo(15_000_000_000, 4);
   });
 
+  it("carries Año 2's real inversiones forward by exactly Año 3's own equity growth, instead of resetting to a static Capital Social that ignores 3 years of retained utilidad/pérdida", () => {
+    const bench = finBench({
+      ...richYear3Input(),
+      almYear1: fakeAlmYear(0, 2_000_000, 0.1, undefined, 0, CAPITAL_SOCIAL),
+      almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07, 0, CAPITAL_SOCIAL + 25_000_000_000),
+    });
+    // inversionesY3 = bal2.inversiones + (patrimonioY3 - bal2.patrimonio) — the
+    // exact same delta patrimonio itself grows by, so the two sides move
+    // together instead of drifting apart (see finBench()'s doc comment on bal3
+    // for why a raw portfolioBookValue trend, dominated by gross premium cash
+    // flow, overshoots this instead).
+    const expectedDelta = bench.bal3!.patrimonio - bench.bal2!.patrimonio;
+    expect(bench.bal3!.inversiones).toBeCloseTo(bench.bal2!.inversiones + expectedDelta, 4);
+    // A team with committed capital erosion (capitalComprometido > 0) still
+    // never double-subtracts it: it reduces patrimonioY3 once, and that same
+    // reduction flows into inversionesY3 through the shared delta above,
+    // mirroring how Y1/Y2's own real ALM book value already reflects
+    // whatever had to be liquidated (see balance()'s doc comment).
+    const withErosion = finBench({
+      ...richYear3Input(),
+      almYear1: fakeAlmYear(0, 2_000_000, 0.1, undefined, 0, CAPITAL_SOCIAL),
+      almYear2: fakeAlmYear(10_000_000_000, 2_718_281, 0.1, 0.07, 0, CAPITAL_SOCIAL + 25_000_000_000),
+    });
+    const expectedDeltaErosion = withErosion.bal3!.patrimonio - withErosion.bal2!.patrimonio;
+    expect(withErosion.bal3!.inversiones).toBeCloseTo(withErosion.bal2!.inversiones + expectedDeltaErosion, 4);
+  });
+
   it("every team starts capital0 from the same fixed Capital Social, independent of its own premium", () => {
     const smallPremium = finBench({
       year1: { totalPremium: 100_000_000, claimsAmount: 60_000_000 },
