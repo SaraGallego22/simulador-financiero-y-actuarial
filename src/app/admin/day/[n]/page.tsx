@@ -6,8 +6,6 @@ import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable, AlmPnlBreakdown, PortfolioScheduleView } from "@/components/AlmLadderTable";
-import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
 import { conceptosDia, scoreConcepto, ownValueKey, GROUP_LABELS } from "@/domain/grading/concepts";
 import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
 import {
@@ -29,15 +27,17 @@ import { TeamSelect } from "@/components/TeamSelect";
 import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
 import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
-import { SimulationTrigger } from "./SimulationTrigger";
 import { Dia1TeamDetail } from "./Dia1TeamDetail";
+import { Dia2TeamDetail } from "./Dia2TeamDetail";
+import { Dia2ReportesTeamDetail } from "./Dia2ReportesTeamDetail";
+import { Dia2AlmTeamDetail } from "./Dia2AlmTeamDetail";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
 import { AptitudesRiesgosToggle } from "./AptitudesRiesgosToggle";
 import { DeleteMemberButton } from "./DeleteMemberButton";
 import { DayTabBar } from "@/components/DayTabBar";
 import type { DayTabKey } from "@/components/DayTabBar";
-import { DAY_TITLES, DAY_DESCRIPTIONS, SIMULATED_YEAR_LABEL } from "@/lib/days";
+import { DAY_TITLES, DAY_DESCRIPTIONS } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
 export const dynamic = "force-dynamic";
@@ -215,7 +215,6 @@ export default async function AdminDayPage({
 
   const resultByTeamId = new Map((latestRun?.teamResults ?? []).map((r) => [r.teamId, r]));
   const submittedCount = teams.filter((t) => t.tariffSubmissions[0]?.meanPremium != null).length;
-  const defaultCuotaPercent = Math.min(100, Math.max(30, Math.ceil(100 / Math.max(submittedCount, 1))));
 
   // Día 4 sector exercise: the one true global ranking (never per-team —
   // see sectors.ts's doc comment on why a team's own book is a biased
@@ -270,7 +269,7 @@ export default async function AdminDayPage({
       const reserves = reservesByTeamId.get(team.id);
       if (reserves && isPortfolioDecisionV4(rawAllocation)) {
         almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-        if (activeTab === "obj" || activeTab === "top") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
+        if (activeTab === "obj" || activeTab === "resultados") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
       }
     }
   }
@@ -374,14 +373,14 @@ export default async function AdminDayPage({
   // cloned").
   const teamOptions = teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
-  // Día 1's merged "Resultados" tab (see DayTabBar.tsx) — market results,
-  // the P&G down to RT for one selected team, and the min-variance
-  // portfolio, all ranked/formatted the same way: millones de pesos, best
-  // nota first.
+  // Días 1-2's merged "Resultados" tab (see DayTabBar.tsx) — market results,
+  // the P&G down to RT for one selected team, and the portfolio (min-var on
+  // Día 1, the Día 2 tree on Día 2), all ranked/formatted the same way:
+  // millones de pesos, best nota first.
   const fmtM = (v: number | null | undefined, decimals = 1) =>
     v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })} M`;
   const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
-  const totalInsuredDay1 = day === 1 ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
+  const totalInsuredThisYear = includeSim ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
   // Results table (below) ranks by the Tarifas/actuarial score alone
   // (notaTarifacionAbsoluta), not the blended objective nota — see
   // actuarialScoreByTeamId above.
@@ -486,7 +485,7 @@ export default async function AdminDayPage({
                   const result = resultByTeamId.get(team.id);
                   const bench = finBenchByTeamId.get(team.id)?.p1;
                   const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
-                  const marketShare = result && totalInsuredDay1 > 0 ? result.insuredCount / totalInsuredDay1 : null;
+                  const marketShare = result && totalInsuredThisYear > 0 ? result.insuredCount / totalInsuredThisYear : null;
                   const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null } | null;
                   const actScore = actuarialScoreByTeamId.get(team.id);
                   const medianTariff = team.tariffSubmissions[0]?.medianPremium;
@@ -615,99 +614,139 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "resultados" && day === 2 && <InstrumentsPanel showCovariance />}
-
       {activeTab === "resultados" && day === 2 && (
-        <div className="flex flex-col gap-4">
-          <SimulationTrigger day={day} defaultCuotaPercent={defaultCuotaPercent} />
-
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[var(--color-brand-blue)] text-left text-white">
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Tarifa</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Asegurados</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima total</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Siniestros</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Monto siniestros</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Gastos (adq+com+adm)</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">RT</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Cuota máxima (pólizas)</th>
-                  <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Retenidos/Nuevos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((team) => {
-                  const submitted = team.tariffSubmissions[0]?.meanPremium != null;
-                  const result = resultByTeamId.get(team.id);
-                  const bench = finBenchByTeamId.get(team.id);
-                  const dayBench = bench?.p2;
-                  // Loss ratio against Prima Devengada (earned, not written) — same base
-                  // as dayBench.rt itself, and dayBench.costo (not the raw simulation
-                  // claimsAmount) so this reconciles with the RT column on the same row —
-                  // costo here can be the developed/ultimate claims (Chain Ladder), not
-                  // the raw avisado amount.
-                  const lossRatio = dayBench && dayBench.primaDevengada > 0 ? dayBench.costo / dayBench.primaDevengada : null;
-                  const gastos = dayBench ? dayBench.gadq + dayBench.gcom + dayBench.gadm : null;
-                  const capExtra = result?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                  const cappedByCapital =
-                    capExtra?.capacityLimit != null && capExtra?.rawCapacityLimit != null ? capExtra.rawCapacityLimit <= capExtra.capacityLimit : null;
-                  return (
-                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                      <td className="px-4 py-2">
-                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                        {team.name}
-                      </td>
-                      <td className="px-4 py-2">
-                        {submitted ? (
-                          team.tariffSubmissions[0]?.outsourced ? (
-                            <span className="text-[var(--color-brand-red)]" title="Consultora chilena — opción de emergencia">
-                              Tercerizada
-                            </span>
-                          ) : (
-                            <span className="text-[var(--color-brand-green)]">Completa</span>
-                          )
-                        ) : (
-                          <span className="text-[var(--color-brand-text-secondary)]">Pendiente</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
-                      <td className="px-4 py-2">{result ? `$${Math.round(result.totalPremium).toLocaleString("es-CO")}` : "—"}</td>
-                      <td className="px-4 py-2">{result ? result.claimsCount.toLocaleString("es-CO") : "—"}</td>
-                      <td className="px-4 py-2">{result ? `$${Math.round(result.claimsAmount).toLocaleString("es-CO")}` : "—"}</td>
-                      <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(1)}%` : "—"}</td>
-                      <td className="px-4 py-2">{gastos != null ? `$${Math.round(gastos).toLocaleString("es-CO")}` : "—"}</td>
-                      <td className="px-4 py-2">{dayBench ? `$${Math.round(dayBench.rt).toLocaleString("es-CO")}` : "—"}</td>
-                      <td className="px-4 py-2">
-                        {capExtra?.capacityLimit != null ? (
-                          <>
-                            {capExtra.capacityLimit.toLocaleString("es-CO")}
-                            <span className={`ml-1 text-[15px] ${cappedByCapital ? "text-[var(--color-brand-blue-accent)]" : "text-[var(--color-brand-text-secondary)]"}`}>
-                              ({cappedByCapital ? "solvencia" : "techo fijo"})
-                            </span>
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {result?.extra && typeof result.extra === "object" && "retainedCount" in result.extra
-                          ? `${(result.extra as { retainedCount: number }).retainedCount.toLocaleString("es-CO")} / ${(result.extra as { newCount: number }).newCount.toLocaleString("es-CO")}`
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
+          <div className="p-4 pb-0">
+            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              Resultados por equipo — Día {day}
+            </h3>
+            <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+              Cifras en millones de pesos · ordenado de mejor a peor nota.
+            </p>
           </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                <th className="px-4 py-2">Equipo</th>
+                <th className="px-4 py-2">Market</th>
+                <th className="px-4 py-2"># pólizas</th>
+                <th className="px-4 py-2">Limite</th>
+                <th className="px-4 py-2">Tarifa mediana</th>
+                <th className="px-4 py-2">Cobro mediano</th>
+                <th className="px-4 py-2">Loss ratio</th>
+                <th className="px-4 py-2">RT</th>
+                <th className="px-4 py-2">Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teamsByActScoreDesc.map((team) => {
+                const result = resultByTeamId.get(team.id);
+                const bench = finBenchByTeamId.get(team.id)?.p2;
+                const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
+                const marketShare = result && totalInsuredThisYear > 0 ? result.insuredCount / totalInsuredThisYear : null;
+                const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null } | null;
+                const actScore = actuarialScoreByTeamId.get(team.id);
+                const medianTariff = team.tariffSubmissions[0]?.medianPremium;
+                return (
+                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="px-4 py-2">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </td>
+                    <td className="px-4 py-2">{marketShare != null ? `${(marketShare * 100).toFixed(0)}%` : "—"}</td>
+                    <td className="px-4 py-2">{result ? result.insuredCount.toLocaleString("es-CO") : "—"}</td>
+                    <td className="px-4 py-2">{capExtra?.capacityLimit != null ? capExtra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
+                    <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
+                    <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
+                    <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
+                    <td className="px-4 py-2">{bench ? fmtM(bench.rt, 0) : "—"}</td>
+                    <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Reportes numéricos: shared between Día 2's "Resultados" tab and Días 3-4's "Entregables" tab — Día 2 no longer has its own Entregables tab (see "resultados" && day === 2 above). */}
-      {((activeTab === "resultados" && day === 2) || (activeTab === "entreg" && day !== 1)) && reportConcepts.length > 0 && (
+      {activeTab === "resultados" && day === 2 && (
+        <Dia2TeamDetail
+          teams={teams.map((t) => {
+            const rawAllocation = t.portfolioAllocations[0]?.allocation;
+            const decision = isPortfolioDecisionV4(rawAllocation) ? rawAllocation : undefined;
+            return {
+              id: t.id,
+              name: t.name,
+              color: t.color,
+              pnl: finBenchByTeamId.get(t.id)?.p2 ?? null,
+              weights: decision?.schedule[0]?.allocation ?? null,
+            };
+          })}
+        />
+      )}
+
+      {activeTab === "resultados" && day === 2 && reportConcepts.length > 0 && (
+        <Dia2ReportesTeamDetail
+          teams={teams.map((team) => {
+            const values = deliverablesByTeamId.get(team.id) ?? {};
+            const bench = finBenchByTeamId.get(team.id) ?? null;
+            const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
+            const rows = reportConcepts.map((c) => {
+              const result = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues);
+              return { id: c.id, label: c.label, unit: c.unit, val: result?.val ?? null, bench: result?.bench ?? null, score: result?.score ?? null, group: c.group };
+            });
+            const scored = rows.filter((r) => r.score != null);
+            const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.score!, 0) / scored.length : null;
+
+            const groupOrder: ConceptGroup[] = [];
+            const rowsByGroup = new Map<ConceptGroup, typeof rows>();
+            const ungrouped: typeof rows = [];
+            for (const row of rows) {
+              if (row.group) {
+                if (!rowsByGroup.has(row.group)) {
+                  rowsByGroup.set(row.group, []);
+                  groupOrder.push(row.group);
+                }
+                rowsByGroup.get(row.group)!.push(row);
+              } else {
+                ungrouped.push(row);
+              }
+            }
+
+            return {
+              id: team.id,
+              name: team.name,
+              color: team.color,
+              avgScore,
+              groups: groupOrder.map((group) => ({ group, rows: rowsByGroup.get(group)! })),
+              ungrouped,
+            };
+          })}
+        />
+      )}
+
+      {activeTab === "resultados" && day === 2 && hasPortfolioSchedule && (
+        <Dia2AlmTeamDetail
+          teams={teams.map((team) => {
+            const almScore = almScoreByTeamId.get(team.id) ?? null;
+            const ladder = almLadderByTeamId.get(team.id);
+            const bundle = finBenchBundlesByTeamId.get(team.id);
+            const rawAllocation = team.portfolioAllocations[0]?.allocation;
+            const decision = isPortfolioDecisionV4(rawAllocation) ? rawAllocation : undefined;
+            return {
+              id: team.id,
+              name: team.name,
+              color: team.color,
+              almScore,
+              ladderRows: ladder?.rows ?? null,
+              schedule: decision?.schedule ?? null,
+              realAlmYear: bundle?.realAlmYear1,
+            };
+          })}
+        />
+      )}
+
+      {activeTab === "entreg" && day !== 1 && day !== 2 && reportConcepts.length > 0 && (
             <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
               <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                 Reportes numéricos — Día {day}
@@ -1339,76 +1378,6 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "top" && day === 2 && hasPortfolioSchedule && bookYear && (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
-          <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-            ALM — calce del portafolio vs. reservas de {SIMULATED_YEAR_LABEL[bookYear]}
-          </h3>
-          <div className="flex flex-col gap-3">
-            {teams.map((team) => {
-              const almScore = almScoreByTeamId.get(team.id);
-              const ladder = almLadderByTeamId.get(team.id);
-              const bundle = finBenchBundlesByTeamId.get(team.id);
-              const realAlmYear = bookYear === 1 ? bundle?.realAlmYear1 : bundle?.realAlmYear2;
-              const rawAllocation = team.portfolioAllocations[0]?.allocation;
-              const decision = isPortfolioDecisionV4(rawAllocation) ? rawAllocation : undefined;
-              return (
-                <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                  <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
-                    <span>
-                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                      {team.name}
-                    </span>
-                    <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
-                      {almScore ? `Nota ALM: ${almScore.nota.toFixed(1)}` : "Sin portafolio o sin reservas aún"}
-                    </span>
-                  </summary>
-                  {almScore && (
-                    <div className="border-t border-[var(--color-brand-gray-light)] p-3">
-                      <div className="mb-3">
-                        <AlmScoreTiles score={almScore} />
-                      </div>
-
-                      <div className="mb-3">
-                        <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                          Calendario de decisión de inversión
-                        </p>
-                        {decision ? (
-                          <PortfolioScheduleView schedule={decision.schedule} />
-                        ) : (
-                          <p className="text-xs text-[var(--color-brand-text-secondary)]">—</p>
-                        )}
-                      </div>
-
-                      {ladder && <AlmLadderTable rows={ladder.rows} />}
-                      {ladder && (
-                        <div className="mt-3">
-                          <AlmPortfolioTable rows={ladder.rows} />
-                        </div>
-                      )}
-
-                      {realAlmYear && (
-                        <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
-                          <p className="mb-2 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                            ALM real — con la prima real de este equipo, solo los 12 meses de {SIMULATED_YEAR_LABEL[bookYear]} (esto es lo que finBench
-                            usa para el Resultado de Inversiones/Balance/Solvencia reales; el ALM ficticio de arriba solo califica la nota de ALM de
-                            este día)
-                          </p>
-                          <div className="flex flex-col gap-3">
-                            <AlmPnlBreakdown scoreFicticio={almScore} realYear={realAlmYear} year={bookYear} />
-                            <AlmLadderTable rows={realAlmYear.rows} />
-                            <AlmPortfolioTable rows={realAlmYear.rows} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </details>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </main>
   );
 }
