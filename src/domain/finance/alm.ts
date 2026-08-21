@@ -1,8 +1,8 @@
 import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, instrumentDurationM, isCouponBond, displayYield } from "./instruments";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, RISK_FREE_RATE, instrumentDurationM, isCouponBond, displayYield } from "./instruments";
 import type { Allocation, Instrument, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
-import { FZ, GASTOS_TOTAL_PCT, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
+import { FZ, GASTOS_TOTAL_PCT, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
 import { COVARIANCE_MATRIX, portfolioVariance } from "./markowitz";
 
 export const W_CUMPL_CAJA = 0.35;
@@ -12,61 +12,58 @@ export const W_VENTA_FORZADA = 0.2;
 export const W_LIQ = 0.1;
 
 /**
- * Floor/ceiling for the "Rendimiento" ALM sub-score's normalization —
- * deliberately *not* `Math.min/max` over each instrument's own nominal
- * `yield - λ×volAnual` (what this used to be). That nominal formula ignores
- * everything the simulation actually does to a portfolio over 60 months —
- * before the stepMonth() accrual-timing fix (see its doc comment), realized
- * risk-adjusted yield for *any* portfolio came in far below nominal, so the
- * old nominal-anchored band left almost everything scoring 0.
- *
- * These two constants are the *realized* risk-adjusted yield (`effYield -
- * λ×avgPortfolioVol - μ×concentrationRatio`, same formula as below, just
- * measured instead of assumed — avgPortfolioVol, not the naive avgVol, see
- * its own doc comment) of a reference portfolio run through
+ * Floor/ceiling for the "Rendimiento" ALM sub-score's normalization.
+ * `riskAdjustedYield` is now a genuine Sharpe ratio (`(effYield −
+ * RISK_FREE_RATE) ÷ avgPortfolioVol`, see instruments.ts's RISK_FREE_RATE
+ * doc comment) minus the concentration penalty, not a linear
+ * yield-minus-volatility spread — a different formula, and a different
+ * scale, than either the original nominal-anchored band or the realized-
+ * yield band that preceded it. These two constants are the *realized*
+ * riskAdjustedYield of a reference portfolio run through
  * `almSim()`/`scoreFinanciero()` end to end — the actual floor and ceiling
- * this engine can produce, not a theoretical one:
- * - MIN ≈ 0.046: 100% LIQ, `durationM=12`, "repeat" forever. LIQ's own 5%
- *   nominal yield (see instruments.ts) makes it the menu's worst realized
- *   risk-adjusted choice — pure safety has a real opportunity cost, exactly
- *   the point this sub-score exists to make. LIQ is excluded from
- *   portfolioConcentrationRatio()'s weight base (see its doc comment), so
- *   this reference is unaffected by μ — a single instrument that IS subject
- *   to the concentration discount (e.g. 100% ACC) can score lower still,
- *   which just clips to a Rendimiento of 0 rather than moving this floor.
- *   Unaffected by switching avgVol → avgPortfolioVol: a single-instrument
- *   portfolio has nothing to correlate against, so the two are identical
- *   here.
- * - MAX ≈ 0.079: 40% CDT90 / 10% TES3 / 50% TESUVR8, each "repeat" forever.
- *   Moved twice since this constant was first introduced. First, off the
- *   original 25%/25%/25%/25% split, when `forceLiquidatePortfolio()` started
- *   charging a price haircut on early sales (see `ventaForzadaHaircut()`):
- *   under this fixture's cash-flow timing, TES3/TESUVR8 got force-sold early
- *   often enough that a *linear* volatility term in the haircut left
- *   CDT90/TES1 (short duration, low haircut exposure) winning instead — MAX
- *   briefly sat at ≈0.078, an even 50%/50% CDT90/TES1 split. Then, once the
- *   volatility term was cubed instead of linear (see `ventaForzadaHaircut()`'s
- *   own doc comment — needed to keep 100% TESUVR8 beating 100% ACC on
- *   riskAdjustedYield once `VENTA_FORZADA_HAIRCUT_MAX` reached 0.10), that
- *   same cubing sharply discounts CDT90/TES1's own small haircut exposure
- *   too, and long-dated TES3/TESUVR8 become genuinely worth diversifying
- *   into again — MAX moved back up to include them. Confirmed against a
- *   full grid search over the 5-instrument simplex
- *   (LIQ/CDT90/TES1/TES3/TESUVR8, ACC still excluded — its volatility still
- *   never pays for itself even diluted, cubing doesn't change that since its
- *   own vol-ratio term is already 1, the max possible), which found no blend
- *   beating this reference by more than the grid's own discretization slack.
+ * this engine can produce, not a theoretical one (see
+ * scratchpad/recalibrate-minmax.ts for the grid-search script used here):
+ * - MIN ≈ −0.070: 100% ACC, `durationM=ACC_ROLL_M`, "repeat" forever. Under
+ *   the old linear formula LIQ was always the floor (nothing could beat its
+ *   own volatility discount by being safer). Under a Sharpe ratio that's no
+ *   longer automatic: LIQ IS the risk-free asset, so its own Sharpe is ≈0
+ *   by construction (slightly negative once simulated — see
+ *   RISK_FREE_RATE's doc comment) — but LIQ is also exempt from
+ *   portfolioConcentrationRatio()'s base, so nothing ever pulls it below
+ *   that ≈0 floor. A fully concentrated bet on ACC, by contrast, pays the
+ *   full concentration penalty (μ=0.5) on top of a raw Sharpe (~0.43) that's
+ *   nowhere near high enough to absorb it, landing meaningfully below LIQ's
+ *   own ≈0 — verified against every other single-instrument portfolio too
+ *   (100% CDT90/TES1/TES3/TESUVR8 all score positive; none comes close to
+ *   ACC's negative floor).
+ * - MAX ≈ 1.405: a blend close to 20% LIQ / 33% CDT90 / 33% TES1 / 2% TES3 /
+ *   12% TESUVR8, each "repeat" forever — found by a full grid search over
+ *   the 5-instrument simplex (LIQ/CDT90/TES1/TES3/TESUVR8; ACC excluded, a
+ *   spot-check confirmed any ACC sliver only pulls this reference down).
+ *   Two things worth knowing about this reference, both different from the
+ *   old linear-formula intuition: (1) CDT90/TES1 dominate the blend, not
+ *   TESUVR8 — they have the best individual Sharpe ratios on this menu (see
+ *   instruments.ts's calibration-intent doc comment), so the max-Sharpe
+ *   *portfolio* leans on them too, just diluted enough by TESUVR8/TES3 for
+ *   their imperfect correlation to shave a little more off avgPortfolioVol.
+ *   (2) LIQ earns a real ~20% weight here, which never happened under raw
+ *   Sharpe alone (a risk-free asset mixed into a risky-asset Sharpe ratio
+ *   only ever dilutes it, see the portfolio-comparison scratchpad from this
+ *   session) — it's the μ×concentrationRatio term pulling it back in: LIQ
+ *   is the one instrument that lowers concentration for free (excluded from
+ *   the ratio's own base), so once concentration is priced in, a portfolio
+ *   that leans on LIQ to dilute concentration while parking the rest in
+ *   CDT90/TES1 beats a purer, more-concentrated max-Sharpe portfolio that
+ *   ignores LIQ entirely.
  *
  * Recompute both (same harness: run a reference allocation through
  * `scoreFinanciero()`, read off `riskAdjustedYield`) if the instrument
- * menu, `VOL_PENALTY_LAMBDA`, `CONCENTRATION_PENALTY_MU`, `VENTA_FORZADA_HAIRCUT_MAX`,
- * the haircut's own volatility exponent, `COVARIANCE_MATRIX`, or the accrual
- * mechanic ever change — and re-verify the ACC-vs-TESUVR8 riskAdjustedYield
- * ordering in alm.test.ts at the same time (see `ventaForzadaHaircut()`'s
- * doc comment for why that ordering isn't automatic).
+ * menu, `RISK_FREE_RATE`, `CONCENTRATION_PENALTY_MU`,
+ * `VENTA_FORZADA_HAIRCUT_MAX`, the haircut's own volatility exponent,
+ * `COVARIANCE_MATRIX`, or the accrual mechanic ever change.
  */
-export const RISK_ADJUSTED_YIELD_MIN = 0.046;
-export const RISK_ADJUSTED_YIELD_MAX = 0.079;
+export const RISK_ADJUSTED_YIELD_MIN = -0.07;
+export const RISK_ADJUSTED_YIELD_MAX = 1.405;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
@@ -209,6 +206,22 @@ export interface Position {
   book: number;
   yM: number;
   matM: number;
+  /**
+   * Dirty-price accrued interest since the last coupon (or since funding, for
+   * a position that hasn't hit its first coupon date yet) — only ever
+   * nonzero for coupon-bearing instruments (TES3/TESUVR8, see isCouponBond()
+   * in instruments.ts). Grows by book×(ins.yield/12) every month in
+   * stepMonth()'s step 4 (recognized as devengo the moment it accrues, same
+   * as any other instrument's return), and is paid out in cash — resetting
+   * back to 0 — at the next coupon/maturity date in step 1. `book` itself
+   * never absorbs it (no monthly compounding for these instruments, see
+   * Position's own module doc comment); accrued is a separate running total
+   * so the coupon amount eventually paid reflects however `book` actually
+   * moved during the cycle (e.g. a partial forced sale mid-cycle), not just
+   * a `book × yield` recomputation at the end. Always 0 for every other
+   * instrument.
+   */
+  accrued: number;
 }
 
 /**
@@ -274,8 +287,24 @@ interface StepResult {
  */
 function portfolioVolThisMonth(positions: Position[]): number {
   const bookByInstrument: Record<string, number> = {};
-  for (const p of positions) bookByInstrument[p.instrumentId] = (bookByInstrument[p.instrumentId] || 0) + p.book;
+  for (const p of positions) bookByInstrument[p.instrumentId] = (bookByInstrument[p.instrumentId] || 0) + dirtyValue(p);
   return Math.sqrt(Math.max(0, portfolioVariance(bookByInstrument, COVARIANCE_MATRIX)));
+}
+
+/**
+ * A position's true economic value: `book` (funded principal — for a
+ * coupon bond, this never grows month to month, see Position's own doc
+ * comment) plus `accrued` (dirty-price interest earned but not yet paid,
+ * always 0 for every non-coupon instrument). Every place that reports or
+ * weights "how much is this position worth" — saldoInicial/FinalPortafolio,
+ * realBookSum (feeds avgPV/effYield/avgVol), and the volatility weighting
+ * below — must use this, not `book` alone, or a coupon bond's devengo
+ * (recognized the moment it accrues) would outrun its own reported value,
+ * breaking the accounting identity `saldoFinal == saldoInicial +
+ * rendimiento − vencimientos − inversionNeta` (see alm.test.ts).
+ */
+function dirtyValue(p: Position): number {
+  return p.book + p.accrued;
 }
 
 /**
@@ -313,9 +342,25 @@ function stepMonth(
   pagoSiniestros: number,
   decision: PortfolioDecisionV4,
   state: AlmYearState,
-  acc: MonthAccumulators
+  acc: MonthAccumulators,
+  /**
+   * Only ever nonzero on the very first month of a real ALM year (see
+   * almSimRealYear()'s own doc comment on cxcHoldback0/cxpHoldback0) —
+   * always 0 for almSim() (the fictitious ALM has no real primaEmitida/cxc
+   * concept to reconcile against, see AlmYearBenchInput's doc comment) and
+   * for every month after the first. cxcHoldback defers exactly this much
+   * of THIS month's primaCobrada out of cajaDisponible (modeling that it
+   * genuinely hasn't been collected in cash yet, consistent with the
+   * Balance's own `cxc` — see finBench.ts's balance()); cxpHoldback keeps
+   * exactly this much of gastos OUT of cajaDisponible's deduction (modeling
+   * that it genuinely hasn't been paid in cash yet, consistent with the
+   * Balance's own `cxp`). Both are computed once, from that year's own
+   * annual primaEmitida, by almSimRealYear() — never re-derived here.
+   */
+  cxcHoldback = 0,
+  cxpHoldback = 0
 ): StepResult {
-  const saldoInicialPortafolio = state.positions.reduce((s, p) => s + p.book, 0) - state.capitalComprometidoAcumulado;
+  const saldoInicialPortafolio = state.positions.reduce((s, p) => s + dirtyValue(p), 0) - state.capitalComprometidoAcumulado;
 
   // 1. Route this month's maturities, and pay any periodic coupon due this
   //    month on positions that AREN'T maturing (coupon-bearing instruments
@@ -326,13 +371,22 @@ function stepMonth(
   //    position's principal becomes available cash here, unconditionally,
   //    regardless of instrument — where it goes next is entirely up to
   //    whichever checkpoint is active this month (see step 3 below), same
-  //    as any other month's surplus. A coupon bond's own coupon is genuine
-  //    investment return (folded into devengo in step 4 below via
-  //    cuponDevengo), not another maturity — it doesn't remove or resize
-  //    the position beyond paying out the coupon itself; the position's
-  //    book stays flat at its funded principal for its whole life (step 4
-  //    skips monthly compounding for coupon-bond positions entirely, since
-  //    their yield is realized purely through these coupons instead).
+  //    as any other month's surplus.
+  //
+  //    A coupon bond is priced dirty, not clean: `book` stays flat at its
+  //    funded principal for the position's whole life (step 4 never
+  //    compounds it), but the interest it's earning is recognized as
+  //    devengo every month as it accrues (step 4's Position.accrued), not
+  //    only when the cash actually lands. So by the time a coupon date
+  //    arrives here, that interest is old news to devengo — this step is
+  //    purely a CASH event: collect whatever's built up in `p.accrued` and
+  //    reset the clock. Getting this wrong (recognizing the full annual
+  //    coupon as devengo only once a year, at the cash date) used to
+  //    understate a coupon bond's realized effYield relative to its own
+  //    nominal yield — a zero-coupon instrument's book compounds silently
+  //    every month and so tracks nominal much more closely, an asymmetry
+  //    that had nothing to do with real risk. See RISK_ADJUSTED_YIELD_MIN/
+  //    MAX's doc comment for the reference figures this recalibrated.
   const remaining: Position[] = [];
   const maturingNow: Position[] = [];
   for (const p of state.positions) (p.matM === t ? maturingNow : remaining).push(p);
@@ -341,12 +395,17 @@ function stepMonth(
   let cuponDevengo = 0;
   for (const p of maturingNow) {
     const ins = INSTRUMENT_BY_ID[p.instrumentId];
-    // A coupon bond's final coupon (its last held year) is bundled with its
-    // principal at maturity — the periodic-coupon loop below only ever
-    // fires on a position that ISN'T maturing this month.
-    const finalCoupon = ins && isCouponBond(ins) ? p.book * ins.yield : 0;
+    // The maturity month itself never reaches step 4 (it's routed here,
+    // out of `remaining`, before step 4 runs) — so its own last month of
+    // interest hasn't accrued into p.accrued yet. Recognize that increment
+    // now, on top of whatever already accrued in prior months this cycle,
+    // so the coupon bundled with principal at maturity is exactly
+    // book×yield, the same as any other coupon date, split correctly
+    // across devengo instead of landing as one lump on the maturity month.
+    const finalMonthAccrual = ins && isCouponBond(ins) ? p.book * (ins.yield / 12) : 0;
+    const finalCoupon = ins && isCouponBond(ins) ? p.accrued + finalMonthAccrual : 0;
     vencCash += p.book + finalCoupon;
-    cuponDevengo += finalCoupon;
+    cuponDevengo += finalMonthAccrual;
   }
   for (const p of remaining) {
     const ins = INSTRUMENT_BY_ID[p.instrumentId];
@@ -354,18 +413,27 @@ function stepMonth(
     const fundedMonth = p.matM - ins.plazoM;
     const monthsHeld = t - fundedMonth;
     if (monthsHeld > 0 && monthsHeld % 12 === 0) {
-      const coupon = p.book * ins.yield;
-      vencCash += coupon;
-      cuponDevengo += coupon;
+      vencCash += p.accrued;
+      p.accrued = 0;
     }
   }
   state.positions = remaining;
 
-  // 2. Compute the six cashflow-statement values for this month.
+  // 2. Compute the six cashflow-statement values for this month. gastos is
+  //    computed off the FULL primaCobrada (this month's true written
+  //    premium), never off a cxcHoldback-reduced figure — gastos is a
+  //    business-volume expense, unrelated to how much of the premium has
+  //    actually landed in cash yet; only the CASH deduction (below) is
+  //    reduced by cxpHoldback, keeping gastos itself uncorrupted (see
+  //    stepMonth's own cxcHoldback/cxpHoldback doc comment for why getting
+  //    this backwards — deriving gastos from a reduced primaCobrada — would
+  //    silently shrink the cxp holdback too).
   const gastos = GASTOS_TOTAL_PCT * primaCobrada;
+  const primaCobradaCaja = primaCobrada - cxcHoldback;
+  const gastosCaja = gastos - cxpHoldback;
   const cajaMinima = FZ.cajaPct * (primaCobrada + pagoSiniestros);
   const cajaInicial = state.cajaFloat;
-  const cajaDisponible = cajaInicial + primaCobrada - pagoSiniestros - gastos + vencCash;
+  const cajaDisponible = cajaInicial + primaCobradaCaja - pagoSiniestros - gastosCaja + vencCash;
   const neededNeta = cajaMinima - cajaDisponible;
 
   // 3. Execute. Caja Mínima is always met from here on.
@@ -423,10 +491,14 @@ function stepMonth(
   //    first) — that half of the asymmetry was always correct and is
   //    unaffected by this reorder.
   //
-  //    Coupon-bond positions (TES3/TESUVR8) are skipped here entirely —
-  //    their book never compounds month to month, since their full yield is
-  //    already realized via the periodic/final coupons paid in step 1
-  //    (folded into devengo via cuponDevengo, seeded below). Every other
+  //    Coupon-bond positions (TES3/TESUVR8) never compound their own book
+  //    month to month — unlike every other instrument, their book stays
+  //    flat at funded principal for the position's whole life, since a real
+  //    bond's principal doesn't grow between coupons either. But the
+  //    interest is still genuinely being earned every month it's held, so
+  //    it's recognized as devengo right here, at accrual time — priced
+  //    dirty, not clean — even though the cash itself only arrives at the
+  //    next coupon date (step 1 above, via Position.accrued). Every other
   //    instrument keeps compounding monthly exactly as before.
   //
   //    ventaForzadaLostValue (step 3, 0 whenever nothing was force-sold this
@@ -440,31 +512,37 @@ function stepMonth(
   for (const p of state.positions) {
     if (p.matM > t) {
       const ins = INSTRUMENT_BY_ID[p.instrumentId];
-      if (ins && isCouponBond(ins)) continue;
+      if (ins && isCouponBond(ins)) {
+        const g = p.book * (ins.yield / 12);
+        p.accrued += g;
+        devengo += g;
+        continue;
+      }
       const g = p.book * p.yM;
       p.book += g;
       devengo += g;
     }
   }
 
-  // realBookSum feeds avgPV/effYield/avgVol — those describe the actual
-  // invested pool's size/composition/performance and must stay
-  // uncorrupted by capitalComprometidoAcumulado, which is an emergency
-  // equity injection, not part of what's earning yield. Only the
+  // realBookSum (dirtyValue summed — book plus any coupon-bond accrued
+  // interest, see dirtyValue()'s doc comment) feeds avgPV/effYield/avgVol —
+  // those describe the actual invested pool's size/composition/performance
+  // and must stay uncorrupted by capitalComprometidoAcumulado, which is an
+  // emergency equity injection, not part of what's earning yield. Only the
   // *displayed* saldoFinalPortafolio nets it out (that's the whole point
   // of letting the portfolio show negative).
-  const realBookSum = state.positions.reduce((s, p) => s + p.book, 0);
+  const realBookSum = state.positions.reduce((s, p) => s + dirtyValue(p), 0);
   const saldoFinalPortafolio = realBookSum - state.capitalComprometidoAcumulado;
-  const volWeightedBookSum = state.positions.reduce((s, p) => s + p.book * INSTRUMENT_BY_ID[p.instrumentId].volAnual, 0);
+  const volWeightedBookSum = state.positions.reduce((s, p) => s + dirtyValue(p) * INSTRUMENT_BY_ID[p.instrumentId].volAnual, 0);
   const portfolioVolWeightedBookSum = portfolioVolThisMonth(state.positions) * realBookSum;
   acc.peakOpenPositions = Math.max(acc.peakOpenPositions, state.positions.length);
 
   const row: AlmSimRow = {
     mes: mesLabel,
     cajaInicial,
-    primaCobrada,
+    primaCobrada: primaCobradaCaja,
     pagoSiniestros,
-    gastos,
+    gastos: gastosCaja,
     vencimientosCaja: vencCash,
     inversionNeta,
     cajaFinal,
@@ -502,7 +580,7 @@ function fundFromAllocation(alloc: Allocation, monto: number, atMonth: number, p
     const ins = INSTRUMENT_BY_ID[id];
     const yM = Math.pow(1 + ins.yield, 1 / 12) - 1;
     const dur = Math.max(1, instrumentDurationM(ins));
-    positions.push({ instrumentId: id, book: parte, yM, matM: atMonth + dur });
+    positions.push({ instrumentId: id, book: parte, yM, matM: atMonth + dur, accrued: 0 });
   }
 }
 
@@ -574,9 +652,10 @@ const VENTA_FORZADA_HAIRCUT_MAX = 0.10;
  * TESUVR8 (volAnual 0.06) started losing to ACC (volAnual 0.2, but far less
  * exposed to this churn pattern — see ACC_ROLL_M) on riskAdjustedYield,
  * inverting the instrument menu's own deliberate calibration (see
- * instruments.ts's top doc comment: "TESUVR8 is deliberately the best
- * risk-adjusted choice of the whole menu"). Cubing the volatility ratio
- * fixes this without touching the time-remaining term at all: ACC's ratio
+ * instruments.ts's top doc comment: ACC's volatility is calibrated so its
+ * raw yield never pays for its risk, under either formula this sub-score
+ * has used). Cubing the volatility ratio fixes this without touching the
+ * time-remaining term at all: ACC's ratio
  * is already 1 (the menu's max), so cubing leaves its own haircut
  * unchanged, while every lower-volatility instrument's contribution shrinks
  * much faster than the churn penalty grows — re-verify both this ordering
@@ -672,10 +751,12 @@ function forceLiquidatePortfolio(neededNeta: number, positions: Position[], t: n
  * TES3 and TESUVR8 also pay an annual cash coupon along the way (see
  * isCouponBond() in instruments.ts and stepMonth()'s step 1) — their book
  * value stays flat at its funded principal for the position's whole life,
- * since their yield is realized entirely through these coupons instead of
- * monthly compounding. Every other instrument (LIQ/CDT90/TES1/ACC) still
- * compounds monthly and pays everything out as a single lump sum at
- * maturity, unchanged.
+ * priced dirty rather than clean: the interest is recognized as devengo
+ * every month as it accrues (Position.accrued, step 4), while the cash
+ * itself only actually arrives at each coupon date, instead of monthly
+ * compounding. Every other instrument (LIQ/CDT90/TES1/ACC) still compounds
+ * monthly and pays everything out as a single lump sum at maturity,
+ * unchanged.
  *
  * The engine never sells a position early just because a checkpoint moved
  * money elsewhere — a positive Inversión Neta (a shortfall) can only draw
@@ -839,11 +920,11 @@ export interface FinancialScore {
   schedule: MonthlyAllocationEntry[];
   /** Book-value-weighted average of each held instrument's OWN volAnual over the horizon — diagnostic only, blind to correlation. See AlmSimResult.avgVol and avgPortfolioVol below (which actually feeds the score). */
   avgVol: number;
-  /** True book-value-weighted average PORTFOLIO volatility over the horizon (correlation-aware, via COVARIANCE_MATRIX) — see AlmSimResult.avgPortfolioVol. This, not avgVol, is what riskAdjustedYield below is discounted by. */
+  /** True book-value-weighted average PORTFOLIO volatility over the horizon (correlation-aware, via COVARIANCE_MATRIX) — see AlmSimResult.avgPortfolioVol. This, not avgVol, is the denominator of the Sharpe ratio riskAdjustedYield below is built from. */
   avgPortfolioVol: number;
   /** Decision-only concentration ratio of the submitted tree — see portfolioConcentrationRatio(). */
   concentrationRatio: number;
-  /** effYield - VOL_PENALTY_LAMBDA*avgPortfolioVol - CONCENTRATION_PENALTY_MU*concentrationRatio — the "Rendimiento" sub-score is normalized off this, not the raw effYield, so a high yield achieved through a volatile/correlated or concentrated portfolio scores worse than a similar yield achieved safely, diversified, and genuinely uncorrelated. */
+  /** (effYield − RISK_FREE_RATE) / avgPortfolioVol − CONCENTRATION_PENALTY_MU×concentrationRatio — a genuine Sharpe ratio (see instruments.ts's RISK_FREE_RATE) minus a concentration penalty, not effYield itself. The "Rendimiento" sub-score is normalized off this, so a high yield achieved through a volatile/correlated or concentrated portfolio scores worse than the same excess return earned safely, diversified, and genuinely uncorrelated. */
   riskAdjustedYield: number;
   /** Raw $ forced-liquidated across the horizon (see AlmSimResult.totalVentaForzada) — 0 for a team that never needed to sell early. */
   totalVentaForzada: number;
@@ -986,7 +1067,21 @@ export function almSimRealYear(
   claimsSchedule12: number[],
   decision: PortfolioDecisionV4,
   aporteMensual: number,
-  initialState?: AlmYearState
+  initialState?: AlmYearState,
+  /**
+   * Año 1's own annual primaEmitida (aporteMensual×BUILD_MONTHS from the
+   * year===1 call) — required for a genuine year===2 call so this year's
+   * cxc/cxp holdback (see cxcHoldback0/cxpHoldback0 below) can net against
+   * Año 1's own, not just apply its own in isolation. Año 1's cxc/cxp never
+   * gets its own follow-up settlement anywhere else: the Balance only ever
+   * reports THIS year's own cxc/cxp (fresh, not cumulative — same
+   * roll-forward treatment as rpnd), so by construction Año 1's receivable
+   * must finish getting collected, and its payable finish getting paid,
+   * during Año 2 — exactly like Año 1's own reservasTec runs off during
+   * Año 2's real claims payments (see finBenchHelper.ts). Ignored for
+   * year===1.
+   */
+  priorYearTotalPremium?: number
 ): AlmRealYearResult | null {
   if (year === 2 && !initialState) {
     throw new Error("almSimRealYear(2, ...) requires Año 1's finalState — Año 2 is a continuation, not a fresh run.");
@@ -1034,6 +1129,49 @@ export function almSimRealYear(
   let sumVolWeighted = 0;
   let lastRealBookSum = 0;
 
+  // cxcHoldback0/cxpHoldback0: makes this year's real cash mechanics
+  // genuinely consistent with the Balance's own cxc/cxp lines (see
+  // finBench.ts's balance()) instead of leaving a residual for the caller
+  // to paper over. cxc/cxp assume a 30-day/10% collection/payment lag on
+  // THIS year's own annual primaEmitida (aporteMensual×12 — the real ALM
+  // never sees primaEmitida directly, only its monthly share); without any
+  // adjustment, the real ALM invests/pays 100% the same month, so caja +
+  // inversiones ends up implicitly assuming zero lag while cxc/cxp on the
+  // Balance assume one, and Activos (caja+inversiones+cxc) drifts away from
+  // Pasivo+Patrimonio by exactly that mismatch.
+  //
+  // NET against the PRIOR year's own cxc/cxp (0 for year===1, no prior year
+  // to net against) — exactly the "change in working capital" a real cash
+  // flow statement nets, not each year's absolute balance in isolation.
+  // Getting this wrong (holding back only THIS year's own amount, with no
+  // offsetting collection/payment of the PRIOR year's leftover receivable/
+  // payable) leaves Año 1's own cxc/cxp permanently stuck in Año 2's
+  // Balance: Año 2's Activos would keep carrying Año 1's un-netted
+  // (cxp₁−cxc₁) gap forever, since the Balance never reports a prior year's
+  // cxc/cxp again once that year has closed (same fresh-each-year
+  // roll-forward rpnd already gets) — confirmed empirically (isolated with
+  // zero claims both years) before this net-against-prior-year logic
+  // existed.
+  //
+  // Applied ONLY on this year's first month (i===0), not spread across all
+  // 12: with a constant aporteMensual every month, deferring one month's
+  // collection is mechanically equivalent, at year end, to holding back a
+  // flat cxc/cxp amount every month EXCEPT that only the very first month's
+  // own inflow has nothing prior to be offset by — so the entire year's net
+  // effect on caja+inversiones collapses to a single first-month adjustment
+  // (confirmed algebraically and against a fully self-consistent
+  // almSimRealYear()+finBench() run — see finBench.test.ts). Every month
+  // from the second on is untouched: same Caja Mínima target, same
+  // force-liquidation dynamics as before this existed, all 12 months of
+  // Día 2's fictitious ALM (almSim, which never passes these) included.
+  const primaEmitidaAnual = aporteMensual * BUILD_MONTHS;
+  const cxcThisYear = (FZ.diasRotacionCxc / 365) * primaEmitidaAnual;
+  const cxpThisYear = FZ.cxpPct * primaEmitidaAnual;
+  const cxcPriorYear = year === 2 && priorYearTotalPremium != null ? (FZ.diasRotacionCxc / 365) * priorYearTotalPremium : 0;
+  const cxpPriorYear = year === 2 && priorYearTotalPremium != null ? FZ.cxpPct * priorYearTotalPremium : 0;
+  const cxcHoldback0 = cxcThisYear - cxcPriorYear;
+  const cxpHoldback0 = cxpThisYear - cxpPriorYear;
+
   for (let i = 0; i < 12; i++) {
     const t = startMonth + i;
     const mesLabel = year === 1 ? i - BUILD_MONTHS : i;
@@ -1041,7 +1179,19 @@ export function almSimRealYear(
     // scheduleMonth=i (not t): Año 2's checkpoint lookup restarts at its own
     // month 0, mirroring exactly how Año 1's premium read the same schedule
     // — see stepMonth()'s doc comment.
-    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(t, i, mesLabel, fase, aporteMensual, pagoSiniestros, decision, state, acc);
+    const { row, devengo, realBookSum, volWeightedBookSum } = stepMonth(
+      t,
+      i,
+      mesLabel,
+      fase,
+      aporteMensual,
+      pagoSiniestros,
+      decision,
+      state,
+      acc,
+      i === 0 ? cxcHoldback0 : 0,
+      i === 0 ? cxpHoldback0 : 0
+    );
     rows.push(row);
     income += devengo;
     sumPV += realBookSum;
@@ -1086,25 +1236,28 @@ export function almSimRealYear(
  * ends the horizon with negative patrimonioDisponible scores 0.
  *
  * rendimiento is risk-adjusted, not raw yield: it normalizes
- * riskAdjustedYield (effYield discounted by both realized volatility and
- * portfolio concentration, see RISK_ADJUSTED_YIELD_MIN/MAX,
- * VOL_PENALTY_LAMBDA and CONCENTRATION_PENALTY_MU in constants.ts) instead
- * of effYield directly — an "efficient frontier" trade-off where chasing
- * ACC's raw yield without regard for its volatility scores worse than a
- * portfolio that also leans on TESUVR8, the menu's best risk-adjusted
- * instrument by design. The volatility term is avgPortfolioVol, not the
- * naive avgVol (a book-weighted average of each instrument's OWN volAnual)
- * — avgPortfolioVol runs the actual held mix through COVARIANCE_MATRIX
- * (markowitz.ts) every month, so two instruments with the same combined
- * volAnual but low correlation to each other genuinely lower this term,
- * the same diversification benefit Día 1's min-variance exercise already
- * teaches over the same matrix (see §5.2 of the Día 2 guide). The
- * concentration discount (see portfolioConcentrationRatio()) is a distinct,
- * additional penalty on top of this — it means parking everything in the
- * single best-correlated instrument still isn't free: a genuinely
- * concentrated bet pays a discount here even when the instrument itself is
- * a safe one and its covariance-based contribution to avgPortfolioVol is
- * low.
+ * riskAdjustedYield — a genuine Sharpe ratio, (effYield − RISK_FREE_RATE) ÷
+ * avgPortfolioVol (see RISK_FREE_RATE in instruments.ts), minus a
+ * concentration penalty — instead of effYield directly, see
+ * RISK_ADJUSTED_YIELD_MIN/MAX and CONCENTRATION_PENALTY_MU in constants.ts.
+ * An "efficient frontier" trade-off where chasing ACC's raw yield without
+ * regard for its volatility scores worse than a portfolio that keeps its
+ * volatility down, same spirit as before — but a genuine Sharpe ratio also
+ * means no single instrument dominates the menu by construction: CDT90 has
+ * the best individual Sharpe here (see instruments.ts's calibration-intent
+ * doc comment), yet a well-diversified portfolio can still beat 100% CDT90
+ * once correlation is priced in, because avgPortfolioVol is not the naive
+ * avgVol (a book-weighted average of each instrument's OWN volAnual) — it
+ * runs the actual held mix through COVARIANCE_MATRIX (markowitz.ts) every
+ * month, so two instruments with the same combined volAnual but low
+ * correlation to each other genuinely lower this term, the same
+ * diversification benefit Día 1's min-variance exercise already teaches
+ * over the same matrix (see §5.2 of the Día 2 guide). The concentration
+ * discount (see portfolioConcentrationRatio()) is a distinct, additional
+ * penalty on top of this — it means parking everything in the single
+ * best-Sharpe instrument still isn't free: a genuinely concentrated bet
+ * pays a discount here even when the instrument itself is a safe one and
+ * its covariance-based contribution to avgPortfolioVol is low.
  *
  * ventaForzada penalizes being forced to sell portfolio holdings early to
  * cover a Caja Mínima shortfall LIQ alone couldn't meet — and does so with
@@ -1146,7 +1299,8 @@ export function scoreFinanciero(lib: LiabilitySchedule, decision: PortfolioDecis
 
   const effYield = sim.effYield;
   const concentrationRatio = portfolioConcentrationRatio(decision.schedule);
-  const riskAdjustedYield = effYield - VOL_PENALTY_LAMBDA * avgPortfolioVol - CONCENTRATION_PENALTY_MU * concentrationRatio;
+  const sharpeRatio = (effYield - RISK_FREE_RATE) / avgPortfolioVol;
+  const riskAdjustedYield = sharpeRatio - CONCENTRATION_PENALTY_MU * concentrationRatio;
   const rendimiento = Math.max(
     0,
     Math.min(100, (100 * (riskAdjustedYield - RISK_ADJUSTED_YIELD_MIN)) / (RISK_ADJUSTED_YIELD_MAX - RISK_ADJUSTED_YIELD_MIN))

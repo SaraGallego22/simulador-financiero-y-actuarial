@@ -475,6 +475,16 @@ export function GuiaPasanteDia2() {
           </InfoNote>
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Una posición TES3/TESUVR8 rinde todos los meses, no solo en su fecha de cupón — </span>
+              su valor en libros se queda fijo en el principal durante toda su vida (no compone mes a mes, igual que un bono real tampoco capitaliza su
+              principal entre cupones), pero el interés se reconoce cada mes a medida que se devenga, no de un solo golpe cuando llega el efectivo: cada mes
+              que la posición sigue abierta suma valor en libros × (su tasa ÷ 12) a un acumulado interno, y ese acumulado es lo que se paga como cupón —
+              y vuelve a cero — en la fecha de pago. En la práctica esto quiere decir que vas a ver rendimiento genuino en tu estado de caja incluso en un
+              mes donde "Vencimientos en caja" para esa posición está en $0, porque el interés ya se está devengando aunque el efectivo todavía no llegue.
+            </p>
+          </InfoNote>
+          <InfoNote>
+            <p className="text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se determina cuánto se invierte cada mes — </span>
               primero se calcula la Caja Disponible = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja. Esa Caja Disponible se
               compara contra la Caja Mínima obligatoria de ese mes (15% × [Prima Cobrada + Pago Siniestros]): si la excede, <strong>todo el excedente</strong>{" "}
@@ -508,15 +518,28 @@ export function GuiaPasanteDia2() {
             </p>
             <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula el rendimiento ajustado por riesgo — </span>
-              parte del rendimiento efectivo anualizado que tu portafolio realmente generó a lo largo de los 60 meses de esta simulación (el ingreso total
-              acumulado, convertido a una tasa anual equivalente) y le resta dos penalizaciones: 0.35 × la volatilidad de portafolio (no el promedio de la
-              volatilidad de cada instrumento por separado — la volatilidad real de la combinación, calculada cada mes contra la misma matriz de covarianza
-              de la sección 5.2, así que sí premia diversificar entre instrumentos que no se mueven igual entre sí, y ponderada por cuánto tuviste en libros
-              de cada uno a lo largo del horizonte, no solo tu asignación inicial), y 0.03 × qué tan concentrado quedó tu riesgo en un solo instrumento (0 =
-              tu exposición fuera de LIQ está repartida pareja entre los demás instrumentos del menú, 1 = está toda en uno solo; LIQ no cuenta para esto,
-              porque mantener caja no es una apuesta concentrada, es simplemente no tomar riesgo). Las dos penalizaciones son distintas y se suman: la
-              primera premia que los instrumentos elegidos no se muevan juntos, la segunda castiga aparte quedarte en muy pocos instrumentos aunque esos
-              pocos ya estén poco correlacionados entre sí. El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
+              es un Sharpe ratio real, no solo un descuento por volatilidad: (rendimiento efectivo anualizado de tu portafolio a lo largo de los 60 meses
+              de esta simulación − tasa libre de riesgo) ÷ volatilidad de portafolio, menos una penalización aparte por concentración. La{" "}
+              <strong>tasa libre de riesgo es el 5.0% nominal de LIQ</strong> (sección 5.2) — el instrumento más seguro y líquido del menú funciona como
+              el ancla: tu retorno solo cuenta como &ldquo;premio por riesgo&rdquo; en la parte que supera lo que ya conseguirías sin arriesgar nada. La
+              volatilidad del denominador no es el promedio de la volatilidad de cada instrumento por separado — es la volatilidad real de la combinación,
+              calculada cada mes contra la misma matriz de covarianza de la sección 5.2 (así que sí premia diversificar entre instrumentos que no se mueven
+              igual entre sí), ponderada por cuánto tuviste en libros de cada uno a lo largo del horizonte, no solo tu asignación inicial. Aparte de ese
+              cociente, se resta 0.5 × qué tan concentrado quedó tu riesgo en un solo instrumento (0 = tu exposición fuera de LIQ está repartida pareja
+              entre los demás instrumentos del menú, 1 = está toda en uno solo; LIQ no cuenta para esto, porque mantener caja no es una apuesta
+              concentrada, es simplemente no tomar riesgo). El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
+            </p>
+            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">
+                ¿Cuál instrumento tiene el mejor Sharpe individual — es TES UVR8, el instrumento con mejor duración/indexación de la sección 5.2?{" "}
+              </span>
+              No. Individualmente, CDT90 tiene el mejor Sharpe del menú (su spread sobre la tasa libre de riesgo es amplio y su volatilidad, muy baja) —
+              TES UVR8 y TES1 quedan cerca, pero por debajo. Eso no vuelve inútil a TES UVR8: como su correlación con CDT90/TES1 es baja (no se mueven
+              exactamente igual, ver la matriz de covarianza de la sección 5.2), sumarlo a una mezcla puede bajar la volatilidad de la combinación más de
+              lo que diluye el retorno — un portafolio bien diversificado puede terminar con mejor Sharpe que cualquier instrumento individual, incluido
+              CDT90 solo. Esa es la razón real para armar un calendario diversificado en vez de apostarlo todo al instrumento con mejor número en la
+              tabla: no es solo &ldquo;menos riesgo por las dudas&rdquo;, es que la combinación puede rendir más por unidad de riesgo que cualquiera de
+              sus partes por separado.
             </p>
           </InfoNote>
         </FlowStep>
@@ -536,7 +559,7 @@ export function GuiaPasanteDia2() {
             <ScoreCard
               label="Rendimiento ajustado por riesgo"
               weight="35%"
-              formula="normalizado de (rendimiento efectivo simulado − 0.35 × volatilidad de portafolio [con correlaciones, sección 5.2] − 0.03 × concentración del portafolio [0 a 1, excluye LIQ])"
+              formula="normalizado de ([rendimiento efectivo simulado − tasa libre de riesgo (LIQ, 5.0%)] ÷ volatilidad de portafolio [con correlaciones, sección 5.2] − 0.5 × concentración del portafolio [0 a 1, excluye LIQ])"
             />
             <ScoreCard label="Venta forzada de portafolio" weight="20%" formula="100 × (1 − severidad de lo vendido bajo presión, ponderada por volatilidad)" />
             <ScoreCard label="Liquidez" weight="10%" formula="100 × min(1, líquido disponible ÷ pagos esperados en los próximos 6 meses)" />

@@ -1,4 +1,4 @@
-import { INSTRUMENTS } from "@/domain/finance/instruments";
+import { INSTRUMENTS, RISK_FREE_RATE } from "@/domain/finance/instruments";
 import type { MonthlyAllocationEntry } from "@/domain/finance/instruments";
 import type { FinancialScore, AlmSimRow, AlmRealYearResult } from "@/domain/finance/alm";
 import { CAPITAL_SOCIAL } from "@/domain/finance/constants";
@@ -119,7 +119,7 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
             label="Rendimiento ajustado por riesgo"
             weight="35%"
             value={score.rendimiento}
-            formula="normalizado de (rendimiento efectivo − 0.35×volatilidad de portafolio, con correlaciones) — ver abajo"
+            formula="normalizado de un Sharpe ratio real, (rendimiento efectivo − tasa libre de riesgo) ÷ volatilidad de portafolio, con correlaciones — ver abajo"
           />
           <ScoreTile
             label="Venta forzada de portafolio"
@@ -152,9 +152,14 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
             formula="promedio de la volatilidad de cada instrumento por separado, ignorando cómo se mueven entre sí — no es la que califica"
           />
           <InfoTile
-            label="Rendimiento ajustado por riesgo"
-            value={pct(score.riskAdjustedYield, 2)}
-            formula={`${pct(score.effYield, 2)} − 0.35 × ${pct(score.avgPortfolioVol, 2)}`}
+            label="Tasa libre de riesgo (LIQ)"
+            value={pct(RISK_FREE_RATE, 2)}
+            formula="ancla del Sharpe ratio — el rendimiento nominal de LIQ, el instrumento más seguro del menú"
+          />
+          <InfoTile
+            label="Rendimiento ajustado por riesgo (Sharpe ratio, menos concentración)"
+            value={score.riskAdjustedYield.toFixed(3)}
+            formula={`(${pct(score.effYield, 2)} − ${pct(RISK_FREE_RATE, 2)}) ÷ ${pct(score.avgPortfolioVol, 2)} − 0.5 × ${score.concentrationRatio.toFixed(2)} (concentración)`}
           />
           <InfoTile
             label="Total vendido bajo presión (60 meses)"

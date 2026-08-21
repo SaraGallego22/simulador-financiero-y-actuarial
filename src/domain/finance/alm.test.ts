@@ -12,8 +12,8 @@ import {
   portfolioNominalYield,
   scoreFinanciero,
 } from "./alm";
-import { FZ, CAPITAL_SOCIAL, VOL_PENALTY_LAMBDA, CONCENTRATION_PENALTY_MU, ACC_ROLL_M } from "./constants";
-import { INSTRUMENT_BY_ID } from "./instruments";
+import { FZ, CAPITAL_SOCIAL, CONCENTRATION_PENALTY_MU, ACC_ROLL_M } from "./constants";
+import { INSTRUMENT_BY_ID, RISK_FREE_RATE } from "./instruments";
 import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import type { Position } from "./alm";
 
@@ -166,14 +166,19 @@ describe("almSim / scoreFinanciero", () => {
   });
 
   it("a well-diversified portfolio can out-score concentrating fully in the single nominally-best instrument, thanks to the concentration discount", () => {
-    const concentrated = scoreFinanciero(lib, decision({ TESUVR8: 100 }));
+    // CDT90 has the best individual Sharpe ratio on this menu (see
+    // instruments.ts's calibration-intent doc comment) — it's the
+    // "nominally-best instrument" this test's title refers to now, not
+    // TESUVR8 (which was the linear formula's single best pick).
+    const concentrated = scoreFinanciero(lib, decision({ CDT90: 100 }));
     const diversified = scoreFinanciero(lib, decision({ CDT90: 25, TES1: 25, TES3: 25, TESUVR8: 25 }));
     expect(concentrated).not.toBeNull();
     expect(diversified).not.toBeNull();
-    // Concentrated scores higher once only volatility is discounted...
-    expect(concentrated!.effYield - VOL_PENALTY_LAMBDA * concentrated!.avgVol).toBeGreaterThan(
-      diversified!.effYield - VOL_PENALTY_LAMBDA * diversified!.avgVol
-    );
+    // riskAdjustedYield already has the concentration penalty baked in —
+    // add it back to recover each portfolio's raw Sharpe ratio.
+    const rawSharpe = (s: NonNullable<typeof concentrated>) => s.riskAdjustedYield + CONCENTRATION_PENALTY_MU * s.concentrationRatio;
+    // Concentrated scores higher once only the Sharpe ratio itself is compared...
+    expect(rawSharpe(concentrated!)).toBeGreaterThan(rawSharpe(diversified!));
     // ...but the concentration discount flips the actual graded outcome.
     expect(diversified!.rendimiento).toBeGreaterThan(concentrated!.rendimiento);
   });
@@ -272,17 +277,19 @@ describe("avgPortfolioVol (correlation-aware Rendimiento, not just individual va
     expect(sim!.avgPortfolioVol).toBeLessThan(sim!.avgVol);
   });
 
-  it("riskAdjustedYield is discounted by avgPortfolioVol, not avgVol — reconstructing the score with avgVol instead gives a strictly worse (lower) number for a diversified portfolio", () => {
+  it("riskAdjustedYield is discounted by avgPortfolioVol, not avgVol — reconstructing the score with avgVol instead gives a strictly worse (lower) Sharpe ratio for a diversified portfolio", () => {
     const score = scoreFinanciero(noClaimsLib, decision({ CDT90: 50, TES1: 50 }));
     expect(score).not.toBeNull();
-    const naiveRiskAdjustedYield = score!.effYield - VOL_PENALTY_LAMBDA * score!.avgVol - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
+    const naiveSharpe = (score!.effYield - RISK_FREE_RATE) / score!.avgVol;
+    const naiveRiskAdjustedYield = naiveSharpe - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
     expect(score!.riskAdjustedYield).toBeGreaterThan(naiveRiskAdjustedYield);
   });
 
   it("a portfolio split between two lowly-correlated instruments (LIQ, near-zero rate/equity loading, and ACC, almost purely idiosyncratic equity risk) scores a better Rendimiento than the naive per-instrument-average formula would have", () => {
     const score = scoreFinanciero(noClaimsLib, decision({ LIQ: 50, ACC: 50 }));
     expect(score).not.toBeNull();
-    const naiveRiskAdjustedYield = score!.effYield - VOL_PENALTY_LAMBDA * score!.avgVol - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
+    const naiveSharpe = (score!.effYield - RISK_FREE_RATE) / score!.avgVol;
+    const naiveRiskAdjustedYield = naiveSharpe - CONCENTRATION_PENALTY_MU * score!.concentrationRatio;
     expect(score!.avgPortfolioVol).toBeLessThan(score!.avgVol);
     expect(score!.riskAdjustedYield).toBeGreaterThan(naiveRiskAdjustedYield);
   });
@@ -299,14 +306,15 @@ describe("coupon-bearing bonds (TES3/TESUVR8)", () => {
   // across its whole lifecycle.
   const noClaimsLib: LiabilitySchedule = { payY1: new Array(12).fill(0), L: new Array(48).fill(0), reserva: 100_000_000, hay: true };
 
-  it("an all-TES3 portfolio accrues zero rendimientoPortafolio in a month that's neither a coupon date nor a maturity — its book stays flat until cash actually arrives", () => {
+  it("an all-TES3 portfolio still accrues rendimientoPortafolio in a month that's neither a coupon date nor a maturity — priced dirty, interest is recognized as it's earned, not only when cash arrives", () => {
     const sim = almSim(noClaimsLib, decision({ TES3: 100 }));
     expect(sim).not.toBeNull();
-    // t=1: only positions funded at t=0/t=1 exist, and none of them are due
-    // for a coupon until t=12 (fundedMonth=0, monthsHeld=1) — no monthly
-    // compounding for a coupon bond at any point in its life, so this
-    // month's rendimiento is exactly 0.
-    expect(sim!.rows[1].rendimientoPortafolio).toBe(0);
+    // t=1: the positions funded at t=0 and t=1 are both open and neither is
+    // due for a coupon until t=12 (fundedMonth=0/1, monthsHeld=1/0) — but
+    // book×(yield/12) still accrues into Position.accrued every month for a
+    // coupon bond (see stepMonth's step 4), even though `book` itself never
+    // compounds and the cash coupon is still months away.
+    expect(sim!.rows[1].rendimientoPortafolio).toBeGreaterThan(0);
   });
 
   it("a TES3 position pays annual coupons at months 12 and 24 without maturing, then a final coupon+principal at month 36", () => {
@@ -337,19 +345,23 @@ describe("coupon-bearing bonds (TES3/TESUVR8)", () => {
     expect(couponCash).toBeLessThan(sim!.rows[11].saldoFinalPortafolio * 0.2);
   });
 
-  it("total accrued income for an all-TES3 portfolio through its first coupon date (month 12) is close to book*yield for the initial funding — coupons aren't lost or double-counted", () => {
+  it("total accrued income for an all-TES3 portfolio through its first coupon date (month 12) never exceeds one year's coupon on everything ever funded — no position accrues more than book×yield in any 12-month window", () => {
     const sim = almSim(noClaimsLib, decision({ TES3: 100 }));
     expect(sim).not.toBeNull();
-    // Rows 0..12 (through month 12 inclusive) — the first coupon is due
-    // exactly at month 12, not before, so it has to be included here.
+    // Rows 0..12 (through month 12 inclusive). Priced dirty, EVERY currently
+    // open TES3 position accrues every month (not just the month-0 one) —
+    // by month 12 that's up to 12 separate positions (one funded each build
+    // month), each contributing its own partial year of accrual, so the
+    // total is well above any single position's own first coupon. What
+    // can't happen, no matter how many positions are accruing at once: the
+    // total ever recognized exceeds one full year's coupon on the total
+    // book ever funded — no dollar has had more than ~12 months to earn
+    // yield by this point, so book×yield (reserva's full 100M, the ceiling
+    // on how much could ever have been funded by month 12) is a hard cap,
+    // not a rough guess.
     const throughFirstCoupon = sim!.rows.slice(0, 13).reduce((s, r) => s + r.rendimientoPortafolio, 0);
-    const initialBook = sim!.rows[0].saldoFinalPortafolio;
-    // Rough check, not exact — later months also fund small fresh TES3
-    // slices from that month's own surplus, which haven't reached their own
-    // first coupon yet and so contribute 0 in this same window; the
-    // dominant term is still the month-0 position's own first coupon.
     expect(throughFirstCoupon).toBeGreaterThan(0);
-    expect(throughFirstCoupon).toBeLessThan(initialBook * INSTRUMENT_BY_ID.TES3.yield * 1.5);
+    expect(throughFirstCoupon).toBeLessThan(noClaimsLib.reserva * INSTRUMENT_BY_ID.TES3.yield);
   });
 });
 
@@ -449,6 +461,42 @@ describe("almSimRealYear", () => {
     const y1 = almSimRealYear(1, lib.payY1, scheduleA, aporte);
     const expected = y1!.rows.reduce((s, r) => s + r.rendimientoPortafolio, 0);
     expect(y1!.income).toBeCloseTo(expected, 4);
+  });
+
+  it("Año 1's first month holds back cxc from primaCobrada and cxp from gastos (row values), making caja+inversiones genuinely consistent with the Balance's own cxc/cxp instead of assuming zero collection/payment lag — every other month is untouched", () => {
+    const y1 = almSimRealYear(1, new Array(12).fill(0), scheduleA, aporte)!;
+    const primaEmitidaAnual = aporte * 12;
+    const cxc = (FZ.diasRotacionCxc / 365) * primaEmitidaAnual;
+    const cxp = FZ.cxpPct * primaEmitidaAnual;
+    expect(y1.rows[0].primaCobrada).toBeCloseTo(aporte - cxc, 4);
+    expect(y1.rows[0].gastos).toBeCloseTo(aporte * (FZ.gAdq + FZ.gCom + FZ.gAdmin) - cxp, 4);
+    for (const r of y1.rows.slice(1)) {
+      expect(r.primaCobrada).toBeCloseTo(aporte, 4);
+      expect(r.gastos).toBeCloseTo(aporte * (FZ.gAdq + FZ.gCom + FZ.gAdmin), 4);
+    }
+  });
+
+  it("Año 2's holdback NETS against Año 1's own cxc/cxp (passed as priorYearTotalPremium) — Año 1's receivable finishes getting collected and its payable finishes getting paid during Año 2, instead of leaking into Año 2's Balance forever", () => {
+    const aporte1 = aporte;
+    const aporte2 = 260_000_000;
+    const totalPremium1 = aporte1 * 12;
+    const totalPremium2 = aporte2 * 12;
+    const y1 = almSimRealYear(1, new Array(12).fill(0), scheduleA, aporte1)!;
+    const y2WithoutNetting = almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte2, y1.finalState)!;
+    const y2WithNetting = almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte2, y1.finalState, totalPremium1)!;
+
+    const cxc1 = (FZ.diasRotacionCxc / 365) * totalPremium1;
+    const cxp1 = FZ.cxpPct * totalPremium1;
+    const cxc2 = (FZ.diasRotacionCxc / 365) * totalPremium2;
+    const cxp2 = FZ.cxpPct * totalPremium2;
+
+    // Without netting: month 0 holds back this year's own cxc2/cxp2 only.
+    expect(y2WithoutNetting.rows[0].primaCobrada).toBeCloseTo(aporte2 - cxc2, 4);
+    expect(y2WithoutNetting.rows[0].gastos).toBeCloseTo(aporte2 * (FZ.gAdq + FZ.gCom + FZ.gAdmin) - cxp2, 4);
+
+    // With netting: month 0 holds back the NET (cxc2 − cxc1) / (cxp2 − cxp1) — Año 1's own receivable/payable is fully resolved (collected/paid) on top of this year's own fresh holdback.
+    expect(y2WithNetting.rows[0].primaCobrada).toBeCloseTo(aporte2 - (cxc2 - cxc1), 4);
+    expect(y2WithNetting.rows[0].gastos).toBeCloseTo(aporte2 * (FZ.gAdq + FZ.gCom + FZ.gAdmin) - (cxp2 - cxp1), 4);
   });
 
   it("Capital Social is genuinely funded per its own capitalSocialAllocation before Año 1's first month even runs — mes -12's opening balance already reflects it, before a single peso of real prima", () => {
@@ -613,8 +661,8 @@ describe("computeMarketRiskAtAño2End", () => {
 
   it("LIQ/ACC positions never move against an empty liability — no duration, valued at par regardless of the shock", () => {
     const positions: Position[] = [
-      { instrumentId: "LIQ", book: 50_000_000, yM: 0, matM: 30 },
-      { instrumentId: "ACC", book: 20_000_000, yM: 0, matM: 999 },
+      { instrumentId: "LIQ", book: 50_000_000, yM: 0, matM: 30, accrued: 0 },
+      { instrumentId: "ACC", book: 20_000_000, yM: 0, matM: 999, accrued: 0 },
     ];
     const result = computeMarketRiskAtAño2End(positions, []);
     expect(result.riesgoTasa).toBeCloseTo(0, 8);
@@ -623,7 +671,7 @@ describe("computeMarketRiskAtAño2End", () => {
 
   it("riesgoInflacion for an all-TESUVR8 portfolio equals that of an empty portfolio against the same liability — TESUVR8 discounts off the real curve, which an inflation-only shock never moves, so its (constant) PV cancels out of the NAV delta entirely", () => {
     // matM=120: 96 months (TESUVR8's own plazoM) past the AÑO2_END_MONTH valuation point (24).
-    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120 }];
+    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120, accrued: 0 }];
     const liabilityPostAño2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5_000_000]; // a single cashflow a year out
     const withUvr8 = computeMarketRiskAtAño2End(uvr8Positions, liabilityPostAño2);
     const empty = computeMarketRiskAtAño2End([], liabilityPostAño2);
@@ -633,7 +681,7 @@ describe("computeMarketRiskAtAño2End", () => {
   });
 
   it("riesgoTasa for an all-TESUVR8 portfolio (empty liability) is strictly positive — the real curve shock does move TESUVR8's own PV", () => {
-    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120 }];
+    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120, accrued: 0 }];
     const result = computeMarketRiskAtAño2End(uvr8Positions, []);
     expect(result.riesgoTasa).toBeGreaterThan(0);
   });

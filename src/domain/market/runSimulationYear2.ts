@@ -25,6 +25,7 @@ export interface Year2TeamAggregate {
 }
 
 export interface SimulationYear2Result {
+  /** Per-exposure assigned team id, or -1 for an exposure no team had capacity left to insure. */
   assignment: Int32Array;
   aggregates: Map<number, Year2TeamAggregate>;
 }
@@ -41,6 +42,14 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
  * toward whichever team insured it in Year 1 (scaled by `retentionFactor`),
  * and results are tallied against Year-2 claims (generateYear2Claims), not
  * Year 1's. Ported from correrSim2() in the legacy prototype, line ~3380.
+ *
+ * Unlike Year 1, `capacityByTeamId`/`cuotaPct` are a hard ceiling in Phase 3
+ * (see capacity.ts): a team is never forced to take on more than its
+ * solvency-derived limit allows there. If total capacity across all teams
+ * can't cover the whole universe, the leftover exposures come back in
+ * `assignment` as -1 (uninsured) instead. The one exception is Phase 4's
+ * MIN_POLICIES_PER_TEAM floor, which can still push a team above its own
+ * capacityLimit — see enforceMinPoliciesFloor()'s doc comment for why.
  */
 export function runSimulationYear2(
   universe: ColombiaUniverse,
@@ -132,22 +141,18 @@ export function runSimulationYear2(
 
   // Phase 3: redistribute rejected exposures among teams with remaining
   // capacity. Sum of every team's (capacity-derived, ceiling-clamped) limit
-  // can be < 100% of the universe — no team has room. Fall back to
-  // whichever team has the most remaining (least negative) capacity,
-  // mirroring the legacy's behavior in this edge case.
+  // can be < 100% of the universe — no team has room. Unlike Year 1,
+  // capacityLimit is a hard solvency ceiling here: an exposure nobody has
+  // room for stays unassigned (-1), i.e. uninsured, rather than being
+  // forced onto a team beyond its capital-implied capacity. See README's
+  // Año 2 solvency section — a team can legitimately end the year with
+  // exposures no one insured, the mirror image of the existing "capacity
+  // can go to zero" consequence.
   for (let k = 0; k < n; k++) {
     if (assignment[k] !== -1) continue;
 
     const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0);
-    if (!available.length) {
-      let fallback = teams[0];
-      for (const t of teams) {
-        if ((remainingCapacity.get(t.id) ?? 0) > (remainingCapacity.get(fallback.id) ?? 0)) fallback = t;
-      }
-      assignment[k] = fallback.id;
-      remainingCapacity.set(fallback.id, (remainingCapacity.get(fallback.id) ?? 0) - 1);
-      continue;
-    }
+    if (!available.length) continue; // uninsured: no team has capacity left
 
     let bestU = -Infinity;
     let bestTeam = available[0];
@@ -163,7 +168,11 @@ export function runSimulationYear2(
     remainingCapacity.set(bestTeam.id, (remainingCapacity.get(bestTeam.id) ?? 0) - 1);
   }
 
-  // Phase 4: no team leaves the market empty-handed — see enforceMinPoliciesFloor()'s doc comment.
+  // Phase 4: no team leaves the market empty-handed — see enforceMinPoliciesFloor()'s
+  // doc comment. This floor is unconditional: it can push a team's insuredCount past
+  // its own capacityLimit (staying in the game outranks the solvency cap here), and
+  // it draws on this run's uninsured (-1) exposures first before touching another
+  // team's book.
   enforceMinPoliciesFloor(n, assignment, tariffsByTeam, teams);
 
   // Aggregate results per team, using Year-2 claims and tracking retention.

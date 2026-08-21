@@ -17,15 +17,27 @@ export interface Instrument {
  * volAnual (not in the legacy prototype — added so a team's instrument
  * choice carries a genuine risk/return trade-off, not just return).
  *
- * Calibration intent: TESUVR8 is deliberately the best risk-adjusted
- * choice of the whole menu (see VOL_PENALTY_LAMBDA in constants.ts) — its
- * volatility is set lower than its 8-year nominal duration alone would
- * suggest, modeling the simplification that being UVR-indexed (inflation-
- * linked) shields it from unexpected-inflation risk that a nominal bond of
- * the same duration would carry. ACC's volatility is set high enough that
- * its raw 14% yield is NOT worth the risk on a risk-adjusted basis —
- * "castigar a los equipos que elijan los activos más volátiles" is a
- * deliberate design goal, not an incidental side effect.
+ * Calibration intent: no single instrument dominates the menu cleanly under
+ * a real Sharpe-ratio framework (see RISK_FREE_RATE below and
+ * scoreFinanciero() in alm.ts) — CDT90 has the best individual Sharpe
+ * (short duration, low volatility, still a meaningfully positive spread
+ * over LIQ), not TESUVR8. That's deliberate, not an oversight: a menu where
+ * the "obviously long-dated, high-yield" instrument is also the
+ * mathematically optimal one to go 100% into would teach the wrong lesson.
+ * What TESUVR8 (and, to a lesser extent, TES1/TES3) still offers is
+ * genuine diversification value — its correlation with CDT90 is well below
+ * 1 (see COVARIANCE_MATRIX in markowitz.ts), so a portfolio that blends it
+ * in can beat CDT90 held alone once the combination's true (correlation-
+ * aware) volatility is priced in, even though CDT90 wins as a standalone
+ * bet. TESUVR8's own volatility is still set lower than its 8-year nominal
+ * duration alone would suggest, modeling the simplification that being
+ * UVR-indexed (inflation-linked) shields it from unexpected-inflation risk
+ * that a nominal bond of the same duration would carry — that part of the
+ * calibration is independent of which formula reads it. ACC's volatility
+ * is set high enough that its raw 14% yield is NOT worth the risk on a
+ * risk-adjusted basis under either formula — "castigar a los equipos que
+ * elijan los activos más volátiles" is a deliberate design goal, not an
+ * incidental side effect.
  */
 export const INSTRUMENTS: readonly Instrument[] = [
   { id: "LIQ", nombre: "Caja / Fondo de liquidez", yield: 0.05, volAnual: 0.01, plazoM: 0, nota: "Liquidez total, rendimiento bajo, riesgo mínimo" },
@@ -60,6 +72,23 @@ export const INSTRUMENTS: readonly Instrument[] = [
 export const INSTRUMENT_BY_ID: Record<string, Instrument> = Object.fromEntries(
   INSTRUMENTS.map((x) => [x.id, x])
 );
+
+/**
+ * The menu's risk-free anchor for the "Rendimiento" ALM sub-score's Sharpe
+ * ratio (see scoreFinanciero() in alm.ts): `(effYield − RISK_FREE_RATE) /
+ * avgPortfolioVol`. Deliberately reuses LIQ's own nominal yield rather than
+ * a separate hardcoded number — LIQ is already the menu's safest,
+ * most-liquid instrument (volAnual 1%, the floor of the menu), so it's the
+ * natural stand-in for "the return you'd get taking essentially no risk."
+ * A team can read this value directly off the menu (it's LIQ's own
+ * disclosed yield, see displayYieldLabel() below) — no separate number to
+ * hunt for. Consequence worth knowing: LIQ's own Sharpe ratio is
+ * approximately 0 by construction (it IS the risk-free asset), and can
+ * even come in slightly negative once simulated — see effYield's own
+ * accrual mechanics in alm.ts — since realized returns rarely land exactly
+ * on nominal.
+ */
+export const RISK_FREE_RATE = INSTRUMENTS.find((x) => x.id === "LIQ")!.yield;
 
 /**
  * Yield to show a team for a given instrument — identical to `ins.yield`
