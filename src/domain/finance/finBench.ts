@@ -187,8 +187,8 @@ function pyg(primaEmitida: number, rpndLiberada: number, costo: number, rinv: nu
  * likewise a real fact: the real ALM's own year-end Caja Mínima balance,
  * not a flat percentage of annual premium. Both fall back to the old
  * flat-percentage/Capital-Social-at-capital0 treatment when there's no real
- * ALM to draw from at all (no decision submitted, or Año 3 — never
- * simulated, see finBench()'s own doc comment on p3).
+ * ALM to draw from at all (no decision submitted at all — Año 3 now passes
+ * `projectedInversiones` instead, see finBench()'s doc comment on bal3).
  *
  * necesidadesPatrimonioODeuda now equals capitalComprometido directly — the
  * old `max(0, capitalComprometido − capital0)` subtraction stopped making
@@ -216,7 +216,8 @@ function balance(
   capital0: number,
   retenido: number,
   capitalComprometido: number,
-  almYear: AlmYearBenchInput | null
+  almYear: AlmYearBenchInput | null,
+  projectedInversiones?: number
 ): BalanceSheet | null {
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
@@ -226,7 +227,7 @@ function balance(
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
   const necesidadesPatrimonioODeuda = capitalComprometido;
-  const inversiones = almYear ? almYear.portfolioBookValue : Math.max(0, capital0 - capitalComprometido);
+  const inversiones = almYear ? almYear.portfolioBookValue : (projectedInversiones ?? Math.max(0, capital0 - capitalComprometido));
   return {
     reservasTec,
     rpnd,
@@ -397,11 +398,37 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // same "no new erosion assumed" outcome in the common case (delta = 0)
   // but continues a real trend when one exists.
   const capitalComprometidoY3 = capitalComprometidoY2 + (capitalComprometidoY2 - capitalComprometidoY1);
-  // No real ALM run exists for Año 3 (never simulated, see p3 above) — caja
-  // and inversiones fall back to the same flat-percentage/Capital-Social-only
-  // treatment balance() already applies whenever there's no ALM decision at
-  // all, rather than inventing a speculative projected portfolio value.
-  const bal3 = p3 ? balance(p3, capital0, p1.uneta + p2!.uneta + p3.uneta, capitalComprometidoY3, null) : null;
+  // No real ALM run exists for Año 3 (never simulated, see p3 above), so
+  // `caja` still falls back to the flat-percentage treatment balance()
+  // already applies whenever there's no ALM decision at all. `inversiones`
+  // can't use that same flat Capital-Social-only fallback here, though: unlike
+  // patrimonio (which keeps compounding retained utilidad/pérdida through
+  // p3.uneta above), a static `capital0` never grows or shrinks with the
+  // team's own results, so the two sides of the sheet would drift apart by
+  // the team's full 3-year cumulative P&L — this was the actual cause of
+  // Balance Año 3 not squaring (checked against a live cohort: gaps up to
+  // ~50% of Pasivo+Patrimonio, not the small few-percent residual §4.3
+  // documents for Año 1/2).
+  //
+  // The fix is NOT to extrapolate portfolioBookValue's own raw Año1->Año2
+  // dollar delta the same way capitalComprometidoY3 is trended above — that
+  // delta is dominated by a full year of gross premium cash inflow (the real
+  // ALM reinvests every month's premium, see almSimRealYear()), which runs
+  // one to two orders of magnitude bigger than a year's *net* retained
+  // profit (thin underwriting margins). Extrapolating that gross-cash trend
+  // forward overshoots patrimonio's much slower accrual growth just as badly
+  // as the static fallback undershot it — checked against the same live
+  // cohort, it flips the sign of the gap without shrinking it. Instead,
+  // inversionesY3 carries Año 2's real portfolio forward by exactly Año 3's
+  // own *equity* growth (patrimonioY3 − bal2.patrimonio: this year's own
+  // retenido net of this year's own capitalComprometido delta) — the same
+  // driver patrimonio itself grows by, so the two sides move together
+  // instead of drifting apart, closely tracking whatever gap already existed
+  // at the end of Año 2 rather than compounding a new one.
+  const retenidoY3 = p1.uneta + (p2 ? p2.uneta : 0) + (p3 ? p3.uneta : 0);
+  const patrimonioY3 = capital0 + retenidoY3 - capitalComprometidoY3;
+  const inversionesY3 = bal2 ? Math.max(0, bal2.inversiones + (patrimonioY3 - bal2.patrimonio)) : capital0;
+  const bal3 = p3 ? balance(p3, capital0, retenidoY3, capitalComprometidoY3, null, inversionesY3) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;
