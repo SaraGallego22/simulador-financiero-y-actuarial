@@ -38,11 +38,16 @@ export function DayTabBar({
   // instead of showing them separately, and folds "Resultados objetivos"
   // into "Top del día" (Día 1's own version of that table already carries
   // the Tarifas/mín-var/objetiva breakdown — a separate "obj" tab would
-  // just repeat it) — every other day keeps the original 5-tab split. Día 1
-  // also has no subjective grade (see MemberDayEvaluation's doc comment) —
-  // not enough contact time yet to judge each member.
+  // just repeat it). Día 1 also has no subjective grade (see
+  // MemberDayEvaluation's doc comment) — not enough contact time yet to
+  // judge each member.
+  //
+  // Día 2 gets the same "Resultados"/"Top del día" merge (it does have
+  // subjective grading, so "subj" stays a separate tab) — every other day
+  // keeps the original 5-tab split.
   const tabs = ALL_TABS.filter((t) => {
     if (day === 1) return t.key !== "sim" && t.key !== "entreg" && t.key !== "subj" && t.key !== "obj";
+    if (day === 2) return t.key !== "sim" && t.key !== "entreg" && t.key !== "obj";
     if (t.key === "resultados") return false;
     if (t.key === "sim") return includeSim;
     if (t.key === "subj") return includeSubj;
