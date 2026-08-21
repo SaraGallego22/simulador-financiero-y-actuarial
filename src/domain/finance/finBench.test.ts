@@ -245,31 +245,31 @@ describe("finBench", () => {
     expect(projectedDelta(trending)).toBeCloseTo(15_000_000_000, 4);
   });
 
-  it("carries Año 2's real inversiones forward by exactly Año 3's own equity growth, instead of resetting to a static Capital Social that ignores 3 years of retained utilidad/pérdida", () => {
-    const bench = finBench({
-      ...richYear3Input(),
-      almYear1: fakeAlmYear(0, 2_000_000, 0.1, undefined, 0, CAPITAL_SOCIAL),
-      almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07, 0, CAPITAL_SOCIAL + 25_000_000_000),
+  it("Balance Año 3 (proyectado) always squares exactly — inversiones solves for whatever closes Activos = Pasivo + Patrimonio, since Año 3 has no real ALM fact of its own to respect", () => {
+    // Same setup that used to break badly under both rejected approaches
+    // (static Capital Social, and a patrimonio-delta carry-forward): a big
+    // Año 1 book (large reservasTec) whose own reservas run off sharply by
+    // Año 3 while new business collapses — real cash leaving the portfolio
+    // to pay down reservas, with no matching patrimonio movement to signal
+    // it (see finBench()'s doc comment on bal3).
+    const shrinking = finBench({
+      year1: { totalPremium: 250_000_000_000, claimsAmount: 338_000_000_000, insuredCount: 5000 },
+      year2: { totalPremium: 24_000_000_000, claimsAmount: 15_000_000_000, insuredCount: 400 },
+      liabilityYear1: { L: new Array(48).fill(0), payY1: new Array(12).fill(0), reserva: 291_000_000_000, hay: true },
+      development: fakeDevelopment(),
+      almYear1: fakeAlmYear(0, 23_000_000_000, 0.1, undefined, 0, 279_000_000_000),
+      almYear2: fakeAlmYear(0, 24_000_000_000, 0.1, 0.1, 0, 169_000_000_000),
+      year2Retention: { retainedCount: 300, newCount: 50 },
     });
-    // inversionesY3 = bal2.inversiones + (patrimonioY3 - bal2.patrimonio) — the
-    // exact same delta patrimonio itself grows by, so the two sides move
-    // together instead of drifting apart (see finBench()'s doc comment on bal3
-    // for why a raw portfolioBookValue trend, dominated by gross premium cash
-    // flow, overshoots this instead).
-    const expectedDelta = bench.bal3!.patrimonio - bench.bal2!.patrimonio;
-    expect(bench.bal3!.inversiones).toBeCloseTo(bench.bal2!.inversiones + expectedDelta, 4);
-    // A team with committed capital erosion (capitalComprometido > 0) still
-    // never double-subtracts it: it reduces patrimonioY3 once, and that same
-    // reduction flows into inversionesY3 through the shared delta above,
-    // mirroring how Y1/Y2's own real ALM book value already reflects
-    // whatever had to be liquidated (see balance()'s doc comment).
-    const withErosion = finBench({
-      ...richYear3Input(),
-      almYear1: fakeAlmYear(0, 2_000_000, 0.1, undefined, 0, CAPITAL_SOCIAL),
-      almYear2: fakeAlmYear(10_000_000_000, 2_718_281, 0.1, 0.07, 0, CAPITAL_SOCIAL + 25_000_000_000),
-    });
-    const expectedDeltaErosion = withErosion.bal3!.patrimonio - withErosion.bal2!.patrimonio;
-    expect(withErosion.bal3!.inversiones).toBeCloseTo(withErosion.bal2!.inversiones + expectedDeltaErosion, 4);
+    const b = shrinking.bal3!;
+    const pasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.patrimonio;
+    expect(b.activos).toBeCloseTo(pasivoPatrim, 4);
+
+    // Same property holds for the well-behaved richYear3Input() fixture too.
+    const bench = finBench({ ...richYear3Input(), almYear1: fakeAlmYear(), almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07) });
+    const b2 = bench.bal3!;
+    const pasivoPatrim2 = b2.reservasTec + b2.rpnd + b2.cxp + b2.necesidadesPatrimonioODeuda + b2.patrimonio;
+    expect(b2.activos).toBeCloseTo(pasivoPatrim2, 4);
   });
 
   it("every team starts capital0 from the same fixed Capital Social, independent of its own premium", () => {

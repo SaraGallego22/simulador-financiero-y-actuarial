@@ -903,11 +903,12 @@ export const CONCEPTOS: Concepto[] = [
     group: "bal_a3",
     get: (b) => b.bal3?.inversiones ?? null,
     // No formula — see bal1_inversiones's doc comment. Año 3 has no real ALM
-    // run of its own (never simulated, see README §4.2), so this carries Año
-    // 2's real inversiones forward by exactly Año 3's own equity growth (see
-    // finBench()'s doc comment on bal3 for why a raw portfolio-value trend
-    // overshoots) — still a primary estimated fact, not a formula of other
-    // reported lines.
+    // run of its own (never simulated, see README §4.2) and every other line
+    // of its Balance is already a mechanical projection, so unlike Año 1/2
+    // this one solves for whatever value closes Activos = Pasivo + Patrimonio
+    // exactly (see finBench()'s doc comment on bal3 for the two approaches
+    // that were tried and rejected first) — still a primary estimated fact,
+    // not a formula of other reported lines.
   },
   {
     id: "bal3_cxc",
