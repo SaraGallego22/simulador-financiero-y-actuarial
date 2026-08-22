@@ -6,8 +6,8 @@ import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { conceptosDia, scoreConcepto, ownValueKey, GROUP_LABELS } from "@/domain/grading/concepts";
-import type { Concepto, ConceptGroup, Dia } from "@/domain/grading/concepts";
+import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/concepts";
+import type { ConceptGroup, Dia } from "@/domain/grading/concepts";
 import {
   rankForCrecer,
   rankForDisminuir,
@@ -29,7 +29,8 @@ import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } fr
 import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { Dia1TeamDetail } from "./Dia1TeamDetail";
 import { Dia2TeamDetail } from "./Dia2TeamDetail";
-import { Dia2ReportesTeamDetail } from "./Dia2ReportesTeamDetail";
+import { ReportesTeamDetail } from "./ReportesTeamDetail";
+import { SectoresTeamDetail } from "./SectoresTeamDetail";
 import { Dia2AlmTeamDetail } from "./Dia2AlmTeamDetail";
 import { MemberEvaluationForm } from "./MemberEvaluationForm";
 import { MemberComments } from "./MemberComments";
@@ -60,7 +61,7 @@ export default async function AdminDayPage({
   const hasPortfolioSchedule = day === 2;
   const bookYear = day === 2 ? 1 : null;
   const { tab, team: selectedTeamId } = await searchParams;
-  const activeTab = (tab as DayTabKey) ?? (day <= 2 ? "resultados" : "entreg");
+  const activeTab = (tab as DayTabKey) ?? "resultados";
   const cohort = await getOrCreateActiveCohort();
 
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
@@ -129,7 +130,7 @@ export default async function AdminDayPage({
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, teamResults: true },
     }),
-    activeTab === "top" || activeTab === "obj" || activeTab === "resultados" ? computeConsolidado(cohort.id) : Promise.resolve(null),
+    activeTab === "top" || activeTab === "resultados" ? computeConsolidado(cohort.id) : Promise.resolve(null),
     // Generated once and reused below for every call that would otherwise
     // regenerate its own copy this same request (getTeamBookForDay,
     // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
@@ -269,7 +270,7 @@ export default async function AdminDayPage({
       const reserves = reservesByTeamId.get(team.id);
       if (reserves && isPortfolioDecisionV4(rawAllocation)) {
         almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-        if (activeTab === "obj" || activeTab === "resultados") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
+        if (activeTab === "resultados") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
       }
     }
   }
@@ -343,23 +344,36 @@ export default async function AdminDayPage({
     ownValuesByTeamId.get(d.teamId)!.set(ownValueKey(`d${d.day}` as Dia, d.conceptId), d.value);
   }
 
-  // Día 2's finAvg component of the objective grade — averages the
-  // financial-profile ("fin") report concepts (gastos, resultado de
-  // inversiones, utilidad neta A1; see concepts.ts's "d2" entries), the same
-  // way computeConsolidado() does. Día 1 has no "reporte" concepts at all —
-  // its financial component is the ALM score alone, shown separately below.
+  // The actAvg/finAvg components of this day's objective grade — averages of
+  // the report concepts of each perfil, the same way computeConsolidado()
+  // does, so the breakdown shown in "Top del día" adds up to the nota next
+  // to it. Which concepts fall on which side varies by day: Día 2 is all
+  // "fin" (the 2027 P&G), Día 3 splits the Balance's reservas técnicas lines
+  // into "act", Día 4's only "act" input is the analítica sectorial (not a
+  // "reporte" concept — folded in below, same as computeConsolidado does).
+  // Día 1 has no report concepts at all: its financial component is the
+  // mín-var score alone, shown separately in its own tables.
+  const actReportScoreByTeamId = new Map<string, number>();
   const finReportScoreByTeamId = new Map<string, number>();
-  if (day === 2) {
-    const finConcepts = reportConcepts.filter((c) => c.perfil === "fin");
+  if (day >= 2) {
     for (const team of teams) {
       const values = deliverablesByTeamId.get(team.id) ?? {};
       const bench = finBenchByTeamId.get(team.id) ?? null;
       const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
-      const finScores = finConcepts
-        .map((c) => scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues)?.score)
-        .filter((s): s is number => s != null);
-      const avg = notaPerfilDia(finScores);
-      if (avg != null) finReportScoreByTeamId.set(team.id, avg);
+      const actScores: number[] = [];
+      const finScores: number[] = [];
+      for (const c of reportConcepts) {
+        const score = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues)?.score;
+        if (score != null) (c.perfil === "act" ? actScores : finScores).push(score);
+      }
+      if (hasAnalitica) {
+        const analitica = analiticaScoreByTeamId.get(team.id);
+        if (analitica != null) actScores.push(analitica);
+      }
+      const actAvg = notaPerfilDia(actScores);
+      if (actAvg != null) actReportScoreByTeamId.set(team.id, actAvg);
+      const finAvg = notaPerfilDia(finScores);
+      if (finAvg != null) finReportScoreByTeamId.set(team.id, finAvg);
     }
   }
 
@@ -394,6 +408,134 @@ export default async function AdminDayPage({
     (a, b) => (minVarScoreByTeamId.get(b.id) ?? -Infinity) - (minVarScoreByTeamId.get(a.id) ?? -Infinity)
   );
 
+  // "Estado de cargues": which of this day's submissions each team has
+  // completed. Which columns exist varies by day — the tariff stops after
+  // Día 2, Día 3's portfolio rebalance is optional (see TAB_NOTES), and the
+  // sector recommendation only exists on Día 4. Día 1 builds its own version
+  // of this table inline: its portfolio is the mín-var exercise, read from a
+  // different map.
+  type UploadCell = { text: string; state: "done" | "partial" | "none" };
+  const uploadColumns: { label: string; cell: (team: (typeof teams)[number]) => UploadCell }[] = [];
+  if (day <= 2) {
+    uploadColumns.push({
+      label: "Tarifa",
+      cell: (t) => (t.tariffSubmissions[0]?.meanPremium != null ? { text: "✓", state: "done" } : { text: "—", state: "none" }),
+    });
+  }
+  if (day <= 3) {
+    uploadColumns.push({
+      label: day === 3 ? "Portafolio (opc.)" : "Portafolio",
+      cell: (t) => (t.portfolioAllocations[0] != null ? { text: "✓", state: "done" } : { text: "—", state: "none" }),
+    });
+  }
+  if (reportConcepts.length > 0) {
+    uploadColumns.push({
+      label: "Reportes",
+      cell: (t) => {
+        const values = deliverablesByTeamId.get(t.id) ?? {};
+        const done = reportConcepts.filter((c) => values[c.id] != null).length;
+        if (done === reportConcepts.length) return { text: "✓", state: "done" };
+        return { text: `${done}/${reportConcepts.length}`, state: done > 0 ? "partial" : "none" };
+      },
+    });
+  }
+  if (hasAnalitica) {
+    uploadColumns.push({
+      label: "Analítica",
+      cell: (t) => {
+        const picks = picksByTeamId.get(t.id);
+        const all = [...(picks?.crecer ?? []), ...(picks?.disminuir ?? [])];
+        // groupSectorPicksByTeam() always returns both lists padded to their
+        // full length, so `all.length` is the expected total whenever the
+        // team has submitted anything at all.
+        const total = all.length > 0 ? all.length : 6;
+        const done = all.filter((p) => p != null).length;
+        if (done === total) return { text: "✓", state: "done" };
+        return { text: `${done}/${total}`, state: done > 0 ? "partial" : "none" };
+      },
+    });
+  }
+  const uploadCellClass = (state: UploadCell["state"]) =>
+    state === "done"
+      ? "text-[var(--color-brand-green)]"
+      : state === "partial"
+        ? "text-[var(--color-brand-yellow)]"
+        : "text-[var(--color-brand-text-secondary)]";
+
+  // Per-team rows for ReportesTeamDetail, grouped into the statement blocks
+  // (Estado de resultados / Balance, por año) the concepts themselves
+  // declare — shared by every day that has "reporte" concepts (Días 2-4).
+  const reportesTeamOptions =
+    activeTab === "resultados" && reportConcepts.length > 0
+      ? teams.map((team) => {
+          const values = deliverablesByTeamId.get(team.id) ?? {};
+          const bench = finBenchByTeamId.get(team.id) ?? null;
+          const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
+          const rows = reportConcepts.map((c) => {
+            const result = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues);
+            return { id: c.id, label: c.label, unit: c.unit, val: result?.val ?? null, bench: result?.bench ?? null, score: result?.score ?? null, group: c.group };
+          });
+          const scored = rows.filter((r) => r.score != null);
+          const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.score!, 0) / scored.length : null;
+
+          const groupOrder: ConceptGroup[] = [];
+          const rowsByGroup = new Map<ConceptGroup, typeof rows>();
+          const ungrouped: typeof rows = [];
+          for (const row of rows) {
+            if (row.group) {
+              if (!rowsByGroup.has(row.group)) {
+                rowsByGroup.set(row.group, []);
+                groupOrder.push(row.group);
+              }
+              rowsByGroup.get(row.group)!.push(row);
+            } else {
+              ungrouped.push(row);
+            }
+          }
+
+          return {
+            id: team.id,
+            name: team.name,
+            color: team.color,
+            avgScore,
+            groups: groupOrder.map((group) => ({ group, rows: rowsByGroup.get(group)! })),
+            ungrouped,
+          };
+        })
+      : [];
+
+  // Per-team rows for SectoresTeamDetail (Día 4) — each pick resolved
+  // against the one true global ranking here, server-side, so the client
+  // component only formats what it's handed.
+  const sectoresTeamOptions =
+    activeTab === "resultados" && hasAnalitica
+      ? teams.map((team) => {
+          const picks = picksByTeamId.get(team.id);
+          const resolve = (listKey: "crecer" | "disminuir") => {
+            const trueRanking = listKey === "crecer" ? trueCrecer : trueDisminuir;
+            const listPicks = picks?.[listKey] ?? [null, null, null];
+            return listPicks.map((pick) => {
+              if (!pick) return { label: null, truePosition: null, trueMultiplier: null, estimatedMultiplier: null };
+              const trueIdx = trueRanking.findIndex((s) => sectorKey(s) === sectorKey(pick));
+              return {
+                label: sectorLabel(pick),
+                truePosition: trueIdx === -1 ? null : trueIdx + 1,
+                trueMultiplier: trueIdx === -1 ? null : trueRanking[trueIdx].multiplier,
+                estimatedMultiplier: pick.estimatedMultiplier,
+              };
+            });
+          };
+          return {
+            id: team.id,
+            name: team.name,
+            color: team.color,
+            score: analiticaScoreByTeamId.get(team.id) ?? null,
+            crecer: resolve("crecer"),
+            disminuir: resolve("disminuir"),
+          };
+        })
+      : [];
+
   return (
     <main className={`mx-auto flex w-full flex-1 flex-col gap-4 p-8 ${activeTab === "subj" ? "max-w-7xl" : "max-w-6xl"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -414,7 +556,7 @@ export default async function AdminDayPage({
         </Link>
       </div>
 
-      <DayTabBar basePath="/admin/day" day={day} activeTab={activeTab} includeSim={includeSim} />
+      <DayTabBar basePath="/admin/day" day={day} activeTab={activeTab} />
 
       {activeTab === "resultados" && day === 1 && (
         <div className="flex flex-col gap-4">
@@ -558,7 +700,7 @@ export default async function AdminDayPage({
         </div>
       )}
 
-      {activeTab === "resultados" && day === 2 && (
+      {activeTab === "resultados" && day >= 2 && uploadColumns.length > 0 && (
         <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
           <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
             Estado de cargues — Día {day}
@@ -569,44 +711,30 @@ export default async function AdminDayPage({
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="py-1">Equipo</th>
-                    <th className="py-1 text-center">Tarifa</th>
-                    <th className="py-1 text-center">Portafolio</th>
-                    <th className="py-1 text-center">Reportes</th>
+                    {uploadColumns.map((col) => (
+                      <th key={col.label} className="py-1 text-center">
+                        {col.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {group.map((team) => {
-                    const tariffDone = team.tariffSubmissions[0]?.meanPremium != null;
-                    const portfolioDone = team.portfolioAllocations[0] != null;
-                    const values = deliverablesByTeamId.get(team.id) ?? {};
-                    const reportsDone = reportConcepts.filter((c) => values[c.id] != null).length;
-                    const reportsTotal = reportConcepts.length;
-                    return (
-                      <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
-                        <td className="py-1">
-                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                        </td>
-                        <td className={`py-1 text-center ${tariffDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
-                          {tariffDone ? "✓" : "—"}
-                        </td>
-                        <td className={`py-1 text-center ${portfolioDone ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
-                          {portfolioDone ? "✓" : "—"}
-                        </td>
-                        <td
-                          className={`py-1 text-center ${
-                            reportsDone === reportsTotal
-                              ? "text-[var(--color-brand-green)]"
-                              : reportsDone > 0
-                                ? "text-[var(--color-brand-yellow)]"
-                                : "text-[var(--color-brand-text-secondary)]"
-                          }`}
-                        >
-                          {reportsDone === reportsTotal ? "✓" : `${reportsDone}/${reportsTotal}`}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {group.map((team) => (
+                    <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                      <td className="py-1">
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                        {team.name}
+                      </td>
+                      {uploadColumns.map((col) => {
+                        const { text, state } = col.cell(team);
+                        return (
+                          <td key={col.label} className={`py-1 text-center ${uploadCellClass(state)}`}>
+                            {text}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             ))}
@@ -685,45 +813,7 @@ export default async function AdminDayPage({
         />
       )}
 
-      {activeTab === "resultados" && day === 2 && reportConcepts.length > 0 && (
-        <Dia2ReportesTeamDetail
-          teams={teams.map((team) => {
-            const values = deliverablesByTeamId.get(team.id) ?? {};
-            const bench = finBenchByTeamId.get(team.id) ?? null;
-            const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
-            const rows = reportConcepts.map((c) => {
-              const result = scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues);
-              return { id: c.id, label: c.label, unit: c.unit, val: result?.val ?? null, bench: result?.bench ?? null, score: result?.score ?? null, group: c.group };
-            });
-            const scored = rows.filter((r) => r.score != null);
-            const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.score!, 0) / scored.length : null;
-
-            const groupOrder: ConceptGroup[] = [];
-            const rowsByGroup = new Map<ConceptGroup, typeof rows>();
-            const ungrouped: typeof rows = [];
-            for (const row of rows) {
-              if (row.group) {
-                if (!rowsByGroup.has(row.group)) {
-                  rowsByGroup.set(row.group, []);
-                  groupOrder.push(row.group);
-                }
-                rowsByGroup.get(row.group)!.push(row);
-              } else {
-                ungrouped.push(row);
-              }
-            }
-
-            return {
-              id: team.id,
-              name: team.name,
-              color: team.color,
-              avgScore,
-              groups: groupOrder.map((group) => ({ group, rows: rowsByGroup.get(group)! })),
-              ungrouped,
-            };
-          })}
-        />
-      )}
+      {activeTab === "resultados" && reportesTeamOptions.length > 0 && <ReportesTeamDetail day={day} teams={reportesTeamOptions} />}
 
       {activeTab === "resultados" && day === 2 && hasPortfolioSchedule && (
         <Dia2AlmTeamDetail
@@ -746,84 +836,7 @@ export default async function AdminDayPage({
         />
       )}
 
-      {activeTab === "entreg" && day !== 1 && day !== 2 && reportConcepts.length > 0 && (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
-              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                Reportes numéricos — Día {day}
-              </h3>
-              <div className="flex flex-col gap-3">
-                {teams.map((team) => {
-                  const values = deliverablesByTeamId.get(team.id) ?? {};
-                  const bench = finBenchByTeamId.get(team.id) ?? null;
-                  const ownValues = ownValuesByTeamId.get(team.id) ?? new Map<string, number>();
-                  const rows = reportConcepts.map((c) => ({ c, result: scoreConcepto(c.id, values[c.id] ?? null, bench, tolerance, ownValues) }));
-                  const scored = rows.filter((r) => r.result?.score != null);
-                  const avgScore = scored.length > 0 ? scored.reduce((s, r) => s + r.result!.score!, 0) / scored.length : null;
-                  const fmt = (v: number | null, unit: string) =>
-                    v == null ? "—" : unit === "COP" ? `$${Math.round(v).toLocaleString("es-CO")}` : unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
-
-                  const grouped = new Map<ConceptGroup, { c: Concepto; result: ReturnType<typeof scoreConcepto> }[]>();
-                  const ungrouped: { c: Concepto; result: ReturnType<typeof scoreConcepto> }[] = [];
-                  for (const row of rows) {
-                    if (row.c.group) {
-                      if (!grouped.has(row.c.group)) grouped.set(row.c.group, []);
-                      grouped.get(row.c.group)!.push(row);
-                    } else {
-                      ungrouped.push(row);
-                    }
-                  }
-                  const statementTable = (rowsForGroup: { c: Concepto; result: ReturnType<typeof scoreConcepto> }[]) => (
-                    <table className="w-full border-t border-[var(--color-brand-gray-light)] text-sm">
-                      <thead>
-                        <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
-                          <th className="px-4 py-2">Concepto</th>
-                          <th className="px-4 py-2">Reportado</th>
-                          <th className="px-4 py-2">Motor</th>
-                          <th className="px-4 py-2">Nota</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rowsForGroup.map(({ c, result }) => (
-                          <tr key={c.id} className="border-t border-[var(--color-brand-gray-light)]">
-                            <td className="px-4 py-2">{c.label}</td>
-                            <td className="px-4 py-2">{fmt(result?.val ?? null, c.unit)}</td>
-                            <td className="px-4 py-2">{fmt(result?.bench ?? null, c.unit)}</td>
-                            <td className="px-4 py-2">{result?.score != null ? result.score.toFixed(0) : "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  );
-                  return (
-                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                      <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
-                        <span>
-                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                        </span>
-                        <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
-                          {avgScore != null ? `Nota promedio: ${avgScore.toFixed(0)}` : "Sin reportes calificables aún"}
-                        </span>
-                      </summary>
-                      <div className="flex flex-col gap-3 p-3">
-                        {[...grouped.entries()].map(([group, rowsForGroup]) => (
-                          <div key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
-                            <p className="bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                              {GROUP_LABELS[group]}
-                            </p>
-                            {statementTable(rowsForGroup)}
-                          </div>
-                        ))}
-                        {ungrouped.length > 0 && statementTable(ungrouped)}
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </div>
-      )}
-
-      {activeTab === "entreg" && day !== 1 && hasAnalitica && (
+      {activeTab === "resultados" && hasAnalitica && (
             <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -906,77 +919,10 @@ export default async function AdminDayPage({
             </div>
           )}
 
-      {activeTab === "entreg" && day !== 1 && hasAnalitica && (
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
-              <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                Recomendación sectorial por equipo — Día {day}
-              </h3>
-              <div className="flex flex-col gap-2">
-                {teams.map((team) => {
-                  const score = analiticaScoreByTeamId.get(team.id);
-                  const picks = picksByTeamId.get(team.id);
-                  return (
-                    <details key={team.id} className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                      <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
-                        <span>
-                          <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
-                          {team.name}
-                        </span>
-                        <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
-                          {score != null ? `Nota: ${score.toFixed(0)}` : "Sin recomendación aún"}
-                        </span>
-                      </summary>
-                      <div className="grid grid-cols-1 gap-4 border-t border-[var(--color-brand-gray-light)] p-3 sm:grid-cols-2">
-                        {(["crecer", "disminuir"] as const).map((listKey) => {
-                          const trueRanking = listKey === "crecer" ? trueCrecer : trueDisminuir;
-                          const listPicks = picks?.[listKey] ?? [null, null, null];
-                          return (
-                            <div key={listKey}>
-                              <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{listKey}</p>
-                              <table className="w-full text-sm">
-                                <tbody>
-                                  {listPicks.map((pick, i) => {
-                                    if (!pick) {
-                                      return (
-                                        <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
-                                          <td className="py-1 pr-2 text-[var(--color-brand-text-secondary)]">{i + 1}º</td>
-                                          <td className="py-1 text-[var(--color-brand-text-secondary)]">—</td>
-                                        </tr>
-                                      );
-                                    }
-                                    const trueIdx = trueRanking.findIndex((s) => sectorKey(s) === sectorKey(pick));
-                                    return (
-                                      <tr key={i} className="border-t border-[var(--color-brand-gray-light)]">
-                                        <td className="py-1 pr-2">{i + 1}º</td>
-                                        <td className="py-1">
-                                          {sectorLabel(pick)}
-                                          <span className="ml-1 text-[var(--color-brand-text-secondary)]">
-                                            —{" "}
-                                            {trueIdx === -1
-                                              ? "no está en el ranking real"
-                                              : `real: #${trueIdx + 1} (${trueRanking[trueIdx].multiplier.toFixed(2)}×)`}
-                                            {" · estimado: "}
-                                            {pick.estimatedMultiplier != null ? `${pick.estimatedMultiplier.toFixed(2)}×` : "sin estimar"}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </div>
-      )}
+      {activeTab === "resultados" && sectoresTeamOptions.length > 0 && <SectoresTeamDetail day={day} teams={sectoresTeamOptions} />}
 
-      {/* Financiero (finBench): shared between Día 2's "Top del día" tab and Días 3-4's "Resultados objetivos" tab — Día 2 folded "Resultados objetivos" into "Top del día" (see "top" && day === 2 below). */}
-      {((activeTab === "top" && day === 2) || (activeTab === "obj" && day !== 1 && day !== 2)) && day >= 2 && finBenchByTeamId.size > 0 && (
+      {/* Financiero (finBench): en Día 2 acompaña al desglose de la nota en "Top del día"; en Días 3-4 cierra la pestaña "Resultados", debajo de los entregables que alimenta. */}
+      {((activeTab === "top" && day === 2) || (activeTab === "resultados" && day >= 3)) && finBenchByTeamId.size > 0 && (
             <div className="overflow-x-auto rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -1049,7 +995,7 @@ export default async function AdminDayPage({
             </div>
       )}
 
-      {activeTab === "obj" && day !== 1 && day !== 2 && day >= 3 && finBenchByTeamId.size > 0 && (
+      {activeTab === "resultados" && day >= 3 && finBenchByTeamId.size > 0 && (
             <div className="overflow-x-auto rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -1374,6 +1320,52 @@ export default async function AdminDayPage({
             <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM (ver la
             sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo). La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: Día 2 no
             tiene ningún reporte actuarial aparte — las reservas técnicas de 2027 se reportan hasta Día 3, como línea del Balance.
+          </p>
+        </div>
+      )}
+
+      {/* Mismo desglose que en Día 2, sin las columnas de mercado: Días 3-4 ya no corren simulación, así que sus dos componentes salen enteros de los entregables. */}
+      {activeTab === "top" && day >= 3 && (
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
+          <div className="p-4 pb-0">
+            <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              Componentes de la nota objetiva — Día {day}
+            </h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
+                <th className="px-4 py-2">Equipo</th>
+                <th className="px-4 py-2">Nota actuarial</th>
+                <th className="px-4 py-2">Nota financiera</th>
+                <th className="px-4 py-2">Nota objetiva</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teams.map((team) => {
+                const actScore = actReportScoreByTeamId.get(team.id);
+                const finScore = finReportScoreByTeamId.get(team.id);
+                const objective = objectiveByTeamId.get(team.id);
+                return (
+                  <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
+                    <td className="px-4 py-2">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
+                      {team.name}
+                    </td>
+                    <td className="px-4 py-2">{actScore != null ? actScore.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2">{finScore != null ? finScore.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{objective != null ? objective.toFixed(1) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+            {day === 3
+              ? "Nota actuarial: las líneas de Reservas técnicas del Balance. Nota financiera: el resto de los entregables del día — el estado de resultados del 2028, la proyección del 2029 y las demás líneas del Balance de los tres años."
+              : "Nota actuarial: la analítica sectorial. Nota financiera: los entregables de solvencia — RK, fondos propios, margen, dividendos y los tres riesgos de mercado."}{" "}
+            La nota objetiva pondera ambas columnas con el peso actuarial configurado en la rúbrica; el detalle línea por línea está en la pestaña
+            Resultados.
           </p>
         </div>
       )}
