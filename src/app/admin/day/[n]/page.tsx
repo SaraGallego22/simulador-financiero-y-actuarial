@@ -928,19 +928,22 @@ export default async function AdminDayPage({
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Financiero (finBench) — 2027 / 2028
                 </h3>
+                <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+                  Cifras en millones de pesos · el límite de cuota es número de pólizas · Riesgo mercado suma tasa, inflación y acciones.
+                </p>
               </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
-                    <th className="px-4 py-2">Reservas técnicas A1 (Balance)</th>
-                    <th className="px-4 py-2">Utilidad neta A1 (P&G)</th>
-                    <th className="px-4 py-2">Utilidad neta A2 (P&G)</th>
-                    <th className="px-4 py-2">Riesgo Mercado (tasa+inflación+acciones)</th>
+                    <th className="px-4 py-2">Reservas 2027</th>
+                    <th className="px-4 py-2">U. neta 2027</th>
+                    <th className="px-4 py-2">U. neta 2028</th>
+                    <th className="px-4 py-2">Riesgo mercado</th>
                     <th className="px-4 py-2">Capital (RK)</th>
-                    <th className="px-4 py-2">Margen solvencia</th>
-                    <th className="px-4 py-2">Límite de cuota A1</th>
-                    <th className="px-4 py-2">Límite de cuota A2</th>
+                    <th className="px-4 py-2">Margen</th>
+                    <th className="px-4 py-2">Límite 2027</th>
+                    <th className="px-4 py-2">Límite 2028</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -957,11 +960,11 @@ export default async function AdminDayPage({
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                           {team.name}
                         </td>
-                        <td className="px-4 py-2">${Math.round(bench.resTotal).toLocaleString("es-CO")}</td>
-                        <td className="px-4 py-2">${Math.round(bench.p1.uneta).toLocaleString("es-CO")}</td>
-                        <td className="px-4 py-2">{bench.p2 ? `$${Math.round(bench.p2.uneta).toLocaleString("es-CO")}` : "—"}</td>
-                        <td className="px-4 py-2">${Math.round(bench.solRMercado).toLocaleString("es-CO")}</td>
-                        <td className="px-4 py-2">${Math.round(bench.solRk).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">{fmtM(bench.resTotal)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.p1.uneta)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.p2?.uneta)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.solRMercado)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.solRk)}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
                         <td className="px-4 py-2">
                           {cap1Extra?.capacityLimit != null ? (
@@ -989,8 +992,8 @@ export default async function AdminDayPage({
                 </tbody>
               </table>
               <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                El límite de cuota A2 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
-                2027 — un equipo con Margen de solvencia bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en A2.
+                El límite de 2028 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
+                2027 — un equipo con Margen bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en 2028.
               </p>
             </div>
       )}
@@ -1001,17 +1004,19 @@ export default async function AdminDayPage({
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                   Balance y proyección 2029
                 </h3>
+                <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+                  Cifras en millones de pesos · activos y patrimonio son saldos a cierre de año · el dividendo es el sugerido por el motor.
+                </p>
               </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                     <th className="px-4 py-2">Equipo</th>
-                    <th className="px-4 py-2">Activos (fin A1)</th>
-                    <th className="px-4 py-2">Activos (fin A2)</th>
-                    <th className="px-4 py-2">Patrimonio (fin A2)</th>
-                    <th className="px-4 py-2">Utilidad neta A3 (proy.)</th>
-                    <th className="px-4 py-2">Margen solvencia</th>
-                    <th className="px-4 py-2">Dividendo sugerido</th>
+                    <th className="px-4 py-2">Activos 2027</th>
+                    <th className="px-4 py-2">Activos 2028</th>
+                    <th className="px-4 py-2">Patrimonio 2028</th>
+                    <th className="px-4 py-2">U. neta 2029 (proy.)</th>
+                    <th className="px-4 py-2">Dividendo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1024,12 +1029,11 @@ export default async function AdminDayPage({
                           <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                           {team.name}
                         </td>
-                        <td className="px-4 py-2">${Math.round(bench.bal1.activos).toLocaleString("es-CO")}</td>
-                        <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.activos).toLocaleString("es-CO")}` : "—"}</td>
-                        <td className="px-4 py-2">{bench.bal2 ? `$${Math.round(bench.bal2.patrimonio).toLocaleString("es-CO")}` : "—"}</td>
-                        <td className="px-4 py-2">{bench.p3 ? `$${Math.round(bench.p3.uneta).toLocaleString("es-CO")}` : "—"}</td>
-                        <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
-                        <td className="px-4 py-2">${Math.round(bench.div).toLocaleString("es-CO")}</td>
+                        <td className="px-4 py-2">{fmtM(bench.bal1.activos)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.bal2?.activos)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.bal2?.patrimonio)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.p3?.uneta)}</td>
+                        <td className="px-4 py-2">{fmtM(bench.div)}</td>
                       </tr>
                     );
                   })}
