@@ -119,7 +119,15 @@ export async function computeConsolidado(
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
   const [teams, rubric] = await Promise.all([
-    prisma.team.findMany({ where: { cohortId: cohort.id }, include: { members: true }, orderBy: { createdAt: "asc" } }),
+    prisma.team.findMany({
+      where: { cohortId: cohort.id },
+      // `select` on members, not `include`: TeamMember carries a `photo`
+      // bytea, and pulling every member's headshot for a whole cohort
+      // measured ~35s on this database. Only the id is read below (to look
+      // up each member's notaGeneral), so nothing else is worth fetching.
+      include: { members: { select: { id: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.rubricConfig.upsert({ where: { cohortId: cohort.id }, update: {}, create: { cohortId: cohort.id } }),
   ]);
   const tolerance = { tolerancePerfect: rubric.tolerancePerfect, toleranceZero: rubric.toleranceZero };
@@ -349,7 +357,9 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
 
   const teams = await prisma.team.findMany({
     where: { cohortId: cohort.id },
-    include: { members: true },
+    // Only id/name are read below — never the `photo` bytea. See
+    // computeConsolidado()'s equivalent query for why that matters.
+    include: { members: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" },
   });
   const evaluations = await prisma.memberDayEvaluation.findMany({

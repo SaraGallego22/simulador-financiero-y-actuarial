@@ -12,6 +12,13 @@ export interface Year2Claim {
   /** Month index of the notice date, same base as Year1Claim (Year-2 claims land in months 12-23+). */
   noticeMonth: number;
   ultimate: number;
+  /**
+   * How many real claims `ultimate` sums over — defaults to 1, i.e. one entry
+   * per claim. Callers that pass pre-aggregated monthly totals (see
+   * TeamClaimAggregate) set it, because every other figure here is linear in
+   * `ultimate` and so unaffected by the grouping, but `claimCountY2` is not.
+   */
+  count?: number;
 }
 
 export interface TeamDevelopment {
@@ -100,7 +107,7 @@ export function computeDevelopment(year1Claims: Year1Claim[], year2Claims: Year2
     a.osY2endY2 += ultimate - paidEndY2;
     a.devTailY2InY3 += paidEndY3 - paidEndY2;
     a.osY2endY3 += ultimate - paidEndY3;
-    a.claimCountY2 += 1;
+    a.claimCountY2 += claim.count ?? 1;
   }
 
   for (const teamId of teamIds) {

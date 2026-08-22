@@ -92,7 +92,12 @@ export default async function AdminDayPage({
       include: {
         tariffSubmissions: { where: { day }, select: { meanPremium: true, medianPremium: true, outsourced: true } },
         portfolioAllocations: { where: { day }, select: { allocation: true } },
-        members: true,
+        // Explicitly WITHOUT the `photo`/`photoMimeType` bytea columns:
+        // headshots are only rendered in the "subj" tab, and only for the
+        // one selected team, so they're fetched separately below
+        // (selectedTeamMembers) instead of for all ~12 teams on every tab.
+        // Pulling the whole cohort's photos here measured ~35s per load.
+        members: { select: { id: true, name: true, carrera: true, universidad: true, semestre: true } },
       },
       orderBy: { createdAt: "asc" },
     }),
@@ -374,6 +379,19 @@ export default async function AdminDayPage({
   // "subj" tab shows one team at a time (see its section below) — falls back
   // to the first team when no ?team= is selected or it doesn't match.
   const selectedSubjTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
+  // Headshots for just that one team, and only on the tab that renders them
+  // — the cohort-wide `teams` query above deliberately omits the `photo`
+  // bytea (see its comment). Keyed by member id for the lookup below.
+  const photoByMemberId = new Map<string, string | null>(
+    activeTab === "subj" && selectedSubjTeam
+      ? (
+          await prisma.teamMember.findMany({
+            where: { teamId: selectedSubjTeam.id },
+            select: { id: true, photo: true, photoMimeType: true },
+          })
+        ).map((m) => [m.id, memberPhotoDataUri(m.photo, m.photoMimeType)])
+      : []
+  );
   // TeamSelect is a Client Component — pass only the plain fields it needs,
   // never the full `teams` query result (its `members` include nested Bytes
   // photo columns, which React's Flight serializer cannot send across the
@@ -1054,7 +1072,7 @@ export default async function AdminDayPage({
                               <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-6">
                                 <div className="flex flex-col gap-6 lg:flex-row">
                                   <div className="flex shrink-0 flex-col items-center gap-3 lg:w-48">
-                                    <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={128} />
+                                    <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={128} />
                                     <p className="text-center text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
                                     <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
                                     <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />

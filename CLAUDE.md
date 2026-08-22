@@ -16,18 +16,20 @@ That file is the **domain source of truth** (formulas, CSV schemas, copy, pedago
 
 ## 3. Stack and rationale
 
-**Hard constraint: the project must run 100% on free tiers, with zero paid services.** Every stack decision is filtered through this — before adding any external service/dependency, confirm it has a free plan sufficient for the real volume (~12 teams per cohort, a handful of simulation runs).
+**Hard constraint: the project runs on free tiers, with one deliberate exception — Neon is on a paid plan (adopted August 2026, at the user's own initiative).** Everything else must still have a free plan sufficient for the real volume (~12 teams per cohort, a handful of simulation runs); before adding any external service/dependency, confirm that, and confirm with the user first (see §13). Neon's upgrade does **not** relax the constraint anywhere else: Vercel is still Hobby, and Blob/queues/transactional email/a custom domain are still rejected.
+
+Note when reading the rest of this file: several decisions below were made *under* the original free-Neon constraint and still describe it (the 0.5 GB cap, compute auto-suspend, the measured `bytea` throughput ceiling). Those decisions remain in force — they were about avoiding needless data transfer, which is right on any plan — but re-measure before citing an old throughput number as current.
 
 | Layer | Choice | Why |
 |---|---|---|
 | Framework | **Next.js (App Router)**, full-stack | One repo/deploy for UI + API; native role-based routing; deploys free on Vercel Hobby |
-| Database | **Neon Postgres (free plan)** + **Prisma**, via `@prisma/adapter-neon` | End-to-end typing, versioned migrations, generous free tier (0.5 GB); the Neon serverless driver adapter (not a plain `pg` connection) is required — Neon's free compute suspends after inactivity, and the adapter's WebSocket-based driver handles the wake-up far more gracefully than a raw TCP connection, which can fail outright on the first query after idle (see `src/lib/prisma.ts`) |
+| Database | **Neon Postgres (paid plan since Aug 2026; originally free)** + **Prisma**, via `@prisma/adapter-neon` | End-to-end typing, versioned migrations; the Neon serverless driver adapter (not a plain `pg` connection) is kept regardless of plan — its WebSocket-based driver handles a suspended-compute wake-up far more gracefully than a raw TCP connection, which can fail outright on the first query after idle (see `src/lib/prisma.ts`) |
 | Auth | **NextAuth**, Credentials provider | Team accounts are username+password, created by the admin (no self-signup, **no email** — avoids depending on a paid transactional email service) |
 | Bulk data | **`bytea` in the same Postgres** (not Vercel Blob) | A 1M-row `Float32` array is ~4 MB; with ~12 teams × 2 years this fits comfortably in Neon's free 0.5 GB. Avoids adding a second service (Vercel Blob) with its own separate free-tier limit — one free provider is simpler to operate and monitor |
 | Deployment | **Vercel (Hobby plan, free)** | Direct Next.js integration, automatic deploys from GitHub, free `*.vercel.app` domain (no custom domain needed) |
 | CSV | **Papa Parse** + **zod** (both MIT, free) | The legacy app hand-parses CSV (`split(',')`) with no quote/comma escaping — replace with a real library + schema validation |
 
-Explicitly rejected for cost reasons: Vercel Blob as a separate service, any managed queue/worker provider (Redis Cloud, paid QStash, etc.), transactional email services, a custom domain, Vercel/Neon Pro or Team plans.
+Explicitly rejected for cost reasons: Vercel Blob as a separate service, any managed queue/worker provider (Redis Cloud, paid QStash, etc.), transactional email services, a custom domain, Vercel Pro/Team. (Neon's paid plan is the one exception, already taken — see §3's opening.)
 
 **Next.js version note:** the project was scaffolded on **Next.js 16** (React 19.2 canary), which is very recent and has real breaking changes vs. older training data — before writing App Router code, skim `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`. The two changes that matter most here: (1) `middleware.ts` is deprecated and renamed to **`proxy.ts`** (exported function renamed `proxy`) — this repo uses `proxy.ts`, not `middleware.ts`; (2) `params`/`searchParams`/`cookies()`/`headers()` are now fully async (must `await` them) everywhere, with no synchronous fallback. `next-auth@5` (beta) declares `next: ^16.0.0` as a supported peer, so it's used as originally decided (§3), but double-check its docs/examples still assume `middleware.ts` — adapt the export to `proxy.ts`'s `proxy` function name.
 
@@ -173,7 +175,7 @@ Vercel **Hobby plan (free)** + Neon Postgres **free plan**. No custom domain (us
 
 ## 13. Constraints — what NOT to do
 
-- **Do not add any paid service or plan** (Vercel Pro/Team, Neon paid tier, Vercel Blob, managed queues, transactional email, a custom domain) without explicitly confirming with the user first — the project must run 100% on free tiers.
+- **Do not add any paid service or plan** (Vercel Pro/Team, Vercel Blob, managed queues, transactional email, a custom domain) without explicitly confirming with the user first. Neon's paid plan is already in place (§3) and is the only such exception; it does not authorize any other one.
 - Do not resurrect the orphaned "Year 3" pages or create routes for them without an explicit user request.
 - Do not hand-parse CSV (`split(',')`) — use Papa Parse + zod schema validation.
 - Do not break the seeded RNG's determinism when porting the engine — pin tests to outputs for a fixed seed.
