@@ -66,12 +66,37 @@ function decisionToCheckpoints(decision: PortfolioDecisionV4 | null): Checkpoint
   return decision.schedule.map((e) => ({ month: e.month, rows: allocationToRows(e.allocation) }));
 }
 
-export function PortfolioForm({ day, initialDecision }: { day: number; initialDecision: PortfolioDecisionV4 | null }) {
+export function PortfolioForm({
+  day,
+  initialDecision,
+  title,
+  showCapitalSocial = true,
+}: {
+  day: number;
+  initialDecision: PortfolioDecisionV4 | null;
+  /** Overrides the default "Portafolio de inversión — Día {day}" header — used for Día 3's optional "Portafolio 2028" resubmission, whose own schedule (see finBenchHelper.ts's year2Decision) fully replaces Día 2's for Año 2's real ALM. */
+  title?: string;
+  /**
+   * Hides the Capital Social block — for Día 3's "Portafolio 2028" form,
+   * where it would be misleading: Capital Social is only ever funded once,
+   * at Año 1's month 0 (almSimRealYear), so a Día 3 resubmission's own
+   * capitalSocialAllocation is never read. Still submitted (isPortfolioDecisionV4
+   * requires the field structurally) via a fixed all-in-first-instrument
+   * default, just not shown or editable.
+   */
+  showCapitalSocial?: boolean;
+}) {
   const [state, formAction, pending] = useActionState<SubmitPortfolioState, FormData>(submitPortfolioAction.bind(null, day), {});
 
-  const [capitalSocialRows, setCapitalSocialRows] = useState<GridRows>(() =>
-    initialDecision ? allocationToRows(initialDecision.capitalSocialAllocation) : emptyGridRows()
-  );
+  const [capitalSocialRows, setCapitalSocialRows] = useState<GridRows>(() => {
+    if (initialDecision) return allocationToRows(initialDecision.capitalSocialAllocation);
+    if (!showCapitalSocial) {
+      const rows = emptyGridRows();
+      rows[INSTRUMENTS[0].id] = 100;
+      return rows;
+    }
+    return emptyGridRows();
+  });
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>(() => decisionToCheckpoints(initialDecision));
 
   function updateCheckpointWeight(index: number, instrumentId: string, weight: number) {
@@ -108,7 +133,7 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
       className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5"
     >
       <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        Portafolio de inversión — Día {day}
+        {title ?? `Portafolio de inversión — Día ${day}`}
       </h3>
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Decides cómo invertir cada mes: la asignación que definas para un mes se mantiene fija — incluyendo
@@ -117,14 +142,16 @@ export function PortfolioForm({ day, initialDecision }: { day: number; initialDe
       </p>
 
       <div className="flex flex-col gap-4">
-        <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
-          <p className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Capital Social — asignación inicial</p>
-          <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
-            Decisión aparte de tu calendario de abajo: cómo se invierte tu Capital Social desde el mes 0 del 2027. Una vez invertido, sigue el mismo
-            calendario que la prima — no es un bolsillo distinto, solo su punto de partida es propio.
-          </p>
-          <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} />
-        </div>
+        {showCapitalSocial && (
+          <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
+            <p className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Capital Social — asignación inicial</p>
+            <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
+              Decisión aparte de tu calendario de abajo: cómo se invierte tu Capital Social desde el mes 0 del 2027. Una vez invertido, sigue el mismo
+              calendario que la prima — no es un bolsillo distinto, solo su punto de partida es propio.
+            </p>
+            <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} />
+          </div>
+        )}
 
         {sorted.map((checkpoint) => {
           const originalIndex = checkpoints.indexOf(checkpoint);

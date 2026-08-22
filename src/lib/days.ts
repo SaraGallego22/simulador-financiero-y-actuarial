@@ -40,6 +40,8 @@ export const TAB_NOTES: Record<
       "Ahora que ya conoces tus cifras reales de prima y siniestros del 2027, arma el calendario de decisión de tu portafolio real — esta es la decisión que se califica como Nota ALM.",
   },
   3: {
+    portfolio:
+      "Opcional: solo si quieres reestructurar tu estrategia de inversión para el 2028, ahora que ya conoces tu prima real de ese año (distinta de lo que asumiste en Día 2, antes de que el 2027 siquiera cerrara). Si lo guardas, reemplaza por completo tu calendario para el 2028 — el 2027 ya ocurrió y no cambia. Si no lo guardas, tu 2028 sigue el mismo calendario que armaste en Día 2.",
     deliverables:
       "Recalcula las reservas del 2028 con la emergencia de siniestros del 2027 (casos avisados durante ese año, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año — no hay un reporte de reservas aparte. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de 2027, 2028 y 2029 (proyectado), línea por línea.",
   },

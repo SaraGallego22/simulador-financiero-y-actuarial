@@ -362,13 +362,17 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     development.claimCountY2 > 0
   ) {
     // Prima: retained + new policies (Año 2's real market outcome), not a
-    // flat growth rate on the premium total.
+    // flat growth rate on the premium total — but each policy's own premium
+    // is repriced by CLAIMS_INFLATION_ANNUAL (the same 9% severity uses
+    // below), since a team repricing for 2029 would carry the same claims-
+    // inflation assumption into next year's rate, not hold last year's
+    // average premium per policy flat.
     const retentionRate = year2Retention.retainedCount / year1.insuredCount;
     const retainedPolicies3 = retentionRate * year2.insuredCount;
     const newPolicies3 = year2Retention.newCount;
     const insuredCount3 = retainedPolicies3 + newPolicies3;
     const avgPremiumPerPolicy2 = p2.primaEmitida / year2.insuredCount;
-    const prima3 = insuredCount3 * avgPremiumPerPolicy2;
+    const prima3 = insuredCount3 * avgPremiumPerPolicy2 * (1 + CLAIMS_INFLATION_ANNUAL);
 
     // Costo: only Año 3's own (projected) accident-year claims — frequency
     // held at Año 2's observed rate, severity inflated by

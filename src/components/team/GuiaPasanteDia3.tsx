@@ -145,6 +145,12 @@ export function GuiaPasanteDia3() {
             reservas técnicas, Reserva de Prima No Devengada, patrimonio) para los tres años, terminando en el chequeo contable Pasivo + Patrimonio =
             Activos.
           </li>
+          <li>
+            <strong>Financiero — Portafolio 2028 (opcional).</strong> Ahora que ya conoces tu prima real del 2028, puedes reestructurar tu estrategia de
+            inversión para lo que resta de ese año en la pestaña de Entregables — misma estructura que el portafolio de Día 2. Si lo guardas,
+            reemplaza por completo tu calendario del 2028 en adelante; si no, tu 2028 sigue con el mismo calendario que armaste en Día 2. No es un
+            entregable que se califique aparte — solo cambia qué calendario alimenta tu ALM real del 2028.
+          </li>
         </ul>
       </Section>
 
@@ -395,8 +401,10 @@ export function GuiaPasanteDia3() {
           </p>
           <ul className="list-disc pl-5">
             <li>
-              <strong>La prima no crece sola — depende de cuántas pólizas conservas.</strong> Piensa en tu 2029 como pólizas retenidas de 2028 (a la
-              misma tasa de retención que ya observaste de 2027 a 2028) más pólizas nuevas — no como un porcentaje aplicado al total de prima de 2028.
+              <strong>La prima crece por dos cosas — cuántas pólizas conservas, y cuánto cobras por cada una.</strong> Piensa en tu 2029 como pólizas
+              retenidas de 2028 (a la misma tasa de retención que ya observaste de 2027 a 2028) más pólizas nuevas — no como un porcentaje aplicado al
+              total de prima de 2028. Cada una de esas pólizas, a su vez, se ajusta con la misma tasa de inflación de siniestros del punto siguiente: un equipo
+              que retarifica para 2029 traslada esa misma expectativa de inflación a su prima, no solo a su costo.
             </li>
             <li>
               <strong>El costo de siniestros de 2029 es solo el siniestro propio de 2029 — sin ajuste de siniestralidad.</strong> A diferencia del

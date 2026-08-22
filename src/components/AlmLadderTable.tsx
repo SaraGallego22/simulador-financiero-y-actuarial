@@ -195,6 +195,53 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
   );
 }
 
+/**
+ * Summary tiles for a team's own REAL ALM run — funded by their actual
+ * premium, the same run finBench() benchmarks the true P&G's Resultado de
+ * Inversiones against (see realAlmYear1's doc comment in finBenchHelper.ts).
+ * Shown to teams once results are revealed (Día 3's "Respuestas Día 2"
+ * reference tab) in place of the fictitious ALM score, which has no real
+ * counterpart for figures like Sharpe ratio or the 35/35/20/10 nota split —
+ * those only exist in the fictitious 60-month scenario (see AlmScoreTiles).
+ *
+ * Accepted tradeoff: cajaFinalAnio/portfolioBookValue/
+ * capitalComprometidoAcumulado shown here are the exact true values Día 3's
+ * own Balance Año 1 entregables (bal1_caja/bal1_inversiones/
+ * bal1_necesidadesPatrimonioODeuda, concepts.ts) grade a team's *separate*
+ * own estimate against, submitted the same day on the "Entregables Día 3"
+ * tab of this same page — a team could read the answer here instead of
+ * estimating it. Kept anyway (explicit product decision), not an oversight.
+ */
+export function AlmRealYearTiles({ realYear }: { realYear: AlmRealYearResult }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <InfoTile
+        label="Ingreso de inversión real"
+        value={money(realYear.income)}
+        formula="suma del Rendimiento devengado en estos 12 meses, con tu prima real — esto es lo que finBench usa como Resultado de Inversiones del P&G real"
+      />
+      <InfoTile label="Rendimiento efectivo realizado" value={pct(realYear.effectiveYield, 2)} formula="ingreso ÷ saldo invertido promedio de estos 12 meses" />
+      <InfoTile
+        label="Capital comprometido acumulado"
+        value={money(realYear.capitalComprometidoAcumulado)}
+        formula="financiamiento externo genuino, una vez LIQ y todo tu portafolio real (Capital Social incluido) se agotaron"
+        danger={realYear.capitalComprometidoAcumulado > 0}
+      />
+      <InfoTile label="Capital Social sin necesidad de financiamiento externo" value={money(realYear.capitalSocialRestante)} formula={`de ${money(CAPITAL_SOCIAL)}`} />
+      <InfoTile label="Caja Mínima al cierre de diciembre" value={money(realYear.cajaFinalAnio)} />
+      <InfoTile label="Valor del portafolio al cierre" value={money(realYear.portfolioBookValue)} />
+      {realYear.totalVentaForzada > 0 && (
+        <InfoTile
+          label="Venta forzada este año"
+          value={money(realYear.totalVentaForzada)}
+          formula={`pérdida por venta anticipada: ${money(realYear.totalVentaForzadaPerdida)} — ${realYear.mesesConVentaForzada} mes(es)`}
+          danger
+        />
+      )}
+    </div>
+  );
+}
+
 export function AlmLadderTable({ rows }: { rows: AlmSimRow[] }) {
   if (rows.length === 0) return null;
   return (
@@ -307,10 +354,10 @@ export function AlmPortfolioTable({ rows }: { rows: AlmSimRow[] }) {
 /**
  * Explains where finBench()'s "Resultado de inversiones" benchmark
  * (p1.rinv/p2.rinv — the "Motor" figure the team's real P&G deliverable
- * gets graded against, see concepts.ts's p1_rinv) actually comes from —
- * admin-only, teams never see this (see README §5.3): the whole point is
- * that a team reasons about its own real P&G from the fictitious ALM it
- * *can* see, not that it reads the answer off a screen.
+ * gets graded against, see concepts.ts's p1_rinv) actually comes from,
+ * side-by-side against the fictitious figure that same team's ALM nota was
+ * graded on — admin-only (teams get their own real ALM view, without the
+ * ficticio comparison, via AlmRealYearTiles below).
  *
  * Two different ALM runs matter here, for two different things:
  * - The FICTITIOUS run (`scoreFicticio`, Prima Cobrada = reserva/12,

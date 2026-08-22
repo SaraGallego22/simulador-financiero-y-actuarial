@@ -12,11 +12,11 @@ import { LockIcon } from "@/components/ui/icons";
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
-import { scoreFinanciero, almLadder } from "@/domain/finance/alm";
 import { TARGET_RETURN, portfolioExpectedReturn, portfolioVariance, scoreMinVariance, solveLongOnlyMinVariance } from "@/domain/finance/markowitz";
-import { getTeamBookForDay, computeReservesForTeams, getActiveColombiaUniverse } from "@/lib/teamBook";
+import { getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
-import { AlmScoreTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
+import type { TeamFinBenchBundle } from "@/lib/finBenchHelper";
+import { AlmRealYearTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeMarketLossRatio } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
@@ -230,7 +230,6 @@ export default async function TeamDayPage({
     day1Allocation,
     day1TariffMedian,
     day2Result,
-    day2Allocation,
     day4Capacity1,
     day4Capacity2,
   ] = await Promise.all([
@@ -263,7 +262,6 @@ export default async function TeamDayPage({
       day === 3 && teamId
         ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 2, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
         : null,
-      day === 3 && teamId ? prisma.portfolioAllocation.findUnique({ where: { teamId_day: { teamId, day: 2 } } }) : null,
       // Día 4 retrospective: both years' capital-derived market-share limits
       // side by side, so a team whose growth was capped can connect it to the
       // solvency figures it's reporting this same day (see README's market
@@ -302,35 +300,22 @@ export default async function TeamDayPage({
     ])
   );
 
-  // ALM detail (team-scoped), shown on Día 3: Día 2's calendar is graded
-  // against Año 1's real reserves (bookYear=1, same as consolidado.ts) — this
-  // doesn't depend on Día 2's own tariff/simulation existing, just the
-  // reserves it's benchmarked against. This is the fictitious ALM (what's
-  // graded) — the real-premium companion run only feeds finBench (below),
-  // never a "score" of its own.
-  let almScore: ReturnType<typeof scoreFinanciero> = null;
-  let almLadderRows: ReturnType<typeof almLadder> = null;
+  // ALM detail (team-scoped), shown on Día 3: the REAL ALM run, funded by
+  // this team's own actual Año 1 premium — the same run finBench() itself
+  // benchmarks the true P&G's Resultado de Inversiones against (see
+  // realAlmYear1's doc comment in finBenchHelper.ts), not the fictitious
+  // 60-month scenario Día 1/2's own ALM nota was graded on.
+  let realAlmYear1: TeamFinBenchBundle["realAlmYear1"] = null;
   // Día 2's TRUE P&G/Balance (Año 1), from finBench — shown as reference on
   // Día 3's "Respuestas Día 2" tab instead of the team's own Día 2 report
   // (deliberately the true engine values here, unlike every other day's own
   // DeliverablesForm, which stays graded against the team's own guess).
   const day2TrueValues: Record<string, number> = {};
   if (day === 3 && teamId) {
-    // Fetched once, shared with computeFinBenchBundlesForCohort below —
-    // avoids each one regenerating its own 1,000,000-row copy this request
-    // (see getActiveColombiaUniverse's doc comment).
     const universe = await getActiveColombiaUniverse(cohort.id);
-    const decision = isPortfolioDecisionV4(day2Allocation?.allocation) ? day2Allocation.allocation : null;
-    if (decision) {
-      const book = await getTeamBookForDay(cohort.id, 1, universe ?? undefined);
-      const reserves = book ? computeReservesForTeams(book.claimsByTeamId).get(teamId) : null;
-      if (reserves) {
-        almScore = scoreFinanciero(reserves, decision);
-        almLadderRows = almLadder(reserves, decision);
-      }
-    }
     const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
     if (bundle) {
+      realAlmYear1 = bundle.realAlmYear1;
       for (const c of conceptosDia("d2").filter((c) => c.tipo === "reporte")) {
         const v = c.get?.(bundle.bench);
         if (v != null) day2TrueValues[c.id] = v;
@@ -480,13 +465,13 @@ export default async function TeamDayPage({
 
                 <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
                   <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                    ALM — tu portafolio vs. tus reservas de {SIMULATED_YEAR_LABEL[1]}
+                    ALM real — tu portafolio con tu prima real de {SIMULATED_YEAR_LABEL[1]}
                   </h3>
-                  {almScore ? (
+                  {realAlmYear1 ? (
                     <div className="flex flex-col gap-3">
-                      <AlmScoreTiles score={almScore} />
-                      {almLadderRows && <AlmLadderTable rows={almLadderRows.rows} />}
-                      {almLadderRows && <AlmPortfolioTable rows={almLadderRows.rows} />}
+                      <AlmRealYearTiles realYear={realAlmYear1} />
+                      <AlmLadderTable rows={realAlmYear1.rows} />
+                      <AlmPortfolioTable rows={realAlmYear1.rows} />
                     </div>
                   ) : (
                     <p className="text-sm text-[var(--color-brand-text-secondary)]">
@@ -499,10 +484,22 @@ export default async function TeamDayPage({
               </>
             )}
 
-            {activeTab === "entreg" && reportConcepts.length > 0 && (
+            {activeTab === "entreg" && (
               <>
-                {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
-                <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
+                {TAB_NOTES[3]?.portfolio && <TabNote>{TAB_NOTES[3].portfolio}</TabNote>}
+                <PortfolioForm
+                  day={3}
+                  initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null}
+                  title="Portafolio de inversión — 2028 (opcional)"
+                  showCapitalSocial={false}
+                />
+
+                {reportConcepts.length > 0 && (
+                  <>
+                    {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
+                    <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
+                  </>
+                )}
               </>
             )}
           </>
