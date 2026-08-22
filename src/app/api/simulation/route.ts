@@ -7,7 +7,13 @@ import { runSimulation } from "@/domain/market/runSimulation";
 import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
 import type { Year2Claims } from "@/domain/generation/generateYear2Claims";
 import type { TeamInfo } from "@/domain/market/runSimulation";
-import { getPreviousAssignmentNumeric, getUniverseForSeed, getYear2ClaimsForSeed } from "@/lib/teamBook";
+import {
+  getPreviousAssignmentNumeric,
+  getUniverseForSeed,
+  getYear2ClaimsForSeed,
+  aggregateClaimsByTeamMonth,
+  saveClaimAggregates,
+} from "@/lib/teamBook";
 import { computeCapacityByTeamId } from "@/lib/capacityHelper";
 
 // Same reasoning as /api/universe: runs synchronously, no queue — see
@@ -144,9 +150,15 @@ export async function POST(request: Request) {
   try {
     const aggregateByTeamId = new Map<string, TeamAggregate>();
     const medianWonPremiumByTeamId = new Map<string, number>();
+    // Captured from whichever branch below actually runs, so the per-team
+    // claim aggregates can be written once at the end, while the assignment
+    // is still in memory — see the saveClaimAggregates() call.
+    let finalAssignment: Int32Array | null = null;
+    let monopolyTeamId: string | null = null;
 
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
+      monopolyTeamId = t.id;
       const tariff = getTariffArray(t.tariffSubmissions[0], universe);
       const fallbackPremium = t.tariffSubmissions[0].meanPremium!;
       aggregateByTeamId.set(
@@ -218,6 +230,7 @@ export async function POST(request: Request) {
           const median = medianByNumericId.get(numericIdByTeamId.get(t.id)!);
           if (median != null) medianWonPremiumByTeamId.set(t.id, median);
         }
+        finalAssignment = result.assignment;
         await prisma.simulationRun.update({
           where: { id: run.id },
           data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
@@ -233,11 +246,30 @@ export async function POST(request: Request) {
           const median = medianByNumericId.get(numericIdByTeamId.get(t.id)!);
           if (median != null) medianWonPremiumByTeamId.set(t.id, median);
         }
+        finalAssignment = result.assignment;
         await prisma.simulationRun.update({
           where: { id: run.id },
           data: { resultData: new Uint8Array(Buffer.from(result.assignment.buffer)) },
         });
       }
+    }
+
+    // Per-team, per-notice-month claim totals: everything the reserving
+    // pipeline actually reads out of `resultData`, precomputed here while the
+    // assignment is already in memory. Without this, every admin/team page
+    // load had to fetch that 4,000,000-byte blob (~12s) and rescan all
+    // 1,000,000 exposures just to rebuild these few hundred numbers — see the
+    // TeamClaimAggregate model's doc comment.
+    const soleTeamId = monopolyTeamId;
+    const assignment = finalAssignment;
+    const teamIdForIndex: (index: number) => string | null = soleTeamId
+      ? () => soleTeamId
+      : assignment
+        ? (k) => teamIdByNumericId[assignment[k]] ?? null
+        : () => null;
+    await saveClaimAggregates(run.id, "year1", aggregateClaimsByTeamMonth(universe, universe.n, teamIdForIndex));
+    if (year2Claims) {
+      await saveClaimAggregates(run.id, "year2", aggregateClaimsByTeamMonth(year2Claims, universe.n, teamIdForIndex));
     }
 
     await prisma.$transaction([

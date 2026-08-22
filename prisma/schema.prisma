@@ -67,6 +67,7 @@ model Team {
   deliverables             Deliverable[]
   analyticsRecommendations AnalyticsRecommendation[]
   simResults               TeamSimResult[]
+  claimAggregates          TeamClaimAggregate[]
   softSkillActivityNotes   TeamActivityNote[]
 
   @@unique([cohortId, name])
@@ -132,7 +133,45 @@ model SimulationRun {
   finishedAt DateTime?
   createdAt  DateTime  @default(now())
 
-  teamResults TeamSimResult[]
+  teamResults     TeamSimResult[]
+  claimAggregates TeamClaimAggregate[]
+}
+
+/// Per-team, per-notice-month claim totals for one run — the ONLY thing the
+/// reserving pipeline actually needs out of `SimulationRun.resultData`.
+///
+/// Both consumers (computeLiabilitySchedules, computeDevelopment) are linear
+/// in `ultimate` per notice month: they immediately collapse the 1,000,000
+/// per-policy assignments into exactly these sums, and the only non-linear
+/// figure either produces is a claim count (computeDevelopment's
+/// claimCountY2), which is why `claimCount` is stored alongside the sum.
+/// So ~20 rows per team per kind replace a 4,000,000-byte `bytea` read plus
+/// a million-iteration scan on every page load — that read measured ~12s and
+/// was the dominant cost of navigating the admin views.
+///
+/// `resultData` is still written, for the audit/export purpose its own doc
+/// comment describes; it just isn't on the page-load path any more. Readers
+/// fall back to recomputing from it when a run predates this table (see
+/// getClaimAggregatesForRun).
+model TeamClaimAggregate {
+  id              String        @id @default(cuid())
+  simulationRunId String
+  simulationRun   SimulationRun @relation(fields: [simulationRunId], references: [id], onDelete: Cascade)
+  teamId          String
+  team            Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// "year1" = the universe's own Year-1 claim fields; "year2" =
+  /// generateYear2Claims' output. Both under THIS run's assignment.
+  kind            String
+  /// Months since Jan of ANIO_BASE_A1, matching ClaimForLiability.noticeMonth.
+  noticeMonth     Int
+  /// Sum of severity across claims noticed that month. Non-positive
+  /// severities are excluded, matching what both domain consumers skip.
+  severitySum     Float
+  /// How many claims `severitySum` covers.
+  claimCount      Int
+
+  @@unique([simulationRunId, teamId, kind, noticeMonth])
+  @@index([simulationRunId, kind])
 }
 
 model TeamSimResult {
