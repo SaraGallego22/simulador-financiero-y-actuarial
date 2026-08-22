@@ -35,7 +35,7 @@ export function GuiaPasanteDia1() {
 
       <Section n="1" title="Contexto del día">
         <p>
-          El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo compite contra los demás equipos del
+          El reto simula 2 años de operación de una aseguradora de autos, repartidos en 4 días de trabajo. Tu equipo compite contra los demás equipos del
           cohorte por una porción de un mercado sintético de 1.000.000 de pólizas de auto en Colombia — cada póliza tiene características de riesgo reales
           (edad del conductor, zona, tipo de vehículo, antigüedad, kilometraje, historial de siniestros, valor asegurado, uso, tipo de parqueadero, nivel
           educativo, estrato, género, marca).
@@ -53,11 +53,6 @@ export function GuiaPasanteDia1() {
             portafolio de mínima varianza también alimenta tu tope de cuota de mercado del 2027 (ver sección 3).
           </li>
         </ul>
-        <p>
-          Además de estos dos entregables objetivos (auto-calificados contra el motor de referencia), el evaluador también observa cómo tu equipo trabaja
-          — comunicación, reparto de roles, calidad del razonamiento — como parte de una calificación subjetiva separada. Esta guía se enfoca en lo
-          objetivo, que es lo que tiene una fórmula exacta que puedes anticipar.
-        </p>
       </Section>
 
       <Section n="2" title="Teoría necesaria">
@@ -204,12 +199,6 @@ export function GuiaPasanteDia1() {
             frecuencia y severidad responden a mecanismos distintos y pueden moverse en direcciones opuestas (un conductor más joven puede tener mayor
             frecuencia de siniestro sin que eso diga nada sobre cuánto cuesta cada uno).
           </p>
-          <p>
-            Cómo pasar de esa idea general a un precio distinto por póliza — qué variables usar, con qué forma funcional, cómo combinarlas — es una
-            decisión de modelamiento de tu equipo, no una receta que debas reproducir. No todas las variables del diccionario de datos de arriba
-            necesariamente cargan señal real de riesgo — parte del trabajo actuarial es distinguir cuáles sí y cuáles son ruido, antes de dejarlas
-            influir en tu estimación.
-          </p>
         </SubSection>
 
         <SubSection title="Portafolio de mínima varianza (teoría de Markowitz)" accent="fin">
@@ -333,9 +322,7 @@ export function GuiaPasanteDia1() {
               esperada × severidad esperada ≈ costo esperado por póliza), no que lo adivines a ciegas.
             </li>
             <li>
-              <strong>¿Qué pasa si cobras lo mismo a todos, o casi lo mismo?</strong> Una tarifa plana es vulnerable a selección adversa: los clientes de
-              menor riesgo encuentran mejores precios en otro equipo y se van, mientras te quedas desproporcionadamente con los de mayor riesgo — tu prima
-              promedio deja de cubrir tu costo promedio real.
+              <strong>¿Qué pasa si cobras lo mismo a todos, o casi lo mismo?</strong>
             </li>
             <li>
               <strong>Precio y volumen están en tensión, no son independientes.</strong> El mercado tiene un tope de cuota por equipo, así que no puedes
