@@ -22,7 +22,7 @@ export interface Dia1TeamOption {
   weights: Allocation | null;
 }
 
-const fmtM = (v: number) => `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} M`;
+const fmtM = (v: number) => `$${Math.round(v / 1e6).toLocaleString("es-CO")} M`;
 const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 /** Normalized so weights that don't sum to exactly 100 aren't shown misleadingly — same rule scoreMinVariance() itself applies before grading. */

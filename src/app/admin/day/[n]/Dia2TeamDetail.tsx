@@ -23,7 +23,7 @@ export interface Dia2TeamOption {
   weights: Allocation | null;
 }
 
-const fmtM = (v: number) => `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} M`;
+const fmtM = (v: number) => `$${Math.round(v / 1e6).toLocaleString("es-CO")} M`;
 const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 function normalizedWeights(weights: Allocation): Allocation {

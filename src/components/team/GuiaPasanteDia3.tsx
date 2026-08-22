@@ -2,7 +2,6 @@ import {
   FlowStep,
   FormulaNotes,
   GuiaHeader,
-  InfoNote,
   InsumosEntregables,
   PreguntasAbiertas,
   Section,
@@ -120,7 +119,6 @@ export function GuiaPasanteDia3() {
         entregables={[
           "Estado de resultados completo del 2028 (15 líneas) y proyección del 2029 (14 líneas).",
           "Balance de 2027, 2028 y 2029 (11 líneas cada uno).",
-          "Siniestros pagados en 2028 (desglose de caja, no una línea del P&G).",
         ]}
       />
 
@@ -352,7 +350,7 @@ export function GuiaPasanteDia3() {
             La prima depende de cuántas pólizas conservas (retención) y cuántas ganas de nuevo — no de crecer el peso total de la prima de 2028 por un
             porcentaje. El costo de siniestros de 2029, a diferencia del de 2028, es <strong>solo</strong> el siniestro propio de 2029 proyectado —
             sin ninguna línea de ajuste de siniestralidad: lo que sigue pagándose de siniestros de 2027/2028 ya se reconoció como costo en su propio año de
-            accidente, así que no vuelve a aparecer aquí (sí sigue existiendo como saldo de reserva en el Balance, ver sección 5.3). Y el Resultado de
+            accidente, así que no vuelve a aparecer aquí (sí sigue existiendo como saldo de reserva en el Balance, ver sección 5.2). Y el Resultado de
             inversiones ya no puede salir de una fórmula plana sobre la reserva: piensa en qué te dice tu propio ALM real de 2028 sobre lo que tu
             portafolio efectivamente rindió, más allá de lo que su rendimiento nominal prometía. Ver sección 4 para cómo razonar cada pieza.
           </p>
@@ -504,17 +502,7 @@ export function GuiaPasanteDia3() {
           />
         </FlowStep>
 
-        <FlowStep n="3" title="5.2 · Nota — siniestros pagados (no es una línea del P&G)">
-          <InfoNote>
-            <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              Además del estado de resultados, reportas una cifra más para el 2028: <strong>Siniestros pagados en A2</strong> (la caja efectivamente
-              pagada durante el año, de ambos orígenes). No se suma ni se resta en el estado de resultados — es un desglose/auditoría de flujo de caja,
-              distinto del costo incurrido (base contable) que ya reportaste en la sección 5.1.
-            </p>
-          </InfoNote>
-        </FlowStep>
-
-        <FlowStep n="4" title="5.3 · Balance — 2027, 2028 y 2029 (proy.)">
+        <FlowStep n="3" title="5.2 · Balance — 2027, 2028 y 2029 (proy.)">
           <StatementTemplate
             rowLabels={BALANCE_ROWS}
             columns={["2027", "2028", "2029 (proy.)"]}
@@ -530,12 +518,12 @@ export function GuiaPasanteDia3() {
           />
         </FlowStep>
 
-        <FlowStep n="5" title="5.4 · El camino completo, de tus decisiones a tu reporte" last>
+        <FlowStep n="4" title="5.3 · El camino completo, de tus decisiones a tu reporte" last>
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
               El costo real de siniestros del 2027 (4) + tu calendario de portafolio de Día 2 → alimentan el estado de resultados del 2028 (5.1) → que junto
               con la retención real de 2028 y el rendimiento realmente devengado por tu ALM real, te da la proyección del 2029 (5.1b, sin línea de Ajuste
-              de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (5.3).
+              de siniestralidad) → cada año, junto con el capital comprometido de tu ALM real, te da el Balance de ese año (5.2).
             </p>
             <p className="mt-2 text-sm">
               Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) siguen siendo relevantes en las etapas siguientes del

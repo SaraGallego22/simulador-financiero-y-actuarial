@@ -457,11 +457,6 @@ export const CONCEPTOS: Concepto[] = [
       ],
     },
   },
-  // Nota de auditoría actuarial, no una línea del P&G — ver README §4: caja
-  // efectivamente pagada durante el Año 2 (flujo de caja), distinto del
-  // costo incurrido (base contable, ya recogido en p2_costo/p2_ajusteSiniestralidad).
-  { id: "p2_pagos", dia: "d3", perfil: "fin", tipo: "reporte", label: "Siniestros pagados en A2 (caja, no se suma al P&G)", unit: "COP", get: (b) => b.p2?.pagos ?? null },
-
   // Día 3 — Estado de resultados Año 3 (proyectado, 14 líneas — libera la RPND de Año 2, constituye la propia; sin línea de ajuste de siniestralidad, ver README §4)
   { id: "p3_primaEmitida", dia: "d3", perfil: "fin", tipo: "reporte", label: "Prima emitida A3 (proy.)", unit: "COP", group: "pyg_a3", get: (b) => b.p3?.primaEmitida ?? null },
   {
