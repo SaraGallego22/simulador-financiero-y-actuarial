@@ -75,6 +75,37 @@ export function getChileForSeed(seed: number): ChilePolicy[] {
   return cachedChile.policies;
 }
 
+/**
+ * Module-scope cache (same rationale as getUniverseForSeed above) for a
+ * SimulationRun's 1,000,000-entry assignment array.
+ *
+ * This is the single most expensive read in the app: `resultData` is exactly
+ * 4,000,000 bytes, and at the per-byte throughput ceiling this database has
+ * measured at (CLAUDE.md §4.1) fetching it costs ~12 seconds. A single admin
+ * page load needs it up to three times — getTeamBookForDay() for Año 1,
+ * getYear2ClaimsByTeamId() for Año 2, and the day page's own book for Día 2
+ * — which is most of why navigating between pages took double-digit seconds.
+ * Re-measure before assuming a faster Neon plan removes the need for this:
+ * the cache also skips the O(n) work, not just the transfer.
+ *
+ * Keyed by run id, which is safe to cache indefinitely: re-simulating a day
+ * writes a NEW SimulationRun row rather than mutating this one, so an entry
+ * can never go stale. Bounded to a handful of runs (a cohort only ever has a
+ * few) so a long-lived warm instance can't grow this without limit.
+ */
+const MAX_CACHED_ASSIGNMENTS = 4;
+const assignmentByRunId = new Map<string, Int32Array>();
+async function getAssignmentForRun(runId: string, n: number): Promise<Int32Array | null> {
+  const cached = assignmentByRunId.get(runId);
+  if (cached) return cached;
+  const row = await prisma.simulationRun.findUnique({ where: { id: runId }, select: { resultData: true } });
+  if (!row?.resultData) return null;
+  const assignment = toInt32View(row.resultData, n);
+  if (assignmentByRunId.size >= MAX_CACHED_ASSIGNMENTS) assignmentByRunId.clear();
+  assignmentByRunId.set(runId, assignment);
+  return assignment;
+}
+
 export interface TeamBook {
   universe: ColombiaUniverse;
   /** Notice-month + severity for each team's claims, keyed by real team.id — the shape computeLiabilitySchedules() needs, minus the numeric-id remap it requires (see computeReservesForTeams). */
@@ -120,9 +151,13 @@ export async function getActiveColombiaUniverse(cohortId: string): Promise<Colom
  * parameter exists to prevent.
  */
 export async function getTeamBookForDay(cohortId: string, day: number, universeOverride?: ColombiaUniverse): Promise<TeamBook | null> {
+  // `select` matters: without it Prisma also fetches the 4MB `resultData`
+  // bytea on every call (~12s measured) even when the cached copy below
+  // already has it — see getAssignmentForRun().
   const run = await prisma.simulationRun.findFirst({
     where: { cohortId, day, status: "DONE" },
     orderBy: { createdAt: "desc" },
+    select: { id: true, params: true },
   });
   if (!run) return null;
 
@@ -149,9 +184,9 @@ export async function getTeamBookForDay(cohortId: string, day: number, universeO
   };
 
   const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
+  const assignment = params?.teamIdByNumericId ? await getAssignmentForRun(run.id, universe.n) : null;
 
-  if (run.resultData && params?.teamIdByNumericId) {
-    const assignment = toInt32View(run.resultData, universe.n);
+  if (assignment && params?.teamIdByNumericId) {
     const teamIdByNumericId = params.teamIdByNumericId;
     for (let k = 0; k < universe.n; k++) {
       const teamId = teamIdByNumericId[assignment[k]];
@@ -212,14 +247,15 @@ export async function getPreviousAssignmentNumeric(
   const run = await prisma.simulationRun.findFirst({
     where: { cohortId, day: previousDay, status: "DONE" },
     orderBy: { createdAt: "desc" },
+    select: { id: true, params: true },
   });
   if (!run) return null;
 
   const result = new Int32Array(n).fill(-1);
   const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
+  const prevAssignment = params?.teamIdByNumericId ? await getAssignmentForRun(run.id, n) : null;
 
-  if (run.resultData && params?.teamIdByNumericId) {
-    const prevAssignment = toInt32View(run.resultData, n);
+  if (prevAssignment && params?.teamIdByNumericId) {
     const prevTeamIdByNumericId = params.teamIdByNumericId;
     for (let k = 0; k < n; k++) {
       const realTeamId = prevTeamIdByNumericId[prevAssignment[k]];
@@ -256,6 +292,7 @@ export async function getYear2ClaimsByTeamId(
   const run = await prisma.simulationRun.findFirst({
     where: { cohortId, day: 2, status: "DONE" },
     orderBy: { createdAt: "desc" },
+    select: { id: true, params: true },
   });
   if (!run) return null;
 
@@ -283,8 +320,8 @@ export async function getYear2ClaimsByTeamId(
   };
 
   const params = run.params as { teamIdByNumericId?: Record<string, string> } | null;
-  if (run.resultData && params?.teamIdByNumericId) {
-    const assignment = toInt32View(run.resultData, universe.n);
+  const assignment = params?.teamIdByNumericId ? await getAssignmentForRun(run.id, universe.n) : null;
+  if (assignment && params?.teamIdByNumericId) {
     const teamIdByNumericId = params.teamIdByNumericId;
     for (let k = 0; k < universe.n; k++) {
       const teamId = teamIdByNumericId[assignment[k]];
