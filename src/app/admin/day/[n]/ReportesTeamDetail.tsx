@@ -22,17 +22,11 @@ export interface ReportesTeamOption {
   ungrouped: ReportRow[];
 }
 
-/** Clave de la sección que agrupa las líneas sin `group` propio — Día 4 las tiene todas así. */
+/** Clave de la sección que agrupa las líneas sin `group` propio — Día 4 las tiene todas así, sin encabezado propio (ver `sections` más abajo). */
 const UNGROUPED_KEY = "__otros";
 
 const fmt = (v: number | null, unit: string) =>
-  v == null
-    ? "—"
-    : unit === "COP"
-      ? `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} M`
-      : unit === "x"
-        ? `${v.toFixed(2)}×`
-        : v.toFixed(1);
+  v == null ? "—" : unit === "COP" ? `$${Math.round(v / 1e6).toLocaleString("es-CO")} M` : unit === "x" ? `${v.toFixed(2)}×` : v.toFixed(1);
 
 const averageScore = (rows: ReportRow[]) => {
   const scored = rows.filter((r) => r.score != null);
@@ -85,13 +79,12 @@ export function ReportesTeamDetail({ day, teams }: { day: number; teams: Reporte
   const selected = teams.find((t) => t.id === selectedId) ?? teams[0];
   if (!selected) return null;
 
+  // Sin encabezado propio: todo concepto "reporte" sin `group` (Día 4) es el
+  // único bloque de ese día, nunca conviven con líneas agrupadas — no hace
+  // falta distinguirlas con un título tipo "Otras líneas".
   const sections: { key: string; label: string | null; rows: ReportRow[] }[] = [
     ...selected.groups.map(({ group, rows }) => ({ key: group as string, label: GROUP_LABELS[group], rows })),
-    // Sin encabezado cuando el día no declara ningún estado (Día 4): ahí las
-    // líneas sueltas no son "otras", son todo el reporte.
-    ...(selected.ungrouped.length > 0
-      ? [{ key: UNGROUPED_KEY, label: selected.groups.length > 0 ? "Otras líneas" : null, rows: selected.ungrouped }]
-      : []),
+    ...(selected.ungrouped.length > 0 ? [{ key: UNGROUPED_KEY, label: null, rows: selected.ungrouped }] : []),
   ];
   const section = sections.find((s) => s.key === selectedSection) ?? sections[0];
   const sectionScore = section ? averageScore(section.rows) : null;

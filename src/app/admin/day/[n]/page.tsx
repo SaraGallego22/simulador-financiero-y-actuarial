@@ -146,7 +146,7 @@ export default async function AdminDayPage({
       ? prisma.simulationRun.findMany({
           where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
           orderBy: { createdAt: "desc" },
-          select: { day: true, teamResults: { select: { teamId: true, rejectedCount: true, extra: true } } },
+          select: { day: true, teamResults: { select: { teamId: true, extra: true } } },
         })
       : Promise.resolve([]),
     // Deliverables: teams self-report numeric concepts, graded against
@@ -300,10 +300,10 @@ export default async function AdminDayPage({
     }
   }
 
-  const capacityByTeamIdByYear = new Map<1 | 2, Map<string, { rejectedCount: number; extra: unknown }>>();
+  const capacityByTeamIdByYear = new Map<1 | 2, Map<string, unknown>>();
   for (const yr of [1, 2] as const) {
     const run = capacityRuns.find((r) => r.day === yr);
-    capacityByTeamIdByYear.set(yr, new Map((run?.teamResults ?? []).map((r) => [r.teamId, { rejectedCount: r.rejectedCount, extra: r.extra }])));
+    capacityByTeamIdByYear.set(yr, new Map((run?.teamResults ?? []).map((r) => [r.teamId, r.extra])));
   }
 
   const tolerance = {
@@ -391,8 +391,7 @@ export default async function AdminDayPage({
   // the P&G down to RT for one selected team, and the portfolio (min-var on
   // Día 1, the Día 2 tree on Día 2), all ranked/formatted the same way:
   // millones de pesos, best nota first.
-  const fmtM = (v: number | null | undefined, decimals = 1) =>
-    v == null ? "—" : `$${(v / 1e6).toLocaleString("es-CO", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })} M`;
+  const fmtM = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v / 1e6).toLocaleString("es-CO")} M`);
   const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
   const totalInsuredThisYear = includeSim ? teams.reduce((s, t) => s + (resultByTeamId.get(t.id)?.insuredCount ?? 0), 0) : 0;
   // Results table (below) ranks by the Tarifas/actuarial score alone
@@ -643,7 +642,7 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
                       <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
-                      <td className="px-4 py-2">{bench ? fmtM(bench.rt, 0) : "—"}</td>
+                      <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
                       <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
                     </tr>
                   );
@@ -787,7 +786,7 @@ export default async function AdminDayPage({
                     <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
                     <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
                     <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
-                    <td className="px-4 py-2">{bench ? fmtM(bench.rt, 0) : "—"}</td>
+                    <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
                     <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
                   </tr>
                 );
@@ -950,10 +949,8 @@ export default async function AdminDayPage({
                   {teams.map((team) => {
                     const bench = finBenchByTeamId.get(team.id);
                     if (!bench) return null;
-                    const cap1 = capacityByTeamIdByYear.get(1)?.get(team.id);
-                    const cap2 = capacityByTeamIdByYear.get(2)?.get(team.id);
-                    const cap1Extra = cap1?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                    const cap2Extra = cap2?.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                    const cap1Extra = capacityByTeamIdByYear.get(1)?.get(team.id) as { capacityLimit?: number; rawCapacityLimit?: number } | null;
+                    const cap2Extra = capacityByTeamIdByYear.get(2)?.get(team.id) as { capacityLimit?: number; rawCapacityLimit?: number } | null;
                     return (
                       <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                         <td className="px-4 py-2">
@@ -966,26 +963,8 @@ export default async function AdminDayPage({
                         <td className="px-4 py-2">{fmtM(bench.solRMercado)}</td>
                         <td className="px-4 py-2">{fmtM(bench.solRk)}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
-                        <td className="px-4 py-2">
-                          {cap1Extra?.capacityLimit != null ? (
-                            <>
-                              {cap1Extra.capacityLimit.toLocaleString("es-CO")}
-                              {cap1 && cap1.rejectedCount > 0 && <span className="text-[var(--color-brand-red)]"> ({cap1.rejectedCount.toLocaleString("es-CO")} rechazadas)</span>}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-4 py-2">
-                          {cap2Extra?.capacityLimit != null ? (
-                            <>
-                              {cap2Extra.capacityLimit.toLocaleString("es-CO")}
-                              {cap2 && cap2.rejectedCount > 0 && <span className="text-[var(--color-brand-red)]"> ({cap2.rejectedCount.toLocaleString("es-CO")} rechazadas)</span>}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
+                        <td className="px-4 py-2">{cap1Extra?.capacityLimit != null ? cap1Extra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
+                        <td className="px-4 py-2">{cap2Extra?.capacityLimit != null ? cap2Extra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
                       </tr>
                     );
                   })}
