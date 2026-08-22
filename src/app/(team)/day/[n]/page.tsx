@@ -349,6 +349,14 @@ export default async function TeamDayPage({
   // per request (see admin/day/[n]/page.tsx's fix for the same issue).
   const universe = day >= 2 ? await getActiveColombiaUniverse(cohort.id) : null;
 
+  // Every team's finBench/real-ALM bundle for this request — computed once
+  // here (day2TrueValues/day3TrueValues below only ever need this team's own
+  // entry, but previousDayTop3's computeConsolidado() needs every team's
+  // bench) and handed to both, instead of each independently recomputing it
+  // (same duplicate-work fix as admin/day/[n]/page.tsx).
+  const finBenchBundlesByTeamId = day >= 2 ? await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : new Map();
+  const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([id, b]) => [id, b.bench]));
+
   // ALM detail (team-scoped), shown on Día 3: the REAL ALM run, funded by
   // this team's own actual Año 1 premium — the same run finBench() itself
   // benchmarks the true P&G's Resultado de Inversiones against (see
@@ -361,7 +369,7 @@ export default async function TeamDayPage({
   // DeliverablesForm, which stays graded against the team's own guess).
   const day2TrueValues: Record<string, number> = {};
   if (day === 3 && teamId) {
-    const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
+    const bundle = finBenchBundlesByTeamId.get(teamId);
     if (bundle) {
       realAlmYear1 = bundle.realAlmYear1;
       for (const c of conceptosDia("d2").filter((c) => c.tipo === "reporte")) {
@@ -376,7 +384,7 @@ export default async function TeamDayPage({
   // "Respuestas Día 3" tab.
   const day3TrueValues: Record<string, number> = {};
   if (day === 4 && teamId) {
-    const bundle = (await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined)).get(teamId);
+    const bundle = finBenchBundlesByTeamId.get(teamId);
     if (bundle) {
       for (const c of conceptosDia("d3").filter((c) => c.tipo === "reporte")) {
         const v = c.get?.(bundle.bench);
@@ -393,7 +401,7 @@ export default async function TeamDayPage({
   let previousDayTop3: TopTeam[] = [];
   if (day >= 2 && day <= 4) {
     const previousDay = day - 1;
-    const consolidado = await computeConsolidado(cohort.id, previousDay, universe ?? undefined);
+    const consolidado = await computeConsolidado(cohort.id, previousDay, universe ?? undefined, finBenchByTeamId);
     previousDayTop3 = consolidado
       .map((r) => ({ teamId: r.teamId, teamName: r.teamName, color: r.color, nota: r.perDay[previousDay - 1]?.nota ?? null }))
       .filter((r): r is TopTeam => r.nota != null)

@@ -219,15 +219,9 @@ export default async function AdminDayPage({
   // graded for the Día 2 ALM nota) — the real ALM (below, via
   // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
   // computation, not a variant of this one (see README §5.3).
-  // All three only depend on `universe` (already resolved above), not on
-  // each other, so they run together instead of one after the other.
-  // consolidadoRows is fetched here — not in the first Promise.all above —
-  // specifically so it can pass `universe` through: computeConsolidado()
-  // internally calls computeFinBenchForCohort(), which used to regenerate
-  // its own copy of the universe and rerun every team's finBench/ALM
-  // computation a second time in the same request (redundant with
-  // finBenchBundlesByTeamId below) when fired before universe existed.
-  const [book, finBenchBundlesByTeamId, consolidadoRows] = await Promise.all([
+  // Both only depend on `universe` (already resolved above), not on each
+  // other, so they run together instead of one after the other.
+  const [book, finBenchBundlesByTeamId] = await Promise.all([
     bookYear != null ? getTeamBookForDay(cohort.id, bookYear, universe ?? undefined) : Promise.resolve(null),
     // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
     // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
@@ -239,10 +233,35 @@ export default async function AdminDayPage({
     // out of sync with what's actually graded (see finBenchHelper.ts's
     // doc comment).
     day >= 1 ? computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : Promise.resolve(new Map()),
-    activeTab === "top" || activeTab === "resultados"
-      ? computeConsolidado(cohort.id, undefined, universe ?? undefined)
-      : Promise.resolve(null),
   ]);
+  const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
+
+  const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
+  const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
+  // Also handed to computeConsolidado() below (Día 2 only — its own Año 1
+  // ALM score needs the same reserves) so it doesn't rebuild them itself.
+  let reservesByTeamId: ReturnType<typeof computeReservesForTeams> | undefined;
+  if (book && hasPortfolioSchedule) {
+    reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
+    for (const team of teams) {
+      const rawAllocation = team.portfolioAllocations[0]?.allocation;
+      const reserves = reservesByTeamId.get(team.id);
+      if (reserves && isPortfolioDecisionV4(rawAllocation)) {
+        almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
+        if (activeTab === "resultados") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
+      }
+    }
+  }
+
+  // Fetched here (not in an earlier Promise.all) so it can be handed
+  // `finBenchByTeamId`/`reservesByTeamId` above, already computed for this
+  // page's own tables — without them, computeConsolidado() used to rerun
+  // every team's finBench/ALM computation (and Día 2's reserves chain-ladder)
+  // a second time in the same request just to derive objectiveByTeamId below.
+  const consolidadoRows =
+    activeTab === "top" || activeTab === "resultados"
+      ? await computeConsolidado(cohort.id, undefined, universe ?? undefined, finBenchByTeamId, reservesByTeamId)
+      : null;
 
   // This day's final "nota objetiva" per team, read straight off
   // computeConsolidado() rather than re-derived here — Día 2's real blend
@@ -256,21 +275,6 @@ export default async function AdminDayPage({
     const objective = row.perDay[day - 1]?.objective;
     if (objective != null) objectiveByTeamId.set(row.teamId, objective);
   }
-
-  const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
-  const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
-  if (book && hasPortfolioSchedule) {
-    const reservesByTeamId = computeReservesForTeams(book.claimsByTeamId);
-    for (const team of teams) {
-      const rawAllocation = team.portfolioAllocations[0]?.allocation;
-      const reserves = reservesByTeamId.get(team.id);
-      if (reserves && isPortfolioDecisionV4(rawAllocation)) {
-        almScoreByTeamId.set(team.id, scoreFinanciero(reserves, rawAllocation));
-        if (activeTab === "resultados") almLadderByTeamId.set(team.id, almLadder(reserves, rawAllocation));
-      }
-    }
-  }
-  const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([teamId, b]) => [teamId, b.bench]));
 
   // Actuarial (tarifación) score per team for this day's results — same
   // functions computeConsolidado() uses for the final grade, so what the

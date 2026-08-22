@@ -3,6 +3,8 @@ import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSectorStatsForSeed } from "./teamBook";
 import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { computeFinBenchForCohort } from "./finBenchHelper";
+import type { FinBenchResult } from "@/domain/finance/finBench";
+import type { LiabilitySchedule } from "@/domain/reserving/liability";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
 import { isMinVarianceAllocation, isPortfolioDecisionV4 } from "@/domain/finance/instruments";
@@ -95,15 +97,24 @@ export interface TeamConsolidado {
  * `universeOverride` lets a caller that already generated (or already has)
  * the Colombia universe this request pass it through instead of triggering
  * another regeneration inside computeFinBenchForCohort()/getTeamBookForDay()
- * — see those functions' doc comments. Without it, admin/day/[n] used to
- * regenerate the universe (and rerun every team's finBench/ALM computation)
- * a second time in the same request, on top of the copy it already computes
- * directly for its own tables.
+ * — see those functions' doc comments.
+ *
+ * `finBenchByTeamIdOverride`/`reserves1ByTeamIdOverride` go a step further:
+ * even with `universeOverride`, this function used to independently rerun
+ * computeFinBenchForCohort() (every team's finBench/ALM computation, plus
+ * the O(n) pass over the universe's 1,000,000 exposures that
+ * getTeamBookForDay()/getYear2ClaimsByTeamId() do to rebuild each team's
+ * claims) and, on Día 2, a second O(n) pass + chain-ladder run for Año 1's
+ * reserves — both already computed once by admin/day/[n] for its own
+ * tables. Passing the already-computed maps through skips that duplicate
+ * work entirely instead of just deduplicating the universe object itself.
  */
 export async function computeConsolidado(
   cohortId?: string,
   maxDay?: number,
-  universeOverride?: ColombiaUniverse
+  universeOverride?: ColombiaUniverse,
+  finBenchByTeamIdOverride?: Map<string, FinBenchResult>,
+  reserves1ByTeamIdOverride?: Map<string, LiabilitySchedule>
 ): Promise<TeamConsolidado[]> {
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
@@ -151,14 +162,17 @@ export async function computeConsolidado(
     tarifByDay.set(day, byTeamId);
   }
 
-  const finBenchByTeamId = await computeFinBenchForCohort(cohort.id, universeOverride);
+  const finBenchByTeamId = finBenchByTeamIdOverride ?? (await computeFinBenchForCohort(cohort.id, universeOverride));
 
   // Año 1's real ALM schedule is submitted Día 2 (not Día 1 — Día 1 is the
   // minimum-variance exercise, scored separately below).
   const almScoreByTeamId = new Map<string, number>();
-  const book1 = await getTeamBookForDay(cohort.id, 1, universeOverride);
-  if (book1) {
-    const reserves1 = computeReservesForTeams(book1.claimsByTeamId);
+  let reserves1 = reserves1ByTeamIdOverride ?? null;
+  if (!reserves1) {
+    const book1 = await getTeamBookForDay(cohort.id, 1, universeOverride);
+    if (book1) reserves1 = computeReservesForTeams(book1.claimsByTeamId);
+  }
+  if (reserves1) {
     const scheduleAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId: cohort.id } } });
     for (const a of scheduleAllocations) {
       const reserves = reserves1.get(a.teamId);
