@@ -401,6 +401,7 @@ export async function uploadMemberPhotoAction(teamMemberId: string, _prev: Uploa
   revalidatePath("/admin/config");
   revalidatePath("/admin/day/[n]", "page");
   revalidatePath("/admin/actividad/[n]", "page");
+  revalidatePath("/admin/entrevista");
   return { success: "Foto actualizada." };
 }
 

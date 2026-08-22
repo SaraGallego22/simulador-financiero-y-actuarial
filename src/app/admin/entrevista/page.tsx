@@ -17,7 +17,13 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
   const [teams, ratings, comments] = await Promise.all([
     prisma.team.findMany({
       where: { cohortId: cohort.id },
-      include: { members: true },
+      include: {
+        // Explicitly WITHOUT the `photo`/`photoMimeType` bytea columns: only
+        // the selected team's headshots are rendered, so they're fetched
+        // separately below instead of for all ~12 teams on every load (same
+        // reason as admin/day/[n]).
+        members: { select: { id: true, name: true, carrera: true, universidad: true, semestre: true } },
+      },
       orderBy: { createdAt: "asc" },
     }),
     prisma.interviewSkillRating.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } } }),
@@ -42,6 +48,18 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
   // One team at a time (see TeamSelect's doc comment) — falls back to the
   // first team when no ?team= is selected or it doesn't match.
   const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0];
+  // Headshots for just that one team — the cohort-wide `teams` query above
+  // deliberately omits the `photo` bytea (see its comment). Keyed by member id.
+  const photoByMemberId = new Map<string, string | null>(
+    selectedTeam
+      ? (
+          await prisma.teamMember.findMany({
+            where: { teamId: selectedTeam.id },
+            select: { id: true, photo: true, photoMimeType: true },
+          })
+        ).map((m) => [m.id, memberPhotoDataUri(m.photo, m.photoMimeType)])
+      : []
+  );
   // Plain fields only — see TeamSelect's doc comment on why the full `teams`
   // query result (nested members' Bytes photo columns) can't cross into a
   // Client Component prop.
@@ -91,7 +109,7 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
                     return (
                       <div key={member.id} className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] p-5 sm:flex-row">
                         <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
-                          <MemberPhoto dataUri={memberPhotoDataUri(member.photo, member.photoMimeType)} name={member.name} size={120} />
+                          <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={120} />
                           <div className="text-center">
                             <p className="text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
                             {academic && <p className="text-xs text-[var(--color-brand-text-secondary)]">{academic}</p>}
