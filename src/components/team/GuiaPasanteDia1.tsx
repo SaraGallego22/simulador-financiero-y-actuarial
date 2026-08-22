@@ -35,7 +35,7 @@ export function GuiaPasanteDia1() {
 
       <Section n="1" title="Contexto del día">
         <p>
-          El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo compite contra los demás equipos del
+          El reto simula 2 años de operación de una aseguradora de autos, repartidos en 4 días de trabajo. Tu equipo compite contra los demás equipos del
           cohorte por una porción de un mercado sintético de 1.000.000 de pólizas de auto en Colombia — cada póliza tiene características de riesgo reales
           (edad del conductor, zona, tipo de vehículo, antigüedad, kilometraje, historial de siniestros, valor asegurado, uso, tipo de parqueadero, nivel
           educativo, estrato, género, marca).

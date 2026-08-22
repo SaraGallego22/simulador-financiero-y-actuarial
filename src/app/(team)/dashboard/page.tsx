@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { InstrumentsPanel } from "@/components/team/InstrumentsPanel";
+import { AssumptionsPanel } from "@/components/team/AssumptionsPanel";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
 import { Card } from "@/components/ui/card";
 import { LockIcon } from "@/components/ui/icons";
@@ -40,7 +40,7 @@ export default async function TeamDashboard() {
         </h1>
         {team && <TeamNameForm currentName={team.name} />}
         <p className="mt-3 max-w-2xl text-sm text-[var(--color-brand-text-secondary)]">
-          El reto simula 4 días de trabajo repartidos en 2 años de operación de una aseguradora de autos. Tu equipo
+          El reto simula 2 años de operación de una aseguradora de autos, repartidos en 4 días de trabajo. Tu equipo
           compite contra los demás equipos del cohorte por una porción de un mercado sintético de 1.000.000 de pólizas
           en Colombia, tomando decisiones actuariales (tarifa, reservas, recomendaciones sectoriales) y financieras
           (portafolio de inversión, P&G, Balance, solvencia). Cada día se califica de forma objetiva, contra un motor
@@ -96,24 +96,10 @@ export default async function TeamDashboard() {
               </Link>
             );
           })}
-
-          <Link href="/standings" className="block">
-            <Card accent="blue" glass hoverable className="flex h-full flex-col justify-center">
-              <div className="flex items-center gap-2">
-                <ShortBadge short="RK" />
-                <p className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                  Ranking
-                </p>
-              </div>
-              <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
-                Nota final de todos los equipos del cohorte.
-              </p>
-            </Card>
-          </Link>
         </div>
       </div>
 
-      <InstrumentsPanel />
+      <AssumptionsPanel />
     </main>
   );
 }

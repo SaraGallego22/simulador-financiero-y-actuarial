@@ -1,0 +1,47 @@
+/**
+ * Reglas fijas del mundo simulado que un equipo necesita tener presentes
+ * desde el día 1. Nada de lo que el ejercicio deja deliberadamente por
+ * estimar (inflación de costo de siniestros, modelo de frecuencia/severidad,
+ * tope de cuota propio) aparece aquí.
+ */
+const ASSUMPTIONS: { title: string; body: string }[] = [
+  {
+    title: "Horizonte",
+    body: "Se simulan dos años de operación, 2027 y 2028, cada uno con su propio mercado y sus propios siniestros. El 2029 se proyecta como entregable; no se simula.",
+  },
+  {
+    title: "Un siniestro por póliza al año",
+    body: "Cada póliza tiene siniestro o no lo tiene en el año — nunca dos. La frecuencia es la probabilidad de ese único evento, no un conteo esperado.",
+  },
+  {
+    title: "Los siniestros no dependen del precio",
+    body: "Los siniestros de cada año, con sus fechas y montos, quedan fijados al generar el universo. Tu tarifa decide qué pólizas aseguras, no cuáles se siniestran.",
+  },
+  {
+    title: "Capital Social: $120.000.000.000 COP",
+    body: "Todos los equipos arrancan con el mismo Capital Social y compiten sobre el mismo universo de 1.000.000 de exposiciones, con un tope de cuota de mercado por equipo.",
+  },
+];
+
+export function AssumptionsPanel() {
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5 shadow-[var(--shadow-sm)]">
+      <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+        Supuestos clave del reto
+      </h3>
+      <p className="mt-1 text-xs text-[var(--color-brand-text-secondary)]">
+        Las reglas del mundo simulado. Aplican a los cuatro días; cada guía las retoma donde hacen falta.
+      </p>
+      <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+        {ASSUMPTIONS.map((a) => (
+          <div key={a.title} className="border-t border-[var(--color-brand-gray-light)] pt-2">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+              {a.title}
+            </dt>
+            <dd className="mt-0.5 text-xs text-[var(--color-brand-text-secondary)]">{a.body}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
