@@ -13,7 +13,7 @@ interface ReportRow {
   score: number | null;
 }
 
-export interface Dia2ReportesTeamOption {
+export interface ReportesTeamOption {
   id: string;
   name: string;
   color: string;
@@ -51,12 +51,12 @@ function StatementTable({ rows }: { rows: ReportRow[] }) {
 }
 
 /**
- * Día 2's "Reportes numéricos" as a single-team dropdown, same
+ * "Reportes numéricos" as a single-team dropdown, same
  * ship-everything-precomputed-down pattern as Dia2TeamDetail (see
- * Dia1TeamDetail's doc comment for why) — replaces the accordion-per-team
- * list Días 3-4 still use in their own "Entregables" tab.
+ * Dia1TeamDetail's doc comment for why). Used by every day that has
+ * "reporte" concepts (Días 2-4).
  */
-export function Dia2ReportesTeamDetail({ teams }: { teams: Dia2ReportesTeamOption[] }) {
+export function ReportesTeamDetail({ day, teams }: { day: number; teams: ReportesTeamOption[] }) {
   const [selectedId, setSelectedId] = useState(teams[0]?.id ?? "");
   const selected = teams.find((t) => t.id === selectedId) ?? teams[0];
   if (!selected) return null;
@@ -65,7 +65,7 @@ export function Dia2ReportesTeamDetail({ teams }: { teams: Dia2ReportesTeamOptio
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)] p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-          Reportes numéricos — Día 2
+          Reportes numéricos — Día {day}
         </h3>
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
           Equipo
