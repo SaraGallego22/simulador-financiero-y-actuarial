@@ -4,6 +4,7 @@ import type { AlmYearBenchInput, FinBenchInput } from "./finBench";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { computeDevelopment } from "../reserving/development";
 import { FZ, CAPITAL_SOCIAL } from "./constants";
+import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { almSimRealYear } from "./alm";
 import type { PortfolioDecisionV4 } from "./instruments";
 
@@ -86,26 +87,31 @@ describe("finBench", () => {
     expect(bench.p3!.primaEmitida).toBeCloseTo(bench.p2!.primaEmitida * 1.06, 4);
   });
 
-  it("decouples Year 3's loss ratio from Year 2's when real development + retention data is supplied", () => {
-    const bench = finBench(richYear3Input());
+  it("Year 3's loss ratio (costo/primaEmitida) equals Year 2's by construction, now that prima3 also carries CLAIMS_INFLATION_ANNUAL", () => {
+    // prima3 = insuredCount3 × avgPremiumPerPolicy2 × (1+g) and
+    // costo3 = insuredCount3 × frecuencia2 × severidad2 × (1+g) — the same
+    // insuredCount3 and the same (1+g) cancel out of costo3/prima3, leaving
+    // exactly costo2/primaEmitida2, regardless of retention. This is no
+    // longer an independent Año 3 loss ratio (it was, before prima3 also
+    // grew by CLAIMS_INFLATION_ANNUAL) — a team's own retention/pricing
+    // choices no longer move Año 3's projected loss ratio away from Año 2's.
+    const input = { ...richYear3Input(), year2Retention: { retainedCount: 700, newCount: 200 } };
+    const bench = finBench(input);
     expect(bench.p3).not.toBeNull();
 
     const lr2 = bench.p2!.costo / bench.p2!.primaEmitida;
     const lr3 = bench.p3!.costo / bench.p3!.primaEmitida;
-    // No longer pinned equal by construction (the flat-growth fallback would
-    // make these identical) — the rich path derives costo from real
-    // development tails + an independently-projected own-year piece.
-    expect(lr3).not.toBeCloseTo(lr2, 6);
-    // Also no longer the old flat-6%-on-everything fallback.
+    expect(lr3).toBeCloseTo(lr2, 10);
+    // Still not the old flat-6%-on-everything fallback rate.
     expect(bench.p3!.primaEmitida).not.toBeCloseTo(bench.p2!.primaEmitida * 1.06, 0);
   });
 
-  it("projects Year 3 prima from retained + new policies, not a flat growth rate", () => {
+  it("projects Year 3 prima from retained + new policies, repriced by CLAIMS_INFLATION_ANNUAL, not a flat growth rate on the total", () => {
     const input = richYear3Input();
     const bench = finBench(input);
     // retained = 800/1000 (retention rate) * 1000 (Año2 insured) = 800; + 200 new = 1000 policies,
-    // at Año2's average premium per policy (520_000_000 / 1000 = 520_000).
-    const expectedPrima3 = (0.8 * 1000 + 200) * (520_000_000 / 1000);
+    // at Año2's average premium per policy (520_000_000 / 1000 = 520_000), repriced 9%.
+    const expectedPrima3 = (0.8 * 1000 + 200) * (520_000_000 / 1000) * (1 + CLAIMS_INFLATION_ANNUAL);
     expect(bench.p3!.primaEmitida).toBeCloseTo(expectedPrima3, 0);
   });
 

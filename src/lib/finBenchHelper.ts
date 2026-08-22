@@ -45,6 +45,13 @@ export interface TeamFinBenchBundle {
  * to simulate past month 12 of either year — the real ALM only exists to
  * feed that one year's real P&G/Balance, unlike the fictitious ALM (an
  * independent 60-month run per year, unchanged — see almSim()).
+ *
+ * Año 2's schedule is Día 2's own (`alloc1`) by default, but a team can
+ * optionally resubmit on Día 3 ("Portafolio 2028", `PortfolioAllocation`
+ * day=3) once Año 2's real premium is known instead of the guess Día 2's
+ * schedule had to make ahead of time — see year2Decision below. Only the
+ * schedule changes; open positions/capital comprometido still carry over
+ * unchanged from Año 1's real close (realAlmYear1.finalState).
  */
 /**
  * `universeOverride`/`year2ClaimsOverride` let a caller that already has
@@ -76,7 +83,7 @@ export async function computeFinBenchBundlesForCohort(
   // scope for a real ALM that only ever runs one year at a time).
   const year2LiabilityByTeamId = year2ClaimsByTeamId ? computeReservesForTeams(year2ClaimsByTeamId) : null;
 
-  const [year1Results, year2Results, allocations1] = await Promise.all([
+  const [year1Results, year2Results, allocations1, allocations2] = await Promise.all([
     prisma.teamSimResult.findMany({
       where: { simulationRun: { cohortId, day: 1, status: "DONE" } },
       orderBy: { simulationRun: { createdAt: "desc" } },
@@ -86,9 +93,19 @@ export async function computeFinBenchBundlesForCohort(
       orderBy: { simulationRun: { createdAt: "desc" } },
     }),
     // Año 1's real ALM schedule lives on Día 2 (not Día 1 — Día 1 is the
-    // minimum-variance exercise, a flat weight map, no checkpoints) — it's
-    // the only schedule the platform collects, and also drives Año 2's real ALM.
+    // minimum-variance exercise, a flat weight map, no checkpoints) — it
+    // always drives Año 1's real ALM, and Año 2's too unless overridden below.
     prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId } } }),
+    // Optional Día 3 "Portafolio 2028" resubmission — a team that wants to
+    // restructure its Año 2 strategy now that its real 2028 premium is known
+    // (rather than the guess it had to make on Día 2, before Año 1 even
+    // closed) can submit a fresh schedule here. When present, it fully
+    // replaces alloc1 for Año 2's real ALM (own month-0 baseline, same as
+    // Año 1's) — see year2Decision below. capitalSocialAllocation on this
+    // submission is structurally required (PortfolioForm/isPortfolioDecisionV4)
+    // but never read for year===2 (almSimRealYear only funds Capital Social
+    // at Año 1's month 0).
+    prisma.portfolioAllocation.findMany({ where: { day: 3, team: { cohortId } } }),
   ]);
 
   // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
@@ -101,9 +118,11 @@ export async function computeFinBenchBundlesForCohort(
   const year2ByTeamId = new Map<string, (typeof year2Results)[number]>();
   for (const r of year2Results) if (!year2ByTeamId.has(r.teamId)) year2ByTeamId.set(r.teamId, r);
   const toDecision = (allocation: unknown): PortfolioDecisionV4 | null => (isPortfolioDecisionV4(allocation) ? allocation : null);
-  // The only schedule the platform collects — submitted Día 2, drives Año 1's
-  // real ALM and (unchanged for Año 2, see below) Año 2's too.
+  // Submitted Día 2 — drives Año 1's real ALM always, and Año 2's too unless
+  // alloc2ByTeamId below has this team's optional Día 3 override.
   const alloc1ByTeamId = new Map(allocations1.map((a) => [a.teamId, toDecision(a.allocation)]));
+  // Optional Día 3 override for Año 2's real ALM only — see the query above.
+  const alloc2ByTeamId = new Map(allocations2.map((a) => [a.teamId, toDecision(a.allocation)]));
 
   for (const [teamId, year1] of year1ByTeamId) {
     const liabilityYear1 = reserves1.get(teamId);
@@ -122,15 +141,19 @@ export async function computeFinBenchBundlesForCohort(
       : null;
 
     const year2 = year2ByTeamId.get(teamId);
-    // Año 2's real ALM continues with the same Día 2 schedule — there's no
-    // separate Año 2 decision to fall back from anymore.
+    // Año 2's real ALM continues with the same Día 2 schedule, UNLESS this
+    // team submitted an optional Día 3 "Portafolio 2028" — when present, it
+    // fully replaces alloc1 for this call (own month-0 baseline, exactly like
+    // Año 1's schedule does — see stepMonth()'s scheduleMonth=i doc comment
+    // in alm.ts), not a splice into alloc1's own schedule array.
+    const year2Decision = alloc2ByTeamId.get(teamId) ?? alloc1;
     let realAlmYear2: AlmRealYearResult | null = null;
     let almYear2: AlmYearBenchInput | undefined;
-    if (alloc1 && year2 && realAlmYear1) {
+    if (year2Decision && year2 && realAlmYear1) {
       const desarrolloAnio1 = liabilityYear1.L.slice(0, 12);
       const siniestrosPropiosAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(0, 12) ?? new Array(12).fill(0);
       const claimsYear2 = desarrolloAnio1.map((v, i) => (v || 0) + (siniestrosPropiosAnio2[i] || 0));
-      realAlmYear2 = almSimRealYear(2, claimsYear2, alloc1, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState, year1.totalPremium);
+      realAlmYear2 = almSimRealYear(2, claimsYear2, year2Decision, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState, year1.totalPremium);
       if (realAlmYear2) {
         almYear2 = {
           portYield: realAlmYear2.portYield,

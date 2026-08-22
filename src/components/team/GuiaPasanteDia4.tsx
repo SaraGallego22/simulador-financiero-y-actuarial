@@ -326,6 +326,10 @@ export function GuiaPasanteDia4() {
               frente al promedio del mercado completo — puedes construir tu propia versión de este número con tu cartera (aunque sesgada) como punto
               de partida, no partas de cero.
             </li>
+            <li>
+              <strong>Usa hasta 4 decimales en tu multiplicador estimado</strong> (ej. 1.3456, no 1.35) — refleja la precisión real de tu propio
+              cálculo en vez de redondearlo.
+            </li>
           </ul>
         </SubSection>
 
@@ -336,6 +340,17 @@ export function GuiaPasanteDia4() {
             ¿Qué le dirías a la junta directiva de tu aseguradora sobre la relación entre qué tanto de tu portafolio de Día 2 quedó en TESUVR8 frente
             a instrumentos nominales, y el dividendo que pueden repartir hoy?
           </li>
+          <li>¿Cómo afecta la cantidad de asegurados de un sector al análisis de su multiplicador?</li>
+          <li>¿Cómo cambiarían tus multiplicadores si los construyeras con la severidad promedio del sector en vez de con su pérdida agregada total?</li>
+          <li>
+            ¿Qué tratamiento le diste a los valores nulos del universo que no era obligatorio corregir para este ejercicio? (por ejemplo, imputar el
+            valor medio por tipo de vehículo tiene más mérito que usar el promedio general del universo)
+          </li>
+          <li>
+            Compara tus sectores recomendados para crecer con las proyecciones que ya hiciste para 2029 en Día 3 — ¿qué le sugerirías modificar a
+            esas proyecciones a la luz de esta analítica?
+          </li>
+          <li>¿Cómo se relaciona el tiempo entre la fecha del siniestro y la fecha de aviso con el monto del siniestro, y cómo explicarías ese comportamiento?</li>
         </PreguntasAbiertas>
       </Section>
 

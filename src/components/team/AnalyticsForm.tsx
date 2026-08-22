@@ -100,13 +100,14 @@ function SectorSlotFields({
         <input
           type="number"
           min="0"
-          step="0.01"
+          step="any"
           name={`${prefix}-multiplier`}
           value={value.multiplier}
           onChange={(e) => onChange({ ...value, multiplier: e.target.value })}
-          placeholder="ej. 1.35"
+          placeholder="ej. 1.3456"
           className="w-24 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
         />
+        <span className="text-[11px] text-[var(--color-brand-text-secondary)]">Usa hasta 4 decimales.</span>
       </label>
     </div>
   );
