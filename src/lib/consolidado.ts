@@ -1,6 +1,7 @@
 import type { EvaluationProfile } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getTeamBookForDay, computeReservesForTeams, getUniverseForSeed, getSectorStatsForSeed } from "./teamBook";
+import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
 import { computeFinBenchForCohort } from "./finBenchHelper";
 import { getOrCreateActiveCohort } from "./cohort";
 import { scoreFinanciero } from "@/domain/finance/alm";
@@ -90,8 +91,20 @@ export interface TeamConsolidado {
  * team-facing standings page passes `cohort.openDay` so a team's own final
  * grade never reflects a day it can't see yet (admin's own views pass
  * nothing, so every day counts as soon as it's graded).
+ *
+ * `universeOverride` lets a caller that already generated (or already has)
+ * the Colombia universe this request pass it through instead of triggering
+ * another regeneration inside computeFinBenchForCohort()/getTeamBookForDay()
+ * — see those functions' doc comments. Without it, admin/day/[n] used to
+ * regenerate the universe (and rerun every team's finBench/ALM computation)
+ * a second time in the same request, on top of the copy it already computes
+ * directly for its own tables.
  */
-export async function computeConsolidado(cohortId?: string, maxDay?: number): Promise<TeamConsolidado[]> {
+export async function computeConsolidado(
+  cohortId?: string,
+  maxDay?: number,
+  universeOverride?: ColombiaUniverse
+): Promise<TeamConsolidado[]> {
   const cohort = cohortId ? { id: cohortId } : await getOrCreateActiveCohort();
 
   const [teams, rubric] = await Promise.all([
@@ -138,12 +151,12 @@ export async function computeConsolidado(cohortId?: string, maxDay?: number): Pr
     tarifByDay.set(day, byTeamId);
   }
 
-  const finBenchByTeamId = await computeFinBenchForCohort(cohort.id);
+  const finBenchByTeamId = await computeFinBenchForCohort(cohort.id, universeOverride);
 
   // Año 1's real ALM schedule is submitted Día 2 (not Día 1 — Día 1 is the
   // minimum-variance exercise, scored separately below).
   const almScoreByTeamId = new Map<string, number>();
-  const book1 = await getTeamBookForDay(cohort.id, 1);
+  const book1 = await getTeamBookForDay(cohort.id, 1, universeOverride);
   if (book1) {
     const reserves1 = computeReservesForTeams(book1.claimsByTeamId);
     const scheduleAllocations = await prisma.portfolioAllocation.findMany({ where: { day: 2, team: { cohortId: cohort.id } } });
@@ -179,7 +192,12 @@ export async function computeConsolidado(cohortId?: string, maxDay?: number): Pr
       select: { seed: true },
     });
     if (universeRun) {
-      const universe = getUniverseForSeed(universeRun.seed);
+      // getUniverseForSeed/getSectorStatsForSeed are already module-scope
+      // cached by seed (see teamBook.ts) — passing universeOverride through
+      // here would still need the seed for that cache key, so it isn't
+      // worth threading separately; the DB lookup above is cheap, unlike
+      // the finBench/ALM recomputation universeOverride avoids above.
+      const universe = universeOverride ?? getUniverseForSeed(universeRun.seed);
       const sectorStats = getSectorStatsForSeed(universeRun.seed, universe);
       const trueCrecer = rankForCrecer(sectorStats);
       const trueDisminuir = rankForDisminuir(sectorStats);

@@ -12,12 +12,16 @@ export default async function TeamStandingsPage() {
   const session = await auth();
   const cohort = await getOrCreateActiveCohort();
   const rows = await computeConsolidado(cohort.id, cohort.openDay);
-  const ranked = rows.filter((r) => r.notaFinal != null);
+  // Teams only ever see the top 3 — never their own exact position/nota
+  // when they're outside it, and never any other team's raw data (see
+  // CLAUDE.md §8).
+  const ranked = rows.filter((r) => r.notaFinal != null).slice(0, 3);
+  const isMineInTop3 = ranked.some((r) => r.teamId === session?.user.teamId);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
       <h1 className="font-[family-name:var(--font-condensed)] text-2xl font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        Ranking general
+        Top 3
       </h1>
       <p className="text-sm text-[var(--color-brand-text-secondary)]">
         Nota final ponderada de los días habilitados hasta ahora.
@@ -51,6 +55,10 @@ export default async function TeamStandingsPage() {
             })}
           </tbody>
         </Table>
+      )}
+
+      {ranked.length > 0 && !isMineInTop3 && (
+        <p className="text-sm text-[var(--color-brand-text-secondary)]">Tu equipo todavía no está en el top 3.</p>
       )}
     </main>
   );
