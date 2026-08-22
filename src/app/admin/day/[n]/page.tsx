@@ -78,9 +78,7 @@ export default async function AdminDayPage({
     historicalEvaluations,
     historicalComments,
     latestRun,
-    consolidadoRows,
     universe,
-    capacityRuns,
     deliverables,
     rubric,
     universeRunForSectors,
@@ -130,7 +128,6 @@ export default async function AdminDayPage({
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, teamResults: true },
     }),
-    activeTab === "top" || activeTab === "resultados" ? computeConsolidado(cohort.id) : Promise.resolve(null),
     // Generated once and reused below for every call that would otherwise
     // regenerate its own copy this same request (getTeamBookForDay,
     // computeFinBenchBundlesForCohort's internal Día 1/Año 2 lookups) — see
@@ -139,16 +136,6 @@ export default async function AdminDayPage({
     // on the Día 2 *simulation trigger* (/api/simulation), and made this
     // page slow to load for the same reason.
     day >= 1 ? getActiveColombiaUniverse(cohort.id) : Promise.resolve(null),
-    // Each team's Año 1/Año 2 capital-derived market-share limit (see
-    // capacityHelper.ts) — shown next to finBench's solvency figures below
-    // so an evaluator can point a capped team straight at the same numbers.
-    day >= 2
-      ? prisma.simulationRun.findMany({
-          where: { cohortId: cohort.id, day: { in: [1, 2] }, status: "DONE" },
-          orderBy: { createdAt: "desc" },
-          select: { day: true, teamResults: { select: { teamId: true, extra: true } } },
-        })
-      : Promise.resolve([]),
     // Deliverables: teams self-report numeric concepts, graded against
     // finBench's computed benchmark within a tolerance band — fetched across
     // ALL days (not just this one), since a "formula" concept can reference a
@@ -226,6 +213,37 @@ export default async function AdminDayPage({
 
   const picksByTeamId = groupSectorPicksByTeam(analyticsRecs);
 
+  // ALM score per team: needs Año 1's book of claims (bookYear is only ever
+  // 1, on Día 2 — see hasPortfolioSchedule above) to compute reserves, plus
+  // whatever tree they uploaded. This is the *fictitious* ALM only (what's
+  // graded for the Día 2 ALM nota) — the real ALM (below, via
+  // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
+  // computation, not a variant of this one (see README §5.3).
+  // All three only depend on `universe` (already resolved above), not on
+  // each other, so they run together instead of one after the other.
+  // consolidadoRows is fetched here — not in the first Promise.all above —
+  // specifically so it can pass `universe` through: computeConsolidado()
+  // internally calls computeFinBenchForCohort(), which used to regenerate
+  // its own copy of the universe and rerun every team's finBench/ALM
+  // computation a second time in the same request (redundant with
+  // finBenchBundlesByTeamId below) when fired before universe existed.
+  const [book, finBenchBundlesByTeamId, consolidadoRows] = await Promise.all([
+    bookYear != null ? getTeamBookForDay(cohort.id, bookYear, universe ?? undefined) : Promise.resolve(null),
+    // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
+    // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
+    // before any portfolio/Year-2 data exists (it falls back to a default
+    // reinvestment yield when almYear1 is null). finBenchBundlesByTeamId
+    // additionally exposes the exact real-ALM runs (realAlmYear1/2) that
+    // fed bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder
+    // without a second, separately-computed "real" run that could drift
+    // out of sync with what's actually graded (see finBenchHelper.ts's
+    // doc comment).
+    day >= 1 ? computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : Promise.resolve(new Map()),
+    activeTab === "top" || activeTab === "resultados"
+      ? computeConsolidado(cohort.id, undefined, universe ?? undefined)
+      : Promise.resolve(null),
+  ]);
+
   // This day's final "nota objetiva" per team, read straight off
   // computeConsolidado() rather than re-derived here — Día 2's real blend
   // also folds in the full Año 1 P&G's report-concept scores (see
@@ -238,28 +256,6 @@ export default async function AdminDayPage({
     const objective = row.perDay[day - 1]?.objective;
     if (objective != null) objectiveByTeamId.set(row.teamId, objective);
   }
-
-  // ALM score per team: needs Año 1's book of claims (bookYear is only ever
-  // 1, on Día 2 — see hasPortfolioSchedule above) to compute reserves, plus
-  // whatever tree they uploaded. This is the *fictitious* ALM only (what's
-  // graded for the Día 2 ALM nota) — the real ALM (below, via
-  // finBenchBundlesByTeamId) is a completely separate, 12-months-at-a-time
-  // computation, not a variant of this one (see README §5.3).
-  // These two both only depend on `universe` (already resolved above), not
-  // on each other, so they run together instead of one after the other.
-  const [book, finBenchBundlesByTeamId] = await Promise.all([
-    bookYear != null ? getTeamBookForDay(cohort.id, bookYear, universe ?? undefined) : Promise.resolve(null),
-    // finBench (P&L/balance/solvency) only needs Year 1's simulation to be
-    // DONE — p1 (Year-1 RT/gastos) is meaningful from Day 1 itself, even
-    // before any portfolio/Year-2 data exists (it falls back to a default
-    // reinvestment yield when almYear1 is null). finBenchBundlesByTeamId
-    // additionally exposes the exact real-ALM runs (realAlmYear1/2) that
-    // fed bench.p1/p2/bal1/bal2 — used below to show the real ALM ladder
-    // without a second, separately-computed "real" run that could drift
-    // out of sync with what's actually graded (see finBenchHelper.ts's
-    // doc comment).
-    day >= 1 ? computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : Promise.resolve(new Map()),
-  ]);
 
   const almScoreByTeamId = new Map<string, ReturnType<typeof scoreFinanciero>>();
   const almLadderByTeamId = new Map<string, ReturnType<typeof almLadder>>();
@@ -298,12 +294,6 @@ export default async function AdminDayPage({
       const score = scoreByNumericId.get(numericId);
       if (score != null) actuarialScoreByTeamId.set(teamId, score);
     }
-  }
-
-  const capacityByTeamIdByYear = new Map<1 | 2, Map<string, unknown>>();
-  for (const yr of [1, 2] as const) {
-    const run = capacityRuns.find((r) => r.day === yr);
-    capacityByTeamIdByYear.set(yr, new Map((run?.teamResults ?? []).map((r) => [r.teamId, r.extra])));
   }
 
   const tolerance = {
@@ -928,7 +918,7 @@ export default async function AdminDayPage({
                   Financiero (finBench) — 2027 / 2028
                 </h3>
                 <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                  Cifras en millones de pesos · el límite de cuota es número de pólizas · Riesgo mercado suma tasa, inflación y acciones.
+                  Cifras en millones de pesos · Riesgo mercado suma tasa, inflación y acciones.
                 </p>
               </div>
               <table className="w-full text-sm">
@@ -941,16 +931,12 @@ export default async function AdminDayPage({
                     <th className="px-4 py-2">Riesgo mercado</th>
                     <th className="px-4 py-2">Capital (RK)</th>
                     <th className="px-4 py-2">Margen</th>
-                    <th className="px-4 py-2">Límite 2027</th>
-                    <th className="px-4 py-2">Límite 2028</th>
                   </tr>
                 </thead>
                 <tbody>
                   {teams.map((team) => {
                     const bench = finBenchByTeamId.get(team.id);
                     if (!bench) return null;
-                    const cap1Extra = capacityByTeamIdByYear.get(1)?.get(team.id) as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-                    const cap2Extra = capacityByTeamIdByYear.get(2)?.get(team.id) as { capacityLimit?: number; rawCapacityLimit?: number } | null;
                     return (
                       <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
                         <td className="px-4 py-2">
@@ -963,17 +949,11 @@ export default async function AdminDayPage({
                         <td className="px-4 py-2">{fmtM(bench.solRMercado)}</td>
                         <td className="px-4 py-2">{fmtM(bench.solRk)}</td>
                         <td className="px-4 py-2">{bench.solMargen.toFixed(2)}×</td>
-                        <td className="px-4 py-2">{cap1Extra?.capacityLimit != null ? cap1Extra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
-                        <td className="px-4 py-2">{cap2Extra?.capacityLimit != null ? cap2Extra.capacityLimit.toLocaleString("es-CO") : "—"}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                El límite de 2028 ya refleja el patrimonio real de esta tabla (bal1.patrimonio) menos lo que el ALM real de ese equipo comprometió en el
-                2027 — un equipo con Margen bajo aquí es, casi siempre, el mismo que tuvo un límite de cuota más ajustado en 2028.
-              </p>
             </div>
       )}
 
