@@ -203,8 +203,9 @@ export function TariffUpload({
             <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] p-3">
               <p className="text-sm text-[var(--color-brand-text-secondary)]">
                 <span className="font-semibold text-[var(--color-brand-blue-accent)]">Opción de emergencia:</span> contratar a una consultora chilena, sin
-                experiencia en el mercado colombiano, para que defina tus tarifas. Vas a poder participar en el mercado con el precio que ellos asignen, y
-                el costo de esa consultoría corre por tu cuenta. Esta acción reemplaza cualquier tarifa que hayas empezado a subir.
+                experiencia en el mercado colombiano, para que defina tus tarifas. Vas a poder participar en el mercado con el precio que ellos asignen.
+                Sus honorarios son el 8% de tu prima emitida del año y se suman a tu gasto de adquisición, que pasa del 4% al 12%. Esta acción reemplaza
+                cualquier tarifa que hayas empezado a subir.
               </p>
               <div className="mt-2 flex gap-2">
                 <Button type="button" size="sm" onClick={confirmOutsource}>

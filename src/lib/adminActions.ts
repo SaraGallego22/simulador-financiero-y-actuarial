@@ -88,7 +88,6 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
     update: {
       subjectiveWeight: Number(formData.get("subjectiveWeight")),
       actuarialWeight: Number(formData.get("actuarialWeight")),
-      objectiveMode: String(formData.get("objectiveMode")),
       tolerancePerfect: Number(formData.get("tolerancePerfect")),
       toleranceZero: Number(formData.get("toleranceZero")),
     },
@@ -96,7 +95,6 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
       cohortId: cohort.id,
       subjectiveWeight: Number(formData.get("subjectiveWeight")),
       actuarialWeight: Number(formData.get("actuarialWeight")),
-      objectiveMode: String(formData.get("objectiveMode")),
       tolerancePerfect: Number(formData.get("tolerancePerfect")),
       toleranceZero: Number(formData.get("toleranceZero")),
     },

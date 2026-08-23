@@ -14,7 +14,7 @@ export const DAY_TITLES: Record<number, string> = {
 // el reporte financiero reestructurado en estados completos (ver README §4).
 export const DAY_DESCRIPTIONS: Record<number, string> = {
   1: "Actuarial: tarifica el 2027 (el dataset Chile es tu única referencia con siniestros y severidad para calibrar el modelo). Financiero: encuentra el portafolio de mínima varianza sujeto a un retorno objetivo. Al cierre del día se corre la simulación.",
-  2: "Actuarial: retarifica el 2028. Financiero: entrega el estado de resultados completo del 2027 (sin reservas por separado — esas van en el Balance de Día 3) y arma el calendario de decisión de tu portafolio real (ya conoces tus cifras reales de 2027). Al cierre del día se corre la simulación del 2028.",
+  2: "Actuarial: retarifica el 2028. Financiero: entrega el estado de resultados completo del 2027 (las reservas van en el Balance de Día 3) y arma el calendario de decisión de tu portafolio real (ya conoces tus cifras reales de 2027). Al cierre del día se corre la simulación del 2028.",
   3: "Actuarial: calcula las reservas técnicas de 2027 y 2028 como parte del Balance. Financiero: entrega el estado de resultados del 2028 y la proyección de 2029, y el Balance completo de los tres años.",
   4: "Financiero: calcula solvencia, RK, fondos propios y dividendos. Actuarial: entrega la analítica sectorial para el eventual 2029.",
 };
@@ -32,7 +32,7 @@ export const TAB_NOTES: Record<
   1: {
     sim: "Al cerrar el día se corre la simulación de mercado con la tarifa que subas: define cuántas pólizas gana tu equipo y con qué siniestralidad — la base de todo lo que viene después.",
     portfolio:
-      "Este portafolio de mínima varianza es una decisión aparte del calendario de inversión real (que se somete en Día 2, junto con tus cifras reales de prima y siniestros) — es tu presentación al regulador antes de escribir una sola póliza.",
+      "Este portafolio de mínima varianza es una decisión aparte del calendario de inversión real (que se somete en Día 2, junto con tus cifras reales de prima y siniestros) — es tu forma de demostrarle al regulador y al mercado que puedes construir un portafolio rentable con riesgo controlado.",
   },
   2: {
     sim: "Ya conoces el resultado y el calce del 2027. Ajusta tu modelo de tarificación con tu propio historial de siniestros —ahora es una variable adicional— y sube un nuevo CSV con id_expuesto,prima para los mismos 1.000.000 de expuestos.",
@@ -41,12 +41,12 @@ export const TAB_NOTES: Record<
   },
   3: {
     portfolio:
-      "Opcional: solo si quieres reestructurar tu estrategia de inversión para el 2028, ahora que ya conoces tu prima real de ese año (distinta de lo que asumiste en Día 2, antes de que el 2027 siquiera cerrara). Si lo guardas, reemplaza por completo tu calendario para el 2028 — el 2027 ya ocurrió y no cambia. Si no lo guardas, tu 2028 sigue el mismo calendario que armaste en Día 2.",
+      "Opcional: solo si quieres reestructurar tu estrategia de inversión para el 2028, ahora que ya conoces tu prima real de ese año (distinta de lo que asumiste en Día 2, antes de que el 2027 siquiera cerrara). Si lo guardas, reemplaza por completo tu calendario para el 2028 — el 2027 ya ocurrió y se mantiene igual. Si lo dejas como está, tu 2028 sigue el mismo calendario que armaste en Día 2.",
     deliverables:
-      "Recalcula las reservas del 2028 con la emergencia de siniestros del 2027 (casos avisados durante ese año, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año — no hay un reporte de reservas aparte. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de 2027, 2028 y 2029 (proyectado), línea por línea.",
+      "Recalcula las reservas del 2028 con la emergencia de siniestros del 2027 (casos avisados durante ese año, incluidos en tu reporte descargable) y entrégalas como la línea \"Reservas técnicas\" del Balance de cada año. Construye el estado de resultados por año calendario incorporando ese desarrollo, y el Balance de 2027, 2028 y 2029 (proyectado), línea por línea.",
   },
   4: {
     analytics:
-      "Nombra sectores cruzando 2 variables (ej. Zona: urbana × Uso: comercial), no una sola — el mercado tiene interacciones reales que un segmento univariado no puede mostrar. Se califica por ranking contra la verdad del universo completo, que no ves directamente: acertar la dirección no basta, importa qué tan cerca quede tu prioridad de la real.",
+      "Nombra sectores cruzando 2 variables (ej. Zona: urbana × Uso: comercial) — el mercado tiene interacciones reales que un segmento univariado diluye. Se califica por ranking contra la verdad del universo completo, que se mantiene oculta: importa qué tan cerca quede tu prioridad de la real.",
   },
 };

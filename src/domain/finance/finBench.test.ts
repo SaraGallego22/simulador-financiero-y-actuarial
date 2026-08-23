@@ -7,6 +7,8 @@ import { FZ, CAPITAL_SOCIAL } from "./constants";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { almSimRealYear } from "./alm";
 import type { PortfolioDecisionV4 } from "./instruments";
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "../pricing/outsourced";
+import { computeRt } from "../grading/composite";
 
 const liabilityYear1: LiabilitySchedule = {
   L: new Array(48).fill(0),
@@ -517,6 +519,45 @@ describe("finBench", () => {
       expect(bench.p1.ri).toBeCloseTo(bench.p1.rt - bench.p1.gadm, 6);
       expect(bench.p1.uai).toBeCloseTo(bench.p1.ri + bench.p1.rinv, 6);
       expect(bench.p1.uai).not.toBeCloseTo(bench.p1.rt + bench.p1.rinv, 6);
+    });
+  });
+
+  describe("Honorarios de la consultora (Tercerizar tarifas)", () => {
+    const base = {
+      year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
+      liabilityYear1,
+      almYear1: fakeAlmYear(0, 3_000_000),
+    };
+
+    it("rides inside gastos de adquisición — no P&G line of its own", () => {
+      const own = finBench(base);
+      const outsourced = finBench({ ...base, outsourcedYear1: true });
+      expect(own.p1.gadq).toBeCloseTo(FZ.gAdq * 500_000_000, 6);
+      expect(outsourced.p1.gadq).toBeCloseTo((FZ.gAdq + OUTSOURCED_CONSULTING_FEE_PCT) * 500_000_000, 6);
+      // Every other expense line is untouched.
+      expect(outsourced.p1.gcom).toBeCloseTo(own.p1.gcom, 6);
+      expect(outsourced.p1.gadm).toBeCloseTo(own.p1.gadm, 6);
+    });
+
+    it("lands inside RT, so it costs the team its technical result too", () => {
+      const own = finBench(base);
+      const outsourced = finBench({ ...base, outsourcedYear1: true });
+      const fee = OUTSOURCED_CONSULTING_FEE_PCT * 500_000_000;
+      expect(outsourced.p1.rt).toBeCloseTo(own.p1.rt - fee, 6);
+      expect(outsourced.p1.ri).toBeCloseTo(outsourced.p1.rt - outsourced.p1.gadm, 6);
+    });
+
+    it("matches computeRt(), the shared RT definition used for the tariff score", () => {
+      const outsourced = finBench({ ...base, outsourcedYear1: true });
+      expect(
+        computeRt({ totalPremium: 500_000_000, claimsAmount: 300_000_000, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT })
+      ).toBeCloseTo(outsourced.p1.rt, 6);
+    });
+
+    it("is charged per year — outsourcing Año 1 doesn't charge Año 2", () => {
+      const bench = finBench({ ...base, outsourcedYear1: true });
+      expect(bench.p1.gadq).toBeCloseTo((FZ.gAdq + OUTSOURCED_CONSULTING_FEE_PCT) * 500_000_000, 6);
+      expect(finBench(base).p1.gadq).toBeCloseTo(FZ.gAdq * 500_000_000, 6);
     });
   });
 

@@ -149,7 +149,7 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
           <InfoTile
             label="Volatilidad promedio sin correlaciones (referencia)"
             value={pct(score.avgVol, 2)}
-            formula="promedio de la volatilidad de cada instrumento por separado, ignorando cómo se mueven entre sí — no es la que califica"
+            formula="promedio de la volatilidad de cada instrumento por separado, ignorando cómo se mueven entre sí — referencia, la que califica es la de arriba"
           />
           <InfoTile
             label="Tasa libre de riesgo (LIQ)"
@@ -169,7 +169,7 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
           <InfoTile
             label="Pérdida por precio de venta anticipada"
             value={money(score.totalVentaForzadaPerdida)}
-            formula="ya está descontada de Rendimiento efectivo simulado — vender antes de tiempo paga menos que el valor en libros"
+            formula="ya está descontada de Rendimiento efectivo simulado — vender antes de tiempo paga por debajo del valor en libros"
           />
           <InfoTile label="Cobertura de liquidez (6 meses)" value={`${money(score.liq6)} / ${money(score.liab6)} (${(score.cobertura * 100).toFixed(0)}%)`} formula="líquido disponible ÷ pagos esperados en 6 meses" />
         </div>
@@ -180,8 +180,8 @@ export function AlmScoreTiles({ score }: { score: FinancialScore }) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <InfoTile label="Reserva" value={money(score.reserva)} />
           <InfoTile label="Rendimiento portafolio (nominal)" value={pct(score.portYield, 2)} formula="promedio ponderado de los rendimientos elegidos, sin simular" />
-          <InfoTile label="Ingreso de inversión — 2027 (ficticio)" value={money(score.incomeY1)} formula="suma de Rendimiento (meses 1-12) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
-          <InfoTile label="Ingreso de inversión — 2028 (ficticio)" value={money(score.incomeY2)} formula="suma de Rendimiento (meses 13-24) de esta corrida ficticia de 60 meses — no es lo que va al P&G real, ver el ALM real más abajo" />
+          <InfoTile label="Ingreso de inversión — 2027 (ficticio)" value={money(score.incomeY1)} formula="suma de Rendimiento (meses 1-12) de esta corrida ficticia de 60 meses — la cifra del P&G real sale del ALM real, más abajo" />
+          <InfoTile label="Ingreso de inversión — 2028 (ficticio)" value={money(score.incomeY2)} formula="suma de Rendimiento (meses 13-24) de esta corrida ficticia de 60 meses — la cifra del P&G real sale del ALM real, más abajo" />
           <InfoTile label="Ingreso total simulado (60 meses)" value={money(score.totIncome)} />
           <InfoTile
             label="Patrimonio disponible al final"
@@ -403,14 +403,14 @@ export function AlmPnlBreakdown({
         De dónde sale el Resultado de Inversiones del P&G real — {SIMULATED_YEAR_LABEL[year]}
       </h4>
       <p className="mb-2 text-sm text-[var(--color-foreground)]">
-        El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo, no una fórmula aproximada: el ingreso de inversión que el
-        portafolio realmente generó, mes a mes, durante los 12 meses de este año{" "}
+        El benchmark (&ldquo;Motor&rdquo;) que califica el entregable real es directo: el ingreso de inversión que el portafolio realmente generó,
+        mes a mes, durante los 12 meses de este año{" "}
         {year === 2 && "— continuando exactamente donde quedó el 2027, mismas posiciones abiertas, mismo capital comprometido acumulado — "}
         corrido con la prima real de este equipo — incluyendo el Capital Social, que se invierte desde el arranque del 2027 según su propia asignación
-        inicial (no una reserva aparte).
+        inicial, dentro del mismo portafolio.
         {year === 2 &&
-          " La prima 2028 en sí, sin embargo, lee el calendario del equipo desde su propio mes 0 otra vez — no desde el mes 12 del calendario absoluto — así que se invierte con la misma lógica que la prima 2027, aunque las posiciones que ya venían abiertas desde 2027 sigan su propio checkpoint sin reiniciarse."}{" "}
-        No incluye el capital comprometido (financiamiento externo genuino, ver abajo — eso ya se resta aparte, directamente del patrimonio).
+          " La prima 2028 en sí lee el calendario del equipo desde su propio mes 0 otra vez, así que se invierte con la misma lógica que la prima 2027, mientras las posiciones que ya venían abiertas desde 2027 siguen su propio checkpoint."}{" "}
+        El capital comprometido (financiamiento externo genuino, ver abajo) va aparte: se resta directamente del patrimonio.
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-2">
@@ -436,15 +436,15 @@ export function AlmPnlBreakdown({
         </p>
         <p className="text-[14px] italic text-[var(--color-brand-text-secondary)]">
           Capital Social − capital comprometido acumulado ({money(realYear.capitalComprometidoAcumulado)}
-          {year === 2 ? " — acumulado desde el 2027, nunca se repone solo" : ""}). Capital Social ya está invertido según el calendario mensual desde
-          el arranque del 2027 — este número no es &ldquo;lo que queda sin usar&rdquo;, es cuánto de él este equipo ha evitado tener que reponer con
-          financiamiento externo (casi siempre el total, ver abajo). Esto es lo mismo que finBench() usa para restar directamente del patrimonio en el
-          Balance real de este año.
+          {year === 2 ? " — acumulado desde el 2027, y se mantiene hasta que se reponga" : ""}). Capital Social ya está invertido según el calendario
+          mensual desde el arranque del 2027, así que este número mide cuánto de él este equipo ha evitado tener que reponer con financiamiento
+          externo (casi siempre el total, ver abajo). Esto es lo mismo que finBench() usa para restar directamente del patrimonio en el Balance real
+          de este año.
         </p>
       </div>
       <p className="mt-2 text-[14px] italic text-[var(--color-brand-text-secondary)]">
-        La Reserva y el Rendimiento nominal del portafolio (portYield) son los mismos entre el ficticio y el real — no dependen de la prima. Lo que sí
-        cambia es el ingreso de inversión y el capital comprometido, porque ambos dependen de cuándo entra realmente la caja mes a mes.
+        La Reserva y el Rendimiento nominal del portafolio (portYield) son los mismos entre el ficticio y el real, porque son independientes de la
+        prima. Lo que sí cambia es el ingreso de inversión y el capital comprometido, porque ambos dependen de cuándo entra realmente la caja mes a mes.
       </p>
     </div>
   );

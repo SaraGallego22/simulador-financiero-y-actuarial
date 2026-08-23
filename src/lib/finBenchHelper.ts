@@ -8,6 +8,7 @@ import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import type { PortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import type { FinBenchResult, AlmYearBenchInput } from "@/domain/finance/finBench";
 
 export interface TeamFinBenchBundle {
@@ -108,6 +109,17 @@ export async function computeFinBenchBundlesForCohort(
     prisma.portfolioAllocation.findMany({ where: { day: 3, team: { cohortId } } }),
   ]);
 
+  // Which teams used "Tercerizar tarifas", per year — the consultancy's fee
+  // is a real expense on that year's P&G (PnL.gConsultoria) and real cash out
+  // of that year's real ALM, so both need to know. Día 1's tariff prices Año
+  // 1, Día 2's prices Año 2.
+  const outsourcedSubmissions = await prisma.tariffSubmission.findMany({
+    where: { day: { in: [1, 2] }, outsourced: true, team: { cohortId } },
+    select: { teamId: true, day: true },
+  });
+  const outsourcedYear1 = new Set(outsourcedSubmissions.filter((s) => s.day === 1).map((s) => s.teamId));
+  const outsourcedYear2 = new Set(outsourcedSubmissions.filter((s) => s.day === 2).map((s) => s.teamId));
+
   // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
   // have several DONE runs for the same day (re-simulations while testing),
   // and results are ordered newest-first; `new Map` from an array of pairs
@@ -129,7 +141,11 @@ export async function computeFinBenchBundlesForCohort(
     if (!liabilityYear1) continue;
 
     const alloc1 = alloc1ByTeamId.get(teamId);
-    const realAlmYear1 = alloc1 ? almSimRealYear(1, liabilityYear1.payY1, alloc1, year1.totalPremium / BUILD_MONTHS) : null;
+    const feePct1 = outsourcedYear1.has(teamId) ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
+    const feePct2 = outsourcedYear2.has(teamId) ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
+    const realAlmYear1 = alloc1
+      ? almSimRealYear(1, liabilityYear1.payY1, alloc1, year1.totalPremium / BUILD_MONTHS, undefined, undefined, feePct1)
+      : null;
     const almYear1: AlmYearBenchInput | null = realAlmYear1
       ? {
           portYield: realAlmYear1.portYield,
@@ -153,7 +169,15 @@ export async function computeFinBenchBundlesForCohort(
       const desarrolloAnio1 = liabilityYear1.L.slice(0, 12);
       const siniestrosPropiosAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(0, 12) ?? new Array(12).fill(0);
       const claimsYear2 = desarrolloAnio1.map((v, i) => (v || 0) + (siniestrosPropiosAnio2[i] || 0));
-      realAlmYear2 = almSimRealYear(2, claimsYear2, year2Decision, year2.totalPremium / BUILD_MONTHS, realAlmYear1.finalState, year1.totalPremium);
+      realAlmYear2 = almSimRealYear(
+        2,
+        claimsYear2,
+        year2Decision,
+        year2.totalPremium / BUILD_MONTHS,
+        realAlmYear1.finalState,
+        year1.totalPremium,
+        feePct2
+      );
       if (realAlmYear2) {
         almYear2 = {
           portYield: realAlmYear2.portYield,
@@ -202,6 +226,8 @@ export async function computeFinBenchBundlesForCohort(
       year2Retention,
       marketRisk,
       accBookValue2,
+      outsourcedYear1: outsourcedYear1.has(teamId),
+      outsourcedYear2: outsourcedYear2.has(teamId),
     });
     results.set(teamId, { bench, realAlmYear1, realAlmYear2 });
   }

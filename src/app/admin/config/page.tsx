@@ -202,18 +202,6 @@ export default async function ConfigPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
-            Modo de normalización objetiva
-            <select
-              name="objectiveMode"
-              defaultValue={rubric.objectiveMode}
-              disabled={!isAdmin}
-              className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-sm disabled:opacity-60"
-            >
-              <option value="relative">Relativa (percentil 10-90)</option>
-              <option value="ranking">Ranking (posición)</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-[var(--color-foreground)]">
             Tolerancia para 100 (error ≤)
             <input
               name="tolerancePerfect"

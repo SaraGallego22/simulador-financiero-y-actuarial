@@ -1,7 +1,5 @@
 import { RT_EXPENSE_PCT, FZ } from "../finance/constants";
 
-export type ObjectiveMode = "relative" | "ranking";
-
 /** Shared input shape for computeRt() — see its doc comment for why this now mirrors finBench.ts's pyg() exactly. */
 export interface RtInputs {
   /** Prima Emitida — what was actually charged/collected, before any RPND holdback. */
@@ -9,13 +7,16 @@ export interface RtInputs {
   claimsAmount: number;
   /** The PRIOR year's own 20% RPND holdback, now released as revenue this year (FZ.rpndPct × prior year's totalPremium) — 0/undefined for Año 1, which has no prior year. See finBench.ts's pyg() `rpndLiberada` param, which this must stay in lockstep with. */
   rpndLiberada?: number;
+  /** OUTSOURCED_CONSULTING_FEE_PCT for a team that outsourced THIS year's tariff, 0/undefined otherwise — the consultancy's fee rides inside gastos de adquisición (see PnL.gadq in finBench.ts), so it's part of the expense load RT subtracts and this must stay in lockstep with pyg(). */
+  acquisitionFeePct?: number;
 }
 
 /**
  * RT (resultado técnico) — Prima Devengada minus claims minus the
  * acquisition/commission expense load (RT_EXPENSE_PCT, still charged on
  * Prima Emitida — deliberately NOT gasto administrativo, which lands on
- * its own line, Resultado Industrial, see finBench.ts's pyg()). Same
+ * its own line, Resultado Industrial, see finBench.ts's pyg()), plus
+ * `acquisitionFeePct` for a team that outsourced this year's tariff. Same
  * shape as finBench()'s own `rt` — kept as one shared definition so "RT"
  * means the same thing everywhere it's computed or displayed (grading
  * here, the P&L there, the admin panel), instead of two similarly-named
@@ -32,51 +33,7 @@ export interface RtInputs {
  */
 export function computeRt(r: RtInputs): number {
   const primaDevengada = r.totalPremium * (1 - FZ.rpndPct) + (r.rpndLiberada ?? 0);
-  return primaDevengada - r.totalPremium * RT_EXPENSE_PCT - r.claimsAmount;
-}
-
-/**
- * Ranks/normalizes each team's Year-1 or Year-2 technical result (RT, see
- * computeRt()) into a 0-100 objective tariff score. Ported from
- * notaTarifacionAnio(), line ~1241.
- *
- * "relative" mode normalizes between the 10th and 90th percentile of the
- * result (robust to one catastrophic team compressing everyone else's
- * score); "ranking" mode is a linear score by finishing position.
- */
-export function notaTarifacionAnio(
-  results: (RtInputs & { teamId: number })[],
-  mode: ObjectiveMode
-): Map<number, number> {
-  const byTeam = new Map<number, number>();
-  for (const r of results) byTeam.set(r.teamId, computeRt(r));
-  const teamIds = [...byTeam.keys()];
-  const map = new Map<number, number>();
-  if (teamIds.length === 0) return map;
-
-  if (mode === "ranking") {
-    const sorted = [...teamIds].sort((a, b) => byTeam.get(b)! - byTeam.get(a)!);
-    sorted.forEach((teamId, i) => {
-      map.set(teamId, teamIds.length > 1 ? (100 * (teamIds.length - 1 - i)) / (teamIds.length - 1) : 100);
-    });
-  } else {
-    const vals = [...byTeam.values()].sort((a, b) => a - b);
-    const pct = (p: number) => {
-      if (vals.length === 1) return vals[0];
-      const idx = (vals.length - 1) * p;
-      const lo = Math.floor(idx);
-      const hi = Math.ceil(idx);
-      return vals[lo] + (vals[hi] - vals[lo]) * (idx - lo);
-    };
-    const lo = pct(0.1);
-    const hi = pct(0.9);
-    const range = hi - lo;
-    for (const teamId of teamIds) {
-      const v = byTeam.get(teamId)!;
-      map.set(teamId, range > 0 ? Math.max(0, Math.min(100, (100 * (v - lo)) / range)) : 100);
-    }
-  }
-  return map;
+  return primaDevengada - r.totalPremium * (RT_EXPENSE_PCT + (r.acquisitionFeePct ?? 0)) - r.claimsAmount;
 }
 
 /**
@@ -125,55 +82,78 @@ const SIGMOID_STEEPNESS = Math.log(GOOD_PERFORMANCE_SCORE / (100 - GOOD_PERFORMA
  * Maps each team's loss ratio (claims ÷ Prima Emitida — the written
  * premium a team actually controls by pricing, not Prima Devengada) onto a
  * 0-100 score anchored to the *model's* own definition of good performance,
- * instead of to how the rest of the cohort happened to do this run (see
- * notaTarifacionAnio() for the cohort-relative alternative, still used for
- * Año 2). A cohort-relative score means a team's grade depends on who else
- * showed up and how they priced — this doesn't, and neither does book size:
+ * instead of to how the rest of the cohort happened to do this run. Both
+ * Año 1 and Año 2 score through here; Año 2 used to have a cohort-relative
+ * scorer of its own (percentile/ranking over the cohort's RT), which made the
+ * two days' tariff notas mean different things and made a team's Año 2 grade
+ * depend on who else showed up. A cohort-relative score means a team's grade
+ * depends on who else showed up and how they priced — this doesn't, and
+ * neither does book size:
  * RT itself is `netPremiumFrac × premium − claims` (see computeRt()), so
  * `RT ÷ claims = netPremiumFrac ÷ lossRatio − 1` — every `premium` cancels
  * out. Two teams with the same loss ratio score identically regardless of
  * how many pesos or policies either one wrote; only the ratio matters.
  *
- * "Good performance" is the loss ratio that would leave a team at exactly
+ * A team that outsourced this year's tariff carries the consultancy's fee
+ * (`acquisitionFeePct` × Prima Emitida — see RtInputs) in the numerator
+ * alongside claims, so what's scored is the full cost its pricing decision
+ * loaded onto the book, not just its claims. Adding it there rather than
+ * anywhere else is what keeps every property above intact: RT with the fee is
+ * `premium × (netPremiumFrac − feePct) − claims`, which is 0 exactly when
+ * `lossRatio + feePct == netPremiumFrac` — so the effective ratio still
+ * scores exactly 50 at RT=0, above 50 below it and below 50 above it, with
+ * `netPremiumFrac` unchanged. The fee is proportional to premium, so
+ * book-size independence survives too.
+ *
+ * "Good performance" is the cost ratio that would leave a team at exactly
  * GOOD_PERFORMANCE_MARGIN_PCT net technical margin on Prima Emitida, after
- * covering the same RT_EXPENSE_PCT expense load every team pays and the
- * RPND holdback every Año 1 book carries (this function is only ever used
- * for Año 1 — see notaTarifacionAnio() for Año 2 — so rpndLiberada is
- * always 0 here, i.e. Prima Devengada is always exactly 80% of Prima
- * Emitida): solving `netPremiumFrac − lossRatio = MARGIN` for lossRatio
- * gives `goodLossRatio = netPremiumFrac − MARGIN`.
+ * covering the same RT_EXPENSE_PCT expense load every team pays and that
+ * year's own RPND accounting: solving `availableFrac − costRatio = MARGIN`
+ * gives `goodCostRatio = availableFrac − MARGIN`.
+ *
+ * `availableFrac` is `netPremiumFrac + rpndLiberada ÷ premium`. For Año 1
+ * there's no prior year to release from, so it's just netPremiumFrac (Prima
+ * Devengada is exactly 80% of Prima Emitida). For Año 2 the prior year's own
+ * holdback comes back as revenue, so a team genuinely has more earned premium
+ * to cover the same claims with — the same term computeRt() already carries,
+ * which is why one function can anchor both years instead of Año 2 needing a
+ * cohort-relative scorer of its own.
  *
  * The ratio itself ranges over [0, ∞) with "good" on the low side, so it's
- * remapped through 1/lossRatio (higher is better, like the RT it derives
- * from) and passed through a logistic curve scaled by goodLossRatio — this
- * is what guarantees, by construction and for any input, that lossRatio ==
- * netPremiumFrac (RT exactly 0) scores exactly 50, every lower loss ratio
- * scores >50, and every higher one scores <50 (the three properties this
- * was required to satisfy), while still asymptoting to [0, 100] instead of
- * the unbounded raw RT range.
+ * remapped through 1/costRatio (higher is better, like the RT it derives
+ * from) and passed through a logistic curve scaled by goodCostRatio — this
+ * is what guarantees, by construction and for any input, that costRatio ==
+ * availableFrac (RT exactly 0) scores exactly 50, every lower ratio scores
+ * >50, and every higher one scores <50 (the three properties this was
+ * required to satisfy), while still asymptoting to [0, 100] instead of the
+ * unbounded raw RT range. A team hitting goodCostRatio exactly scores
+ * GOOD_PERFORMANCE_SCORE, likewise by construction, for any availableFrac.
  */
-export function notaTarifacionAbsoluta(
-  results: { teamId: number; totalPremium: number; claimsAmount: number }[]
-): Map<number, number> {
+export function notaTarifacionAbsoluta(results: (RtInputs & { teamId: number })[]): Map<number, number> {
   const map = new Map<number, number>();
   const netPremiumFrac = 1 - FZ.rpndPct - RT_EXPENSE_PCT;
-  const goodLossRatio = netPremiumFrac - GOOD_PERFORMANCE_MARGIN_PCT;
   for (const r of results) {
-    if (r.totalPremium <= 0 && r.claimsAmount <= 0) {
+    // The consultancy's fee is part of what this year's pricing decision
+    // loaded onto the book, so it's scored alongside claims — see this
+    // function's doc comment for why the numerator is where it has to go.
+    const cost = r.claimsAmount + (r.acquisitionFeePct ?? 0) * r.totalPremium;
+    if (r.totalPremium <= 0 && cost <= 0) {
       map.set(r.teamId, 50); // no book at all to judge — neither a good nor a bad signal
       continue;
     }
-    if (r.claimsAmount <= 0) {
-      map.set(r.teamId, 100); // collected real premium against zero claims — as good as this measure gets
+    if (cost <= 0) {
+      map.set(r.teamId, 100); // collected real premium at no cost at all — as good as this measure gets
       continue;
     }
-    // totalPremium===0 here (never negative in practice) makes lossRatio
-    // Infinity, not a throw — netPremiumFrac/Infinity is a well-defined 0 in
-    // IEEE 754, so x still comes out finite (-goodLossRatio/MARGIN) instead
+    const availableFrac = netPremiumFrac + (r.totalPremium > 0 ? (r.rpndLiberada ?? 0) / r.totalPremium : 0);
+    const goodCostRatio = availableFrac - GOOD_PERFORMANCE_MARGIN_PCT;
+    // totalPremium===0 here (never negative in practice) makes costRatio
+    // Infinity, not a throw — availableFrac/Infinity is a well-defined 0 in
+    // IEEE 754, so x still comes out finite (-goodCostRatio/MARGIN) instead
     // of NaN, same graceful behavior the old RT/goodRt formulation had for
     // this same edge case (real claims, zero premium collected).
-    const lossRatio = r.claimsAmount / r.totalPremium;
-    const x = (netPremiumFrac / lossRatio - 1) * (goodLossRatio / GOOD_PERFORMANCE_MARGIN_PCT);
+    const costRatio = cost / r.totalPremium;
+    const x = (availableFrac / costRatio - 1) * (goodCostRatio / GOOD_PERFORMANCE_MARGIN_PCT);
     map.set(r.teamId, 100 / (1 + Math.exp(-SIGMOID_STEEPNESS * x)));
   }
   return map;

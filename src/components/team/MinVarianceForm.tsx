@@ -34,8 +34,8 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
       <p className="mb-4 text-sm text-[var(--color-brand-text-secondary)]">
         Antes de escribir una sola póliza, presenta al regulador el portafolio de <strong>menor varianza posible</strong>{" "}
         que aún alcance un rendimiento esperado de al menos <strong>{(TARGET_RETURN * 100).toFixed(0)}%</strong> anual —
-        la volatilidad de cada instrumento no se muestra aquí directamente, dedúcela de la diagonal de la matriz de
-        covarianza (guía del pasante, sección 5.1). Este portafolio es una decisión aparte del calendario de inversión
+        la volatilidad de cada instrumento sale de la diagonal de la matriz de covarianza (guía del pasante, sección
+        5.1). Este portafolio es una decisión aparte del calendario de inversión
         real, que se somete en Día 2 junto con tus cifras reales de prima y siniestros.
       </p>
 

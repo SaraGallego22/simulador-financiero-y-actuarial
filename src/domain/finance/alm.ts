@@ -358,7 +358,20 @@ function stepMonth(
    * annual primaEmitida, by almSimRealYear() — never re-derived here.
    */
   cxcHoldback = 0,
-  cxpHoldback = 0
+  cxpHoldback = 0,
+  /**
+   * Extra expense ratio on top of GASTOS_TOTAL_PCT for this year — only ever
+   * nonzero for a team that outsourced its tariff (the consultancy's fee,
+   * OUTSOURCED_CONSULTING_FEE_PCT, which rides inside that year's gastos de
+   * adquisición; see PnL.gadq in finBench.ts). Real
+   * cash leaving the same month the premium it's charged on comes in, so a
+   * team that outsourced has genuinely less to invest and hits Caja Mínima
+   * sooner — the fee shows up in the ALM's own "Gastos" line, not just in the
+   * annual P&G. Always 0 for almSim(), the fictitious ALM: that run's nota
+   * grades a portfolio decision, and loading a tariff decision's cost onto it
+   * would conflate the two.
+   */
+  extraGastosPct = 0
 ): StepResult {
   const saldoInicialPortafolio = state.positions.reduce((s, p) => s + dirtyValue(p), 0) - state.capitalComprometidoAcumulado;
 
@@ -428,7 +441,7 @@ function stepMonth(
   //    stepMonth's own cxcHoldback/cxpHoldback doc comment for why getting
   //    this backwards — deriving gastos from a reduced primaCobrada — would
   //    silently shrink the cxp holdback too).
-  const gastos = GASTOS_TOTAL_PCT * primaCobrada;
+  const gastos = (GASTOS_TOTAL_PCT + extraGastosPct) * primaCobrada;
   const primaCobradaCaja = primaCobrada - cxcHoldback;
   const gastosCaja = gastos - cxpHoldback;
   const cajaMinima = FZ.cajaPct * (primaCobrada + pagoSiniestros);
@@ -1081,7 +1094,13 @@ export function almSimRealYear(
    * Año 2's real claims payments (see finBenchHelper.ts). Ignored for
    * year===1.
    */
-  priorYearTotalPremium?: number
+  priorYearTotalPremium?: number,
+  /**
+   * OUTSOURCED_CONSULTING_FEE_PCT when the team outsourced THIS year's
+   * tariff, 0 otherwise — see stepMonth()'s own extraGastosPct doc comment.
+   * Only the real ALM takes this; almSim() (fictitious) never does.
+   */
+  extraGastosPct = 0
 ): AlmRealYearResult | null {
   if (year === 2 && !initialState) {
     throw new Error("almSimRealYear(2, ...) requires Año 1's finalState — Año 2 is a continuation, not a fresh run.");
@@ -1190,7 +1209,8 @@ export function almSimRealYear(
       state,
       acc,
       i === 0 ? cxcHoldback0 : 0,
-      i === 0 ? cxpHoldback0 : 0
+      i === 0 ? cxpHoldback0 : 0,
+      extraGastosPct
     );
     rows.push(row);
     income += devengo;

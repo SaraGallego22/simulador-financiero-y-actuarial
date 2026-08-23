@@ -7,15 +7,15 @@
 const ASSUMPTIONS: { title: string; body: string }[] = [
   {
     title: "Horizonte",
-    body: "Se simulan dos años de operación, 2027 y 2028, cada uno con su propio mercado y sus propios siniestros. El 2029 se proyecta como entregable; no se simula.",
+    body: "Se simulan dos años de operación, 2027 y 2028, cada uno con su propio mercado y sus propios siniestros. El 2029 se estima como entregable, a partir de esos dos años.",
   },
   {
     title: "Un siniestro por póliza al año",
-    body: "Cada póliza tiene siniestro o no lo tiene en el año — nunca dos. La frecuencia es la probabilidad de ese único evento, no un conteo esperado.",
+    body: "Cada póliza tiene como máximo un siniestro en el año. La frecuencia es la probabilidad de ese único evento.",
   },
   {
-    title: "Los siniestros no dependen del precio",
-    body: "Los siniestros de cada año, con sus fechas y montos, quedan fijados al generar el universo. Tu tarifa decide qué pólizas aseguras, no cuáles se siniestran.",
+    title: "Los siniestros vienen fijados desde el universo",
+    body: "Los siniestros de cada año, con sus fechas y montos, quedan fijados al generar el universo. Tu tarifa decide qué pólizas aseguras.",
   },
   {
     title: "Capital Social: $120.000.000.000 COP",
