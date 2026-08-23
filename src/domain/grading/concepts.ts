@@ -108,7 +108,11 @@ export interface Concepto {
  * unpaid severity was overestimated (see p2_ajusteSiniestralidad's own
  * comment, below). RT excludes Gasto Administrativo, which lands on its own
  * line feeding a new "Resultado Industrial" (RI) instead; UAI = RI +
- * Rendimiento de Inversiones (not RT + Rinv).
+ * Rendimiento de Inversiones (not RT + Rinv). Gastos de adquisición is the
+ * one expense line whose *rate* isn't shared by every team: a team that
+ * outsourced that year's tariff carries the consultancy's fee inside it (see
+ * p1_gadq), which is why Años 1 y 2 grade that line against the engine
+ * instead of a fixed % of Prima Emitida.
  *
  * Every line that's a pure formula of OTHER already-reported lines (RPND
  * constituida/liberada, Prima Devengada, the three expense lines, RT, RI,
@@ -161,6 +165,12 @@ export const CONCEPTOS: Concepto[] = [
   },
   { id: "p1_costo", dia: "d2", perfil: "fin", tipo: "reporte", label: "Costo de siniestros A1", unit: "COP", group: "pyg_a1", get: (b) => b.p1.costo },
   {
+    // No `formula`: the acquisition expense ratio isn't the same for every
+    // team any more. A team that outsourced this year's tariff carries the
+    // consultancy's fee in this line too (FZ.gAdq + OUTSOURCED_CONSULTING_FEE_PCT
+    // — see PnL.gadq), so there's no single coefficient on Prima Emitida that
+    // grades everyone. Graded against the true engine value instead, like the
+    // other primary facts.
     id: "p1_gadq",
     dia: "d2",
     perfil: "fin",
@@ -169,7 +179,6 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "pyg_a1",
     get: (b) => b.p1.gadq,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 0.04 }] },
   },
   {
     id: "p1_gcom",
@@ -342,6 +351,7 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
   {
+    /** No `formula`, same reason as p1_gadq — see that concept's comment. */
     id: "p2_gadq",
     dia: "d3",
     perfil: "fin",
@@ -350,7 +360,6 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "pyg_a2",
     get: (b) => b.p2?.gadq ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 0.04 }] },
   },
   {
     id: "p2_gcom",

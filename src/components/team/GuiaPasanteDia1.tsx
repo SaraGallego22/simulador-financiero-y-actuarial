@@ -57,13 +57,13 @@ export function GuiaPasanteDia1() {
 
       <Section n="2" title="Teoría necesaria">
         <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-          El modelo exacto (qué variables usar, con qué forma funcional, con qué parámetros) no se revela ni se prescribe — es una decisión de tu
-          equipo, y distintos enfoques razonables pueden llegar a tarifas distintas. Esta sección te da los datos y el marco conceptual sobre el que
-          se construye cualquier estimación razonable, no la respuesta.
+          El modelo exacto (qué variables usar, con qué forma funcional, con qué parámetros) lo decide tu equipo, y distintos enfoques razonables
+          pueden llegar a tarifas distintas. Esta sección te da los datos y el marco conceptual sobre el que se construye cualquier estimación
+          razonable.
         </p>
 
         <SubSection title="Diccionario de datos — universo Colombia" accent="act">
-          <p>Las 1.000.000 exposiciones del universo público llegan en un CSV con estas columnas (ninguna incluye resultados de siniestralidad):</p>
+          <p>Las 1.000.000 exposiciones del universo público llegan en un CSV con estas columnas, todas de características de riesgo:</p>
           <DataDictTable
             rows={[
               { col: "id_expuesto", desc: "Identificador único de la exposición", rango: "1 a 1.000.000" },
@@ -86,10 +86,9 @@ export function GuiaPasanteDia1() {
 
         <SubSection title="Diccionario de datos — dataset Chile (referencia)" accent="act">
           <p>
-            100.000 pólizas con 3 años de siniestros reales (2021-2023) — a diferencia del universo Colombia, este sí trae resultados. Sus valores
-            monetarios están en <strong>UF</strong> (Unidad de Fomento, la unidad chilena indexada a la inflación), no en pesos colombianos — a
-            diferencia de la UF, el peso no tiene ese mecanismo de indexación automática; la inflación general esperada en Colombia para 2027-2028
-            es del 6% anual.
+            100.000 pólizas con 3 años de siniestros reales (2021-2023) — este dataset sí trae resultados. Sus valores monetarios están en{" "}
+            <strong>UF</strong> (Unidad de Fomento, la unidad chilena indexada a la inflación); llevarlos a pesos colombianos exige incorporar la
+            inflación de forma explícita, y la esperada en Colombia para 2027-2028 es del 6% anual.
           </p>
           <DataDictTable
             rows={[
@@ -115,21 +114,20 @@ export function GuiaPasanteDia1() {
             <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-blue-accent)]">El desafío de transferibilidad</p>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               Este dataset está en UF y corresponde a 2021-2023 — varios años antes de 2027, el año de este ejercicio. Usarlo como
-              referencia de severidad para tu propia tarifa exige resolver dos brechas distintas, no solo convertir unidades:
+              referencia de severidad para tu propia tarifa exige resolver dos brechas distintas:
             </p>
             <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-brand-text-secondary)]">
               <li>
-                <strong>Brecha temporal, dentro de Chile mismo.</strong> La UF ya está indexada a la inflación chilena — por diseño, su
-                poder adquisitivo real se mantiene constante en el tiempo, así que no existe una &ldquo;inflación real de la UF&rdquo;
-                que investigar ahí. Lo que sí cambia año a año es el costo real de reparar un vehículo (repuestos, mano de obra), medido
-                en UF — compara la severidad promedio de 2021, 2022 y 2023 en el CSV para estimar esa tendencia, y proyéctala los años
-                que faltan hasta 2027.
+                <strong>Brecha temporal, dentro de Chile mismo.</strong> La UF ya está indexada a la inflación chilena: por diseño, su
+                poder adquisitivo real se mantiene constante en el tiempo. Lo que cambia año a año es el costo real de reparar un
+                vehículo (repuestos, mano de obra), medido en UF — compara la severidad promedio de 2021, 2022 y 2023 en el CSV para
+                estimar esa tendencia, y proyéctala los años que faltan hasta 2027.
               </li>
               <li>
-                <strong>Brecha de moneda, entre Chile y Colombia.</strong> Una vez tengas esa severidad proyectada a 2027 en UF, sigue en
-                la unidad equivocada — te falta convertirla a pesos colombianos para que sea comparable con tu propio modelo de
-                severidad. Esa tasa de conversión es información pública que puedes investigar, igual que un actuario real lo haría
-                antes de usar un dataset de otro país como referencia.
+                <strong>Brecha de moneda, entre Chile y Colombia.</strong> Esa severidad proyectada a 2027 sigue expresada en UF: falta
+                convertirla a pesos colombianos para que sea comparable con tu propio modelo de severidad. Esa tasa de conversión es
+                información pública que puedes investigar, igual que un actuario real lo haría antes de usar un dataset de otro país
+                como referencia.
               </li>
             </ul>
           </InfoNote>
@@ -186,8 +184,8 @@ export function GuiaPasanteDia1() {
             </table>
           </div>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            Con estos valores, el denominador de la fórmula es 1 − 25% − 20% = 0.55. Esto carga tu prima pura de forma pareja para todo el libro —
-            no resuelve cuánto debe pagar cada póliza individual frente a otra, que es lo que decide tu propio modelo de frecuencia/severidad, abajo.
+            Con estos valores, el denominador de la fórmula es 1 − 25% − 20% = 0.55. Esto carga tu prima pura de forma pareja para todo el libro;
+            cuánto debe pagar cada póliza frente a otra lo decide tu propio modelo de frecuencia/severidad, abajo.
           </p>
         </SubSection>
 
@@ -195,18 +193,18 @@ export function GuiaPasanteDia1() {
           <p>
             La forma clásica de tarificar un riesgo asegurable descompone su costo esperado en dos preguntas independientes: ¿qué tan probable es que
             ocurra un siniestro? (frecuencia) y, si ocurre, ¿cuánto cuesta? (severidad). El costo esperado — la prima pura — es el producto de las
-            dos: <code className="rounded bg-black/5 px-1">E[costo] = E[frecuencia] × E[severidad]</code>, nunca un solo número agregado, porque
-            frecuencia y severidad responden a mecanismos distintos y pueden moverse en direcciones opuestas (un conductor más joven puede tener mayor
-            frecuencia de siniestro sin que eso diga nada sobre cuánto cuesta cada uno).
+            dos: <code className="rounded bg-black/5 px-1">E[costo] = E[frecuencia] × E[severidad]</code>. Mantenerlas separadas importa porque
+            responden a mecanismos distintos y pueden moverse en direcciones opuestas: un conductor más joven puede tener mayor frecuencia de
+            siniestro y una severidad promedio parecida a la del resto del libro.
           </p>
         </SubSection>
 
         <SubSection title="Portafolio de mínima varianza (teoría de Markowitz)" accent="fin">
           <p>
-            El marco de Markowitz parte de una idea poco intuitiva a primera vista: el riesgo (varianza) de un portafolio no es el promedio ponderado de
-            la varianza de cada instrumento que lo compone — depende de cómo covarían entre sí. Combinar instrumentos con correlación baja, o negativa,
-            puede reducir la varianza total del portafolio por debajo de la de cualquiera de sus componentes individuales, sin sacrificar rendimiento
-            esperado — ese es, en esencia, el beneficio de diversificar.
+            El marco de Markowitz parte de una idea poco intuitiva a primera vista: el riesgo (varianza) de un portafolio depende de cómo covarían
+            entre sí los instrumentos que lo componen, más allá de la varianza de cada uno por separado. Combinar instrumentos con correlación baja, o
+            negativa, puede reducir la varianza total del portafolio por debajo de la de cualquiera de sus componentes individuales, manteniendo el
+            rendimiento esperado — ese es, en esencia, el beneficio de diversificar.
           </p>
           <p>
             Para cada nivel de rendimiento esperado que te propongas alcanzar existe una combinación de pesos que minimiza la varianza resultante — el
@@ -248,29 +246,28 @@ export function GuiaPasanteDia1() {
             1.000.000 exposiciones del universo público (descargable desde la página de este día).
           </p>
           <p>
-            <strong>No existe una &ldquo;tarifa correcta&rdquo; única que debas adivinar.</strong> Al cierre del día se corre un mercado de elección: cada
+            <strong>Tu tarifa se evalúa por cómo le va en el mercado.</strong> Al cierre del día se corre un mercado de elección: cada
             asegurado compara el precio que le ofrece cada equipo y elige racionalmente (con algo de ruido aleatorio y cierta inercia hacia su aseguradora
-            actual), sujeto a un tope de cuota de mercado por equipo — ningún equipo puede quedarse con todo el mercado solo por ser el más barato; el
-            exceso de demanda se redistribuye entre los equipos que todavía tienen cupo disponible.
+            actual), sujeto a un tope de cuota de mercado por equipo: al llegar a ese tope, el exceso de demanda se redistribuye entre los equipos que
+            todavía tienen cupo disponible.
           </p>
           <p>
             Tu nota actuarial del día depende de tu resultado técnico (prima devengada − siniestros − gastos de adquisición/comisión — el gasto
-            administrativo tiene su propia línea aparte, Resultado Industrial, y no resta aquí), comparado contra un desempeño de referencia que define
-            el propio modelo — no contra el resultado de los demás equipos. La prima devengada no es toda la prima que cobraste: como en cualquier
-            aseguradora, una parte de la prima de este año todavía no se ha &ldquo;ganado&rdquo; y se reserva como Reserva de Prima No Devengada (RPND) —
-            para tu primer año, la prima devengada es el 80% de lo que efectivamente cobraste (más detalle en la guía de Día 2, cuando armes tu propio
-            P&amp;G). Precios muy altos pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico
-            si atraen selectivamente el riesgo equivocado — y los gastos, al ser un porcentaje fijo de la prima cobrada, pesan más cuanto más barato
-            cobres.
+            administrativo se resta más abajo, en su propia línea, el Resultado Industrial), comparado contra un desempeño de referencia fijo que define
+            el propio modelo, igual para todos los equipos. La prima devengada es la porción de la prima que ya se considera ganada: como en cualquier
+            aseguradora, la parte que todavía cubre riesgo futuro se reserva como Reserva de Prima No Devengada (RPND) — para tu primer año, la prima
+            devengada es el 80% de lo que efectivamente cobraste (más detalle en la guía de Día 2, cuando armes tu propio P&amp;G). Precios muy altos
+            pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente
+            el riesgo equivocado — y los gastos, al ser un porcentaje fijo de la prima cobrada, pesan más cuanto más barato cobres.
           </p>
           <ul className="list-disc pl-5">
             <li>Resultado técnico en cero (ni ganancia ni pérdida, ya descontados los gastos) → nota 50.</li>
             <li>Resultado técnico positivo → nota por encima de 50, acercándose a 100 mientras mejor sea tu margen.</li>
-            <li>Resultado técnico negativo → nota por debajo de 50, acercándose a 0 mientras peor sea, sin llegar nunca a un número negativo.</li>
+            <li>Resultado técnico negativo → nota por debajo de 50, acercándose a 0 mientras peor sea (0 es el piso de la escala).</li>
             <li>
               El &ldquo;buen desempeño&rdquo; de referencia (el que da una nota de 75) es un margen técnico neto del 20% sobre la prima cobrada, después
-              de siniestros, la RPND y gastos — calculado sobre tu propia siniestralidad real, no un monto fijo en pesos, para que un equipo con una
-              cartera chica y uno con una grande se midan con la misma vara relativa.
+              de siniestros, la RPND y gastos — un porcentaje calculado sobre tu propia siniestralidad real, para que un equipo con una cartera chica y
+              uno con una grande se midan con la misma vara relativa.
             </li>
           </ul>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
@@ -290,9 +287,8 @@ export function GuiaPasanteDia1() {
           <p>
             Asignas un peso (que debe sumar 100%) entre los instrumentos disponibles (tabla en la sección 5) buscando el <strong>menor riesgo posible</strong>{" "}
             — medido como la varianza del portafolio, usando la matriz de covarianza que se te da en el formulario — sujeto a alcanzar al menos un{" "}
-            <strong>rendimiento esperado objetivo</strong>. No es un calendario de decisiones con vencimientos y reinversión: es una asignación de pesos, de
-            una sola vez, sin reinversión ni horizonte temporal — una fotografía de cómo invertirías el capital hoy mismo, antes de saber cuánta prima vas
-            a cobrar o cuántos siniestros vas a pagar.
+            <strong>rendimiento esperado objetivo</strong>. Es una asignación de pesos, de una sola vez — una fotografía de cómo invertirías el capital
+            hoy mismo, antes de saber cuánta prima vas a cobrar o cuántos siniestros vas a pagar.
           </p>
           <p>
             Tu nota compara la varianza que realmente lograste contra la varianza mínima real (la que un portafolio óptimo habría logrado con el mismo
@@ -307,8 +303,8 @@ export function GuiaPasanteDia1() {
 
       <Section n="4" title="Conceptos que debes aplicar">
         <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-          Esto es una guía de razonamiento, no una receta — el modelo exacto de riesgo y la asignación óptima del portafolio son parte de lo que se
-          evalúa que tu equipo descubra.
+          Esto es una guía de razonamiento: el modelo exacto de riesgo y la asignación óptima del portafolio son parte de lo que se evalúa que tu
+          equipo descubra.
         </p>
 
         <SubSection title="Para la tarifa" accent="act">
@@ -316,46 +312,61 @@ export function GuiaPasanteDia1() {
           <ul className="list-disc pl-5">
             <li>
               <strong>¿Qué tan probable es que cada póliza tenga un siniestro, y qué tan costoso sería si lo tiene?</strong> El universo público te da 13
-              variables de riesgo por póliza, pero sin resultados — para eso está el dataset Chile (sección 3), que trae sus propios retos de
-              transferibilidad hacia Colombia. No todas las variables pesan igual — parte de tu trabajo es identificar cuáles combinan señal real de
-              riesgo y cuáles no. El modelo exacto de frecuencia/severidad no se revela: se espera que lo estimes con criterio actuarial (frecuencia
-              esperada × severidad esperada ≈ costo esperado por póliza), no que lo adivines a ciegas.
+              variables de riesgo por póliza; los resultados de siniestralidad están en el dataset Chile (sección 3), que trae sus propios retos de
+              transferibilidad hacia Colombia. Las variables pesan distinto entre sí — parte de tu trabajo es identificar cuáles llevan señal real de
+              riesgo. Estimar el modelo de frecuencia/severidad con criterio actuarial (frecuencia esperada × severidad esperada ≈ costo esperado por
+              póliza) es justamente lo que se evalúa.
             </li>
             <li>
-              <strong>¿Qué pasa si cobras lo mismo a todos, o casi lo mismo?</strong>
-            </li>
-            <li>
-              <strong>Precio y volumen están en tensión, no son independientes.</strong> El mercado tiene un tope de cuota por equipo, así que no puedes
-              ganar simplemente bajando el precio sin límite — y cada punto de prima por encima del mercado te cuesta clientes. Piensa en tu tarifa como
-              una curva de trade-offs entre volumen y margen, no como un solo número a optimizar en el vacío.
+              <strong>Precio y volumen están en tensión.</strong> El mercado tiene un tope de cuota por equipo, que limita cuánto volumen te compra
+              bajar el precio — y cada punto de prima por encima del mercado te cuesta clientes. Piensa en tu tarifa como una curva de trade-offs entre
+              volumen y margen.
             </li>
           </ul>
+
+          <InfoNote>
+            <p>
+              <strong>Un chequeo de sensatez antes de enviar:</strong> como referencia de orden de magnitud, un promedio de tarifa entre aproximadamente{" "}
+              <strong>$3.000.000 y $5.000.000 COP</strong> por póliza es un punto de partida razonable. Tómalo como referencia de orden de magnitud:
+              cómo varías el precio entre pólizas de distinto riesgo importa tanto como el promedio.
+            </p>
+            <p className="mt-2">Un par de chequeos rápidos que te pueden dar señales tempranas:</p>
+            <ul className="list-disc pl-5">
+              <li>
+                <strong>Revisa tu tarifa mínima y máxima.</strong> ¿Tienen sentido frente al perfil de riesgo de esas pólizas, o son un artefacto de tu
+                fórmula?
+              </li>
+              <li>
+                <strong>Compara tu media con tu mediana.</strong> Si la media queda bastante por encima de la mediana, ¿qué te dice eso sobre la forma
+                de tu distribución de precios — y sobre qué tan bien tu tarifa distingue riesgo alto de riesgo bajo?
+              </li>
+            </ul>
+          </InfoNote>
         </SubSection>
 
         <SubSection title="Para el portafolio de mínima varianza" accent="fin">
           <p>
-            La matriz de covarianza no es un adorno — es la pieza que hace que este ejercicio no se resuelva solo mirando la volatilidad individual de
-            cada instrumento. Antes de asignar pesos, considera:
+            La matriz de covarianza es la pieza central de este ejercicio: la varianza de tu portafolio depende de cómo se mueven los instrumentos
+            entre sí. Antes de asignar pesos, considera:
           </p>
           <ul className="list-disc pl-5">
             <li>
-              <strong>El instrumento menos volátil solo no basta.</strong> Con un rendimiento objetivo por cumplir, no puedes simplemente concentrar todo
-              en el instrumento más seguro del menú si su rendimiento no alcanza el objetivo — necesitas combinar instrumentos, y la combinación óptima
-              depende de cómo covarían entre sí, no solo de sus volatilidades individuales.
+              <strong>El rendimiento objetivo obliga a combinar instrumentos.</strong> Si el instrumento más seguro del menú rinde por debajo del
+              objetivo, alcanzarlo exige mezclarlo con otros — y cuál es la mejor mezcla depende de cómo covarían entre sí, más allá de sus
+              volatilidades individuales.
             </li>
             <li>
-              <strong>Correlación baja (o negativa) reduce riesgo más que un instrumento &ldquo;seguro&rdquo; aislado.</strong> Dos instrumentos con
-              volatilidades similares pero que no se mueven juntos pueden combinarse en un portafolio con menos riesgo total que cualquiera de los dos por
-              separado — ese es exactamente el tipo de relación que la matriz de covarianza te muestra y una tabla de volatilidades individuales no.
+              <strong>Correlación baja (o negativa) reduce riesgo.</strong> Dos instrumentos con volatilidades similares que se mueven de forma
+              independiente pueden combinarse en un portafolio con menos riesgo total que cualquiera de los dos por separado — esa relación es
+              exactamente lo que te muestra la matriz de covarianza.
             </li>
             <li>
-              <strong>El rendimiento objetivo no es negociable, pero cómo lo alcanzas sí.</strong> Hay muchas combinaciones de pesos que llegan al mismo
+              <strong>El rendimiento objetivo es una restricción fija; cómo lo alcanzas es tu decisión.</strong> Hay muchas combinaciones de pesos que llegan al mismo
               rendimiento esperado — tu trabajo es encontrar, de esas, la que minimiza la varianza resultante.
             </li>
             <li>
-              <strong>TES3 y TES UVR 8 pagan cupón anual, no un solo pago al vencer.</strong> Eso les da liquidez intermedia real — no todo el
-              rendimiento queda atrapado hasta el vencimiento — y por eso su exposición genuina al riesgo de tasa es algo menor de lo que su plazo nominal
-              sugeriría por sí solo; la matriz de covarianza ya refleja esto.
+              <strong>TES3 y TES UVR 8 pagan cupón anual.</strong> Eso les da liquidez intermedia año a año, y por eso su exposición genuina al riesgo
+              de tasa es algo menor de lo que su plazo nominal sugeriría por sí solo; la matriz de covarianza ya refleja esto.
             </li>
           </ul>
         </SubSection>
@@ -365,6 +376,8 @@ export function GuiaPasanteDia1() {
             ¿Qué otras variables, si estuvieran disponibles, podrían mejorar tu estimación de frecuencia/severidad más allá de las 13 que tienes en el
             universo público?
           </li>
+          <li>¿Qué pasa si cobras lo mismo a todos, o casi lo mismo?</li>
+          <li>¿Qué consecuencias tiene ser el equipo con las tarifas más altas? ¿Y el equipo con las tarifas más bajas?</li>
           <li>¿Cómo cambiaría tu estrategia de precio si el mercado no tuviera un tope de cuota por equipo?</li>
           <li>Si el rendimiento objetivo de tu portafolio subiera considerablemente, ¿qué instrumentos esperarías que ganen peso, y por qué?</li>
         </PreguntasAbiertas>
@@ -379,6 +392,10 @@ export function GuiaPasanteDia1() {
 
         <FlowStep n="1" title="5.1 · Instrumentos disponibles">
           <InstrumentsTable />
+          <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
+            Asume que los plazos (tanto vencimientos como cupones) se cuentan desde el momento en que compras el instrumento, independientemente del
+            mes calendario.
+          </p>
           <p>
             <strong>Matriz de covarianza</strong> entre los 6 instrumentos — la pieza que necesitas para calcular la varianza de cualquier combinación
             de pesos (ver sección 4).
@@ -390,13 +407,12 @@ export function GuiaPasanteDia1() {
           <BlankTable
             headers={["Instrumento (del menú de 5.1)", "% asignado"]}
             rows={INSTRUMENTS.length}
-            note="Aquí no hay vencimientos ni reinversión — solo un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) está en la sección 5.1."
+            note="Un peso por instrumento, que debe sumar 100%. La matriz de covarianza completa (36 valores) está en la sección 5.1."
           />
           <FlagCallout>
             <span className="font-semibold">Restricción — </span>
-            tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema rechaza cualquier envío que
-            no lo alcance — no vas a poder guardar un portafolio que no cumpla la restricción, así que puedes usar los intentos rechazados como
-            retroalimentación mientras ajustas tus pesos.
+            tus pesos deben alcanzar un <strong>rendimiento esperado mínimo</strong> (visible en el formulario). El sistema solo guarda envíos que lo
+            cumplan, así que puedes usar los intentos rechazados como retroalimentación mientras ajustas tus pesos.
           </FlagCallout>
         </FlowStep>
 
@@ -420,8 +436,8 @@ export function GuiaPasanteDia1() {
               objetivo → la cercanía entre tu varianza lograda y esa varianza mínima real es tu nota de hoy.
             </p>
             <p className="mt-2 text-sm">
-              Este portafolio no se vuelve a usar más adelante en el ejercicio — es un ejercicio aparte de tu decisión de inversión real, que tomarás
-              una vez conozcas tus cifras reales de prima y siniestros de este año.
+              Este portafolio se queda aquí como ejercicio aparte: tu decisión de inversión real la tomarás una vez conozcas tus cifras reales de prima
+              y siniestros de este año.
             </p>
           </div>
         </FlowStep>

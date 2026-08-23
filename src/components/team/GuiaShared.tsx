@@ -158,7 +158,7 @@ export function PreguntasAbiertas({ children }: { children: ReactNode }) {
         <ChatIcon className="h-4 w-4" />
       </span>
       <p className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-        Preguntas abiertas <span className="font-normal normal-case">— no se califican, son para profundizar en equipo</span>
+        Preguntas abiertas <span className="font-normal normal-case">— para profundizar en equipo, fuera de la calificación</span>
       </p>
       <ul className="flex flex-col gap-1.5 text-sm text-[var(--color-brand-blue)]">
         {children}

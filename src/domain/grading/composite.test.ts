@@ -3,43 +3,13 @@ import {
   notaDia,
   notaObjetivaDia,
   notaSubjetivaEquipo,
-  notaTarifacionAnio,
   notaTarifacionAbsoluta,
   computeRt,
   GOOD_PERFORMANCE_MARGIN_PCT,
   GOOD_PERFORMANCE_SCORE,
 } from "./composite";
 import { RT_EXPENSE_PCT, FZ } from "../finance/constants";
-
-describe("notaTarifacionAnio", () => {
-  // RT = totalPremium*(1-FZ.rpndPct-RT_EXPENSE_PCT) - claimsAmount (rpndLiberada
-  // omitted -> 0, i.e. Año 1); all four rows share the same totalPremium, so the
-  // flat expense/RPND load subtracted from every RT is a uniform shift that
-  // doesn't change the ordering below.
-  const results = [
-    { teamId: 1, totalPremium: 100, claimsAmount: 40 }, // RT = 21
-    { teamId: 2, totalPremium: 100, claimsAmount: 70 }, // RT = -9
-    { teamId: 3, totalPremium: 100, claimsAmount: 10 }, // RT = 51 (best)
-    { teamId: 4, totalPremium: 100, claimsAmount: 200 }, // RT = -139 (catastrophic)
-  ];
-
-  it("ranking mode gives the best result 100 and the worst 0", () => {
-    const map = notaTarifacionAnio(results, "ranking");
-    expect(map.get(3)).toBe(100);
-    expect(map.get(4)).toBe(0);
-  });
-
-  it("relative mode clamps to [0, 100] and isn't fully collapsed by one catastrophic outlier", () => {
-    const map = notaTarifacionAnio(results, "relative");
-    for (const v of map.values()) {
-      expect(v).toBeGreaterThanOrEqual(0);
-      expect(v).toBeLessThanOrEqual(100);
-    }
-    // Team 3 (best RT) should still clearly outscore team 2 (worse RT),
-    // i.e. the percentile clamp doesn't flatten the ordering.
-    expect(map.get(3)!).toBeGreaterThan(map.get(2)!);
-  });
-});
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "../pricing/outsourced";
 
 describe("computeRt", () => {
   it("matches finBench's own pyg() shape: primaDevengada - gastos*primaEmitida - claims (Año 1, rpndLiberada omitted -> 0)", () => {
@@ -121,6 +91,59 @@ describe("notaTarifacionAbsoluta", () => {
     expect(map.get(1)!).toBeLessThan(50);
     expect(map.get(2)).toBe(50);
     expect(map.get(3)).toBe(100);
+  });
+
+  // Both days score with this one function now (Año 2 used to have a
+  // cohort-relative scorer of its own), so its two anchor properties have to
+  // survive Año 2's RPND release and a team's consulting fee.
+  describe("anchors hold for any rpndLiberada / consulting fee", () => {
+    const cases = [
+      { name: "Año 1, own tariff", rpndLiberada: 0, acquisitionFeePct: 0 },
+      { name: "Año 1, outsourced", rpndLiberada: 0, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT },
+      { name: "Año 2, own tariff", rpndLiberada: 37_000, acquisitionFeePct: 0 },
+      { name: "Año 2, outsourced", rpndLiberada: 37_000, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT },
+    ];
+
+    for (const { name, rpndLiberada, acquisitionFeePct } of cases) {
+      it(`${name}: RT=0 scores exactly 50 and the good-performance margin scores exactly ${GOOD_PERFORMANCE_SCORE}`, () => {
+        const totalPremium = 200_000;
+        const availableFrac = 1 - FZ.rpndPct - RT_EXPENSE_PCT + rpndLiberada / totalPremium;
+
+        // Claims that leave RT exactly 0, then exactly at the good margin.
+        const breakevenClaims = totalPremium * (availableFrac - acquisitionFeePct);
+        const goodClaims = totalPremium * (availableFrac - acquisitionFeePct - GOOD_PERFORMANCE_MARGIN_PCT);
+
+        const map = notaTarifacionAbsoluta([
+          { teamId: 1, totalPremium, claimsAmount: breakevenClaims, rpndLiberada, acquisitionFeePct },
+          { teamId: 2, totalPremium, claimsAmount: goodClaims, rpndLiberada, acquisitionFeePct },
+        ]);
+        // Cross-check the claims levels really are RT=0 / RT=margin.
+        expect(computeRt({ totalPremium, claimsAmount: breakevenClaims, rpndLiberada, acquisitionFeePct })).toBeCloseTo(0, 6);
+        expect(computeRt({ totalPremium, claimsAmount: goodClaims, rpndLiberada, acquisitionFeePct })).toBeCloseTo(
+          totalPremium * GOOD_PERFORMANCE_MARGIN_PCT,
+          6
+        );
+        expect(map.get(1)!).toBeCloseTo(50, 6);
+        expect(map.get(2)!).toBeCloseTo(GOOD_PERFORMANCE_SCORE, 6);
+      });
+    }
+
+    it("the consulting fee costs a team score at an otherwise identical loss ratio", () => {
+      const row = { totalPremium: 200_000, claimsAmount: 120_000 };
+      const map = notaTarifacionAbsoluta([
+        { teamId: 1, ...row, acquisitionFeePct: 0 },
+        { teamId: 2, ...row, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT },
+      ]);
+      expect(map.get(2)!).toBeLessThan(map.get(1)!);
+    });
+
+    it("stays book-size independent even with a fee (it's proportional to premium)", () => {
+      const map = notaTarifacionAbsoluta([
+        { teamId: 1, totalPremium: 1_000, claimsAmount: 600, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT },
+        { teamId: 2, totalPremium: 1_000_000_000, claimsAmount: 600_000_000, acquisitionFeePct: OUTSOURCED_CONSULTING_FEE_PCT },
+      ]);
+      expect(map.get(1)!).toBeCloseTo(map.get(2)!, 6);
+    });
   });
 });
 

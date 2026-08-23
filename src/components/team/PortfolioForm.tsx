@@ -147,7 +147,7 @@ export function PortfolioForm({
             <p className="mb-2 text-sm font-semibold text-[var(--color-foreground)]">Capital Social — asignación inicial</p>
             <p className="mb-2 text-xs text-[var(--color-brand-text-secondary)]">
               Decisión aparte de tu calendario de abajo: cómo se invierte tu Capital Social desde el mes 0 del 2027. Una vez invertido, sigue el mismo
-              calendario que la prima — no es un bolsillo distinto, solo su punto de partida es propio.
+              calendario que la prima; lo único propio es su punto de partida.
             </p>
             <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} />
           </div>

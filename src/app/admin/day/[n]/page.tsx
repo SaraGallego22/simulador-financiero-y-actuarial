@@ -17,8 +17,9 @@ import {
   sectorLabel,
   SECTOR_MIN_COUNT,
 } from "@/domain/grading/sectors";
-import { notaTarifacionAbsoluta, notaTarifacionAnio, notaPerfilDia, computeRt } from "@/domain/grading/composite";
+import { notaTarifacionAbsoluta, notaPerfilDia, computeRt } from "@/domain/grading/composite";
 import { FZ } from "@/domain/finance/constants";
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import { computeConsolidado } from "@/lib/consolidado";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
@@ -282,13 +283,16 @@ export default async function AdminDayPage({
   }
 
   // Actuarial (tarifación) score per team for this day's results — same
-  // functions computeConsolidado() uses for the final grade, so what the
-  // admin sees here always matches what actually gets graded. Día 1 is
-  // model-anchored (notaTarifacionAbsoluta); Día 2 stays cohort-relative,
-  // per the rubric's configurable objectiveMode. RT (and this score with
-  // it) needs finBenchByTeamId above to release Año 1's own RPND holdback
-  // as Año 2's revenue — see composite.ts's computeRt().
+  // function computeConsolidado() uses for the final grade, so what the admin
+  // sees here always matches what actually gets graded. Both days are
+  // model-anchored (notaTarifacionAbsoluta), and Día 2 needs finBenchByTeamId
+  // above to release Año 1's own RPND holdback as Año 2's revenue — see
+  // composite.ts's computeRt().
   const actuarialScoreByTeamId = new Map<string, number>();
+  // Teams that outsourced this day's tariff carry the consultancy's fee inside
+  // gastos de adquisición, part of the expense load RT subtracts — see
+  // computeRt()/PnL.gadq.
+  const outsourcedThisDay = new Set(teams.filter((t) => t.tariffSubmissions[0]?.outsourced).map((t) => t.id));
   if (includeSim && latestRun?.teamResults.length) {
     const numericIdByTeamId = new Map(latestRun.teamResults.map((r, i) => [r.teamId, i + 1]));
     const rows = latestRun.teamResults.map((r) => ({
@@ -296,9 +300,9 @@ export default async function AdminDayPage({
       totalPremium: r.totalPremium,
       claimsAmount: r.claimsAmount,
       rpndLiberada: day === 2 ? FZ.rpndPct * (finBenchByTeamId.get(r.teamId)?.p1.primaEmitida ?? 0) : undefined,
+      acquisitionFeePct: outsourcedThisDay.has(r.teamId) ? OUTSOURCED_CONSULTING_FEE_PCT : 0,
     }));
-    const scoreByNumericId =
-      day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, (rubric?.objectiveMode as "relative" | "ranking") ?? "relative");
+    const scoreByNumericId = notaTarifacionAbsoluta(rows);
     for (const [teamId, numericId] of numericIdByTeamId) {
       const score = scoreByNumericId.get(numericId);
       if (score != null) actuarialScoreByTeamId.set(teamId, score);
@@ -1281,7 +1285,13 @@ export default async function AdminDayPage({
                 const result = resultByTeamId.get(team.id);
                 // Día 2's RT releases Año 1's own RPND holdback as revenue — see composite.ts's computeRt().
                 const rpndLiberada = FZ.rpndPct * (finBenchByTeamId.get(team.id)?.p1.primaEmitida ?? 0);
-                const rt = result ? computeRt({ ...result, rpndLiberada }) : null;
+                const rt = result
+                  ? computeRt({
+                      ...result,
+                      rpndLiberada,
+                      acquisitionFeePct: outsourcedThisDay.has(team.id) ? OUTSOURCED_CONSULTING_FEE_PCT : 0,
+                    })
+                  : null;
                 const actuarialScore = actuarialScoreByTeamId.get(team.id);
                 const finScore = finReportScoreByTeamId.get(team.id);
                 const objective = objectiveByTeamId.get(team.id);

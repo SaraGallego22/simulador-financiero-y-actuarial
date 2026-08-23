@@ -273,11 +273,10 @@ model RubricConfig {
   cohortId String @unique
   cohort   Cohort @relation(fields: [cohortId], references: [id])
 
-  subjectiveWeight Float  @default(0.30)
-  actuarialWeight  Float  @default(0.50)
-  objectiveMode    String @default("relative")
-  tolerancePerfect Float  @default(0.05)
-  toleranceZero    Float  @default(0.40)
+  subjectiveWeight Float @default(0.30)
+  actuarialWeight  Float @default(0.50)
+  tolerancePerfect Float @default(0.05)
+  toleranceZero    Float @default(0.40)
 }
 
 enum EvaluationProfile {

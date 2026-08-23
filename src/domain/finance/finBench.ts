@@ -5,6 +5,7 @@ import { DEV_FRAC } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
 import type { MarketRiskAtYearEnd } from "./alm";
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "../pricing/outsourced";
 
 /**
  * What finBench() actually needs from a real, one-year ALM run — not the
@@ -46,11 +47,22 @@ export interface PnL {
   primaDevengada: number;
   /** Accident-year ultimate of THIS year's own claims only — never touched by a prior year's late emergence/development (see finBench()'s doc comment on why that used to leak in). */
   costo: number;
+  /**
+   * Gastos de adquisición. FZ.gAdq × primaEmitida normally — but a team that
+   * used "Tercerizar tarifas" this year carries the consultancy's fee inside
+   * this same line, at (FZ.gAdq + OUTSOURCED_CONSULTING_FEE_PCT) ×
+   * primaEmitida. Pricing/underwriting work is an acquisition cost — what it
+   * takes to put the business on the books — not general overhead, so it
+   * belongs here rather than in gadm, and it does land inside RT: a team that
+   * paid someone else to build its tariff genuinely had a worse underwriting
+   * result. See OUTSOURCED_CONSULTING_FEE_PCT in domain/pricing/outsourced.ts,
+   * and computeRt() in grading/composite.ts, which mirrors this.
+   */
   gadq: number;
   gcom: number;
-  gadm: number;
   /** Resultado Técnico = primaDevengada − costo − gadq − gcom. Deliberately excludes gadm — see `ri`. "Ajuste de siniestralidad" (a fixed release of 10% of the true reserva técnica A1, see FZ.sevRevisionA1Pct and p2_ajusteSiniestralidad in concepts.ts) is a separate reported P&G line that the team's own RT formula subtracts — it's not part of this true/reference rt, which stays this year's own accident-year underwriting result only. */
   rt: number;
+  gadm: number;
   /** Resultado Industrial = rt − gadm. The line gadm actually lands on, separated from the underwriting-only `rt`. */
   ri: number;
   rinv: number;
@@ -135,17 +147,37 @@ export interface FinBenchInput {
   marketRisk?: MarketRiskAtYearEnd | null;
   /** ACC book value the team's real ALM ends up holding at the end of Año 2 (see computeFinBenchBundlesForCohort in finBenchHelper.ts) — feeds solRAcciones = accBookValue2 × ACC_STRESS_PCT. */
   accBookValue2?: number;
+  /**
+   * Whether the team used "Tercerizar tarifas" for Año 1 / Año 2 — each year
+   * independently, since a team can outsource one year and price its own book
+   * the next. Drives that year's own PnL.gConsultoria (see its doc comment);
+   * Año 3 never carries a fee, since it's a projection off a book the team is
+   * assumed to be pricing itself by then, not another engagement.
+   */
+  outsourcedYear1?: boolean;
+  outsourcedYear2?: boolean;
 }
 
 /**
  * Builds one year's P&L from primaEmitida down to uneta. `rpndLiberada` is
  * the one input that can't be derived from this year's own data — the
  * prior year's own 20% holdback, passed in by the caller (0 for Año 1).
+ * `consultingFeePct` is 0 for every team that priced its own book, and
+ * OUTSOURCED_CONSULTING_FEE_PCT for a year the team outsourced its tariff —
+ * it raises that year's acquisition expense ratio rather than adding a line
+ * of its own (see PnL.gadq).
  */
-function pyg(primaEmitida: number, rpndLiberada: number, costo: number, rinv: number, reservas: number): PnL {
+function pyg(
+  primaEmitida: number,
+  rpndLiberada: number,
+  costo: number,
+  rinv: number,
+  reservas: number,
+  consultingFeePct = 0
+): PnL {
   const rpndConstituida = FZ.rpndPct * primaEmitida;
   const primaDevengada = primaEmitida - rpndConstituida + rpndLiberada;
-  const gadq = FZ.gAdq * primaEmitida;
+  const gadq = (FZ.gAdq + consultingFeePct) * primaEmitida;
   const gcom = FZ.gCom * primaEmitida;
   const gadm = FZ.gAdmin * primaEmitida;
   const rt = primaDevengada - costo - gadq - gcom;
@@ -292,6 +324,8 @@ function balance(
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
   const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention, marketRisk, accBookValue2 } = input;
+  const feePct1 = input.outsourcedYear1 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
+  const feePct2 = input.outsourcedYear2 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
 
   // Always the true remaining unpaid ultimate (siniestralidad − pagos, from
   // computeLiabilitySchedules()'s real payment-kernel timing) — never a
@@ -312,7 +346,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const portYield = almYear1 ? almYear1.portYield : 0.05;
   const rinv1 = almYear1 ? almYear1.income : reservas1 * 0.05;
   // Año 1 has no prior year to release RPND from.
-  const p1 = pyg(year1.totalPremium, 0, year1.claimsAmount, rinv1, reservas1);
+  const p1 = pyg(year1.totalPremium, 0, year1.claimsAmount, rinv1, reservas1, feePct1);
 
   let p2: PnL | null = null;
   let reservas2 = 0;
@@ -331,7 +365,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     // p2_ajusteSiniestralidad) — not something this pure engine computation
     // has any input for, since it's graded directly, not folded into p2.
     const rpndLiberada2 = FZ.rpndPct * year1.totalPremium;
-    p2 = pyg(year2.totalPremium, rpndLiberada2, development.ultY2, rinv2, reservas2);
+    p2 = pyg(year2.totalPremium, rpndLiberada2, development.ultY2, rinv2, reservas2, feePct2);
     p2.pagos = development.pagosY2;
     p2.portYield2 = portYield2;
   } else if (year2) {
@@ -341,7 +375,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     reservas2 = year2.claimsAmount * ratio;
     const rinv2 = alm2 ? alm2.income : reservas2 * portYield2;
     const rpndLiberada2 = FZ.rpndPct * year1.totalPremium;
-    p2 = pyg(year2.totalPremium, rpndLiberada2, year2.claimsAmount, rinv2, reservas2);
+    p2 = pyg(year2.totalPremium, rpndLiberada2, year2.claimsAmount, rinv2, reservas2, feePct2);
     p2.pagos = null;
     p2.portYield2 = portYield2;
   }

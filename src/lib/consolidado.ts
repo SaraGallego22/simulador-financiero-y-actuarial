@@ -12,8 +12,9 @@ import { scoreMinVariance } from "@/domain/finance/markowitz";
 import { conceptosDia, scoreConcepto, ownValueKey } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { rankForCrecer, rankForDisminuir, groupSectorPicksByTeam, scoreSectorRecommendation } from "@/domain/grading/sectors";
-import { notaTarifacionAnio, notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
+import { notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo, notaDia } from "@/domain/grading/composite";
 import { FZ } from "@/domain/finance/constants";
+import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import type { SoftSkillCompetency } from "@/lib/softSkills";
 
@@ -85,7 +86,7 @@ export interface TeamConsolidado {
  * Assembles the same per-day objective/subjective breakdown and 4-day final
  * grade as the legacy's renderConsolidado()/notaObjetivaDia() (line ~1263 &
  * 1418) — see CLAUDE.md's domain glossary. The domain functions
- * (notaTarifacionAnio, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo,
+ * (notaTarifacionAbsoluta, notaPerfilDia, notaObjetivaDia, notaSubjetivaEquipo,
  * notaDia) are already pure/tested; this is the app-specific plumbing that
  * feeds them from what's actually stored for a cohort.
  *
@@ -132,7 +133,7 @@ export async function computeConsolidado(
   ]);
   const tolerance = { tolerancePerfect: rubric.tolerancePerfect, toleranceZero: rubric.toleranceZero };
 
-  // Year 1 / Year 2 tariff-quality scores (notaTarifacionAnio), keyed by real
+  // Year 1 / Year 2 tariff-quality scores (notaTarifacionAbsoluta), keyed by real
   // team.id via a local numeric remap (the domain fn works in plain numbers).
   const tarifByDay = new Map<number, Map<string, number>>();
   // Año 2's RT needs each team's own Año 1 totalPremium to release its RPND
@@ -146,22 +147,41 @@ export async function computeConsolidado(
         where: { simulationRun: { cohortId: cohort.id, day, status: "DONE" } },
         orderBy: { simulationRun: { createdAt: "desc" } },
       });
+      // Teams that outsourced THIS day's tariff pay the consultancy's fee
+      // inside gastos de adquisición, so it's part of the expense load RT
+      // subtracts — see computeRt()/PnL.gadq.
+      const outsourcedThisDay = new Set(
+        (
+          await prisma.tariffSubmission.findMany({
+            where: { day, outsourced: true, team: { cohortId: cohort.id } },
+            select: { teamId: true },
+          })
+        ).map((s) => s.teamId)
+      );
       const seen = new Set<string>();
       const numericIdByTeamId = new Map<string, number>();
-      const rows: { teamId: number; totalPremium: number; claimsAmount: number; rpndLiberada?: number }[] = [];
+      const rows: { teamId: number; totalPremium: number; claimsAmount: number; rpndLiberada?: number; acquisitionFeePct?: number }[] = [];
       for (const r of results) {
         if (seen.has(r.teamId)) continue; // keep only the latest run per team
         seen.add(r.teamId);
         const numericId = numericIdByTeamId.size + 1;
         numericIdByTeamId.set(r.teamId, numericId);
         const rpndLiberada = day === 2 ? FZ.rpndPct * (year1TotalPremiumByTeamId.get(r.teamId) ?? 0) : undefined;
-        rows.push({ teamId: numericId, totalPremium: r.totalPremium, claimsAmount: r.claimsAmount, rpndLiberada });
+        rows.push({
+          teamId: numericId,
+          totalPremium: r.totalPremium,
+          claimsAmount: r.claimsAmount,
+          rpndLiberada,
+          acquisitionFeePct: outsourcedThisDay.has(r.teamId) ? OUTSOURCED_CONSULTING_FEE_PCT : 0,
+        });
       }
-      // Año 1's actuarial score is anchored to the model's own definition of
-      // good performance (see notaTarifacionAbsoluta's doc comment) rather
-      // than to how the rest of the cohort priced this run — Año 2 keeps the
-      // admin-configurable cohort-relative mode.
-      const map = day === 1 ? notaTarifacionAbsoluta(rows) : notaTarifacionAnio(rows, rubric.objectiveMode as "relative" | "ranking");
+      // Both years score the same way: anchored to the model's own definition
+      // of good performance (see notaTarifacionAbsoluta's doc comment) rather
+      // than to how the rest of the cohort happened to price this run. Año 2
+      // used to use a cohort-relative scorer of its own; that made the two
+      // days' tariff notas mean different things and a team's Año 2 grade
+      // depend on who else showed up.
+      const map = notaTarifacionAbsoluta(rows);
       for (const [teamId, numericId] of numericIdByTeamId) {
         const v = map.get(numericId);
         if (v != null) byTeamId.set(teamId, v);
