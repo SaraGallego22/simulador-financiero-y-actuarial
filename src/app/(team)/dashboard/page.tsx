@@ -43,8 +43,7 @@ export default async function TeamDashboard() {
           El reto simula 2 años de operación de una aseguradora de autos, repartidos en 4 días de trabajo. Tu equipo
           compite contra los demás equipos del cohorte por una porción de un mercado sintético de 1.000.000 de pólizas
           en Colombia, tomando decisiones actuariales (tarifa, reservas, recomendaciones sectoriales) y financieras
-          (portafolio de inversión, P&G, Balance, solvencia). Cada día se califica de forma objetiva, contra un motor
-          de referencia, y de forma subjetiva, según la rúbrica del evaluador.
+          (portafolio de inversión, P&G, Balance, solvencia).
         </p>
       </div>
 
