@@ -478,13 +478,13 @@ export function GuiaPasanteDia2() {
           />
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Qué cuenta como "Vencimientos en caja" — </span>
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Qué cuenta como &ldquo;Vencimientos en caja&rdquo; — </span>
               son tres fuentes distintas de efectivo que libera tu portafolio ese mes. <strong>(1)</strong> Un instrumento
               (CDT90, TES1, TES3, TESUVR8) que llega a su propio plazo (3, 12, 36 o 96 meses): todo su valor en libros se libera como caja ese mes; si es TES3
               o TESUVR8, su último cupón viaja empaquetado junto con el principal, como un solo pago final. <strong>(2)</strong> El cupón anual de una
               posición TES3 o TESUVR8 que sigue abierta: cada 12 meses desde que se fondeó, paga en efectivo un cupón (su valor en libros × su tasa); el
               principal se queda invertido exactamente igual, y solo entra a caja ese pedazo de rendimiento.{" "}
-              <strong>(3)</strong> LIQ, que el motor trata como si "venciera" cada mes: cualquier saldo asignado a LIQ se cuenta como vencimiento el mes
+              <strong>(3)</strong> LIQ, que el motor trata como si &ldquo;venciera&rdquo; cada mes: cualquier saldo asignado a LIQ se cuenta como vencimiento el mes
               siguiente a que entró. Por eso vas a ver valores en esta columna casi desde el Mes 1, mucho antes de que el primer CDT90 llegue a su plazo:
               así es como el motor modela que LIQ está disponible de inmediato cada mes.
             </p>
@@ -495,7 +495,7 @@ export function GuiaPasanteDia2() {
               su valor en libros se queda fijo en el principal durante toda su vida (igual que un bono real, cuyo principal se mantiene entre cupones), y el
               interés se reconoce cada mes a medida que se devenga: cada mes que la posición sigue abierta suma valor en libros × (su tasa ÷ 12) a un
               acumulado interno, y ese acumulado es lo que se paga como cupón — y vuelve a cero — en la fecha de pago. En la práctica esto quiere decir que
-              vas a ver rendimiento genuino en tu estado de caja incluso en un mes donde "Vencimientos en caja" para esa posición está en $0, porque el
+              vas a ver rendimiento genuino en tu estado de caja incluso en un mes donde &ldquo;Vencimientos en caja&rdquo; para esa posición está en $0, porque el
               interés ya se está devengando aunque el efectivo llegue después.
             </p>
           </InfoNote>
@@ -528,7 +528,7 @@ export function GuiaPasanteDia2() {
               </span>
               El real. Resultado de inversiones (sección 5.1) es el ingreso de inversión que tu portafolio efectivamente devengó ese año dentro de esta
               simulación — la suma mes a mes de lo que rindió cada posición (intereses, cupones, crecimiento de las acciones), un valor en pesos, en bruto.
-              El "Rendimiento ajustado por riesgo" de la sección 5.5 es una nota aparte, en escala 0-100, que califica qué tan bien armaste tu calendario de
+              El &ldquo;Rendimiento ajustado por riesgo&rdquo; de la sección 5.5 es una nota aparte, en escala 0-100, que califica qué tan bien armaste tu calendario de
               decisión y se queda en la calificación.
             </p>
             <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
