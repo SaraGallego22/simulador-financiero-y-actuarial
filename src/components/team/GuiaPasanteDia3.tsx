@@ -11,7 +11,7 @@ import {
   thClass,
   tdClass,
 } from "./GuiaShared";
-import { CHAIN_LADDER_TAIL_FACTOR } from "@/domain/reserving/constants";
+import { CHAIN_LADDER_TAIL_FACTOR, DEV_FRAC, LAG_AVISO_PAGO } from "@/domain/reserving/constants";
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
 function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
@@ -112,7 +112,7 @@ export function GuiaPasanteDia3() {
       <InsumosEntregables
         insumos={[
           "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028.",
-          "Pagos reales del 2028 sobre los siniestros del 2027 (desarrollo) y los siniestros propios del 2028.",
+          "Tu ALM real del 2027 mes a mes — incluida la columna de Pago Siniestros, la plata que efectivamente salió a pagar siniestros ese año.",
           "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027/2028.",
           "Retención real de pólizas de 2027 a 2028, para proyectar el 2029.",
         ]}
@@ -271,6 +271,38 @@ export function GuiaPasanteDia3() {
             ahí la necesidad del ELR. Hoy tu triángulo mensual cubre 2027 y 2028 a la vez, evaluados en el mismo corte (fin de 2028): tus meses de
             2027 más maduros te dan los factores edad a edad, y esos mismos factores encadenados también proyectan tus meses de 2028 más recientes,
             así que Chain Ladder alcanza para los dos años.
+          </p>
+        </SubSection>
+
+        <SubSection title="Del costo último al flujo de caja: cuándo sale la plata" accent="act">
+          <p>
+            Reservar responde <strong>cuánto</strong> falta por pagar. Para tu portafolio necesitas además el <strong>cuándo</strong>: un siniestro
+            incurrido no sale de caja el día que ocurre, y esa diferencia de tiempo es justamente lo que le da sentido a invertir la prima. Las reglas
+            de pago de este mercado son fijas y las mismas para todos:
+          </p>
+          <ul className="list-disc pl-5">
+            <li>
+              El primer pago de un siniestro llega <strong>{LAG_AVISO_PAGO} meses después del aviso</strong> — no de la ocurrencia. Un siniestro que
+              tarda en avisarse tarda otro tanto en empezar a pagarse.
+            </li>
+            <li>
+              Desde ahí el monto se liquida repartido parejo a lo largo de <strong>3 años</strong>:{" "}
+              <strong>{(DEV_FRAC[0] * 100).toFixed(0)}%</strong> durante los primeros 12 meses, <strong>{(DEV_FRAC[1] * 100).toFixed(0)}%</strong> en
+              los 12 siguientes y <strong>{(DEV_FRAC[2] * 100).toFixed(0)}%</strong> en los últimos 12 — es decir,{" "}
+              {(DEV_FRAC[0] * 100).toFixed(0)}%÷12 cada mes durante el primer año de desarrollo, y así.
+            </li>
+          </ul>
+          <p>
+            De ahí sale algo que conviene tener claro antes de proyectar nada: <strong>de los siniestros que ocurren en un año, dentro de ese mismo
+            año calendario sale mucho menos plata de la que uno esperaría.</strong> Los de enero alcanzan a pagar de abril a diciembre; los de
+            octubre no alcanzan a pagar nada. La mayor parte del año de accidente queda en reserva y se paga en los dos años siguientes. No confundas
+            ese {(DEV_FRAC[0] * 100).toFixed(0)}% del primer año de desarrollo — que se cuenta desde el primer pago de cada siniestro — con lo que
+            sale de caja dentro del año en que ocurrieron: son cosas distintas, y la segunda es bastante menor.
+          </p>
+          <p>
+            Puedes verlo en tus propios números: la columna <strong>Pago Siniestros</strong> de tu ALM real del 2027, en esta misma pestaña, es
+            exactamente eso — lo que salió de caja mes a mes por los siniestros del 2027 durante el 2027. Compáralo contra tu costo último de ese año
+            y vas a ver qué proporción tan pequeña es.
           </p>
         </SubSection>
 
@@ -446,6 +478,24 @@ export function GuiaPasanteDia3() {
               esa es la línea Inversiones de tu propio Balance de ese año. Durante los 12 meses le entra tu prima proyectada mes a mes y le salen los pagos
               de siniestros del año — las colas de 2027 y 2028 que siguen liquidándose, que salen de caja aunque ya no sean costo del P&amp;G, más lo que
               se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones.
+              <ul className="mt-1 list-[circle] pl-5">
+                <li>
+                  <strong>El siniestro que sale de caja en 2029 no es tu Costo de siniestros de 2029.</strong> Son tres flujos distintos sumados: lo
+                  que todavía se paga de los siniestros de 2027, lo que todavía se paga de los de 2028, y la parte de los de 2029 que alcanza a
+                  liquidarse dentro del mismo año. Los dos primeros ya no son costo — se reconocieron en el P&amp;G de su propio año de accidente —
+                  pero son plata que sale igual.
+                </li>
+                <li>
+                  <strong>Los tres salen del patrón de pago (sección 2) aplicado a lo que ya tienes.</strong> Para 2027 y 2028 conoces la fecha de
+                  aviso de cada siniestro y su monto, así que puedes ubicar en qué mes cae cada peso; para el IBNR que todavía no tiene fecha, y para
+                  el 2029 entero, te toca asumir cómo se reparten los avisos a lo largo del año. Tu costo último de cada año (el del triángulo) es lo
+                  que repartes.
+                </li>
+                <li>
+                  Un chequeo que te ahorra errores: lo que pagas de un año de accidente más lo que te queda reservado de ese año debe dar su costo
+                  último. Si tu reserva del Balance y tu flujo de caja no cierran contra el mismo último, uno de los dos está mal.
+                </li>
+              </ul>
             </li>
             <li>
               <strong>5. Las once líneas restantes salen de las tres anteriores.</strong> Liberas la RPND que constituiste en 2028 y constituyes la
