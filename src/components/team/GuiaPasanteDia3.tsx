@@ -1,6 +1,5 @@
 import {
   FlowStep,
-  FormulaNotes,
   GuiaHeader,
   InsumosEntregables,
   PreguntasAbiertas,
@@ -14,36 +13,33 @@ import {
 import { CHAIN_LADDER_TAIL_FACTOR, LAG_AVISO_PAGO } from "@/domain/reserving/constants";
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
-function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
+function StatementTemplate({ rowLabels, columns, emphasizedLabels }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[] }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className={`${tableWrapClass} overflow-x-auto`}>
-        <table className={tableClass}>
-          <thead>
-            <tr>
-              <th className={thClass}>Línea</th>
+    <div className={`${tableWrapClass} overflow-x-auto`}>
+      <table className={tableClass}>
+        <thead>
+          <tr>
+            <th className={thClass}>Línea</th>
+            {columns.map((c) => (
+              <th key={c} className={thClass}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rowLabels.map((label) => (
+            <tr key={label}>
+              <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
               {columns.map((c) => (
-                <th key={c} className={thClass}>
-                  {c}
-                </th>
+                <td key={c} className={`h-8 ${tdClass}`}>
+                  &nbsp;
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {rowLabels.map((label) => (
-              <tr key={label}>
-                <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
-                {columns.map((c) => (
-                  <td key={c} className={`h-8 ${tdClass}`}>
-                    &nbsp;
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {formulaNotes && <FormulaNotes lines={formulaNotes} />}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -350,15 +346,14 @@ export function GuiaPasanteDia3() {
             El costo de siniestros del 2028 es, en <strong>base fecha de accidente</strong>, únicamente lo ocurrido dentro del 2028; lo del 2027 ya se
             reconoció como costo en el P&G de ese año, sin importar cuándo se avisara. Lo que sí es propio de este año es una línea aparte:{" "}
             <strong>Ajuste de siniestralidad (A1)</strong>. Gracias a una revisión realizada por el equipo actuarial de la compañía, se determinó que
-            la severidad de los casos restantes por pagar de 2027 está sobreestimada en un 10% — tu equipo libera ese 10% de la reserva técnica real de
-            cierre de 2027. Repórtala como un valor negativo, porque es una liberación: entra junto al costo antes de llegar al Resultado Técnico, y al
+            la severidad de los casos restantes por pagar de 2027 está sobreestimada en un 10%. Repórtala como un valor negativo, porque es una
+            liberación: entra junto al costo antes de llegar al Resultado Técnico, y al
             ser negativa termina sumando a tu utilidad. Se calcula sobre la reserva técnica real de cierre de 2027, independiente de lo que tú mismo
             reportaste como Costo de Siniestros A1 en Día 2.
           </p>
           <p>
-            Tu prima devengada del 2028 sale de un roll-forward entre dos reservas: liberas el 100% de la Reserva de Prima No Devengada que
-            constituiste en 2027 y constituyes una nueva sobre tu prima emitida de 2028 — si tu prima creció o bajó de un año a otro, lo liberado y lo
-            constituido difieren entre sí.
+            Tu prima devengada del 2028 sale de un juego de reservas, la liberación que corresponda de la RPND de 2027 y la constitución de las primas
+            que entran nuevas en 2028 — si tu prima creció o bajó de un año a otro, lo liberado y lo constituido difieren entre sí.
           </p>
           <p>
             El Resultado de inversiones es, otra vez, el ingreso real que tu calendario de portafolio devengó durante los 12 meses del 2028 — esta
@@ -533,6 +528,7 @@ export function GuiaPasanteDia3() {
             esos dos momentos?
           </li>
           <li>¿Qué pasaría con tu Balance si el desarrollo real de los siniestros del 2027 hubiera sido más lento de lo esperado?</li>
+          <li>¿Cómo impactan las cuentas por cobrar y las cuentas por pagar en el ALM?</li>
           <li>¿Qué factores además de la retención de pólizas podrían justificar una proyección de 2029 distinta a la que hiciste?</li>
           <li>
             Cuando proyectas el siniestro de 2029 como frecuencia × severidad, ¿qué te hace falta medir de verdad de tu 2028? ¿Y cómo cambia eso lo que
@@ -556,16 +552,6 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A2_ROWS}
             columns={["2028"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            formulaNotes={[
-              "RPND liberada (A1) = 20% × tu Prima emitida A1 (Día 2).",
-              "RPND constituida = 20% × Prima emitida A2.",
-              "Prima devengada = Prima emitida − RPND constituida + RPND liberada — un roll-forward genuino entre las dos reservas.",
-              "Gastos de adquisición / Comisiones / administrativos = 4% / 15% / 6% de la Prima emitida A2.",
-              "Ajuste de siniestralidad (A1) = −10% × tu Reservas técnicas A1 (Balance 2027) — repórtalo en negativo, es una liberación.",
-              "Resultado Técnico = Prima devengada − Costo − Ajuste de siniestralidad − Gadq − Gcom.",
-              "Resultado Industrial = Resultado Técnico − Gasto administrativo.",
-              "Impuesto = 30% × max(0, Utilidad antes de impuestos) — con piso en 0.",
-            ]}
           />
         </FlowStep>
 
@@ -574,10 +560,6 @@ export function GuiaPasanteDia3() {
             rowLabels={PYG_A3_ROWS}
             columns={["2029 (proy.)"]}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            formulaNotes={[
-              "Misma estructura que 2028; la línea de Ajuste de siniestralidad es exclusiva de ese año (ver sección 4).",
-              "RPND liberada aquí usa tu Prima emitida A2 de la tabla de arriba.",
-            ]}
           />
         </FlowStep>
 
@@ -586,14 +568,6 @@ export function GuiaPasanteDia3() {
             rowLabels={BALANCE_ROWS}
             columns={["2027", "2028", "2029 (proy.)"]}
             emphasizedLabels={["Activos totales", "Pasivo + Patrimonio"]}
-            formulaNotes={[
-              "RPND = 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
-              "Cuentas por cobrar sale de la rotación de cartera de 30 días de la sección 3; Cuentas por pagar sale de la misma rotación de 30 días, pero sobre tus gastos (comisión + adquisición + administración) de ese año.",
-              "Caja e Inversiones dependen, en los tres años, de tu propio flujo de caja y tu Capital Social: cuánta prima entró, cuánto siniestro y gasto salió, y qué quedó invertido al cierre. En 2029 son los mismos flujos, proyectados.",
-              "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo agotó por completo su portafolio real (Capital Social incluido) y aun así necesitó más. Para casi todos los equipos es 0.",
-              "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar + Necesidades de patrimonio o deuda.",
-              "Pasivo + Patrimonio debe ser exactamente igual a Activos totales.",
-            ]}
           />
         </FlowStep>
 

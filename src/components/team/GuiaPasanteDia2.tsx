@@ -2,7 +2,6 @@ import {
   BlankTable,
   FlagCallout,
   FlowStep,
-  FormulaNotes,
   GuiaHeader,
   InfoNote,
   InsumosEntregables,
@@ -18,28 +17,25 @@ import {
 } from "./GuiaShared";
 
 /** Vertical financial-statement template with real row labels, matching how DeliverablesForm groups/renders these same lines. */
-function StatementTemplate({ rowLabels, emphasizedLabels, formulaNotes }: { rowLabels: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
+function StatementTemplate({ rowLabels, emphasizedLabels }: { rowLabels: string[]; emphasizedLabels?: string[] }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className={`${tableWrapClass} overflow-x-auto`}>
-        <table className={tableClass}>
-          <thead>
-            <tr>
-              <th className={thClass}>Línea</th>
-              <th className={thClass}>2027</th>
+    <div className={`${tableWrapClass} overflow-x-auto`}>
+      <table className={tableClass}>
+        <thead>
+          <tr>
+            <th className={thClass}>Línea</th>
+            <th className={thClass}>2027</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rowLabels.map((label) => (
+            <tr key={label}>
+              <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
+              <td className={`h-8 ${tdClass}`}>&nbsp;</td>
             </tr>
-          </thead>
-          <tbody>
-            {rowLabels.map((label) => (
-              <tr key={label}>
-                <td className={`${tdClass} ${emphasizedLabels?.includes(label) ? "font-semibold" : ""}`}>{label}</td>
-                <td className={`h-8 ${tdClass}`}>&nbsp;</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {formulaNotes && <FormulaNotes lines={formulaNotes} />}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -430,17 +426,6 @@ export function GuiaPasanteDia2() {
           <StatementTemplate
             rowLabels={PYG_ROWS}
             emphasizedLabels={["Resultado Técnico", "Resultado Industrial", "Utilidad antes de impuestos", "Utilidad neta"]}
-            formulaNotes={[
-              "RPND constituida. Cuando emites una póliza cobras la prima completa por adelantado, pero la cobertura se presta a lo largo del año siguiente — a cierre de 2027 todavía le debes al asegurado varios meses de protección. La RPND constituida es la porción de esa prima emitida que reservas porque corresponde a riesgo que aún no has corrido, y sigue siendo un pasivo hasta que esa cobertura se preste. En este ejercicio esa porción es un 20% fijo de la prima emitida, una simplificación del cálculo pro-rata real.",
-              "Prima devengada. Es el complemento de lo anterior: la parte de la prima emitida que sí corresponde a cobertura ya prestada durante el año, y que por tanto sí es ingreso ganado. En 2027 equivale exactamente al 80% de la prima emitida, porque es el primer año del ejercicio y todavía queda por delante la primera reserva por liberar. Desde 2028 se le suma además lo que se libera de la reserva constituida el año anterior, porque esa cobertura ya se prestó.",
-              "Gastos de adquisición / Comisiones / administrativos. Estos tres gastos se calculan como el mismo porcentaje de la prima emitida que usaste en Día 1 para armar tu prima comercial — ahí los sumaste como recargos para fijar el precio; acá los restas como el gasto real que efectivamente representan. Es la misma tasa mirada desde el otro lado del negocio: primero como lo que le cobras al asegurado, ahora como lo que te cuesta operar. Con una excepción: si tercerizaste tus tarifas, tu gasto de adquisición de ese año sube al 12% — ver la nota de la sección 3.",
-              "Resultado Técnico. Mide si el negocio de asumir riesgo, aislado del resto de la operación, es rentable por sí solo: lo que devengaste de prima, menos lo que pagaste en siniestros, menos lo que gastaste en colocar y adquirir las pólizas. El gasto administrativo queda deliberadamente afuera de esta línea: es el costo de sostener la compañía como estructura, y por eso se resta más abajo.",
-              "Resultado Industrial. Toma el Resultado Técnico y le resta el gasto administrativo, el costo de operar la aseguradora como empresa, independiente de cuántas pólizas coloques. Es la utilidad completa del negocio asegurador — suscripción más administración — antes de mezclarla con lo que ganaste o perdiste invirtiendo el dinero de tus reservas y tu capital.",
-              "Resultado de inversiones. Esta línea sale directamente de simular tu calendario de decisiones de portafolio mes a mes contra la caja real (secciones 5.2 a 5.6): depende de qué instrumentos elegiste, cuánto rindieron y qué tan bien tu caja acompañó esas decisiones.",
-              "Utilidad antes de impuestos. Suma el Resultado Industrial (lo que ganaste asegurando y administrando la compañía) con el Resultado de Inversiones (lo que ganaste o perdiste invirtiendo mientras tanto) — una aseguradora gana por los dos caminos a la vez, y esta línea los junta antes de pagar impuestos.",
-              "Impuesto. Se calcula como el 30% de la utilidad antes de impuestos, y solo cuando esa utilidad es positiva: un año que cierra en pérdida queda con impuesto en cero, porque falta base sobre la cual tributar.",
-              "Utilidad neta. Es lo que queda para la aseguradora después de restar el impuesto a la utilidad antes de impuestos — la línea final del P&G, y la que resume en un solo número si el año, entre suscripción, administración e inversiones, fue rentable.",
-            ]}
           />
         </FlowStep>
 

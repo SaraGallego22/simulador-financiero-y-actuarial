@@ -9,7 +9,7 @@ import { AlertIcon, BarChartIcon, ChatIcon, FlaskIcon, InfoIcon } from "@/compon
  * dotted rule) are the design language for the whole guide — kept in one
  * place so all 4 days read as one document instead of 4 independently
  * hand-rolled ones. Days import these instead of redefining their own
- * Section/SubSection/BlankTable/FormulaNotes (previously copy-pasted
+ * Section/SubSection/BlankTable (previously copy-pasted
  * identically in all 4 files).
  */
 
@@ -298,19 +298,6 @@ export function GlossaryTable({ rows }: { rows: { term: string; def: string }[] 
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Formula reference notes, one per line with real spacing between them — replaces cramming every formula into one dense paragraph. */
-export function FormulaNotes({ lines }: { lines: string[] }) {
-  return (
-    <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-dashed border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)]/40 p-3">
-      {lines.map((line, i) => (
-        <p key={i} className="text-xs leading-relaxed text-[var(--color-brand-text-secondary)]">
-          {line}
-        </p>
-      ))}
     </div>
   );
 }
