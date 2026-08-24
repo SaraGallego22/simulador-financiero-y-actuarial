@@ -10,6 +10,8 @@ import {
   computeMarketRiskAtAño2End,
   portfolioConcentrationRatio,
   portfolioNominalYield,
+  RISK_ADJUSTED_YIELD_MAX,
+  RISK_ADJUSTED_YIELD_MIN,
   scoreFinanciero,
 } from "./alm";
 import { FZ, CAPITAL_SOCIAL, CONCENTRATION_PENALTY_MU, ACC_ROLL_M } from "./constants";
@@ -17,13 +19,14 @@ import { INSTRUMENT_BY_ID, RISK_FREE_RATE } from "./instruments";
 import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import type { Position } from "./alm";
 
-// A handful of claims spread across the Year-1 window, notified early enough
-// that meaningful amounts land in both payY1 and the post-valuation reserve.
-const claims = [
-  { teamId: 1, noticeMonth: 0, severity: 5_000_000 },
-  { teamId: 1, noticeMonth: 3, severity: 8_000_000 },
-  { teamId: 1, noticeMonth: 6, severity: 3_000_000 },
-];
+// A Year-1 accident book whose claims are noticed month by month across two
+// years — which is what a real one looks like now that the reporting lag
+// carries the liability's whole duration: most of an accident year is still
+// unreported when the year closes. Each claim is then paid in full
+// LAG_AVISO_PAGO months later, so the schedule is smooth rather than lumpy,
+// and it straddles the valuation date: the early notices land in payY1, the
+// rest in the post-valuation reserve the ALM has to fund.
+const claims = Array.from({ length: 24 }, (_, noticeMonth) => ({ teamId: 1, noticeMonth, severity: 1_000_000 }));
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
 /**
@@ -38,6 +41,20 @@ function decision(allocation: Allocation, extra: MonthlyAllocationEntry[] = [], 
 }
 
 describe("almSim / scoreFinanciero", () => {
+  it("RISK_ADJUSTED_YIELD_MIN/MAX bracket their own reference portfolios — locks in the calibration against silent drift if HORIZON, the notional-funding formula, or the accrual mechanic change again", () => {
+    // MIN's reference: 100% ACC, "repeat forever" (see RISK_ADJUSTED_YIELD_MIN's
+    // own doc comment for why a sliver-of-ACC-into-LIQ blend scores lower
+    // still but is deliberately excluded).
+    const min = scoreFinanciero(lib, decision({ ACC: 100 }));
+    expect(min!.riskAdjustedYield).toBeCloseTo(RISK_ADJUSTED_YIELD_MIN, 2);
+    expect(min!.rendimiento).toBeLessThan(3);
+
+    // MAX's reference blend (see RISK_ADJUSTED_YIELD_MAX's own doc comment).
+    const max = scoreFinanciero(lib, decision({ CDT90: 41.5, TES1: 43, TES3: 4.5, TESUVR8: 11 }));
+    expect(max!.riskAdjustedYield).toBeCloseTo(RISK_ADJUSTED_YIELD_MAX, 2);
+    expect(max!.rendimiento).toBeGreaterThan(97);
+  });
+
   it("returns null when there are no recognized instruments", () => {
     expect(almSim(lib, decision({ NOPE: 100 }))).toBeNull();
     expect(scoreFinanciero(lib, { capitalSocialAllocation: {}, schedule: [] })).toBeNull();
@@ -227,12 +244,14 @@ describe("almSim / scoreFinanciero", () => {
     // (finBench's bal1/bal2) are untouched — this is the part that matters
     // for "aplica bien para ambos años de siniestro".
     expect(score!.capitalComprometidoY1).toBe(0);
-    // toBeCloseTo, not toBe(0) exactly — 60 months of floating-point cash-flow
-    // accumulation (gastos included) can leave a sub-cent residual here
-    // depending on the exact expense ratio; see the next assertion for the
-    // real tolerance that matters (a fraction of a rounding error against
-    // Capital Social, not a real erosion).
-    expect(score!.capitalComprometidoY2).toBeCloseTo(0, 6);
+    // Año 2 no queda exactamente en cero, y ya no por punto flotante: el ALM
+    // ficticio se fondea con la reserva y paga esa misma reserva MÁS gastos
+    // (25% de la prima nocional), así que estructuralmente le falta caja. Con
+    // el pago concentrado tres meses después del aviso, el portafolio tiene
+    // mucho menos tiempo para que el rendimiento cubra esa diferencia que
+    // cuando los siniestros se pagaban goteando 39 meses. Lo que se verifica
+    // es lo que importa: contra el Capital Social sigue siendo despreciable.
+    expect(score!.capitalComprometidoY2 / CAPITAL_SOCIAL).toBeLessThan(1e-4);
     // Some lumpy month past Year 2 may still nick a negligible amount —
     // this fixture's 3-claim horizon isn't perfectly smooth — but it stays
     // a rounding error against Capital Social, not a real erosion.
@@ -366,11 +385,11 @@ describe("coupon-bearing bonds (TES3/TESUVR8)", () => {
 });
 
 describe("almLadder", () => {
-  it("always reaches the last month of the horizon (mes 47), even when nothing else about that month would otherwise qualify for the filtered view", () => {
+  it("always reaches the last month of the horizon (mes 95), even when nothing else about that month would otherwise qualify for the filtered view", () => {
     const ladder = almLadder(lib, decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 }));
     expect(ladder).not.toBeNull();
     const lastRow = ladder!.rows[ladder!.rows.length - 1];
-    expect(lastRow.mes).toBe(47);
+    expect(lastRow.mes).toBe(95);
   });
 });
 

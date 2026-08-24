@@ -11,7 +11,7 @@ import {
   thClass,
   tdClass,
 } from "./GuiaShared";
-import { CHAIN_LADDER_TAIL_FACTOR } from "@/domain/reserving/constants";
+import { CHAIN_LADDER_TAIL_FACTOR, LAG_AVISO_PAGO } from "@/domain/reserving/constants";
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
 function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
@@ -112,7 +112,7 @@ export function GuiaPasanteDia3() {
       <InsumosEntregables
         insumos={[
           "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028.",
-          "Pagos reales del 2028 sobre los siniestros del 2027 (desarrollo) y los siniestros propios del 2028.",
+          "Tu ALM real del 2027 mes a mes — incluida la columna de Pago Siniestros, la plata que efectivamente salió a pagar siniestros ese año.",
           "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027/2028.",
           "Retención real de pólizas de 2027 a 2028, para proyectar el 2029.",
         ]}
@@ -247,9 +247,9 @@ export function GuiaPasanteDia3() {
             información: cerca de 24 meses para tus meses de ocurrencia de comienzos del 2027.
           </p>
           <p>
-            Incluso esa edad más madura se queda algo corta: con un rezago de aviso que puede llegar hasta 730 días (~2 años) desde la ocurrencia,
-            sigue quedando un remanente muy pequeño de siniestros del 2027 por avisar a estas alturas. Ese remanente se cubre con un factor de cola
-            — este, a diferencia de los edad a edad, sí te lo damos, porque estimarlo exigiría ver lo que pasa después del corte de tu reporte:
+            Incluso esa edad más madura se queda corta, y no por poco: el rezago de aviso puede llegar hasta 5 años desde la ocurrencia, así que a
+            estas alturas todavía falta por avisarse una parte nada despreciable de los siniestros del 2027. Ese remanente se cubre con un factor de
+            cola — este, a diferencia de los edad a edad, sí te lo damos, porque estimarlo exigiría ver lo que pasa después del corte de tu reporte:
           </p>
           <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
@@ -257,9 +257,9 @@ export function GuiaPasanteDia3() {
             </p>
           </div>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            Un factor pequeño (~0.3%) a propósito: con esta distribución de rezago de aviso, la enorme mayoría de los siniestros ya se conoce a los
-            24 meses. Sigue siendo positivo — por eso Chain Ladder real siempre incluye un factor de cola, aunque sea modesto — y queda muy por
-            debajo del ajuste que traen los factores edad a edad que calculas tú mismo, encadenados.
+            No es un ajuste menor: con este rezago de aviso, a los 24 meses todavía falta por conocerse cerca de una cuarta parte del costo último de
+            un año de accidente. Ignorarlo te dejaría la reserva corta en esa misma proporción — por eso Chain Ladder real siempre incluye un factor
+            de cola, y por eso este pesa tanto como buena parte de los factores edad a edad que calculas tú mismo.
           </p>
           <p>
             <strong>Esta es una forma de estimar distinta a la que usaste en Día 2.</strong> El método Expected Loss Ratio parte de un supuesto
@@ -271,6 +271,33 @@ export function GuiaPasanteDia3() {
             ahí la necesidad del ELR. Hoy tu triángulo mensual cubre 2027 y 2028 a la vez, evaluados en el mismo corte (fin de 2028): tus meses de
             2027 más maduros te dan los factores edad a edad, y esos mismos factores encadenados también proyectan tus meses de 2028 más recientes,
             así que Chain Ladder alcanza para los dos años.
+          </p>
+        </SubSection>
+
+        <SubSection title="Del costo último al flujo de caja: cuándo sale la plata" accent="act">
+          <p>
+            Reservar responde <strong>cuánto</strong> falta por pagar. Para tu portafolio necesitas además el <strong>cuándo</strong>: un siniestro
+            incurrido no sale de caja el día que ocurre, y esa diferencia de tiempo es justamente lo que le da sentido a invertir la prima. Las reglas
+            de pago de este mercado son fijas y las mismas para todos:
+          </p>
+          <p>
+            La regla de pago de este mercado es una sola, y es simple: <strong>un siniestro se paga completo {LAG_AVISO_PAGO} meses después de que se
+            avisa</strong>. No después de que ocurre — después de que se avisa. Nada antes, nada después.
+          </p>
+          <p>
+            Lo que hace interesante el problema no es entonces el pago en sí, sino <strong>cuánto tarda en avisarse</strong>. Ese rezago es largo y
+            muy disperso: hay siniestros que se avisan en días y otros que tardan años. Tu propio triángulo es la mejor fuente que tienes para
+            medirlo, porque es exactamente lo que desarrolla.
+          </p>
+          <p>
+            De ahí sale algo que conviene tener claro antes de proyectar nada: <strong>de los siniestros que ocurren en un año, dentro de ese mismo
+            año calendario sale muy poca plata.</strong> Solo se paga lo que alcanzó a avisarse antes de octubre — y como el aviso es lento, eso es
+            una fracción menor del año. Todo lo demás queda en reserva y sale de caja en los años siguientes, a medida que se va avisando.
+          </p>
+          <p>
+            Puedes verlo en tus propios números: la columna <strong>Pago Siniestros</strong> de tu ALM real del 2027, en esta misma pestaña, es
+            exactamente eso — lo que salió de caja mes a mes por los siniestros del 2027 durante el 2027. Compáralo contra tu costo último de ese año
+            y vas a ver qué proporción tan pequeña es.
           </p>
         </SubSection>
 
@@ -420,17 +447,19 @@ export function GuiaPasanteDia3() {
               en el Balance), y tampoco hay línea de Ajuste de siniestralidad, que es exclusiva del 2028.
               <ul className="mt-1 list-[circle] pl-5">
                 <li>
-                  <strong>Trabaja con el costo por póliza.</strong> Tu costo último del 2028 — el que estimaste con tu triángulo, sección 2 — dividido
-                  entre las pólizas que aseguraste ese año te dice cuánto siniestro cuesta cada póliza de tu cartera. Ese cociente ya lleva adentro la
-                  frecuencia y la severidad, y es lo que puedes medir con la información que tienes: el conteo de siniestros que ves avisados hoy sigue
-                  incompleto, así que una frecuencia contada sobre lo avisado se queda corta. Estimarla de verdad exige desarrollar también el conteo,
-                  con el mismo triángulo que ya armaste para los montos.
+                  <strong>Frecuencia</strong> — qué proporción de tu libro tuvo siniestro en 2028. Se mantiene estable de un año a otro. Ojo con de
+                  dónde la sacas: el conteo de siniestros que ves avisados hoy todavía está incompleto, así que contar cabezas sobre lo avisado la deja
+                  corta. Estimarla de verdad exige desarrollar también el conteo, con el mismo triángulo que ya armaste para los montos.
                 </li>
                 <li>
-                  <strong>De frecuencia y severidad, solo una se mueve.</strong> La frecuencia se mantiene estable de un año a otro; la severidad sube
-                  por inflación. Por eso a ese costo por póliza le aplicas un año de inflación de siniestros, y nada más.
+                  <strong>Severidad</strong> — cuánto costó en promedio cada siniestro del 2028, medida sobre el costo <strong>último</strong> de ese
+                  año (el que estimaste con tu triángulo, sección 2), no sobre lo avisado hasta hoy. Esta sí cambia: se infla un año.
                 </li>
-                <li>Multiplícalo por las pólizas del punto 1 y tienes el siniestro propio del 2029.</li>
+                <li>Frecuencia × severidad × las pólizas del punto 1, y tienes el siniestro propio del 2029.</li>
+                <li>
+                  Antes de salir a medir nada, escribe las dos definiciones con tus propios números y multiplícalas. Mira qué sobrevive en el producto:
+                  puede que te ahorre medir una de las dos.
+                </li>
               </ul>
             </li>
             <li>
@@ -443,11 +472,25 @@ export function GuiaPasanteDia3() {
               <strong>4. Resultado de inversiones — un año más de tu portafolio.</strong> El 2029 arranca con el portafolio que traes del cierre de 2028:
               esa es la línea Inversiones de tu propio Balance de ese año. Durante los 12 meses le entra tu prima proyectada mes a mes y le salen los pagos
               de siniestros del año — las colas de 2027 y 2028 que siguen liquidándose, que salen de caja aunque ya no sean costo del P&amp;G, más lo que
-              se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones. Para llegar al
-              número no necesitas simular mes a mes: con la tasa que tu portafolio realizó de verdad en 2028 (lo que devengó sobre el saldo que tuviste
-              invertido en promedio, no el rendimiento nominal de tu calendario) aplicada al saldo inicial más la mitad del flujo neto del año, quedas
-              suficientemente cerca. Lo que sí cambia el resultado es quedarte sin caja: si tu proyección te obliga a vender antes de tiempo, esa pérdida
-              se come parte del rendimiento.
+              se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones.
+              <ul className="mt-1 list-[circle] pl-5">
+                <li>
+                  <strong>El siniestro que sale de caja en 2029 no es tu Costo de siniestros de 2029.</strong> Son tres flujos distintos sumados: lo
+                  que todavía se paga de los siniestros de 2027, lo que todavía se paga de los de 2028, y la parte de los de 2029 que alcanza a
+                  liquidarse dentro del mismo año. Los dos primeros ya no son costo — se reconocieron en el P&amp;G de su propio año de accidente —
+                  pero son plata que sale igual.
+                </li>
+                <li>
+                  <strong>Los tres salen del patrón de pago (sección 2) aplicado a lo que ya tienes.</strong> Para 2027 y 2028 conoces la fecha de
+                  aviso de cada siniestro y su monto, así que puedes ubicar en qué mes cae cada peso; para el IBNR que todavía no tiene fecha, y para
+                  el 2029 entero, te toca asumir cómo se reparten los avisos a lo largo del año. Tu costo último de cada año (el del triángulo) es lo
+                  que repartes.
+                </li>
+                <li>
+                  Un chequeo que te ahorra errores: lo que pagas de un año de accidente más lo que te queda reservado de ese año debe dar su costo
+                  último. Si tu reserva del Balance y tu flujo de caja no cierran contra el mismo último, uno de los dos está mal.
+                </li>
+              </ul>
             </li>
             <li>
               <strong>5. Las once líneas restantes salen de las tres anteriores.</strong> Liberas la RPND que constituiste en 2028 y constituyes la
@@ -488,6 +531,10 @@ export function GuiaPasanteDia3() {
           </li>
           <li>¿Qué pasaría con tu Balance si el desarrollo real de los siniestros del 2027 hubiera sido más lento de lo esperado?</li>
           <li>¿Qué factores además de la retención de pólizas podrían justificar una proyección de 2029 distinta a la que hiciste?</li>
+          <li>
+            Cuando proyectas el siniestro de 2029 como frecuencia × severidad, ¿qué te hace falta medir de verdad de tu 2028? ¿Y cómo cambia eso lo que
+            necesitas del triángulo?
+          </li>
           <li>
             Si tuvieras que explicarle a un inversionista por qué la utilidad neta y el flujo de caja de un mismo año pueden diferir tanto, ¿qué le
             dirías?

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { projectYear3 } from "./projectYear3";
 import type { Year3ProjectionInput } from "./projectYear3";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
-import { DEV_FRAC } from "../reserving/constants";
+import { PAID_WITHIN_ACCIDENT_YEAR, ACCIDENT_YEAR_PAYMENT_SHARE } from "../reserving/constants";
 
 const base = (): Year3ProjectionInput => ({
   year1InsuredCount: 1000,
@@ -13,6 +13,7 @@ const base = (): Year3ProjectionInput => ({
   ultY2: 310_000_000,
   osY1endY3: 12_000_000,
   osY2endY3: 40_000_000,
+  paidY2inY2: 55_000_000, // ~17.7% del ultimate de Año 2 — la velocidad de pago que ese equipo mostró
 });
 
 describe("projectYear3", () => {
@@ -44,17 +45,40 @@ describe("projectYear3", () => {
     expect(few.costo3).toBeCloseTo(many.costo3, 4);
   });
 
-  it("reserves the share of Año 3's own claims that doesn't settle within Año 3, on top of Año 1's and Año 2's remaining tails", () => {
+  it("asume para Año 3 la misma velocidad de pago que el equipo mostró en Año 2, y reserva el resto sobre las colas de Año 1 y Año 2", () => {
     const i = base();
     const p = projectYear3(i)!;
-    expect(p.reservas3).toBeCloseTo(i.osY1endY3 + i.osY2endY3 + p.costo3 * (1 - DEV_FRAC[0]), 4);
+    const velocidad = i.paidY2inY2! / i.ultY2;
+    expect(p.reservas3).toBeCloseTo(i.osY1endY3 + i.osY2endY3 + p.costo3 * (1 - velocidad), 4);
   });
 
-  it("pays exactly the complement of that reserve across the 12 months of the ALM's own claims schedule", () => {
-    const p = projectYear3(base())!;
+  it("paga exactamente el complemento de esa reserva a lo largo de los 12 meses del calendario que recibe el ALM", () => {
+    const i = base();
+    const p = projectYear3(i)!;
     const paid = p.ownClaimsSchedule12.reduce((s, v) => s + v, 0);
     expect(p.ownClaimsSchedule12).toHaveLength(12);
-    expect(paid).toBeCloseTo(p.costo3 * DEV_FRAC[0], 4);
+    expect(paid).toBeCloseTo(p.costo3 * (i.paidY2inY2! / i.ultY2), 4);
+  });
+
+  it("reparte esos pagos con el perfil del kernel: nada durante el rezago de aviso, y de ahí en adelante parejo", () => {
+    const p = projectYear3(base())!;
+    expect(p.ownClaimsSchedule12[0]).toBe(0);
+    expect(p.ownClaimsSchedule12[11]).toBeGreaterThan(0);
+    for (let m = 1; m < 12; m++) expect(p.ownClaimsSchedule12[m]).toBeGreaterThanOrEqual(p.ownClaimsSchedule12[m - 1]);
+    // Mismo perfil relativo que ACCIDENT_YEAR_PAYMENT_SHARE, solo reescalado.
+    const escala = p.ownClaimsSchedule12[11] / ACCIDENT_YEAR_PAYMENT_SHARE[11];
+    for (let m = 0; m < 12; m++) expect(p.ownClaimsSchedule12[m]).toBeCloseTo(ACCIDENT_YEAR_PAYMENT_SHARE[m] * escala, 4);
+  });
+
+  it("sin el dato de Año 2 cae al ritmo genérico del kernel", () => {
+    const i = base();
+    delete i.paidY2inY2;
+    const p = projectYear3(i)!;
+    const paid = p.ownClaimsSchedule12.reduce((s, v) => s + v, 0);
+    expect(paid / p.costo3).toBeCloseTo(PAID_WITHIN_ACCIDENT_YEAR, 10);
+    // Con avisos repartidos parejo y pago completo 3 meses después, lo que
+    // alcanza a pagarse dentro del año son los avisos de los primeros 9 meses.
+    expect(PAID_WITHIN_ACCIDENT_YEAR).toBeCloseTo(9 / 12, 10);
   });
 
   it("returns null when the real inputs it projects from don't exist yet", () => {

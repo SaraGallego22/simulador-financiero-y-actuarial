@@ -112,7 +112,7 @@ export function GuiaPasanteDia2() {
           <li>
             <strong>Financiero — el calendario de portafolio real.</strong> Defines, mes a mes, cómo invertir el excedente disponible ese mes (tabla de
             instrumentos en la sección 5): la asignación que definas para un mes se mantiene fija hasta que definas un cambio en un mes posterior. Esta
-            decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente tu nota de ALM de hoy y, más adelante, el Resultado
+            decisión se pone a prueba mes a mes, durante 108 meses simulados, y alimenta directamente tu nota de ALM de hoy y, más adelante, el Resultado
             de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A diferencia del portafolio de mínima varianza de Día 1
             (un ejercicio aparte, ya calificado), este calendario es tu decisión de inversión real.
           </li>
@@ -317,7 +317,7 @@ export function GuiaPasanteDia2() {
           </p>
           <p>
             Este es tu único calendario para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más
-            adelante. Ármalo pensando en los dos años a la vez; puedes agregar tantos cambios de estrategia como quieras a lo largo de los 60 meses
+            adelante. Ármalo pensando en los dos años a la vez; puedes agregar tantos cambios de estrategia como quieras a lo largo de los 108 meses
             simulados. Los 12 meses de prima del 2028 se invierten con el mismo calendario, leído otra vez desde su propio mes 0 — el checkpoint que
             uses para tu mes 3 de 2027 es el mismo que va a gobernar tu mes 3 de 2028, aunque hayas agregado después un cambio de estrategia en un mes
             más adelante en el calendario (ese cambio sigue rigiendo cómo se reinvierten las posiciones que ya llevas abiertas desde 2027; el conteo de
@@ -474,17 +474,17 @@ export function GuiaPasanteDia2() {
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja + Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Inversión Neta se suma porque su signo ya lleva la dirección del efectivo: negativa el mes que inviertes un excedente (sale caja hacia el portafolio), positiva el mes que necesitas cubrir un faltante (entra efectivo a la caja) — ver la nota de abajo."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja + Inversión Neta. El motor repite esta cuenta 108 veces (108 meses) aplicando el calendario de la sección 5.3. Inversión Neta se suma porque su signo ya lleva la dirección del efectivo: negativa el mes que inviertes un excedente (sale caja hacia el portafolio), positiva el mes que necesitas cubrir un faltante (entra efectivo a la caja) — ver la nota de abajo."
           />
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Qué cuenta como "Vencimientos en caja" — </span>
+              <span className="font-semibold text-[var(--color-brand-blue-accent)]">Qué cuenta como &ldquo;Vencimientos en caja&rdquo; — </span>
               son tres fuentes distintas de efectivo que libera tu portafolio ese mes. <strong>(1)</strong> Un instrumento
               (CDT90, TES1, TES3, TESUVR8) que llega a su propio plazo (3, 12, 36 o 96 meses): todo su valor en libros se libera como caja ese mes; si es TES3
               o TESUVR8, su último cupón viaja empaquetado junto con el principal, como un solo pago final. <strong>(2)</strong> El cupón anual de una
               posición TES3 o TESUVR8 que sigue abierta: cada 12 meses desde que se fondeó, paga en efectivo un cupón (su valor en libros × su tasa); el
               principal se queda invertido exactamente igual, y solo entra a caja ese pedazo de rendimiento.{" "}
-              <strong>(3)</strong> LIQ, que el motor trata como si "venciera" cada mes: cualquier saldo asignado a LIQ se cuenta como vencimiento el mes
+              <strong>(3)</strong> LIQ, que el motor trata como si &ldquo;venciera&rdquo; cada mes: cualquier saldo asignado a LIQ se cuenta como vencimiento el mes
               siguiente a que entró. Por eso vas a ver valores en esta columna casi desde el Mes 1, mucho antes de que el primer CDT90 llegue a su plazo:
               así es como el motor modela que LIQ está disponible de inmediato cada mes.
             </p>
@@ -495,7 +495,7 @@ export function GuiaPasanteDia2() {
               su valor en libros se queda fijo en el principal durante toda su vida (igual que un bono real, cuyo principal se mantiene entre cupones), y el
               interés se reconoce cada mes a medida que se devenga: cada mes que la posición sigue abierta suma valor en libros × (su tasa ÷ 12) a un
               acumulado interno, y ese acumulado es lo que se paga como cupón — y vuelve a cero — en la fecha de pago. En la práctica esto quiere decir que
-              vas a ver rendimiento genuino en tu estado de caja incluso en un mes donde "Vencimientos en caja" para esa posición está en $0, porque el
+              vas a ver rendimiento genuino en tu estado de caja incluso en un mes donde &ldquo;Vencimientos en caja&rdquo; para esa posición está en $0, porque el
               interés ya se está devengando aunque el efectivo llegue después.
             </p>
           </InfoNote>
@@ -516,7 +516,8 @@ export function GuiaPasanteDia2() {
           <FlagCallout>
             <span className="font-semibold">Importante — </span>
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
-            1/12 de tu reserva total. Es intencional — el ejercicio evalúa la calidad de tu calendario de decisión de forma aislada del resultado de tu
+            1/12 de tu reserva total, subida lo justo para que, después de pagar el 25% de gastos de esta misma simulación, lo que quede alcance para esa
+            reserva — ni más ni menos. Es intencional — el ejercicio evalúa la calidad de tu calendario de decisión de forma aislada del resultado de tu
             tarifa, para que dos equipos con el mismo calendario obtengan la misma nota de ALM. Cuando reportes el P&G real, vas a necesitar razonar cómo
             cambiarían estas cifras con tu prima real.
           </FlagCallout>
@@ -527,12 +528,12 @@ export function GuiaPasanteDia2() {
               </span>
               El real. Resultado de inversiones (sección 5.1) es el ingreso de inversión que tu portafolio efectivamente devengó ese año dentro de esta
               simulación — la suma mes a mes de lo que rindió cada posición (intereses, cupones, crecimiento de las acciones), un valor en pesos, en bruto.
-              El "Rendimiento ajustado por riesgo" de la sección 5.5 es una nota aparte, en escala 0-100, que califica qué tan bien armaste tu calendario de
+              El &ldquo;Rendimiento ajustado por riesgo&rdquo; de la sección 5.5 es una nota aparte, en escala 0-100, que califica qué tan bien armaste tu calendario de
               decisión y se queda en la calificación.
             </p>
             <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula el rendimiento ajustado por riesgo — </span>
-              es un Sharpe ratio real: (rendimiento efectivo anualizado de tu portafolio a lo largo de los 60 meses
+              es un Sharpe ratio real: (rendimiento efectivo anualizado de tu portafolio a lo largo de los 108 meses
               de esta simulación − tasa libre de riesgo) ÷ volatilidad de portafolio, menos una penalización aparte por concentración. La{" "}
               <strong>tasa libre de riesgo es el 5.0% nominal de LIQ</strong> (sección 5.2) — el instrumento más seguro y líquido del menú funciona como
               el ancla: tu retorno solo cuenta como &ldquo;premio por riesgo&rdquo; en la parte que supera lo que ya conseguirías sin arriesgar nada. La
@@ -569,7 +570,7 @@ export function GuiaPasanteDia2() {
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula la severidad de venta forzada — </span>
               cada vez que el motor te vende algo bajo presión de caja (sección 5.4), ese monto se pondera por la volatilidad anual del instrumento
-              vendido — vender ACC pesa mucho más que vender CDT90 por el mismo monto — y se acumula a lo largo de los 60 meses: Σ (monto vendido bajo
+              vendido — vender ACC pesa mucho más que vender CDT90 por el mismo monto — y se acumula a lo largo de los 108 meses: Σ (monto vendido bajo
               presión ese mes × volatilidad anual de ese instrumento). Esa suma se compara contra el peor caso posible: toda la Caja Mínima exigida en
               el horizonte completo (Σ Caja Mínima de cada mes), si se hubiera tenido que cubrir vendiendo siempre el instrumento más volátil del menú
               (ACC), y se recorta a un máximo de 1. La nota de Venta forzada es 100 × (1 − esa severidad): 100 si nunca vendiste bajo presión, y llega a

@@ -1,5 +1,6 @@
 import { GENERAL_INFLATION_ANNUAL } from "../generation/constants";
 import { ACC_ROLL_M } from "./constants";
+import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 
 export interface Instrument {
   id: string;
@@ -216,8 +217,8 @@ export interface PortfolioDecisionV4 {
   schedule: MonthlyAllocationEntry[];
 }
 
-/** Defensive ceiling for isPortfolioDecisionV4 — a schedule can't usefully have more checkpoints than almSim's own 60-month horizon (BUILD_MONTHS + HORIZON). */
-export const MAX_SCHEDULE_ENTRIES = 60;
+/** Defensive ceiling for isPortfolioDecisionV4 — a schedule can't usefully have more checkpoints than almSim's own horizon (BUILD_MONTHS + HORIZON): a fresh checkpoint every remaining month is already the finest granularity that can matter. Derived, not a duplicated literal, so it can't quietly drift out of sync with the horizon it's bounding. */
+export const MAX_SCHEDULE_ENTRIES = BUILD_MONTHS + HORIZON;
 
 /**
  * An instrument's own holding period in months before its principal matures
