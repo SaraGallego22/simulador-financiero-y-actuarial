@@ -1193,13 +1193,18 @@ export function almSimRealYear(
   // cxcHoldback0/cxpHoldback0: makes this year's real cash mechanics
   // genuinely consistent with the Balance's own cxc/cxp lines (see
   // finBench.ts's balance()) instead of leaving a residual for the caller
-  // to paper over. cxc/cxp assume a 30-day/10% collection/payment lag on
-  // THIS year's own annual primaEmitida (aporteMensual×12 — the real ALM
-  // never sees primaEmitida directly, only its monthly share); without any
-  // adjustment, the real ALM invests/pays 100% the same month, so caja +
-  // inversiones ends up implicitly assuming zero lag while cxc/cxp on the
-  // Balance assume one, and Activos (caja+inversiones+cxc) drifts away from
-  // Pasivo+Patrimonio by exactly that mismatch.
+  // to paper over. cxc assumes a 30-day collection lag on THIS year's own
+  // annual primaEmitida (aporteMensual×12 — the real ALM never sees
+  // primaEmitida directly, only its monthly share); cxp assumes the same
+  // 30-day rotation, but on THIS year's own annual gastos (GASTOS_TOTAL_PCT
+  // × primaEmitida — comisión + adquisición + administración, see
+  // GASTOS_TOTAL_PCT/diasRotacionCxp above) rather than on primaEmitida
+  // itself — a payable is sized off what the insurer owes its providers,
+  // not off the premium it collects. Without any adjustment, the real ALM
+  // invests/pays 100% the same month, so caja + inversiones ends up
+  // implicitly assuming zero lag while cxc/cxp on the Balance assume one,
+  // and Activos (caja+inversiones+cxc) drifts away from Pasivo+Patrimonio
+  // by exactly that mismatch.
   //
   // NET against the PRIOR year's own cxc/cxp (0 for year===1, no prior year
   // to net against) — exactly the "change in working capital" a real cash
@@ -1227,9 +1232,10 @@ export function almSimRealYear(
   // Día 2's fictitious ALM (almSim, which never passes these) included.
   const primaEmitidaAnual = aporteMensual * BUILD_MONTHS;
   const cxcThisYear = (FZ.diasRotacionCxc / 365) * primaEmitidaAnual;
-  const cxpThisYear = FZ.cxpPct * primaEmitidaAnual;
+  const cxpThisYear = (FZ.diasRotacionCxp / 365) * GASTOS_TOTAL_PCT * primaEmitidaAnual;
   const cxcPriorYear = year !== 1 && priorYearTotalPremium != null ? (FZ.diasRotacionCxc / 365) * priorYearTotalPremium : 0;
-  const cxpPriorYear = year !== 1 && priorYearTotalPremium != null ? FZ.cxpPct * priorYearTotalPremium : 0;
+  const cxpPriorYear =
+    year !== 1 && priorYearTotalPremium != null ? (FZ.diasRotacionCxp / 365) * GASTOS_TOTAL_PCT * priorYearTotalPremium : 0;
   const cxcHoldback0 = cxcThisYear - cxcPriorYear;
   const cxpHoldback0 = cxpThisYear - cxpPriorYear;
 

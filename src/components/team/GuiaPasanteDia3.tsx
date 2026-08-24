@@ -322,7 +322,9 @@ export function GuiaPasanteDia3() {
           <p>
             <strong>Pasivo:</strong> Reservas técnicas (lo que falta por pagar de siniestros ya incurridos — RSA + IBNR, siempre el saldo real
             pendiente), RPND (la parte de la prima ya cobrada que corresponde a cobertura de un periodo futuro todavía por transcurrir — una
-            obligación de seguir cubriendo el riesgo) y Cuentas por pagar (otras obligaciones operativas pendientes). A esas se suma una cuarta línea,{" "}
+            obligación de seguir cubriendo el riesgo) y Cuentas por pagar (comisiones y gastos operativos ya causados que la aseguradora todavía no ha
+            pagado — con una rotación de pago de 30 días sobre esos gastos, la misma lógica que Cuentas por cobrar pero del lado de lo que se debe en
+            vez de lo que se cobra). A esas se suma una cuarta línea,{" "}
             <strong>Necesidades de patrimonio o deuda</strong> — distinta de cero solo si tu aseguradora agotó por completo su portafolio real
             (Capital Social incluido) y aun así necesitó más para cubrir un faltante de caja: ese exceso tuvo que salir de financiación fresca
             (capital nuevo o deuda), así que se reconoce como una obligación aparte. Para la inmensa mayoría de los equipos esta línea es cero.
@@ -508,8 +510,9 @@ export function GuiaPasanteDia3() {
             Cuando no cuadra, el error está en alguna de las líneas anteriores.
           </p>
           <p>
-            <strong>Las líneas de Activos y Pasivo se calculan de formas distintas entre sí.</strong> Cuentas por pagar y RPND siguen siendo un
-            porcentaje fijo de la prima emitida; Cuentas por cobrar sale de la rotación de cartera de 30 días (sección 3). Caja e Inversiones, en
+            <strong>Las líneas de Activos y Pasivo se calculan de formas distintas entre sí.</strong> RPND sigue siendo un porcentaje fijo de la prima
+            emitida; Cuentas por cobrar y Cuentas por pagar salen de una rotación de 30 días — sobre prima emitida y sobre gastos, respectivamente
+            (sección 3). Caja e Inversiones, en
             cambio, dependen de tu propio flujo de caja real ese año (lo que tu prima realmente cobrada alcanzó a cubrir, después de pagar siniestros
             y gastos) y de tu Capital Social.
           </p>
@@ -584,8 +587,8 @@ export function GuiaPasanteDia3() {
             columns={["2027", "2028", "2029 (proy.)"]}
             emphasizedLabels={["Activos totales", "Pasivo + Patrimonio"]}
             formulaNotes={[
-              "Cuentas por pagar / RPND = 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
-              "Cuentas por cobrar sale de la rotación de cartera de 30 días de la sección 3.",
+              "RPND = 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
+              "Cuentas por cobrar sale de la rotación de cartera de 30 días de la sección 3; Cuentas por pagar sale de la misma rotación de 30 días, pero sobre tus gastos (comisión + adquisición + administración) de ese año.",
               "Caja e Inversiones dependen, en los tres años, de tu propio flujo de caja y tu Capital Social: cuánta prima entró, cuánto siniestro y gasto salió, y qué quedó invertido al cierre. En 2029 son los mismos flujos, proyectados.",
               "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo agotó por completo su portafolio real (Capital Social incluido) y aun así necesitó más. Para casi todos los equipos es 0.",
               "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar + Necesidades de patrimonio o deuda.",
