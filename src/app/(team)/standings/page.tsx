@@ -24,7 +24,7 @@ export default async function TeamStandingsPage() {
         Top 3
       </h1>
       <p className="text-sm text-[var(--color-brand-text-secondary)]">
-        Nota final ponderada de los días habilitados hasta ahora.
+        Nota de cada día y nota final ponderada de los días habilitados hasta ahora.
       </p>
 
       {ranked.length === 0 ? (
@@ -34,6 +34,11 @@ export default async function TeamStandingsPage() {
           <Table.Head>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">#</th>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
+            {[1, 2, 3, 4].map((d) => (
+              <th key={d} className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">
+                Día {d}
+              </th>
+            ))}
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Nota final</th>
           </Table.Head>
           <tbody>
@@ -47,6 +52,11 @@ export default async function TeamStandingsPage() {
                     {r.teamName}
                     {isMine && " (tu equipo)"}
                   </td>
+                  {r.perDay.map((d, di) => (
+                    <td key={di} className="px-4 py-2">
+                      {di + 1 <= cohort.openDay ? fmt(d.nota) : "—"}
+                    </td>
+                  ))}
                   <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">
                     {fmt(r.notaFinal)}
                   </td>

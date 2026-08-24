@@ -86,7 +86,7 @@ export function GuiaPasanteDia2() {
       <InsumosEntregables
         insumos={[
           "Resultado real del mercado del 2027: pólizas ganadas y prima cobrada de tu propia cartera.",
-          "Historial de siniestros por póliza avisados hasta la fecha (algunos siniestros de 2027 todavía no se han avisado — la misma opacidad de IBNR de Día 1) — insumo para la retarifación de 2028 y para estimar tu Costo de Siniestros A1.",
+          "Historial de siniestros por póliza avisados hasta la fecha — insumo para la retarifación de 2028 y para estimar tu Costo de Siniestros A1.",
           "Menú de 6 instrumentos financieros y su matriz de covarianza, para tu calendario de portafolio real.",
         ]}
         entregables={[
@@ -133,9 +133,8 @@ export function GuiaPasanteDia2() {
 
         <SubSection title="Retarifar con un año de experiencia real" accent="act">
           <p>
-            Ahora tienes un año de experiencia real por póliza: los siniestros ya avisados, con su magnitud. Sigue siendo una foto parcial (algunos
-            siniestros del 2027 están todavía por avisarse, la misma opacidad de IBNR que ya viste en Día 1), pero es información real con la que
-            antes no contabas. Hay más de un camino razonable para aprovecharla:
+            Ahora tienes un año de experiencia real por póliza: los siniestros ya avisados, con su magnitud. Sigue siendo una foto parcial, pero es
+            información real con la que antes no contabas. Hay más de un camino razonable para aprovecharla:
           </p>
           <ul className="list-disc pl-5">
             <li>
@@ -188,7 +187,8 @@ export function GuiaPasanteDia2() {
           </ul>
           <p>
             En este ejercicio, el monto de un siniestro ya avisado se conoce con certeza — tu trabajo se concentra en estimar la reserva IBNR, y el
-            Costo de Siniestros que reportas en tu P&amp;G (sección 3) debe reflejar esa siniestralidad última: lo avisado más ese IBNR.
+            Costo de Siniestros que reportas en tu P&amp;G (sección 3) debe reflejar esa siniestralidad última: lo que ya pagaste, más lo avisado que
+            sigue pendiente de pago, más ese IBNR.
           </p>
           <p>
             Con un solo año de experiencia propia, apoyarte solo en tus siniestros avisados todavía es delicado: hay poca información, y esa poca
@@ -226,6 +226,14 @@ export function GuiaPasanteDia2() {
               mercado sintético y a tu propia cartera.
             </li>
           </ul>
+          <InfoNote>
+            <p>
+              <strong>Cualquiera que elijas, tus propios siniestros avisados le ponen un piso.</strong> El costo último de un año no puede quedar por
+              debajo de lo que ya sabes que ocurrió: es lo avisado más un IBNR que nunca es negativo. Así que el cociente entre tus siniestros avisados
+              del 2027 y tu prima devengada es el mínimo que puede tomar tu loss ratio asumido — si la referencia que escogiste queda por debajo de ese
+              número, ya sabes que está mal, y el verdadero está estrictamente por encima porque todavía falta lo que no se ha avisado.
+            </p>
+          </InfoNote>
           <p>
             Cada una de estas referencias tiene su propio punto ciego, y combinarlas o elegir entre ellas es parte de lo que se evalúa. El ELR tiene
             una ventaja clara en este punto del ejercicio — funciona con un solo año de experiencia propia, cuando esa experiencia todavía es poco
@@ -263,7 +271,7 @@ export function GuiaPasanteDia2() {
           <p>
             Reporta las 13 líneas del P&G del 2027, una por una. El motor ya conoce tu prima real (lo que efectivamente cobraste en el mercado,
             después del racionamiento por capital/solvencia si aplicó). Tu costo de siniestros, en cambio, es una estimación: solo ves los siniestros
-            del 2027 ya avisados (la misma opacidad de IBNR de Día 1), así que tu Costo de Siniestros A1 es tu propia estimación del costo{" "}
+            del 2027 ya avisados, así que tu Costo de Siniestros A1 es tu propia estimación del costo{" "}
             <strong>último</strong>, vía el método Expected Loss Ratio (sección 2). Los gastos de adquisición y comisión son los mismos porcentajes
             fijos sobre la prima <strong>emitida</strong> que ya usaste para calcular tu prima comercial en Día 1; el administrativo también. De tu
             prima emitida reservas un 20% como Reserva de Prima No Devengada (RPND), la parte que todavía cubre riesgo futuro; el 80% restante entra al
@@ -510,7 +518,7 @@ export function GuiaPasanteDia2() {
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
             1/12 de tu reserva total. Es intencional — el ejercicio evalúa la calidad de tu calendario de decisión de forma aislada del resultado de tu
             tarifa, para que dos equipos con el mismo calendario obtengan la misma nota de ALM. Cuando reportes el P&G real, vas a necesitar razonar cómo
-            cambiarían estas cifras con tu prima real; los resultados objetivos te muestran ambas corridas lado a lado.
+            cambiarían estas cifras con tu prima real.
           </FlagCallout>
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
@@ -533,14 +541,6 @@ export function GuiaPasanteDia2() {
               del horizonte completo. Aparte de ese cociente, se resta 0.5 × qué tan concentrado quedó tu riesgo en un solo instrumento (0 = tu exposición
               fuera de LIQ está repartida pareja entre los demás instrumentos del menú, 1 = está toda en uno solo; LIQ queda por fuera de este cálculo,
               porque mantener caja es ausencia de riesgo). El resultado se normaliza a una escala de 0 a 100 entre un piso y un techo.
-            </p>
-            <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
-              <span className="font-semibold text-[var(--color-brand-blue-accent)]">¿Cuál instrumento tiene el mejor Sharpe individual? </span>
-              CDT90: su spread sobre la tasa libre de riesgo es amplio y su volatilidad, muy baja — TES UVR8 y TES1 quedan cerca, por debajo. TES UVR8
-              sigue valiendo la pena por otra vía: como su correlación con CDT90/TES1 es baja (ver la matriz de covarianza de la sección 5.2), sumarlo a
-              una mezcla puede bajar la volatilidad de la combinación más de lo que diluye el retorno — un portafolio bien diversificado puede terminar
-              con mejor Sharpe que cualquier instrumento individual, incluido CDT90 solo. Esa es la razón para armar un calendario diversificado: la
-              combinación puede rendir más por unidad de riesgo que cualquiera de sus partes por separado.
             </p>
           </InfoNote>
         </FlowStep>

@@ -111,7 +111,7 @@ export function GuiaPasanteDia3() {
 
       <InsumosEntregables
         insumos={[
-          "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028 — con fecha exacta de siniestro y de aviso, para armar tu propio triángulo de desarrollo mensual (Chain Ladder, sección 2).",
+          "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028.",
           "Pagos reales del 2028 sobre los siniestros del 2027 (desarrollo) y los siniestros propios del 2028.",
           "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027/2028.",
           "Retención real de pólizas de 2027 a 2028, para proyectar el 2029.",
@@ -388,33 +388,67 @@ export function GuiaPasanteDia3() {
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Sin un mercado real que simular, cada línea necesita su propia regla, explícita y consistente.
           </p>
+          <p>
+            Antes de proyectar nada, ubica qué estás proyectando de verdad. De las 14 líneas del 2029, la mayoría se deriva de otras con las mismas
+            reglas que ya aplicaste al 2028: la RPND que liberas y la que constituyes, los gastos como porcentaje de la prima emitida, y las sumas que
+            llevan de prima devengada hasta utilidad neta. Solo <strong>tres</strong> son estimaciones genuinamente tuyas, y de ellas cuelga todo lo
+            demás: <strong>Prima emitida</strong>, <strong>Costo de siniestros</strong> y <strong>Resultado de inversiones</strong>. Conviene armarlas
+            en ese orden, porque cada una alimenta a la siguiente: el tamaño de tu libro define la prima, ese mismo tamaño define el costo, y el costo
+            define las reservas sobre las que rinde tu portafolio.
+          </p>
           <ul className="list-disc pl-5">
             <li>
-              <strong>La prima crece por dos cosas — cuántas pólizas conservas, y cuánto cobras por cada una.</strong> Piensa en tu 2029 como pólizas
-              retenidas de 2028 (a la misma tasa de retención que ya observaste de 2027 a 2028) más pólizas nuevas. Cada una de esas pólizas, a su vez,
-              se ajusta con la misma tasa de inflación de siniestros del punto siguiente: un equipo que retarifica para 2029 traslada esa expectativa
-              de inflación tanto a su costo como a su prima.
+              <strong>1. Prima emitida — cuántas pólizas tienes, por cuánto cobras cada una.</strong> Son dos preguntas separadas y se multiplican
+              entre sí.
+              <ul className="mt-1 list-[circle] pl-5">
+                <li>
+                  <strong>Cuántas pólizas.</strong> Parte de tu libro real del 2028 y aplícale la tasa de retención que ya observaste de 2027 a 2028
+                  (está en los insumos de hoy) — esas son las que conservas. A eso súmale las pólizas nuevas que esperes ganar en 2029; cuántas nuevas
+                  entraron en 2028 es la referencia natural, y moverte de ahí exige una razón concreta.
+                </li>
+                <li>
+                  <strong>Por cuánto.</strong> Tu prima media por póliza del 2028 (prima emitida ÷ pólizas aseguradas de ese año), ajustada por la
+                  misma inflación de siniestros del punto 3: un equipo que retarifica para 2029 traslada esa expectativa tanto a su costo como a su
+                  precio, no deja el precio quieto.
+                </li>
+              </ul>
             </li>
             <li>
-              <strong>El costo de siniestros de 2029 es solo el siniestro propio de 2029.</strong> La línea de Ajuste de siniestralidad es exclusiva
-              del 2028: esa liberación del 10% es un hecho puntual sobre la reserva de 2027 (Año 1). Y lo que sigue pagándose de siniestros de 2027 y
-              2028 (cada siniestro tiene 3 años de desarrollo — repasa la sección 4 de la guía de Día 2 si la tienes lejos) ya se reconoció como costo
-              en el P&G de su propio año de accidente, y aquí sigue existiendo solo como saldo de reserva en el Balance.
+              <strong>2. Costo de siniestros — solo lo que ocurre en 2029, separando frecuencia de severidad.</strong> Es en base fecha de accidente:
+              lo que sigas pagando en 2029 de siniestros de 2027 y 2028 no entra aquí (ya se reconoció como costo en el P&amp;G de su propio año y hoy
+              solo vive como saldo de reserva en el Balance), y tampoco hay línea de Ajuste de siniestralidad, que es exclusiva del 2028.
+              <ul className="mt-1 list-[circle] pl-5">
+                <li>
+                  <strong>Frecuencia</strong> — qué proporción de tu libro tuvo siniestro en 2028. Se mantiene estable de un año a otro salvo que
+                  tengas una razón concreta para moverla (por ejemplo, un cambio de perfil de la cartera que tú mismo provocaste al retarifar).
+                </li>
+                <li>
+                  <strong>Severidad</strong> — cuánto costó en promedio cada siniestro del 2028, medida sobre el costo <strong>último</strong> de ese
+                  año (el que estimaste con tu triángulo, sección 2), no sobre lo avisado hasta hoy. Esta sí cambia: se infla un año.
+                </li>
+                <li>Con esas dos y el número de pólizas del punto 1 ya tienes el siniestro propio del 2029.</li>
+              </ul>
             </li>
             <li>
-              <strong>Para proyectar el siniestro propio de 2029, separa frecuencia de severidad.</strong> La frecuencia (cuántas pólizas de tu libro
-              tienen siniestro) se mantiene estable salvo que tengas una razón concreta para moverla; la severidad (cuánto cuesta cada siniestro) sí
-              cambia, por inflación. Proyéctalas por separado.
-            </li>
-            <li>
-              <strong>¿Qué tasa de inflación de siniestros usar?</strong> La misma que ya estimaste y aplicaste para tarificar el 2028 (recuerda:
+              <strong>3. ¿Qué tasa de inflación de siniestros usar?</strong> La misma que ya estimaste y aplicaste para tarificar el 2028 (recuerda:
               mayor a la inflación general de referencia del 6%, ver la guía de Día 2) aplica otra vez para proyectar 2029. Puedes verificar qué tan
-              bien le atinaste comparando la severidad promedio de tus propios siniestros reales entre 2027 y 2028.
+              bien le atinaste comparando la severidad promedio de tus propios siniestros reales entre 2027 y 2028. Úsala en los dos lados: en el costo
+              del punto 2 y en el precio del punto 1.
             </li>
             <li>
-              <strong>El Resultado de inversiones sale de lo que tu ALM real rindió.</strong> Parte de lo que tu portafolio efectivamente devengó en
-              2028, más allá de lo que su calendario prometía en teoría — si tuviste que vender algo bajo presión o comprometer capital en 2028, eso
-              también debería pesar en tu proyección de 2029.
+              <strong>4. Resultado de inversiones — hereda la tasa del 2028, no el monto.</strong> Lo que se traslada es el rendimiento que tu
+              portafolio realizó de verdad durante el 2028 (lo que devengó sobre el saldo que tuviste invertido en promedio), no el rendimiento nominal
+              que su calendario prometía en el papel: si vendiste algo bajo presión, esa pérdida ya está descontada de lo que devengaste, así que esa
+              tasa realizada queda por debajo de la nominal. Esa tasa aplícala sobre las reservas técnicas que proyectaste para 2029 — las colas que
+              siguen abiertas de 2027 y 2028 más la parte del siniestro propio de 2029 que quede sin pagar dentro del mismo año —, que no son las del
+              2028. El capital que hayas tenido que comprometer no entra en esta línea: ese golpe lo ves en el Balance, contra tu patrimonio.
+            </li>
+            <li>
+              <strong>5. Las once líneas restantes salen de las tres anteriores.</strong> Liberas la RPND que constituiste en 2028 y constituyes la
+              tuya sobre la prima de 2029; los gastos de adquisición, comisiones y administrativos son los mismos porcentajes fijos de siempre sobre tu
+              prima emitida; y de ahí al Resultado Técnico, Resultado Industrial, utilidad antes de impuestos, impuesto y utilidad neta con la misma
+              estructura del 2028. Esas líneas se califican contra <strong>tus propios</strong> números de las otras líneas, así que un error en una de
+              las tres estimaciones de arriba te cuesta puntos una sola vez, siempre que la aritmética que cuelga de ella sea correcta.
             </li>
           </ul>
         </SubSection>
