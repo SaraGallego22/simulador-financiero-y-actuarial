@@ -44,7 +44,7 @@ export interface TeamSimAggregate {
 }
 
 export interface SimulationResult {
-  /** Per-exposure assigned team id (index = exposure index, 0-based). */
+  /** Per-exposure assigned team id (index = exposure index, 0-based), or -1 for an exposure no team had capacity left to insure. */
   assignment: Int32Array;
   aggregates: Map<number, TeamSimAggregate>;
 }
@@ -68,6 +68,13 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
  *    by everyone.
  * 3. Exposures rejected in phase 2 are redistributed among teams with
  *    remaining capacity, using a second independent Gumbel draw.
+ *    capacityByTeamId/cuotaPct is a hard ceiling here — same as Year 2 (see
+ *    runSimulationYear2()): a team is never forced to take on more than its
+ *    solvency-derived limit allows. If total capacity across all teams can't
+ *    cover the whole universe, the leftover exposures come back in
+ *    `assignment` as -1 (uninsured). The one exception is Phase 4's
+ *    MIN_POLICIES_PER_TEAM floor, which can still push a team above its own
+ *    capacityLimit — see enforceMinPoliciesFloor()'s doc comment for why.
  *
  * Rewritten with typed arrays and no artificial yields (see CLAUDE.md §4.1) —
  * on the server there's no render thread to protect, so this runs in one pass
@@ -158,24 +165,17 @@ export function runSimulation(
     remainingCapacity.set(team.id, limit - Math.min(indices.length, limit));
   }
 
-  // Phase 3: redistribute rejected exposures among teams with remaining capacity
+  // Phase 3: redistribute rejected exposures among teams with remaining
+  // capacity. Sum of every team's (capacity-derived, ceiling-clamped) limit
+  // can be < 100% of the universe — no team has room. capacityLimit is a
+  // hard solvency ceiling: an exposure nobody has room for stays unassigned
+  // (-1), i.e. uninsured, rather than being forced onto a team beyond its
+  // capital-implied capacity.
   for (let k = 0; k < n; k++) {
     if (assignment[k] !== -1) continue;
 
     const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0);
-    if (!available.length) {
-      // Sum of every team's (capacity-derived, ceiling-clamped) limit <
-      // 100% of the universe — no team has room. Fall back to whichever
-      // team has the most remaining (least negative) capacity, mirroring
-      // the legacy's behavior in this edge case.
-      let fallback = teams[0];
-      for (const t of teams) {
-        if ((remainingCapacity.get(t.id) ?? 0) > (remainingCapacity.get(fallback.id) ?? 0)) fallback = t;
-      }
-      assignment[k] = fallback.id;
-      remainingCapacity.set(fallback.id, (remainingCapacity.get(fallback.id) ?? 0) - 1);
-      continue;
-    }
+    if (!available.length) continue; // uninsured: no team has capacity left
 
     let bestU = -Infinity;
     let bestTeam = available[0];

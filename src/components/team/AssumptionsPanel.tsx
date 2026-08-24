@@ -14,8 +14,8 @@ const ASSUMPTIONS: { title: string; body: string }[] = [
     body: "Cada póliza tiene como máximo un siniestro en el año. La frecuencia es la probabilidad de ese único evento.",
   },
   {
-    title: "Los siniestros vienen fijados desde el universo",
-    body: "Los siniestros de cada año, con sus fechas y montos, quedan fijados al generar el universo. Tu tarifa decide qué pólizas aseguras.",
+    title: "El siniestro se paga 3 meses después del aviso",
+    body: "Una vez la compañía conoce un siniestro, el pago se produce tres meses más tarde.",
   },
   {
     title: "Capital Social: $120.000.000.000 COP",

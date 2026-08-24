@@ -100,6 +100,30 @@ describe("runSimulation", () => {
     }
   });
 
+  it("leaves exposures uninsured (assignment -1) rather than exceeding any team's capacityLimit when total capacity is short", () => {
+    const capacity = new Map<number, number>([
+      [1, 100],
+      [2, 100],
+      [3, 100],
+    ]);
+    const { assignment, aggregates } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9,
+      capacityByTeamId: capacity,
+    });
+    for (const agg of aggregates.values()) {
+      expect(agg.insuredCount).toBeLessThanOrEqual(agg.capacityLimit);
+    }
+    let uninsured = 0;
+    let totalInsured = 0;
+    for (let k = 0; k < N; k++) if (assignment[k] === -1) uninsured++;
+    for (const agg of aggregates.values()) totalInsured += agg.insuredCount;
+    expect(uninsured).toBeGreaterThan(0);
+    expect(totalInsured + uninsured).toBe(N);
+  });
+
   it("throws when a team is missing from capacityByTeamId", () => {
     expect(() =>
       runSimulation(universe, tariffs, teams, {
