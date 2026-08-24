@@ -247,18 +247,18 @@ export function GuiaPasanteDia1() {
           </p>
           <p>
             <strong>Tu tarifa se evalúa por cómo le va en el mercado.</strong> Al cierre del día se corre un mercado de elección: cada
-            asegurado compara el precio que le ofrece cada equipo y elige racionalmente (con algo de ruido aleatorio y cierta inercia hacia su aseguradora
-            actual), sujeto a un tope de cuota de mercado por equipo: al llegar a ese tope, el exceso de demanda se redistribuye entre los equipos que
+            asegurado compara el precio que le ofrece cada equipo y elige racionalmente, con algo de ruido aleatorio que recoge sus preferencias de marca,
+            sujeto a un tope de cuota de mercado por equipo: al llegar a ese tope, el exceso de demanda se redistribuye entre los equipos que
             todavía tienen cupo disponible.
           </p>
           <p>
-            Tu nota actuarial del día depende de tu resultado técnico (prima devengada − siniestros − gastos de adquisición/comisión — el gasto
-            administrativo se resta más abajo, en su propia línea, el Resultado Industrial), comparado contra un desempeño de referencia fijo que define
-            el propio modelo, igual para todos los equipos. La prima devengada es la porción de la prima que ya se considera ganada: como en cualquier
-            aseguradora, la parte que todavía cubre riesgo futuro se reserva como Reserva de Prima No Devengada (RPND) — para tu primer año, la prima
-            devengada es el 80% de lo que efectivamente cobraste (más detalle en la guía de Día 2, cuando armes tu propio P&amp;G). Precios muy altos
-            pierden clientes (y con ellos, ingreso); precios muy bajos ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente
-            el riesgo equivocado — y los gastos, al ser un porcentaje fijo de la prima cobrada, pesan más cuanto más barato cobres.
+            Tu nota actuarial del día depende de tu resultado técnico: lo que te queda de la prima después de pagar los siniestros del año y los gastos de
+            colocar el negocio, comparado contra un desempeño de referencia fijo que define el propio modelo, igual para todos los equipos. Y cuenta la
+            prima devengada, no todo lo que cobraste: como en cualquier aseguradora, la parte que todavía cubre riesgo futuro se reserva como Reserva de
+            Prima No Devengada (RPND), así que en tu primer año la prima devengada es el 80% de lo que efectivamente cobraste. En Día 2 armas tú mismo el
+            P&amp;G completo, con el resultado técnico como una de sus líneas. Precios muy altos pierden clientes (y con ellos, ingreso); precios muy bajos
+            ganan volumen, pero pueden hundir el resultado técnico si atraen selectivamente el riesgo equivocado — y los gastos, al ser un porcentaje fijo
+            de la prima cobrada, pesan más cuanto más barato cobres.
           </p>
           <ul className="list-disc pl-5">
             <li>Resultado técnico en cero (ni ganancia ni pérdida, ya descontados los gastos) → nota 50.</li>
