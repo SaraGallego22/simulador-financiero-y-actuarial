@@ -37,6 +37,11 @@ model User {
 model Cohort {
   id        String   @id @default(cuid())
   name      String   @unique
+  // Word typed in the third login field ("demo", "2026") to route a team's
+  // login attempt to this cohort — see authorize() in src/lib/auth.ts. Kept
+  // separate from `name` (a display string like "Cohorte demo") so the login
+  // word can stay short/stable even if the display name changes.
+  loginSlug String   @unique
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   // Highest day (1-4) teams can currently see, admin-controlled — teams start

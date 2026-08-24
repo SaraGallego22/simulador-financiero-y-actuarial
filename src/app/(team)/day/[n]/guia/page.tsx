@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { PrintButton } from "@/components/PrintButton";
 import { GuiaPasanteDia1 } from "@/components/team/GuiaPasanteDia1";
 import { GuiaPasanteDia2 } from "@/components/team/GuiaPasanteDia2";
 import { GuiaPasanteDia3 } from "@/components/team/GuiaPasanteDia3";
 import { GuiaPasanteDia4 } from "@/components/team/GuiaPasanteDia4";
 import { GuiaFooter } from "@/components/team/GuiaShared";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { LockIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export const dynamic = "force-dynamic";
 export default async function GuiaPasantePage({ params }: { params: Promise<{ n: string }> }) {
   const { n } = await params;
   const day = Number(n);
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
   if (day > cohort.openDay) {
     return (
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-6 sm:p-8">

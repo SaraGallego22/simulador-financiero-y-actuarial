@@ -170,7 +170,7 @@ async function ensureTestCohort(): Promise<{ id: string; name: string }> {
     await prisma.cohort.update({ where: { id: existing.id }, data: { openDay: 4 } });
     return existing;
   }
-  return prisma.cohort.create({ data: { name: TEST_COHORT_NAME, active: false, openDay: 4 } });
+  return prisma.cohort.create({ data: { name: TEST_COHORT_NAME, loginSlug: "prueba", active: false, openDay: 4 } });
 }
 
 async function ensureTeams(cohortId: string): Promise<TeamRef[]> {

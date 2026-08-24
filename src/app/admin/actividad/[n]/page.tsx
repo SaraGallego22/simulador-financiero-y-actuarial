@@ -1,4 +1,5 @@
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { auth } from "@/lib/auth";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { ACTIVITY_TITLES, isValidSoftSkillActivity } from "@/lib/softSkills";
 import type { SoftSkillCompetency, SoftSkillRating } from "@/lib/softSkills";
@@ -25,7 +26,8 @@ export default async function AdminActivityPage({
   if (!isValidSoftSkillActivity(activity)) notFound();
 
   const { team: selectedTeamId } = await searchParams;
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
 
   const [teams, evaluations, comments, notes] = await Promise.all([
     prisma.team.findMany({

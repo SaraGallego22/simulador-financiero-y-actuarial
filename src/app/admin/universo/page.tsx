@@ -1,9 +1,11 @@
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { auth } from "@/lib/auth";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { UniverseGenerator, type UniverseRunSummary } from "./UniverseGenerator";
 
 export default async function UniversoPage() {
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
   // Explicit select excludes the `data` Bytes column — we only need status here.
   const runs = await prisma.universeRun.findMany({
     where: { cohortId: cohort.id },

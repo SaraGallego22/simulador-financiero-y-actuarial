@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { updateRubricWeightsAction, updateOpenDayAction } from "@/lib/adminActions";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
@@ -18,7 +18,7 @@ export default async function ConfigPage() {
   // call requireAdmin() regardless of what this page renders — this check
   // is presentation-only, not the actual permission boundary.
   const isAdmin = session?.user.role === "ADMIN";
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
 
   const [teams, rubric, membersByTeam] = await Promise.all([
     prisma.team.findMany({

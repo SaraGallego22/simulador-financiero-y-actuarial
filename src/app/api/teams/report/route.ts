@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForTeamId } from "@/lib/cohort";
 import { toInt32View } from "@/lib/binary";
 import { getTariffArray } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
@@ -70,7 +70,8 @@ export async function GET(request: Request) {
   // "what did I charge," same as the guide's Balance/proyección already do.
   const simDay = day === 3 ? 2 : day;
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForTeamId(teamId);
+  if (!cohort) return new Response("Tu equipo no tiene un cohorte asignado.", { status: 404 });
 
   const run = await prisma.simulationRun.findFirst({
     where: { cohortId: cohort.id, day: simDay, status: "DONE" },

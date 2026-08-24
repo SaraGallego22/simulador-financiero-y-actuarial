@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { auth } from "@/lib/auth";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
 import { computeMemberConsolidado } from "@/lib/consolidado";
 import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS, SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
 
@@ -24,7 +24,7 @@ export async function GET() {
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") return new Response("No autorizado", { status: 403 });
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const rows = await computeMemberConsolidado(cohort.id);
 
   // "n/m" fractions (días aprobados, aptitud Riesgos) look like dates to

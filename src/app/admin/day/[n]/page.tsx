@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { auth } from "@/lib/auth";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { getTeamBookForDay, computeReservesForTeams, getSectorStatsForSeed, getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
@@ -63,7 +64,8 @@ export default async function AdminDayPage({
   const bookYear = day === 2 ? 1 : null;
   const { tab, team: selectedTeamId } = await searchParams;
   const activeTab = (tab as DayTabKey) ?? "resultados";
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
 
   const reportConcepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
   const hasAnalitica = conceptosDia(`d${day}` as Dia).some((c) => c.tipo === "auto_analitica");

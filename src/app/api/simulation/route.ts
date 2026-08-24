@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
 import { getTariffArray, computeMedianWonPremiumByNumericId } from "@/lib/tariffAccess";
 import { runSimulation } from "@/domain/market/runSimulation";
 import { runSimulationYear2 } from "@/domain/market/runSimulationYear2";
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Parámetros inválidos" }, { status: 400 });
   }
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
 
   // Check eligibility BEFORE fetching the ~40MB universe blob or any team's
   // tariff data — this used to fetch the universe unconditionally first,

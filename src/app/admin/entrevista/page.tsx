@@ -1,4 +1,5 @@
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { auth } from "@/lib/auth";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
@@ -12,7 +13,8 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminInterviewPage({ searchParams }: { searchParams: Promise<{ team?: string }> }) {
   const { team: selectedTeamId } = await searchParams;
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
 
   const [teams, ratings, comments] = await Promise.all([
     prisma.team.findMany({

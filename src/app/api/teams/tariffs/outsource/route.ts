@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForTeamId } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
 import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
 import { getExposure } from "@/domain/generation/generateColombia";
@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   const day = Number(body?.day);
   if (![1, 2].includes(day)) return NextResponse.json({ error: "Parámetro day inválido" }, { status: 400 });
 
-  const cohort = await getOrCreateActiveCohort();
-  const universe = await loadUniverse(cohort.id);
+  const cohort = await getCohortForTeamId(teamId);
+  const universe = cohort ? await loadUniverse(cohort.id) : null;
   if (!universe) return NextResponse.json({ error: "El universo Colombia aún no se ha generado." }, { status: 400 });
 
   const premiums = generateOutsourcedTariff(universe);
@@ -86,8 +86,8 @@ export async function GET(request: Request) {
     return new Response("Esta tarifa estará disponible para descargar una vez el mercado de este día haya cerrado.", { status: 403 });
   }
 
-  const cohort = await getOrCreateActiveCohort();
-  const universe = await loadUniverse(cohort.id);
+  const cohort = await getCohortForTeamId(teamId);
+  const universe = cohort ? await loadUniverse(cohort.id) : null;
   if (!universe) return new Response("El universo Colombia aún no se ha generado.", { status: 404 });
 
   const premiums = generateOutsourcedTariff(universe);

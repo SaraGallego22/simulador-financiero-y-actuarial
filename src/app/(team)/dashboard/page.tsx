@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AssumptionsPanel } from "@/components/team/AssumptionsPanel";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { Card } from "@/components/ui/card";
 import { LockIcon } from "@/components/ui/icons";
 import { TEAM_DAY_LINKS } from "@/lib/teamNavData";
@@ -25,7 +25,7 @@ export default async function TeamDashboard() {
     teamId
       ? prisma.tariffSubmission.findMany({ where: { teamId }, select: { day: true, meanPremium: true } })
       : [],
-    getOrCreateActiveCohort(),
+    session ? getCohortForSession(session) : getOrCreateActiveCohort(),
   ]);
   const completeByDay = new Map(submissions.map((s) => [s.day, s.meanPremium != null]));
 

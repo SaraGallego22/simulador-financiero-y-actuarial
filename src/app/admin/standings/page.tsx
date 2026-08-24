@@ -1,4 +1,5 @@
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { auth } from "@/lib/auth";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado, computeMemberConsolidado } from "@/lib/consolidado";
 import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS } from "@/lib/softSkills";
 import { Table } from "@/components/ui/table";
@@ -13,7 +14,8 @@ export const dynamic = "force-dynamic";
 const fmt = (v: number | null) => (v != null ? v.toFixed(1) : "—");
 
 export default async function AdminStandingsPage() {
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
   const [rows, memberRows] = await Promise.all([computeConsolidado(cohort.id), computeMemberConsolidado(cohort.id)]);
 
   return (

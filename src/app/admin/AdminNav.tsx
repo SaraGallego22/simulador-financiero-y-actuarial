@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { SidebarShell } from "@/components/SidebarShell";
 import { useSidebarCollapsed } from "@/lib/sidebarCollapse";
+import { CohortSwitcher } from "@/components/CohortSwitcher";
 import { BarChartIcon, ChatIcon, ChevronIcon, FlaskIcon, GlobeIcon, HomeIcon, SettingsIcon } from "@/components/ui/icons";
 import { navSectionsForRole, type AdminNavLink, type AdminNavSection } from "@/lib/adminNavData";
 
@@ -68,11 +69,26 @@ function defaultOpenMap(sections: NavSection[], pathname: string): Record<string
  * read-only for ADMIN_TH — see admin/config/page.tsx). ADMIN no longer
  * sees "Talento Humano" at all — that section is TH's own view now.
  */
-export function AdminNav({ badge, role }: { badge: string; role: AdminRole }) {
+export function AdminNav({
+  badge,
+  role,
+  cohorts,
+  selectedCohortId,
+}: {
+  badge: string;
+  role: AdminRole;
+  cohorts: { id: string; name: string }[];
+  selectedCohortId: string;
+}) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
   const SECTIONS = navSectionsForRole(role);
-  const footerExtra = <NavItem link={CONFIG_LINK} active={pathname === CONFIG_HREF} collapsed={collapsed} />;
+  const footerExtra = (
+    <>
+      <CohortSwitcher cohorts={cohorts} selectedId={selectedCohortId} />
+      <NavItem link={CONFIG_LINK} active={pathname === CONFIG_HREF} collapsed={collapsed} />
+    </>
+  );
 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => defaultOpenMap(SECTIONS, pathname));
   // Auto-open (never auto-close) a section when navigation brings the active
