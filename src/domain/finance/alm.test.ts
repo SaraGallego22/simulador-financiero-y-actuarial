@@ -10,6 +10,8 @@ import {
   computeMarketRiskAtAño2End,
   portfolioConcentrationRatio,
   portfolioNominalYield,
+  RISK_ADJUSTED_YIELD_MAX,
+  RISK_ADJUSTED_YIELD_MIN,
   scoreFinanciero,
 } from "./alm";
 import { FZ, CAPITAL_SOCIAL, CONCENTRATION_PENALTY_MU, ACC_ROLL_M } from "./constants";
@@ -39,6 +41,20 @@ function decision(allocation: Allocation, extra: MonthlyAllocationEntry[] = [], 
 }
 
 describe("almSim / scoreFinanciero", () => {
+  it("RISK_ADJUSTED_YIELD_MIN/MAX bracket their own reference portfolios — locks in the calibration against silent drift if HORIZON, the notional-funding formula, or the accrual mechanic change again", () => {
+    // MIN's reference: 100% ACC, "repeat forever" (see RISK_ADJUSTED_YIELD_MIN's
+    // own doc comment for why a sliver-of-ACC-into-LIQ blend scores lower
+    // still but is deliberately excluded).
+    const min = scoreFinanciero(lib, decision({ ACC: 100 }));
+    expect(min!.riskAdjustedYield).toBeCloseTo(RISK_ADJUSTED_YIELD_MIN, 2);
+    expect(min!.rendimiento).toBeLessThan(3);
+
+    // MAX's reference blend (see RISK_ADJUSTED_YIELD_MAX's own doc comment).
+    const max = scoreFinanciero(lib, decision({ CDT90: 41.5, TES1: 43, TES3: 4.5, TESUVR8: 11 }));
+    expect(max!.riskAdjustedYield).toBeCloseTo(RISK_ADJUSTED_YIELD_MAX, 2);
+    expect(max!.rendimiento).toBeGreaterThan(97);
+  });
+
   it("returns null when there are no recognized instruments", () => {
     expect(almSim(lib, decision({ NOPE: 100 }))).toBeNull();
     expect(scoreFinanciero(lib, { capitalSocialAllocation: {}, schedule: [] })).toBeNull();

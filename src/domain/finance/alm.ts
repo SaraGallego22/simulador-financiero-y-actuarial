@@ -21,49 +21,67 @@ export const W_LIQ = 0.1;
  * yield band that preceded it. These two constants are the *realized*
  * riskAdjustedYield of a reference portfolio run through
  * `almSim()`/`scoreFinanciero()` end to end — the actual floor and ceiling
- * this engine can produce, not a theoretical one (see
- * scratchpad/recalibrate-minmax.ts for the grid-search script used here):
- * - MIN ≈ −0.070: 100% ACC, `durationM=ACC_ROLL_M`, "repeat" forever. Under
- *   the old linear formula LIQ was always the floor (nothing could beat its
- *   own volatility discount by being safer). Under a Sharpe ratio that's no
- *   longer automatic: LIQ IS the risk-free asset, so its own Sharpe is ≈0
- *   by construction (slightly negative once simulated — see
- *   RISK_FREE_RATE's doc comment) — but LIQ is also exempt from
- *   portfolioConcentrationRatio()'s base, so nothing ever pulls it below
- *   that ≈0 floor. A fully concentrated bet on ACC, by contrast, pays the
- *   full concentration penalty (μ=0.5) on top of a raw Sharpe (~0.43) that's
- *   nowhere near high enough to absorb it, landing meaningfully below LIQ's
- *   own ≈0 — verified against every other single-instrument portfolio too
- *   (100% CDT90/TES1/TES3/TESUVR8 all score positive; none comes close to
- *   ACC's negative floor).
- * - MAX ≈ 1.405: a blend close to 20% LIQ / 33% CDT90 / 33% TES1 / 2% TES3 /
- *   12% TESUVR8, each "repeat" forever — found by a full grid search over
- *   the 5-instrument simplex (LIQ/CDT90/TES1/TES3/TESUVR8; ACC excluded, a
- *   spot-check confirmed any ACC sliver only pulls this reference down).
- *   Two things worth knowing about this reference, both different from the
- *   old linear-formula intuition: (1) CDT90/TES1 dominate the blend, not
- *   TESUVR8 — they have the best individual Sharpe ratios on this menu (see
- *   instruments.ts's calibration-intent doc comment), so the max-Sharpe
- *   *portfolio* leans on them too, just diluted enough by TESUVR8/TES3 for
- *   their imperfect correlation to shave a little more off avgPortfolioVol.
- *   (2) LIQ earns a real ~20% weight here, which never happened under raw
- *   Sharpe alone (a risk-free asset mixed into a risky-asset Sharpe ratio
- *   only ever dilutes it, see the portfolio-comparison scratchpad from this
- *   session) — it's the μ×concentrationRatio term pulling it back in: LIQ
- *   is the one instrument that lowers concentration for free (excluded from
- *   the ratio's own base), so once concentration is priced in, a portfolio
- *   that leans on LIQ to dilute concentration while parking the rest in
- *   CDT90/TES1 beats a purer, more-concentrated max-Sharpe portfolio that
- *   ignores LIQ entirely.
+ * this engine can produce, not a theoretical one.
+ *
+ * Recalibrated (grid search rerun, no saved script) when HORIZON widened
+ * from 48 to 96 and almSim()'s notional funding was grossed up by
+ * GASTOS_TOTAL_PCT (see almSim()'s own doc comment on notionalFondeo) — both
+ * change avgPV/effYield/avgPortfolioVol for every reference portfolio, so
+ * the old −0.07/1.405 no longer described this engine's actual floor/ceiling
+ * (measured drift before this recalibration: pure-ACC landed at −0.058,
+ * inside the old band rather than at its edge; the old MAX blend landed at
+ * 1.358, short of 100 rather than defining it).
+ * - MIN ≈ −0.058: 100% ACC, `durationM=ACC_ROLL_M`, "repeat" forever — same
+ *   reference portfolio as before, same reasoning (LIQ is the risk-free
+ *   asset and pays no concentration penalty, so nothing pulls it below its
+ *   own ≈0 Sharpe; ACC pays the full penalty on a raw Sharpe nowhere near
+ *   high enough to absorb it), re-verified against every other
+ *   single-instrument portfolio under the new engine too (100%
+ *   CDT90/TES1/TES3/TESUVR8 all still score positive).
+ *
+ *   A genuinely worse *number* exists nearby but is deliberately NOT used:
+ *   blending a sliver of ACC into mostly-LIQ (e.g. 1% ACC / 99% LIQ) scores
+ *   far below pure ACC (−0.12 at 1%, still dropping past −0.5 as the ACC
+ *   share keeps shrinking toward 0) — a Sharpe-ratio artifact of
+ *   avgPortfolioVol collapsing toward LIQ's own near-zero volatility faster
+ *   than the numerator does, not a genuinely worse decision (a rational team
+ *   has no reason to hold a sliver of its riskiest instrument while parking
+ *   the rest in its safest — MORE ACC exposure in that corner scores
+ *   *better*, not worse, which is the opposite of what "worst decision"
+ *   should mean). Calibrating MIN there would crush every real bad decision
+ *   (concentrated ACC, dead capital, forced-sale-prone bets) into a narrow
+ *   band near 100, defeating the point of the sub-score. If this constant is
+ *   ever revisited, re-check this corner is still excluded rather than
+ *   silently "improving" MIN toward it.
+ * - MAX ≈ 1.391: {LIQ 0%, CDT90 41.5%, TES1 43%, TES3 4.5%, TESUVR8 11%},
+ *   "repeat" forever — found by grid search over the 5-instrument simplex
+ *   (LIQ/CDT90/TES1/TES3/TESUVR8; ACC excluded, a spot-check confirmed any
+ *   ACC sliver only pulls this reference down), then confirmed against a
+ *   full independent re-search (step 5 over all five weights, LIQ included)
+ *   that it isn't a search artifact.
+ *
+ *   The composition differs from the pre-recalibration reference in the one
+ *   way worth flagging: LIQ's weight went from ~20% to 0%. Under the old
+ *   48-month/un-grossed engine, parking some weight in LIQ to dilute
+ *   `portfolioConcentrationRatio()` (LIQ is excluded from that ratio's own
+ *   base, so it lowers concentration "for free") outweighed its near-zero
+ *   yield drag; under the wider 96-month horizon and grossed-up funding —
+ *   more months for CDT90/TES1 to cycle and compound, a bigger notional
+ *   pool overall — that trade no longer pays for itself. CDT90/TES1 still
+ *   dominate the blend (best individual Sharpe ratios on this menu, see
+ *   instruments.ts's calibration-intent doc comment), diluted just enough by
+ *   TESUVR8/TES3 for their imperfect correlation to shave a little more off
+ *   avgPortfolioVol.
  *
  * Recompute both (same harness: run a reference allocation through
  * `scoreFinanciero()`, read off `riskAdjustedYield`) if the instrument
  * menu, `RISK_FREE_RATE`, `CONCENTRATION_PENALTY_MU`,
  * `VENTA_FORZADA_HAIRCUT_MAX`, the haircut's own volatility exponent,
- * `COVARIANCE_MATRIX`, or the accrual mechanic ever change.
+ * `COVARIANCE_MATRIX`, `HORIZON`, the notional-funding formula, or the
+ * accrual mechanic ever change.
  */
-export const RISK_ADJUSTED_YIELD_MIN = -0.07;
-export const RISK_ADJUSTED_YIELD_MAX = 1.405;
+export const RISK_ADJUSTED_YIELD_MIN = -0.058;
+export const RISK_ADJUSTED_YIELD_MAX = 1.391;
 
 /** cumplimientoCaja blends the single worst month's capital draw (tail risk) with the cumulative capital committed across the whole horizon (chronic mismatch) — see scoreFinanciero(). */
 export const W_CAP_PEAK = 0.5;
