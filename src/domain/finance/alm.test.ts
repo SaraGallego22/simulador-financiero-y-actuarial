@@ -486,7 +486,7 @@ describe("almSimRealYear", () => {
     const y1 = almSimRealYear(1, new Array(12).fill(0), scheduleA, aporte)!;
     const primaEmitidaAnual = aporte * 12;
     const cxc = (FZ.diasRotacionCxc / 365) * primaEmitidaAnual;
-    const cxp = FZ.cxpPct * primaEmitidaAnual;
+    const cxp = (FZ.diasRotacionCxp / 365) * (FZ.gAdq + FZ.gCom + FZ.gAdmin) * primaEmitidaAnual;
     expect(y1.rows[0].primaCobrada).toBeCloseTo(aporte - cxc, 4);
     expect(y1.rows[0].gastos).toBeCloseTo(aporte * (FZ.gAdq + FZ.gCom + FZ.gAdmin) - cxp, 4);
     for (const r of y1.rows.slice(1)) {
@@ -505,9 +505,9 @@ describe("almSimRealYear", () => {
     const y2WithNetting = almSimRealYear(2, new Array(12).fill(0), scheduleA, aporte2, y1.finalState, totalPremium1)!;
 
     const cxc1 = (FZ.diasRotacionCxc / 365) * totalPremium1;
-    const cxp1 = FZ.cxpPct * totalPremium1;
+    const cxp1 = (FZ.diasRotacionCxp / 365) * (FZ.gAdq + FZ.gCom + FZ.gAdmin) * totalPremium1;
     const cxc2 = (FZ.diasRotacionCxc / 365) * totalPremium2;
-    const cxp2 = FZ.cxpPct * totalPremium2;
+    const cxp2 = (FZ.diasRotacionCxp / 365) * (FZ.gAdq + FZ.gCom + FZ.gAdmin) * totalPremium2;
 
     // Without netting: month 0 holds back this year's own cxc2/cxp2 only.
     expect(y2WithoutNetting.rows[0].primaCobrada).toBeCloseTo(aporte2 - cxc2, 4);

@@ -1,4 +1,4 @@
-import { FZ, CORR_MOD } from "./constants";
+import { FZ, CORR_MOD, GASTOS_TOTAL_PCT } from "./constants";
 import { INSTRUMENT_BY_ID, VOL_MENU_AVG } from "./instruments";
 import type { MonthlyAllocationEntry } from "./instruments";
 
@@ -105,7 +105,7 @@ function riskCapitalForPremium(premium: number, availableCapital: number, volRat
   const rReservas = FZ.resVol * reservas;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
 
-  const cxp = FZ.cxpPct * premium;
+  const cxp = (FZ.diasRotacionCxp / 365) * GASTOS_TOTAL_PCT * premium;
   const caja = FZ.cajaPct * premium;
   const cxc = (FZ.diasRotacionCxc * premium) / 365;
   const inversiones = reservas + cxp + availableCapital - caja - cxc;

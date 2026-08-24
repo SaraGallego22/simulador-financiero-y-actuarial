@@ -1,4 +1,4 @@
-import { FZ, CORR_MERCADO, CAPITAL_SOCIAL, ACC_STRESS_PCT } from "./constants";
+import { FZ, CORR_MERCADO, CAPITAL_SOCIAL, ACC_STRESS_PCT, GASTOS_TOTAL_PCT } from "./constants";
 import { sampleStdev } from "./stats";
 import { projectYear3 } from "./projectYear3";
 import type { LiabilitySchedule } from "../reserving/liability";
@@ -291,7 +291,7 @@ function balance(
   const patrimonio = patrimonioAntesDeComprometer - absorbidoPorPatrimonio;
   const caja = almYear ? almYear.cajaFinalAnio : FZ.cajaPct * pygY.primaEmitida;
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
-  const cxp = FZ.cxpPct * pygY.primaEmitida;
+  const cxp = (FZ.diasRotacionCxp * GASTOS_TOTAL_PCT * pygY.primaEmitida) / 365;
   const necesidadesPatrimonioODeuda = capitalComprometido - absorbidoPorPatrimonio;
   // Impuesto por pagar: the real ALM never models a tax payment as a real
   // cash outflow, in ANY year (see AlmYearBenchInput's doc comment) — so

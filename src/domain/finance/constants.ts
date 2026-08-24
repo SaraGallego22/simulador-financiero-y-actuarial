@@ -30,7 +30,8 @@ export const FZ = {
   cajaPct: 0.15,
   /** Cuentas por cobrar (CxC): fórmula de días de cartera (DSO, days sales outstanding) — cxc = (diasRotacionCxc × primaEmitida) / 365. Reemplaza el antiguo 7% plano; GuiaPasanteDia3 solo comunica el supuesto de 30 días de rotación de cartera, no esta fórmula, para que cada equipo la derive por su cuenta. */
   diasRotacionCxc: 30,
-  cxpPct: 0.1,
+  /** Cuentas por pagar (CxP): misma lógica de rotación de cartera que cxc (DSO), pero sobre gastos en vez de prima — cxp = (diasRotacionCxp × gastos) / 365, con gastos = GASTOS_TOTAL_PCT × primaEmitida (comisión + adquisición + administración, ver GASTOS_TOTAL_PCT en este archivo). Reemplaza el antiguo 10% plano de primaEmitida (FZ.cxpPct): un CxP dimensionado sobre gastos es lo que factura realmente el proveedor (comisiones e intermediación), no la prima que la aseguradora cobra. */
+  diasRotacionCxp: 30,
   growth3: 0.06,
   /** Reserva de Prima No Devengada (RPND): the fraction of each year's own Prima Emitida held back as unearned — see PnL's rpndConstituida/rpndLiberada in finBench.ts. A 1-year unearned-premium model: what's held back this year is fully released next year, so the Balance's RPND liability at any year's close is simply this same 20% of that year's own Prima Emitida. */
   rpndPct: 0.2,

@@ -401,7 +401,7 @@ export function GuiaPasanteDia4() {
             />
             <ScoreCard
               label="Inversiones del límite"
-              formula="Reserva del límite + 10%×Prima (CxP, cuentas por pagar) + tu capital disponible − 15%×Prima (caja) − (30/365)×Prima (CxC, cuentas por cobrar)"
+              formula="Reserva del límite + (30/365)×25%×Prima (CxP, cuentas por pagar sobre gastos: comisión + adquisición + administración) + tu capital disponible − 15%×Prima (caja) − (30/365)×Prima (CxC, cuentas por cobrar)"
             />
             <ScoreCard
               label="Riesgo Financiero del límite"
