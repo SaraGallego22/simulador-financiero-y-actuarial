@@ -21,6 +21,35 @@ export function buildKernel(): number[] {
 
 export const KERNEL = buildKernel();
 
+/**
+ * How an accident year's own ultimate settles across the 12 months of that
+ * same calendar year, as a share of the year's total — index 0 = January.
+ * Convolves KERNEL with notices spread evenly over the year's 12 months, the
+ * same convolution computeLiabilitySchedules() does claim by claim for the
+ * real years; a projected year has no per-claim notice dates to convolve, so
+ * the even spread is the assumption that replaces them.
+ *
+ * Front months are 0: nothing is paid until LAG_AVISO_PAGO months after
+ * notice, so the profile ramps up through the year instead of being flat.
+ * Its sum is much smaller than DEV_FRAC[0] — that constant is the share paid
+ * in the first 12 months *from the first payment*, not within the accident
+ * year, and using it as if it were the latter overstates within-year payments
+ * by about 3x (measured: 17% vs 55%).
+ */
+export const ACCIDENT_YEAR_PAYMENT_SHARE: number[] = (() => {
+  const share = new Array(12).fill(0);
+  for (let noticeMonth = 0; noticeMonth < 12; noticeMonth++) {
+    for (let m = 0; m < KERNEL.length; m++) {
+      const calendarMonth = noticeMonth + m;
+      if (calendarMonth < 12) share[calendarMonth] += KERNEL[m] / 12;
+    }
+  }
+  return share;
+})();
+
+/** Fraction of an accident year's ultimate paid within that same calendar year (Σ ACCIDENT_YEAR_PAYMENT_SHARE) — the complement is what's still open at its close. */
+export const PAID_WITHIN_ACCIDENT_YEAR = ACCIDENT_YEAR_PAYMENT_SHARE.reduce((s, v) => s + v, 0);
+
 /** Cumulative kernel: fraction of ultimate paid within d months of notice. Ported from CUMK. */
 export const CUMULATIVE_KERNEL: number[] = (() => {
   const c = new Array(KERNEL.length);

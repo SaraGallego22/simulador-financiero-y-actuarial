@@ -1,5 +1,5 @@
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
-import { DEV_FRAC } from "../reserving/constants";
+import { ACCIDENT_YEAR_PAYMENT_SHARE, PAID_WITHIN_ACCIDENT_YEAR } from "../reserving/constants";
 
 /**
  * Everything the Año 3 projection needs, in raw form — deliberately not
@@ -24,6 +24,8 @@ export interface Year3ProjectionInput {
   /** development.osY1endY3 / osY2endY3 — what's still open on Año 1's/Año 2's claims once calendar Año 3 closes. */
   osY1endY3: number;
   osY2endY3: number;
+  /** development.paidY2inY2 — how much of Año 2's own ultimate was actually paid within Año 2 itself. Sets how fast Año 3's own claims are assumed to settle; omitted (or with ultY2 = 0) falls back to PAID_WITHIN_ACCIDENT_YEAR, the kernel's own generic rate. */
+  paidY2inY2?: number;
 }
 
 export interface Year3Projection {
@@ -33,7 +35,7 @@ export interface Year3Projection {
   costo3: number;
   /** Reserva técnica at Año 3's close: Año 1's and Año 2's remaining tails plus Año 3's own unpaid share. */
   reservas3: number;
-  /** The 12 monthly payments Año 3's OWN projected claims settle within Año 3 itself (Σ = costo3 × DEV_FRAC[0]) — the caller adds Año 1's and Año 2's real tails landing in the same calendar year before handing the schedule to almSimRealYear(3, ...). */
+  /** The 12 monthly payments Año 3's OWN projected claims settle within Año 3 itself — the caller adds Año 1's and Año 2's real tails landing in the same calendar year before handing the schedule to almSimRealYear(3, ...). Σ = costo3 × the payment speed described in the doc comment; the reserve below is exactly the complement. */
   ownClaimsSchedule12: number[];
 }
 
@@ -77,15 +79,24 @@ export function projectYear3(i: Year3ProjectionInput): Year3Projection | null {
   const severidad3 = (i.ultY2 / i.claimCountY2) * (1 + CLAIMS_INFLATION_ANNUAL);
   const costo3 = insuredCount3 * frecuencia2 * severidad3;
 
-  // DEV_FRAC[0] (55%) of an accident year's ultimate settles within that
-  // same year; the rest stays open. Spread flat across the 12 months rather
-  // than through the payment KERNEL: the kernel needs a month-by-month
-  // occurrence distribution, which a projected year doesn't have — and with
-  // claims assumed uniform across the year, a flat spread lands on exactly
-  // the same annual total the reserva below is the complement of.
-  const paidWithinYear3 = costo3 * DEV_FRAC[0];
-  const ownClaimsSchedule12 = new Array(12).fill(paidWithinYear3 / 12);
-  const reservas3 = i.osY1endY3 + i.osY2endY3 + (costo3 - paidWithinYear3);
+  // Cuánto del siniestro propio de Año 3 alcanza a pagarse dentro del mismo
+  // Año 3: la velocidad real que el equipo ya mostró en Año 2 (paidY2inY2 ÷
+  // ultY2), no una convención — misma lógica que la frecuencia y la severidad,
+  // que también salen del Año 2 observado. Sin ese dato cae al ritmo genérico
+  // del kernel.
+  //
+  // No es DEV_FRAC[0]: ese 55% es lo que se paga en los primeros 12 meses
+  // *desde el primer pago*, que llega 3 meses después del aviso — usarlo como
+  // si fuera "dentro del año de accidente" triplicaba los pagos del año y
+  // dejaba la reserva de Año 3 en 45% del último, contra el ~83% que la
+  // convolución real deja en Año 1 y Año 2.
+  const velocidadPago =
+    i.paidY2inY2 != null && i.ultY2 > 0 ? Math.min(1, Math.max(0, i.paidY2inY2 / i.ultY2)) : PAID_WITHIN_ACCIDENT_YEAR;
+  // El perfil mensual sí viene del kernel (nada se paga los primeros meses,
+  // y de ahí en adelante crece), reescalado a esa velocidad.
+  const escala = PAID_WITHIN_ACCIDENT_YEAR > 0 ? velocidadPago / PAID_WITHIN_ACCIDENT_YEAR : 0;
+  const ownClaimsSchedule12 = ACCIDENT_YEAR_PAYMENT_SHARE.map((share) => costo3 * share * escala);
+  const reservas3 = i.osY1endY3 + i.osY2endY3 + costo3 * (1 - velocidadPago);
 
   return { insuredCount3, prima3, costo3, reservas3, ownClaimsSchedule12 };
 }

@@ -319,6 +319,7 @@ describe("finBench", () => {
       ultY2: development.ultY2,
       osY1endY3: development.osY1endY3,
       osY2endY3: development.osY2endY3,
+      paidY2inY2: development.paidY2inY2,
     })!;
     const claimsYear3 = proj3.ownClaimsSchedule12.map((own, i) => own + liab1.L[12 + i] + liab2.L[12 + i]);
     const real3 = almSimRealYear(3, claimsYear3, decision, proj3.prima3 / 12, real2.finalState, totalPremium2, 0)!;
@@ -388,6 +389,7 @@ describe("finBench", () => {
         ultY2: development.ultY2,
         osY1endY3: development.osY1endY3,
         osY2endY3: development.osY2endY3,
+        paidY2inY2: development.paidY2inY2,
       })!;
       const claims3 = proj3.ownClaimsSchedule12.map((own, i) => own + l1.L[12 + i] + l2.L[12 + i]);
       const r3 = almSimRealYear(3, claims3, o.decision, proj3.prima3 / 12, r2.finalState, o.prem2, 0)!;

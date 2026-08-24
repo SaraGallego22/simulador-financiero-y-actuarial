@@ -245,6 +245,7 @@ export async function computeFinBenchBundlesForCohort(
         ultY2: development.ultY2,
         osY1endY3: development.osY1endY3,
         osY2endY3: development.osY2endY3,
+        paidY2inY2: development.paidY2inY2,
       });
       if (proj3) {
         // Cash leaving the portfolio during calendar Año 3: Año 1's and Año
