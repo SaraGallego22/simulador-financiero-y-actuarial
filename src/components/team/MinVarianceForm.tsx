@@ -46,7 +46,7 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
             <input
               type="number"
               min="0"
-              step="1"
+              step="0.001"
               name={`w-${ins.id}`}
               value={weights[ins.id] || ""}
               onChange={(e) => setWeights((w) => ({ ...w, [ins.id]: Number(e.target.value) }))}
@@ -57,8 +57,8 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
       </div>
 
       <div className="mt-3 flex flex-col gap-1 text-xs">
-        <p className={Math.round(total) === 100 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}>
-          Total: {total.toFixed(0)}% {Math.round(total) !== 100 && "(se normaliza automáticamente a 100%)"}
+        <p className={Math.abs(total - 100) < 0.001 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}>
+          Total: {total.toFixed(3)}% {Math.abs(total - 100) >= 0.001 && "(se normaliza automáticamente a 100%)"}
         </p>
         <p className={meetsTarget ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-red)]"}>
           {meetsTarget ? "Cumple con el rendimiento mínimo" : "No cumple con el rendimiento mínimo"}

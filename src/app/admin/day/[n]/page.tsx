@@ -824,6 +824,12 @@ export default async function AdminDayPage({
               name: t.name,
               color: t.color,
               pnl: finBenchByTeamId.get(t.id)?.p2 ?? null,
+              // Same value concepts.ts's p2_ajusteSiniestralidad grades
+              // against — see Dia2TeamOption's doc comment for why finBench's
+              // own p2.rt doesn't already carry it.
+              ajusteSiniestralidad: finBenchByTeamId.get(t.id)
+                ? -FZ.sevRevisionA1Pct * finBenchByTeamId.get(t.id)!.bal1.reservasTec
+                : null,
               weights: decision?.schedule[0]?.allocation ?? null,
             };
           })}
