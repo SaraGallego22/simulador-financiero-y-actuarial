@@ -51,7 +51,7 @@ export default async function TeamDashboard() {
         <p className="mb-3 font-[family-name:var(--font-condensed)] text-xs font-bold uppercase tracking-widest text-[var(--color-brand-text-secondary)]">
           Menú del reto
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 auto-rows-fr gap-3 sm:grid-cols-2">
           {TEAM_DAY_LINKS.map((d) => {
             const locked = d.day > cohort.openDay;
             const card = (
@@ -84,12 +84,12 @@ export default async function TeamDashboard() {
               </>
             );
             return locked ? (
-              <Card key={d.day} accent="gray" glass className="opacity-60">
+              <Card key={d.day} accent="gray" glass className="h-full opacity-60">
                 {card}
               </Card>
             ) : (
-              <Link key={d.day} href={d.href} className="block">
-                <Card accent="blue" glass hoverable>
+              <Link key={d.day} href={d.href} className="block h-full">
+                <Card accent="blue" glass hoverable className="h-full">
                   {card}
                 </Card>
               </Link>
