@@ -43,7 +43,7 @@ async function main() {
   const cohort = await prisma.cohort.upsert({
     where: { name: "Cohorte demo" },
     update: {},
-    create: { name: "Cohorte demo", active: true },
+    create: { name: "Cohorte demo", loginSlug: "demo", active: true },
   });
 
   const demoTeams = [

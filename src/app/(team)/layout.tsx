@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
 import { TeamNav } from "./TeamNav";
 import { DashboardHero } from "@/components/backgrounds/DashboardHero";
 import { FloatingThemeToggle } from "@/components/FloatingThemeToggle";
@@ -14,7 +14,7 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
     session.user.teamId
       ? prisma.team.findUnique({ where: { id: session.user.teamId }, select: { name: true } })
       : null,
-    getOrCreateActiveCohort(),
+    getCohortForSession(session),
   ]);
 
   return (

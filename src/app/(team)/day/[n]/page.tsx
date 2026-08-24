@@ -17,7 +17,7 @@ import { getActiveColombiaUniverse } from "@/lib/teamBook";
 import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import type { TeamFinBenchBundle } from "@/lib/finBenchHelper";
 import { AlmRealYearTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeMarketLossRatio } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
@@ -180,7 +180,8 @@ export default async function TeamDayPage({
   // results, read-only) vs. "entreg" (this day's own report form). See
   // PillTabBar usage below.
   const activeTab = tab === "entreg" ? "entreg" : "ref";
-  const cohort = await getOrCreateActiveCohort();
+  const session = await auth();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
   if (day > cohort.openDay) {
     return (
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-8">
@@ -193,7 +194,6 @@ export default async function TeamDayPage({
       </main>
     );
   }
-  const session = await auth();
   const teamId = session?.user.teamId ?? null;
 
   // Only the serializable fields — Concepto.get is a function and can't

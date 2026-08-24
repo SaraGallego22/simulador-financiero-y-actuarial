@@ -22,6 +22,7 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       username: formData.get("username"),
       password: formData.get("password"),
+      cohorte: formData.get("cohorte"),
       redirect: false,
     });
 
@@ -73,6 +74,18 @@ export default function LoginPage() {
             type="password"
             required
             autoComplete="current-password"
+            className="mb-4 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
+          />
+
+          <label htmlFor="cohorte" className="mb-1 block text-sm font-medium text-[var(--color-foreground)]">
+            Cohorte
+          </label>
+          <input
+            id="cohorte"
+            name="cohorte"
+            required
+            autoComplete="off"
+            placeholder="demo o 2026"
             className="mb-4 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] px-3 text-sm text-[var(--color-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-blue-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-brand-surface)]"
           />
 

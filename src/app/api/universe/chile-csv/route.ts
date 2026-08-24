@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
 import { getChileForSeed } from "@/lib/teamBook";
 import { YEARS_CL } from "@/domain/generation/generateChile";
 
@@ -20,7 +20,7 @@ export async function GET() {
   const session = await auth();
   if (!session) return new Response("No autorizado", { status: 403 });
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const run = await prisma.universeRun.findFirst({
     where: { cohortId: cohort.id, kind: "chile", status: "DONE" },
     orderBy: { createdAt: "desc" },

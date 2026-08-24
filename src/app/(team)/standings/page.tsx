@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado } from "@/lib/consolidado";
 import { Table } from "@/components/ui/table";
 
@@ -10,7 +10,7 @@ const fmt = (v: number | null) => (v != null ? v.toFixed(1) : "—");
 
 export default async function TeamStandingsPage() {
   const session = await auth();
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
   const rows = await computeConsolidado(cohort.id, cohort.openDay);
   // Teams only ever see the top 3 — never their own exact position/nota
   // when they're outside it, and never any other team's raw data (see

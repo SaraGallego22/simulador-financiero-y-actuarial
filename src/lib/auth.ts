@@ -16,17 +16,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         username: { label: "Usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
+        cohorte: { label: "Cohorte", type: "text" },
       },
       async authorize(credentials) {
         const username = credentials?.username;
         const password = credentials?.password;
-        if (typeof username !== "string" || typeof password !== "string") return null;
+        const cohorte = credentials?.cohorte;
+        if (typeof username !== "string" || typeof password !== "string" || typeof cohorte !== "string") return null;
 
-        const user = await prisma.user.findUnique({ where: { username } });
+        // The cohort word ("demo", "2026") routes a TEAM login to that exact
+        // cohort — see Cohort.loginSlug's doc comment. It's a hard gate for
+        // TEAM accounts (below); for ADMIN/ADMIN_TH it only needs to resolve
+        // to a real cohort, since those accounts aren't scoped to one.
+        const cohort = await prisma.cohort.findUnique({ where: { loginSlug: cohorte.trim().toLowerCase() } });
+        if (!cohort) return null;
+
+        const user = await prisma.user.findUnique({ where: { username }, include: { team: true } });
         if (!user) return null;
 
         const validPassword = await bcrypt.compare(password, user.passwordHash);
         if (!validPassword) return null;
+
+        if (user.role === "TEAM" && user.team?.cohortId !== cohort.id) return null;
 
         return {
           id: user.id,

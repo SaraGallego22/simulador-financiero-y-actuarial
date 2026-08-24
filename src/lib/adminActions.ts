@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { auth } from "./auth";
-import { getOrCreateActiveCohort } from "./cohort";
+import { getCohortForSession, SELECTED_COHORT_COOKIE } from "./cohort";
 import { SOFT_SKILL_COMPETENCIES, SOFT_SKILL_RATINGS, isValidSoftSkillActivity } from "./softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_SCALE } from "./interview";
 
@@ -36,8 +37,19 @@ async function requireAdminOrTH() {
   return session;
 }
 
+/** Sets which cohort an ADMIN/ADMIN_TH session views — see getSelectedCohort in cohort.ts. */
+export async function setSelectedCohortAction(cohortId: string): Promise<void> {
+  await requireAdminOrTH();
+  const cohort = await prisma.cohort.findUnique({ where: { id: cohortId } });
+  if (!cohort) return;
+
+  const cookieStore = await cookies();
+  cookieStore.set(SELECTED_COHORT_COOKIE, cohort.id, { httpOnly: true, sameSite: "lax", path: "/" });
+  revalidatePath("/", "layout");
+}
+
 export async function createTeamAction(formData: FormData): Promise<{ error?: string }> {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -49,7 +61,7 @@ export async function createTeamAction(formData: FormData): Promise<{ error?: st
   const existingUser = await prisma.user.findUnique({ where: { username } });
   if (existingUser) return { error: `El usuario "${username}" ya existe.` };
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const teamCount = await prisma.team.count({ where: { cohortId: cohort.id } });
 
   // The admin only sets up login credentials — the team picks its own name later (see updateTeamNameAction).
@@ -80,8 +92,8 @@ export async function deleteTeamAction(teamId: string): Promise<void> {
 }
 
 export async function updateRubricWeightsAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const cohort = await getOrCreateActiveCohort();
+  const session = await requireAdmin();
+  const cohort = await getCohortForSession(session);
 
   await prisma.rubricConfig.upsert({
     where: { cohortId: cohort.id },
@@ -110,8 +122,8 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
  * become visible to teams.
  */
 export async function updateOpenDayAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const cohort = await getOrCreateActiveCohort();
+  const session = await requireAdmin();
+  const cohort = await getCohortForSession(session);
   const openDay = Math.max(1, Math.min(4, Number(formData.get("openDay")) || 1));
   await prisma.cohort.update({ where: { id: cohort.id }, data: { openDay } });
   revalidatePath("/admin/config");
@@ -125,7 +137,7 @@ export interface UploadRosterState {
 }
 
 export async function uploadRosterAction(_prev: UploadRosterState, formData: FormData): Promise<UploadRosterState> {
-  await requireAdmin();
+  const session = await requireAdmin();
   const { parseCsv, decodeCsvText } = await import("./csv");
   const { rosterCsvSchema } = await import("./csvSchemas");
 
@@ -135,7 +147,7 @@ export async function uploadRosterAction(_prev: UploadRosterState, formData: For
   const { rows, errors } = parseCsv(text, rosterCsvSchema);
   if (rows.length === 0) return { error: errors[0]?.message ?? "No se reconoció ninguna fila válida." };
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const teams = await prisma.team.findMany({ where: { cohortId: cohort.id } });
   const teamByLowerName = new Map(teams.map((t) => [t.name.toLowerCase(), t]));
 

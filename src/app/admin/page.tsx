@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
+import type { Cohort } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { navSectionsForRole, type AdminNavLink, type AdminNavSection } from "@/lib/adminNavData";
@@ -78,8 +79,7 @@ function PageHeader({ eyebrow, title, cohortName }: { eyebrow: string; title: st
   );
 }
 
-async function AdminHome() {
-  const cohort = await getOrCreateActiveCohort();
+async function AdminHome({ cohort }: { cohort: Cohort }) {
   const [teamCount, universeRuns] = await Promise.all([
     prisma.team.count({ where: { cohortId: cohort.id } }),
     prisma.universeRun.findMany({
@@ -118,8 +118,7 @@ async function AdminHome() {
 
 const SOFT_SKILL_ACTIVITIES = [1, 2, 3] as const;
 
-async function AdminTHHome() {
-  const cohort = await getOrCreateActiveCohort();
+async function AdminTHHome({ cohort }: { cohort: Cohort }) {
   const [memberCount, interviewedCount, activityCounts] = await Promise.all([
     prisma.teamMember.count({ where: { team: { cohortId: cohort.id } } }),
     prisma.teamMember.count({ where: { team: { cohortId: cohort.id }, interviewSkillRatings: { some: {} } } }),
@@ -163,5 +162,6 @@ async function AdminTHHome() {
 export default async function AdminHomeRoute() {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "ADMIN_TH")) redirect("/login");
-  return session.user.role === "ADMIN_TH" ? <AdminTHHome /> : <AdminHome />;
+  const cohort = await getCohortForSession(session);
+  return session.user.role === "ADMIN_TH" ? <AdminTHHome cohort={cohort} /> : <AdminHome cohort={cohort} />;
 }

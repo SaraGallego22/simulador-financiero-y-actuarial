@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateActiveCohort } from "@/lib/cohort";
+import { getCohortForSession } from "@/lib/cohort";
 import { generateChile } from "@/domain/generation/generateChile";
 import { N_COLOMBIA, N_CHILE } from "@/domain/generation/constants";
 import { getUniverseForSeed } from "@/lib/teamBook";
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Body inválido: se espera { kind: 'colombia'|'chile', seed: number }" }, { status: 400 });
   }
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const rowCount = kind === "colombia" ? N_COLOMBIA : N_CHILE;
 
   const run = await prisma.universeRun.create({
@@ -63,7 +63,7 @@ export async function GET() {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const cohort = await getOrCreateActiveCohort();
+  const cohort = await getCohortForSession(session);
   const runs = await prisma.universeRun.findMany({
     where: { cohortId: cohort.id },
     orderBy: { createdAt: "desc" },
