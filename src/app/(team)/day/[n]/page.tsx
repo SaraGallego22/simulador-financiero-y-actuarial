@@ -18,7 +18,7 @@ import { computeFinBenchBundlesForCohort } from "@/lib/finBenchHelper";
 import type { TeamFinBenchBundle } from "@/lib/finBenchHelper";
 import { AlmRealYearTiles, AlmLadderTable, AlmPortfolioTable } from "@/components/AlmLadderTable";
 import { getOrCreateActiveCohort } from "@/lib/cohort";
-import { computeMarketLossRatio, computeConsolidado } from "@/lib/consolidado";
+import { computeMarketLossRatio } from "@/lib/consolidado";
 import { DAY_TITLES, DAY_DESCRIPTIONS, TAB_NOTES, SIMULATED_YEAR_LABEL } from "@/lib/days";
 
 // Never statically prerender — see admin/standings/page.tsx.
@@ -35,8 +35,6 @@ function TabNote({ children }: { children: string }) {
 
 type MinVarResult = { weights: Record<string, number>; achievedVariance: number; trueVariance: number; achievedReturn: number; score: number };
 
-type TopTeam = { teamId: string; teamName: string; color: string; nota: number };
-
 /**
  * A past year's simulation outcome (asegurados/siniestros/rechazadas, tope de
  * cuota, reporte descargable) — always shown on the *following* day's page,
@@ -45,9 +43,8 @@ type TopTeam = { teamId: string; teamName: string; color: string; nota: number }
  * year's numbers (Día 2 shows 2027, Día 3 shows 2028). The standalone
  * "Resultados objetivos" (current day's own results) and "Top del día"
  * (cross-team ranking) sections from the legacy multi-tab layout were
- * dropped when the team view collapsed into a single panel per day — the
- * only cross-team ranking a team sees now is the top-3-of-the-previous-day
- * card (see TopTeamsCard below), never a full ranking (see CLAUDE.md §8).
+ * dropped when the team view collapsed into a single panel per day —
+ * cross-team standings live only on /standings, as a top 3 (CLAUDE.md §8).
  */
 function ObjectiveResultsCard({
   yearLabel,
@@ -164,45 +161,6 @@ function MinVarianceResultCard({ result }: { result: MinVarResult | null }) {
         </div>
       ) : (
         <p className="text-sm text-[var(--color-brand-text-secondary)]">Aún no tienes un portafolio de mínima varianza guardado.</p>
-      )}
-    </div>
-  );
-}
-
-/**
- * Top 3 del día anterior por nota de ese día (objetiva+subjetiva, no la nota
- * acumulada — ver TeamDayPage's fetch de `previousDayTop3`). Reemplaza el
- * "Top del día" que existía en el layout multi-tab legacy: nunca una tabla
- * completa, solo el top 3 — un equipo nunca ve su propia posición exacta ni
- * la de otro equipo si está fuera del top 3 (ver CLAUDE.md §8).
- */
-function TopTeamsCard({ day, teams, currentTeamId }: { day: number; teams: TopTeam[]; currentTeamId: string | null }) {
-  return (
-    <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
-      <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-        Top 3 — Día {day}
-      </h3>
-      {teams.length === 0 ? (
-        <p className="text-sm text-[var(--color-brand-text-secondary)]">Todavía no hay resultados disponibles para este día.</p>
-      ) : (
-        <ol className="flex flex-col gap-1">
-          {teams.map((t, i) => {
-            const isMine = t.teamId === currentTeamId;
-            return (
-              <li
-                key={t.teamId}
-                className={`flex items-center justify-between rounded px-2 py-1 text-sm ${isMine ? "bg-[var(--color-brand-blue-light)] font-semibold" : ""}`}
-              >
-                <span>
-                  {i + 1}. <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: t.color }} />
-                  {t.teamName}
-                  {isMine && " (tu equipo)"}
-                </span>
-                <span className="font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">{t.nota.toFixed(1)}</span>
-              </li>
-            );
-          })}
-        </ol>
       )}
     </div>
   );
@@ -342,20 +300,18 @@ export default async function TeamDayPage({
     ])
   );
 
-  // Shared for every block below that needs the Colombia universe this
-  // request (previousDayTop3's computeConsolidado, and day2TrueValues/
-  // day3TrueValues's computeFinBenchBundlesForCohort) — regenerating it per
-  // call would rerun every team's finBench/ALM computation more than once
-  // per request (see admin/day/[n]/page.tsx's fix for the same issue).
+  // Shared by every block below that needs the Colombia universe this
+  // request (day2TrueValues/day3TrueValues's
+  // computeFinBenchBundlesForCohort) — regenerating it per call would rerun
+  // every team's finBench/ALM computation more than once per request (see
+  // admin/day/[n]/page.tsx's fix for the same issue).
   const universe = day >= 2 ? await getActiveColombiaUniverse(cohort.id) : null;
 
   // Every team's finBench/real-ALM bundle for this request — computed once
-  // here (day2TrueValues/day3TrueValues below only ever need this team's own
-  // entry, but previousDayTop3's computeConsolidado() needs every team's
-  // bench) and handed to both, instead of each independently recomputing it
+  // here and shared by day2TrueValues/day3TrueValues below (each only needs
+  // this team's own entry), instead of each independently recomputing it
   // (same duplicate-work fix as admin/day/[n]/page.tsx).
   const finBenchBundlesByTeamId = day >= 2 ? await computeFinBenchBundlesForCohort(cohort.id, universe ?? undefined) : new Map();
-  const finBenchByTeamId = new Map([...finBenchBundlesByTeamId].map(([id, b]) => [id, b.bench]));
 
   // ALM detail (team-scoped), shown on Día 3: the REAL ALM run, funded by
   // this team's own actual Año 1 premium — the same run finBench() itself
@@ -391,22 +347,6 @@ export default async function TeamDayPage({
         if (v != null) day3TrueValues[c.id] = v;
       }
     }
-  }
-
-  // Top 3 of the PREVIOUS day's own nota (objective+subjective for that day,
-  // not the cumulative running total shown on /standings) — replaces the
-  // admin-only "Top del día" tab that no longer exists on the team view (see
-  // this file's top doc comment and TopTeamsCard below). Only ever the top
-  // 3, never a full ranking or any team's exact position beyond it (CLAUDE.md §8).
-  let previousDayTop3: TopTeam[] = [];
-  if (day >= 2 && day <= 4) {
-    const previousDay = day - 1;
-    const consolidado = await computeConsolidado(cohort.id, previousDay, universe ?? undefined, finBenchByTeamId);
-    previousDayTop3 = consolidado
-      .map((r) => ({ teamId: r.teamId, teamName: r.teamName, color: r.color, nota: r.perDay[previousDay - 1]?.nota ?? null }))
-      .filter((r): r is TopTeam => r.nota != null)
-      .sort((a, b) => b.nota - a.nota)
-      .slice(0, 3);
   }
 
   // Día 1's minimum-variance result, shown on Día 2.
@@ -485,7 +425,6 @@ export default async function TeamDayPage({
           <>
             <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[1]} result={day1Result} reportDay={1} medianTariff={day1TariffMedian?.medianPremium} />
             <MinVarianceResultCard result={day1MinVarResult} />
-            <TopTeamsCard day={1} teams={previousDayTop3} currentTeamId={teamId} />
 
             {TAB_NOTES[2]?.sim && <TabNote>{TAB_NOTES[2].sim}</TabNote>}
             <TariffUpload
@@ -534,7 +473,6 @@ export default async function TeamDayPage({
             {activeTab === "ref" && (
               <>
                 <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
-                <TopTeamsCard day={2} teams={previousDayTop3} currentTeamId={teamId} />
 
                 <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
                   <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -590,8 +528,6 @@ export default async function TeamDayPage({
 
             {activeTab === "ref" && (
               <>
-                <TopTeamsCard day={3} teams={previousDayTop3} currentTeamId={teamId} />
-
                 {capacityHistory.length > 0 && (
                   <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
                     <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
