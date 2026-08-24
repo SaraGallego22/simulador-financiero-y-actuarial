@@ -14,7 +14,7 @@
  */
 export const LAG_AVISO_PAGO = 3; // months between notice and payment
 export const VAL_MONTH = 12; // valuation at month 12 (2028-01), counted from base year Jan
-export const HORIZON = 48; // months the FICTITIOUS ALM projects past its build-up phase (see almSim) — not a reserving figure
+export const HORIZON = 96; // months the FICTITIOUS ALM projects past its build-up phase (see almSim) — not a reserving figure
 export const BUILD_MONTHS = 12; // Year 1 premium build-up months
 
 /** Hard ceiling on the reporting lag, in days (5 years) — see sampleReportingLag() in generation/dates.ts. */
@@ -24,9 +24,13 @@ export const LAG_AVISO_MAX_DIAS = 1825;
  * Months of liability projection from the valuation date. Must outrun the
  * worst case a claim can reach: an accident in the last month of Año 2
  * (month 23), noticed LAG_AVISO_MAX_DIAS later (60 months) and paid
- * LAG_AVISO_PAGO after that, lands at month 86 — 74 past the valuation. Kept
- * deliberately separate from HORIZON, which drives the fictitious ALM's own
- * 60-month run and has no business growing when the reporting lag does.
+ * LAG_AVISO_PAGO after that, lands at month 86 — 74 past the valuation. A
+ * separate constant from HORIZON on purpose — this one sizes the `L[]`
+ * array (a reserving figure); HORIZON sizes almSim()'s own simulated run —
+ * even though the two now share the same value: HORIZON was widened to 96
+ * alongside this one so the fictitious ALM's simulated window covers the
+ * whole liability tail instead of truncating lib.L partway through and
+ * leaving late-tail claims funded but never actually paid out.
  */
 export const LIABILITY_HORIZON = 96;
 

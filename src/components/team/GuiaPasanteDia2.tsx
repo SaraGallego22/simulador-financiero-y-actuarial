@@ -112,7 +112,7 @@ export function GuiaPasanteDia2() {
           <li>
             <strong>Financiero — el calendario de portafolio real.</strong> Defines, mes a mes, cómo invertir el excedente disponible ese mes (tabla de
             instrumentos en la sección 5): la asignación que definas para un mes se mantiene fija hasta que definas un cambio en un mes posterior. Esta
-            decisión se pone a prueba mes a mes, durante 60 meses simulados, y alimenta directamente tu nota de ALM de hoy y, más adelante, el Resultado
+            decisión se pone a prueba mes a mes, durante 108 meses simulados, y alimenta directamente tu nota de ALM de hoy y, más adelante, el Resultado
             de Inversiones, el Balance y la Solvencia que vas a reportar en los días siguientes. A diferencia del portafolio de mínima varianza de Día 1
             (un ejercicio aparte, ya calificado), este calendario es tu decisión de inversión real.
           </li>
@@ -317,7 +317,7 @@ export function GuiaPasanteDia2() {
           </p>
           <p>
             Este es tu único calendario para toda la simulación: el mismo que sometes hoy es el que sigue invirtiendo la prima real del 2028 más
-            adelante. Ármalo pensando en los dos años a la vez; puedes agregar tantos cambios de estrategia como quieras a lo largo de los 60 meses
+            adelante. Ármalo pensando en los dos años a la vez; puedes agregar tantos cambios de estrategia como quieras a lo largo de los 108 meses
             simulados. Los 12 meses de prima del 2028 se invierten con el mismo calendario, leído otra vez desde su propio mes 0 — el checkpoint que
             uses para tu mes 3 de 2027 es el mismo que va a gobernar tu mes 3 de 2028, aunque hayas agregado después un cambio de estrategia en un mes
             más adelante en el calendario (ese cambio sigue rigiendo cómo se reinvierten las posiciones que ya llevas abiertas desde 2027; el conteo de
@@ -474,7 +474,7 @@ export function GuiaPasanteDia2() {
           <BlankTable
             headers={["Mes", "Caja Inicial", "Prima Cobrada", "Pago Siniestros", "Gastos", "Vencimientos en caja", "Inversión Neta", "Caja Final"]}
             rows={4}
-            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja + Inversión Neta. El motor repite esta cuenta 60 veces (60 meses) aplicando el calendario de la sección 5.3. Inversión Neta se suma porque su signo ya lleva la dirección del efectivo: negativa el mes que inviertes un excedente (sale caja hacia el portafolio), positiva el mes que necesitas cubrir un faltante (entra efectivo a la caja) — ver la nota de abajo."
+            note="Caja Final = Caja Inicial + Prima Cobrada − Pago Siniestros − Gastos + Vencimientos en caja + Inversión Neta. El motor repite esta cuenta 108 veces (108 meses) aplicando el calendario de la sección 5.3. Inversión Neta se suma porque su signo ya lleva la dirección del efectivo: negativa el mes que inviertes un excedente (sale caja hacia el portafolio), positiva el mes que necesitas cubrir un faltante (entra efectivo a la caja) — ver la nota de abajo."
           />
           <InfoNote>
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
@@ -516,7 +516,8 @@ export function GuiaPasanteDia2() {
           <FlagCallout>
             <span className="font-semibold">Importante — </span>
             la Prima Cobrada que usa esta simulación (la que califica tu nota ALM de hoy) es <strong>ficticia</strong>: asume que cada mes entra exactamente
-            1/12 de tu reserva total. Es intencional — el ejercicio evalúa la calidad de tu calendario de decisión de forma aislada del resultado de tu
+            1/12 de tu reserva total, subida lo justo para que, después de pagar el 25% de gastos de esta misma simulación, lo que quede alcance para esa
+            reserva — ni más ni menos. Es intencional — el ejercicio evalúa la calidad de tu calendario de decisión de forma aislada del resultado de tu
             tarifa, para que dos equipos con el mismo calendario obtengan la misma nota de ALM. Cuando reportes el P&G real, vas a necesitar razonar cómo
             cambiarían estas cifras con tu prima real.
           </FlagCallout>
@@ -532,7 +533,7 @@ export function GuiaPasanteDia2() {
             </p>
             <p className="mt-2 text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula el rendimiento ajustado por riesgo — </span>
-              es un Sharpe ratio real: (rendimiento efectivo anualizado de tu portafolio a lo largo de los 60 meses
+              es un Sharpe ratio real: (rendimiento efectivo anualizado de tu portafolio a lo largo de los 108 meses
               de esta simulación − tasa libre de riesgo) ÷ volatilidad de portafolio, menos una penalización aparte por concentración. La{" "}
               <strong>tasa libre de riesgo es el 5.0% nominal de LIQ</strong> (sección 5.2) — el instrumento más seguro y líquido del menú funciona como
               el ancla: tu retorno solo cuenta como &ldquo;premio por riesgo&rdquo; en la parte que supera lo que ya conseguirías sin arriesgar nada. La
@@ -569,7 +570,7 @@ export function GuiaPasanteDia2() {
             <p className="text-xs text-[var(--color-brand-text-secondary)]">
               <span className="font-semibold text-[var(--color-brand-blue-accent)]">Cómo se calcula la severidad de venta forzada — </span>
               cada vez que el motor te vende algo bajo presión de caja (sección 5.4), ese monto se pondera por la volatilidad anual del instrumento
-              vendido — vender ACC pesa mucho más que vender CDT90 por el mismo monto — y se acumula a lo largo de los 60 meses: Σ (monto vendido bajo
+              vendido — vender ACC pesa mucho más que vender CDT90 por el mismo monto — y se acumula a lo largo de los 108 meses: Σ (monto vendido bajo
               presión ese mes × volatilidad anual de ese instrumento). Esa suma se compara contra el peor caso posible: toda la Caja Mínima exigida en
               el horizonte completo (Σ Caja Mínima de cada mes), si se hubiera tenido que cubrir vendiendo siempre el instrumento más volátil del menú
               (ACC), y se recorta a un máximo de 1. La nota de Venta forzada es 100 × (1 − esa severidad): 100 si nunca vendiste bajo presión, y llega a

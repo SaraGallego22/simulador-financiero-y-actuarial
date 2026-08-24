@@ -369,11 +369,11 @@ describe("coupon-bearing bonds (TES3/TESUVR8)", () => {
 });
 
 describe("almLadder", () => {
-  it("always reaches the last month of the horizon (mes 47), even when nothing else about that month would otherwise qualify for the filtered view", () => {
+  it("always reaches the last month of the horizon (mes 95), even when nothing else about that month would otherwise qualify for the filtered view", () => {
     const ladder = almLadder(lib, decision({ LIQ: 30, CDT90: 30, TESUVR8: 40 }));
     expect(ladder).not.toBeNull();
     const lastRow = ladder!.rows[ladder!.rows.length - 1];
-    expect(lastRow.mes).toBe(47);
+    expect(lastRow.mes).toBe(95);
   });
 });
 

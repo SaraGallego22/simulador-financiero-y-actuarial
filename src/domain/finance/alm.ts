@@ -793,13 +793,25 @@ export function almSim(lib: LiabilitySchedule, decision: PortfolioDecisionV4, ap
 
   const reserva = lib.reserva;
   const totalPagoY1 = lib.payY1.reduce((s, v) => s + v, 0);
-  const notionalFondeo = reserva + totalPagoY1;
+  // Grossed up by GASTOS_TOTAL_PCT, the same way a real commercial premium
+  // is (Prima Comercial = Prima Pura ÷ (1 − %Gastos − %Utilidad), Día 1's
+  // guide — no margin here, just the expense load): notionalFondeo × (1 −
+  // GASTOS_TOTAL_PCT) is exactly reserva+totalPagoY1, so what's left after
+  // gastos matches the liability instead of falling short of it by 25%. The
+  // notional fictitious ALM used to fund itself off the bare liability and
+  // then pay GASTOS_TOTAL_PCT out of that same money (see stepMonth's
+  // `gastos` line, which every almSim() call incurs) — a structural cash
+  // shortfall by construction, plugged only by whatever the portfolio
+  // happened to earn or, failing that, by comprometer capital. Grossing up
+  // removes that built-in deficit; genuinely mistimed or mispriced decisions
+  // still can and should trigger a shortfall.
+  const notionalFondeo = (reserva + totalPagoY1) / (1 - GASTOS_TOTAL_PCT);
   const TOTAL = BUILD_MONTHS + HORIZON;
-  // The fictitious ALM funds itself off the notional (reserva+payY1)/12 —
-  // sized to exactly match the liability, an intentional simplification
-  // (see the module doc comment). Passing aporteMensualReal (a team's real
-  // annual premium / BUILD_MONTHS) instead re-runs the exact same
-  // simulation — same claims schedule, same decision tree, same Caja
+  // The fictitious ALM funds itself off the notional (see above)/12 —
+  // sized to exactly match the liability net of gastos, an intentional
+  // simplification (see the module doc comment). Passing aporteMensualReal
+  // (a team's real annual premium / BUILD_MONTHS) instead re-runs the exact
+  // same simulation — same claims schedule, same decision tree, same Caja
   // Mínima rule — funded by what the team actually collected, so a team
   // can see its *real* ALM (informational; the fictitious run is still
   // what's graded, see README §5.3) side by side with the fictitious one.
