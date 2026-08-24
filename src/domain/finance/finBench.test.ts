@@ -6,6 +6,8 @@ import { computeDevelopment } from "../reserving/development";
 import { FZ, CAPITAL_SOCIAL } from "./constants";
 import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
 import { almSimRealYear } from "./alm";
+import { projectYear3 } from "./projectYear3";
+import { computeLiabilitySchedules } from "../reserving/liability";
 import type { PortfolioDecisionV4 } from "./instruments";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "../pricing/outsourced";
 import { computeRt } from "../grading/composite";
@@ -233,7 +235,7 @@ describe("finBench", () => {
     expect(eroded.solMargen).toBeLessThan(noErosion.solMargen);
   });
 
-  it("projects Año 3's capital comprometido off the Año1->Año2 trend instead of flat-carrying Año 2's checkpoint", () => {
+  it("projects Año 3's capital comprometido off the Año1->Año2 trend when no Año 3 ALM ran, instead of flat-carrying Año 2's checkpoint", () => {
     const noTrend = finBench({
       ...richYear3Input(),
       almYear1: fakeAlmYear(10_000_000_000),
@@ -255,7 +257,7 @@ describe("finBench", () => {
     expect(projectedDelta(trending)).toBeCloseTo(15_000_000_000, 4);
   });
 
-  it("Balance Año 3 (proyectado) always squares exactly — inversiones solves for whatever closes Activos = Pasivo + Patrimonio, since Año 3 has no real ALM fact of its own to respect", () => {
+  it("Balance Año 3 squares exactly through the inversiones plug when no Año 3 ALM ran — with no real fact of its own to respect, it solves for whatever closes Activos = Pasivo + Patrimonio", () => {
     // Same setup that used to break badly under both rejected approaches
     // (static Capital Social, and a patrimonio-delta carry-forward): a big
     // Año 1 book (large reservasTec) whose own reservas run off sharply by
@@ -280,6 +282,202 @@ describe("finBench", () => {
     const b2 = bench.bal3!;
     const pasivoPatrim2 = b2.reservasTec + b2.rpnd + b2.cxp + b2.necesidadesPatrimonioODeuda + b2.impuestoPorPagar + b2.patrimonio;
     expect(b2.activos).toBeCloseTo(pasivoPatrim2, 4);
+  });
+
+  it("Año 3's ALM continuation drives rinv3 and the whole asset side of bal3 — and the sheet still closes exactly, with no plug", () => {
+    // A fully self-consistent 3-year scenario, wired exactly the way
+    // finBenchHelper.ts wires production: the same claim lists feed the
+    // liability schedules, the development, AND the real ALM's monthly
+    // payments, so nothing here is an arbitrary fixture number.
+    const teamId = 1;
+    const year1Claims = Array.from({ length: 120 }, (_, i) => ({ teamId, noticeMonth: i % 12, ultimate: 2_000_000_000 }));
+    const year2Claims = Array.from({ length: 100 }, (_, i) => ({ teamId, noticeMonth: 12 + (i % 12), ultimate: 2_200_000_000 }));
+    const liab1 = computeLiabilitySchedules(year1Claims.map((c) => ({ ...c, severity: c.ultimate })), [teamId]).get(teamId)!;
+    const liab2 = computeLiabilitySchedules(year2Claims.map((c) => ({ ...c, severity: c.ultimate })), [teamId]).get(teamId)!;
+    const development = computeDevelopment(year1Claims, year2Claims, [teamId]).byTeam.get(teamId)!;
+
+    const decision: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { CDT90: 40, TES1: 30, TESUVR8: 30 },
+      schedule: [{ month: 0, allocation: { LIQ: 20, CDT90: 40, TES1: 20, TESUVR8: 20 } }],
+    };
+    const totalPremium1 = 400_000_000_000;
+    const totalPremium2 = 430_000_000_000;
+    const insuredCount1 = 6000;
+    const insuredCount2 = 5800;
+    const year2Retention = { retainedCount: 4800, newCount: 1000 };
+
+    const real1 = almSimRealYear(1, liab1.payY1, decision, totalPremium1 / 12)!;
+    const claimsYear2 = liab1.L.slice(0, 12).map((v, i) => v + liab2.L[i]);
+    const real2 = almSimRealYear(2, claimsYear2, decision, totalPremium2 / 12, real1.finalState, totalPremium1)!;
+
+    const proj3 = projectYear3({
+      year1InsuredCount: insuredCount1,
+      year2InsuredCount: insuredCount2,
+      year2PrimaEmitida: totalPremium2,
+      year2Retention,
+      claimCountY2: development.claimCountY2,
+      ultY2: development.ultY2,
+      osY1endY3: development.osY1endY3,
+      osY2endY3: development.osY2endY3,
+    })!;
+    const claimsYear3 = proj3.ownClaimsSchedule12.map((own, i) => own + liab1.L[12 + i] + liab2.L[12 + i]);
+    const real3 = almSimRealYear(3, claimsYear3, decision, proj3.prima3 / 12, real2.finalState, totalPremium2, 0)!;
+
+    const toBench = (r: typeof real1) => ({
+      portYield: r.portYield,
+      income: r.income,
+      capitalComprometido: r.capitalComprometidoAcumulado,
+      effectiveYield: r.effectiveYield,
+      cajaFinalAnio: r.cajaFinalAnio,
+      portfolioBookValue: r.portfolioBookValue,
+    });
+    const bench = finBench({
+      year1: { totalPremium: totalPremium1, claimsAmount: 120 * 2_000_000_000, insuredCount: insuredCount1 },
+      year2: { totalPremium: totalPremium2, claimsAmount: development.ultY2, insuredCount: insuredCount2 },
+      liabilityYear1: liab1,
+      development,
+      almYear1: toBench(real1),
+      almYear2: toBench(real2),
+      almYear3: toBench(real3),
+      year2Retention,
+    });
+
+    // rinv3 is the projected year's own accrued income, not reservas × yield.
+    expect(bench.p3!.rinv).toBeCloseTo(real3.income, 4);
+    expect(bench.p3!.rinv).not.toBeCloseTo(bench.p3!.reservas * real2.effectiveYield, 0);
+    // The asset side is the ALM's own, exactly like Año 1/Año 2 — no plug.
+    expect(bench.bal3!.inversiones).toBeCloseTo(real3.portfolioBookValue, 4);
+    expect(bench.bal3!.caja).toBeCloseTo(real3.cajaFinalAnio, 4);
+    // And the sheet still closes on its own.
+    for (const b of [bench.bal1, bench.bal2!, bench.bal3!]) {
+      const pasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.impuestoPorPagar + b.patrimonio;
+      expect(b.activos).toBeCloseTo(pasivoPatrim, 3);
+    }
+  });
+
+  describe("la identidad contable cierra sin ninguna línea de cuadre", () => {
+    /** Runs a fully self-consistent 3-year scenario end to end — same claim lists behind the liability schedules, the development AND the ALM's monthly payments, exactly like finBenchHelper.ts wires production. */
+    function fullRun(o: {
+      n1: number;
+      sev1: number;
+      n2: number;
+      sev2: number;
+      prem1: number;
+      prem2: number;
+      ins1: number;
+      ins2: number;
+      retained: number;
+      nuevos: number;
+      decision: PortfolioDecisionV4;
+    }) {
+      const t = 1;
+      const y1 = Array.from({ length: o.n1 }, (_, i) => ({ teamId: t, noticeMonth: i % 12, ultimate: o.sev1 }));
+      const y2 = Array.from({ length: o.n2 }, (_, i) => ({ teamId: t, noticeMonth: 12 + (i % 12), ultimate: o.sev2 }));
+      const l1 = computeLiabilitySchedules(y1.map((c) => ({ ...c, severity: c.ultimate })), [t]).get(t)!;
+      const l2 = computeLiabilitySchedules(y2.map((c) => ({ ...c, severity: c.ultimate })), [t]).get(t)!;
+      const development = computeDevelopment(y1, y2, [t]).byTeam.get(t)!;
+      const r1 = almSimRealYear(1, l1.payY1, o.decision, o.prem1 / 12)!;
+      const r2 = almSimRealYear(2, l1.L.slice(0, 12).map((v, i) => v + l2.L[i]), o.decision, o.prem2 / 12, r1.finalState, o.prem1)!;
+      const year2Retention = { retainedCount: o.retained, newCount: o.nuevos };
+      const proj3 = projectYear3({
+        year1InsuredCount: o.ins1,
+        year2InsuredCount: o.ins2,
+        year2PrimaEmitida: o.prem2,
+        year2Retention,
+        claimCountY2: development.claimCountY2,
+        ultY2: development.ultY2,
+        osY1endY3: development.osY1endY3,
+        osY2endY3: development.osY2endY3,
+      })!;
+      const claims3 = proj3.ownClaimsSchedule12.map((own, i) => own + l1.L[12 + i] + l2.L[12 + i]);
+      const r3 = almSimRealYear(3, claims3, o.decision, proj3.prima3 / 12, r2.finalState, o.prem2, 0)!;
+      const toBench = (r: typeof r1) => ({
+        portYield: r.portYield,
+        income: r.income,
+        capitalComprometido: r.capitalComprometidoAcumulado,
+        effectiveYield: r.effectiveYield,
+        cajaFinalAnio: r.cajaFinalAnio,
+        portfolioBookValue: r.portfolioBookValue,
+      });
+      const bench = finBench({
+        year1: { totalPremium: o.prem1, claimsAmount: o.n1 * o.sev1, insuredCount: o.ins1 },
+        year2: { totalPremium: o.prem2, claimsAmount: development.ultY2, insuredCount: o.ins2 },
+        liabilityYear1: l1,
+        development,
+        almYear1: toBench(r1),
+        almYear2: toBench(r2),
+        almYear3: toBench(r3),
+        year2Retention,
+      });
+      return { bench, r1, r2, r3 };
+    }
+
+    const gap = (b: { activos: number; reservasTec: number; rpnd: number; cxp: number; necesidadesPatrimonioODeuda: number; impuestoPorPagar: number; patrimonio: number }) =>
+      b.activos - (b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.impuestoPorPagar + b.patrimonio);
+
+    const mixto: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { CDT90: 40, TES1: 30, TESUVR8: 30 },
+      schedule: [{ month: 0, allocation: { LIQ: 20, CDT90: 40, TES1: 20, TESUVR8: 20 } }],
+    };
+    const largoPlazo: PortfolioDecisionV4 = {
+      capitalSocialAllocation: { TES3: 60, TESUVR8: 40 },
+      schedule: [{ month: 0, allocation: { TES3: 60, TESUVR8: 40 } }],
+    };
+    const todoAcciones: PortfolioDecisionV4 = { capitalSocialAllocation: { ACC: 100 }, schedule: [{ month: 0, allocation: { ACC: 100 } }] };
+    const todoLiq: PortfolioDecisionV4 = { capitalSocialAllocation: { LIQ: 100 }, schedule: [{ month: 0, allocation: { LIQ: 100 } }] };
+
+    const base = { n1: 120, sev1: 2e9, n2: 100, sev2: 2.2e9, prem1: 4e11, prem2: 4.3e11, ins1: 6000, ins2: 5800, retained: 4800, nuevos: 1000, decision: mixto };
+    const scenarios: [string, Parameters<typeof fullRun>[0]][] = [
+      ["cartera y portafolio mixtos", base],
+      ["sin siniestros que pagar", { ...base, n1: 0, sev1: 0, n2: 1, sev2: 1e6 }],
+      // Los dos casos que rompían las aproximaciones descartadas: una cartera
+      // que se encoge (reserva grande drenándose contra negocio nuevo que
+      // colapsa) y un portafolio todo a largo plazo, que obliga a vender
+      // antes de tiempo para pagar siniestros.
+      ["cartera que se encoge", { ...base, n1: 200, n2: 20, prem2: 3e10, ins2: 500, retained: 400, nuevos: 60 }],
+      ["todo a largo plazo (venta forzada)", { ...base, n1: 150, n2: 140, prem1: 3e11, prem2: 3.2e11, decision: largoPlazo }],
+      ["todo en acciones", { ...base, decision: todoAcciones }],
+      ["todo en liquidez", { ...base, decision: todoLiq }],
+      ["crecimiento fuerte", { ...base, n1: 50, sev1: 1e9, n2: 200, prem1: 1e11, prem2: 6e11, ins1: 2000, ins2: 9000, retained: 1800, nuevos: 7200 }],
+    ];
+
+    it.each(scenarios)("Activos = Pasivo + Patrimonio, exacto, en los tres balances — %s", (_name, o) => {
+      const { bench, r3 } = fullRun(o);
+      // Mientras al portafolio le quede valor en libros, cualquier capital
+      // comprometido ya está embebido en un `inversiones` más bajo y cancela
+      // exactamente contra su propia resta en patrimonio — la identidad cierra
+      // igual. El único caso que la rompe es el portafolio agotado a cero (ver
+      // el test siguiente).
+      expect(r3.portfolioBookValue).toBeGreaterThan(0);
+      for (const b of [bench.bal1, bench.bal2!, bench.bal3!]) {
+        // Relativo, no absoluto: son cifras de cientos de miles de millones,
+        // así que 1e-9 de error relativo ya es exactitud de punto flotante.
+        expect(Math.abs(gap(b)) / b.activos).toBeLessThan(1e-9);
+      }
+    });
+
+    it("cierra también cuando el equipo agota su portafolio y necesita financiamiento externo — el capital comprometido se cuenta una sola vez", () => {
+      // Siniestralidad de ~400% sobre la prima: el portafolio entero (Capital
+      // Social incluido) se agota y hay que traer plata de afuera. Este era el
+      // caso que descuadraba por exactamente ese financiamiento, cuando
+      // `capitalComprometido` se restaba de patrimonio Y se sumaba al pasivo:
+      // como ambos están del mismo lado de la identidad se cancelaban entre
+      // sí, mientras que del lado del activo `inversiones` ya no podía bajar
+      // más (el portafolio está en cero). Ahora se reconoce una sola vez — ver
+      // balance() en finBench.ts.
+      const { bench, r2, r3 } = fullRun({ ...base, n1: 400, n2: 380, sev2: 2.4e9, prem1: 2e11, prem2: 2e11, decision: largoPlazo });
+      expect(r2.capitalComprometidoAcumulado).toBeGreaterThan(0);
+      expect(r3.capitalComprometidoAcumulado).toBeGreaterThan(0);
+      expect(r3.portfolioBookValue).toBe(0); // agotado: `inversiones` ya no puede bajar más
+      // El patrimonio ya está muy por debajo de cero por las pérdidas
+      // acumuladas, así que no queda nada que absorba el capital comprometido:
+      // entra completo como pasivo.
+      expect(bench.bal3!.patrimonio).toBeLessThan(0);
+      expect(bench.bal3!.necesidadesPatrimonioODeuda).toBeCloseTo(r3.capitalComprometidoAcumulado, 4);
+      for (const b of [bench.bal1, bench.bal2!, bench.bal3!]) {
+        expect(Math.abs(gap(b)) / Math.abs(b.activos)).toBeLessThan(1e-9);
+      }
+    });
   });
 
   it("impuestoPorPagar equals this year's own Impuesto — a standard 'tax payable' liability, same treatment rpnd/cxp already get for their own accrual-vs-cash gap", () => {
@@ -597,35 +795,37 @@ describe("finBench", () => {
       expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 0);
     });
 
-    it("necesidadesPatrimonioODeuda equals capitalComprometido directly, with no clamp against CAPITAL_SOCIAL — by the time capitalComprometido is ever nonzero, Capital Social has already been fully spent via ordinary liquidation (see almSimRealYear()), so any draw at all is already genuinely external", () => {
-      const modest = finBench({
-        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
-        liabilityYear1,
-        almYear1: fakeAlmYear(5_000_000_000, 3_000_000, 0.1, undefined, 0, 0),
-      });
-      const large = finBench({
-        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
-        liabilityYear1,
-        almYear1: fakeAlmYear(CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0),
-      });
-      expect(modest.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(5_000_000_000, 4);
-      expect(large.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(CAPITAL_SOCIAL + 9_000_000_000, 4);
+    it("necesidadesPatrimonioODeuda es solo el exceso del capital comprometido sobre el patrimonio que quedaba — el resto lo absorbe el patrimonio, y nunca se cuenta de los dos lados a la vez", () => {
+      const year1 = { totalPremium: 500_000_000, claimsAmount: 300_000_000 };
+      // Patrimonio previo = CAPITAL_SOCIAL + utilidad retenida, de sobra para
+      // absorber 5B: nada llega a ser pasivo.
+      const absorbible = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(5_000_000_000, 3_000_000, 0.1, undefined, 0, 0) });
+      const patrimonioPrevio = absorbible.bal1.patrimonio + 5_000_000_000;
+      expect(patrimonioPrevio).toBeGreaterThan(5_000_000_000);
+      expect(absorbible.bal1.necesidadesPatrimonioODeuda).toBe(0);
+
+      // Más de lo que el patrimonio puede absorber: queda en cero y el exceso
+      // se reconoce como pasivo.
+      const excedido = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(patrimonioPrevio + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0) });
+      expect(excedido.bal1.patrimonio).toBe(0);
+      expect(excedido.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(9_000_000_000, 4);
     });
 
-    it("necesidadesPatrimonioODeuda never interacts with the unrelated caja/reserva residual — the Activos-vs-Pasivo+Patrimonio gap is identical regardless of capitalComprometido's size, since it cancels out exactly against patrimonio's own subtraction", () => {
-      const under = finBench({
-        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
-        liabilityYear1,
-        almYear1: fakeAlmYear(40_000_000_000, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712),
-      });
-      const over = finBench({
-        year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000 },
-        liabilityYear1,
-        almYear1: fakeAlmYear(CAPITAL_SOCIAL + 9_000_000_000, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712),
-      });
-      const gap = (b: typeof under) =>
-        b.bal1.reservasTec + b.bal1.rpnd + b.bal1.cxp + b.bal1.necesidadesPatrimonioODeuda + b.bal1.patrimonio - b.bal1.activos;
-      expect(gap(over)).toBeCloseTo(gap(under), 4);
+    it("una vez el patrimonio ya está agotado — el único estado en que un equipo llega a comprometer capital — comprometer más ya no lo hunde otra vez: entra solo como pasivo", () => {
+      // Pérdida que deja el patrimonio muy por debajo de cero, que es el
+      // estado real de cualquier equipo que agotó su portafolio completo
+      // (Capital Social incluido) y aun así necesitó más.
+      const year1 = { totalPremium: 500_000_000, claimsAmount: 900_000_000_000 };
+      const alm = (capComp: number) => fakeAlmYear(capComp, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712);
+      const under = finBench({ year1, liabilityYear1, almYear1: alm(40_000_000_000) });
+      const over = finBench({ year1, liabilityYear1, almYear1: alm(CAPITAL_SOCIAL + 9_000_000_000) });
+      expect(under.bal1.patrimonio).toBeLessThan(0);
+      // El patrimonio ya no depende de cuánto se comprometió — lo que lo dejó
+      // negativo son las pérdidas acumuladas, no el financiamiento.
+      expect(over.bal1.patrimonio).toBe(under.bal1.patrimonio);
+      // Y el financiamiento aparece completo, una sola vez, del lado del pasivo.
+      expect(under.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(40_000_000_000, 4);
+      expect(over.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(CAPITAL_SOCIAL + 9_000_000_000, 4);
     });
 
     it("falls back to a Capital-Social-only inversiones (never invested) only when there's no real ALM decision at all", () => {

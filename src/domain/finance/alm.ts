@@ -1029,7 +1029,7 @@ export interface AlmRealYearResult {
   totalVentaForzadaPerdida: number;
   mesesConVentaForzada: number;
   peakCapitalComprometido: number;
-  /** Pass this into Año 2's call (as almSimRealYear(2, ..., initialState)) to continue from exactly where Año 1 left off — same open positions, same accumulated capital comprometido. */
+  /** Pass this into the next year's call (as almSimRealYear(year + 1, ..., initialState)) to continue from exactly where this year left off — same open positions, same accumulated capital comprometido. */
   finalState: AlmYearState;
 }
 
@@ -1047,16 +1047,26 @@ export interface AlmRealYearResult {
  * decision.capitalSocialAllocation right away (see below, a separate
  * decision from `schedule`'s own month-0 checkpoint), then run against that
  * team's own Year-1-within-Year-1 claims schedule (typically lib.payY1).
- * year===2 must receive `initialState` — Año 1's `finalState` — and
- * continues the *same* simulation for another 12 months (same open
- * positions still earning yield/maturing on their own original schedule,
- * same capitalComprometidoAcumulado carried forward), now funded by Año 2's
- * real premium against Año 2's own claims schedule (typically Año 1's
- * development landing in Año 2 — lib.L.slice(0,12) — plus Año 2's own new
- * claims' first-year payments, added together by the caller — see
+ * year===2 and year===3 must receive `initialState` — the prior year's
+ * `finalState` — and continue the *same* simulation for another 12 months
+ * (same open positions still earning yield/maturing on their own original
+ * schedule, same capitalComprometidoAcumulado carried forward), now funded
+ * by that year's premium against that year's own claims schedule (Año 2:
+ * Año 1's development landing in Año 2 — lib.L.slice(0,12) — plus Año 2's
+ * own new claims' first-year payments, added together by the caller — see
  * finBenchHelper.ts). This is a genuine continuation, not "what if this
  * tree had run from month 0" — that hypothetical is exactly what the
  * fictitious ALM already answers.
+ *
+ * year===3 is the one year whose inputs are *projected* rather than real:
+ * there is no third market to collect premium from and no third accident
+ * year to observe, so the caller funds it with the Año 3 prima projection
+ * and pays it the projected claims schedule (both from projectYear3.ts —
+ * see finBenchHelper.ts). Everything else is identical machinery, which is
+ * the point: Año 3's Resultado de inversiones and year-end portfolio come
+ * out of the same simulation that produced Año 1's and Año 2's, on the
+ * positions the team genuinely holds at the end of Año 2, instead of a
+ * separate closed-form proxy that quietly changed the base it earned on.
  *
  * What year===2 does NOT inherit from year===1 is which checkpoint governs
  * its *own* fresh premium: `schedule` is read starting at its own relative
@@ -1071,12 +1081,12 @@ export interface AlmRealYearResult {
  * not.
  *
  * `mes` in the returned rows matches almSim()'s own labeling for the
- * corresponding calendar year (Año 1: -12..-1, Año 2: 0..11), so a real
- * and fictitious ladder for the same year line up month-for-month when
- * shown side by side.
+ * corresponding calendar year (Año 1: -12..-1, Año 2: 0..11, Año 3:
+ * 12..23), so a real and fictitious ladder for the same year line up
+ * month-for-month when shown side by side.
  */
 export function almSimRealYear(
-  year: 1 | 2,
+  year: 1 | 2 | 3,
   claimsSchedule12: number[],
   decision: PortfolioDecisionV4,
   aporteMensual: number,
@@ -1102,8 +1112,8 @@ export function almSimRealYear(
    */
   extraGastosPct = 0
 ): AlmRealYearResult | null {
-  if (year === 2 && !initialState) {
-    throw new Error("almSimRealYear(2, ...) requires Año 1's finalState — Año 2 is a continuation, not a fresh run.");
+  if (year !== 1 && !initialState) {
+    throw new Error(`almSimRealYear(${year}, ...) requires the prior year's finalState — only Año 1 is a fresh run.`);
   }
   const first = decision.schedule[0];
   const totalW0 = first
@@ -1140,7 +1150,9 @@ export function almSimRealYear(
 
   const acc = freshAccumulators();
 
-  const startMonth = year === 1 ? 0 : BUILD_MONTHS;
+  // Año 1 builds from month 0, Año 2 from month 12, Año 3 from month 24 —
+  // each year continuing the same position ledger 12 months further out.
+  const startMonth = year === 1 ? 0 : BUILD_MONTHS + (year - 2) * 12;
   const fase: "a1" | "post" = year === 1 ? "a1" : "post";
   const rows: AlmSimRow[] = [];
   let income = 0;
@@ -1186,14 +1198,14 @@ export function almSimRealYear(
   const primaEmitidaAnual = aporteMensual * BUILD_MONTHS;
   const cxcThisYear = (FZ.diasRotacionCxc / 365) * primaEmitidaAnual;
   const cxpThisYear = FZ.cxpPct * primaEmitidaAnual;
-  const cxcPriorYear = year === 2 && priorYearTotalPremium != null ? (FZ.diasRotacionCxc / 365) * priorYearTotalPremium : 0;
-  const cxpPriorYear = year === 2 && priorYearTotalPremium != null ? FZ.cxpPct * priorYearTotalPremium : 0;
+  const cxcPriorYear = year !== 1 && priorYearTotalPremium != null ? (FZ.diasRotacionCxc / 365) * priorYearTotalPremium : 0;
+  const cxpPriorYear = year !== 1 && priorYearTotalPremium != null ? FZ.cxpPct * priorYearTotalPremium : 0;
   const cxcHoldback0 = cxcThisYear - cxcPriorYear;
   const cxpHoldback0 = cxpThisYear - cxpPriorYear;
 
   for (let i = 0; i < 12; i++) {
     const t = startMonth + i;
-    const mesLabel = year === 1 ? i - BUILD_MONTHS : i;
+    const mesLabel = year === 1 ? i - BUILD_MONTHS : i + (year - 2) * 12;
     const pagoSiniestros = claimsSchedule12[i] || 0;
     // scheduleMonth=i (not t): Año 2's checkpoint lookup restarts at its own
     // month 0, mirroring exactly how Año 1's premium read the same schedule
