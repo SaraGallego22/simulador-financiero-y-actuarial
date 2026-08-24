@@ -102,12 +102,14 @@ export interface Concepto {
  * of the PRIOR year's own holdback and constitutes a new 20% on its own
  * Prima Emitida (Año 1 has no prior year, so it only constitutes). Costo
  * de siniestros is always that year's own accident-year ultimate only —
- * Año 2 alone carries an extra "Ajuste de siniestralidad" line: a fixed,
- * one-time release of 10% of the true reserva técnica A1, narrated in the
- * Guía del Pasante as an actuarial-team finding that 2027's remaining
- * unpaid severity was overestimated (see p2_ajusteSiniestralidad's own
- * comment, below). RT excludes Gasto Administrativo, which lands on its own
- * line feeding a new "Resultado Industrial" (RI) instead; UAI = RI +
+ * Año 2 alone carries an extra "Ajuste de siniestralidad" line: a one-time
+ * release of 10% of Año 1's own remaining share of the reserve at Año 2's
+ * close, narrated in the Guía del Pasante as an actuarial-team finding that
+ * 2027's remaining unpaid severity was overestimated (see
+ * p2_ajusteSiniestralidad's own comment, below, for why it's a REAL event —
+ * it genuinely reduces the reserve and raises RT in finBench() itself, not
+ * just a reported line). RT excludes Gasto Administrativo, which lands on
+ * its own line feeding a new "Resultado Industrial" (RI) instead; UAI = RI +
  * Rendimiento de Inversiones (not RT + Rinv). Gastos de adquisición is the
  * one expense line whose *rate* isn't shared by every team: a team that
  * outsourced that year's tariff carries the consultancy's fee inside it (see
@@ -119,16 +121,12 @@ export interface Concepto {
  * UAI, Impuesto, Utilidad Neta, and on the Balance side Activos/Pasivo/
  * Pasivo+Patrimonio/Inversiones) carries a `formula` spec and is graded via
  * scoreFormulaConcepto() against the team's OWN other submitted values —
- * never against the true bench directly. Ajuste de siniestralidad also
- * carries a `formula`, but its one term reads a true bench fact instead
- * (see FormulaTerm.useTrueValue) — it's the one "reporte" line whose expected
- * value doesn't depend on anything else the team submitted at all. This
- * means one upstream mistake
+ * never against the true bench directly. This means one upstream mistake
  * (e.g. a wrong Costo) costs points exactly once, not once per downstream
  * line that algebraically depends on it. Only genuine primary facts/
- * estimates (Prima Emitida, Costo de Siniestros, Resultado de Inversiones,
- * Reservas Técnicas, Patrimonio) are graded straight against the true
- * finBench() value.
+ * estimates (Prima Emitida, Costo de Siniestros, Ajuste de siniestralidad,
+ * Resultado de Inversiones, Reservas Técnicas, Patrimonio) are graded
+ * straight against the true finBench() value, with no `formula` at all.
  */
 export const CONCEPTOS: Concepto[] = [
   { id: "minvar", dia: "d1", perfil: "fin", tipo: "auto_minvar", label: "Portafolio de mínima varianza", unit: "score" },
@@ -337,18 +335,23 @@ export const CONCEPTOS: Concepto[] = [
     label: "Ajuste de siniestralidad A1",
     unit: "COP",
     group: "pyg_a2",
-    // A fixed, one-time release: −10% × the true reserva técnica A1
-    // (bal1_reservasTec's own true value, via useTrueValue) — narrated in
-    // the Guía del Pasante as an actuarial-team review finding that 2027's
-    // remaining unpaid severity was overestimated by that 10%. Reported as
-    // a negative number (a release, not a cost); independent of whatever
-    // the team itself submitted for Costo de Siniestros A1 back on Día 2 —
-    // not a correction of that guess.
-    get: (b) => -FZ.sevRevisionA1Pct * b.bal1.reservasTec,
-    formula: {
-      kind: "linear",
-      terms: [{ conceptId: "bal1_reservasTec", coeff: -FZ.sevRevisionA1Pct, useTrueValue: true }],
-    },
+    // A one-time release: −10% × Año 1's OWN remaining share of the reserve
+    // at Año 2's close (development.osY1endY2) — same figure finBench()
+    // itself computes as p2.ajusteSiniestralidad (see its doc comment in
+    // finBench.ts for why this is a real event, not just a reporting line:
+    // it also reduces the real reserva2 and raises the real p2.rt by the
+    // same amount, and why it's based on osY1endY2 rather than Año 1's full
+    // 2027 closing reserve — that base can never drive the reserve
+    // negative). No `formula`, unlike most Día 3 lines — this genuinely is
+    // a primary fact of the true engine (like Prima Emitida or Costo de
+    // Siniestros), not a pure function of other lines the team submitted;
+    // graded straight against `get()`, the same pattern p1_gadq/p2_gadq use.
+    // Narrated in the Guía del Pasante as an actuarial-team review finding
+    // that 2027's remaining unpaid severity was overestimated by that 10%.
+    // Reported as a negative number (a release, not a cost); independent of
+    // whatever the team itself submitted for Costo de Siniestros A1 back on
+    // Día 2 — not a correction of that guess.
+    get: (b) => b.p2?.ajusteSiniestralidad ?? null,
   },
   {
     /** No `formula`, same reason as p1_gadq — see that concept's comment. */

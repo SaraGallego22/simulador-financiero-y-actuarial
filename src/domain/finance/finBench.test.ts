@@ -674,11 +674,17 @@ describe("finBench", () => {
       expect(bench.p2!.costo).toBeCloseTo(dev.ultY2, 6);
     });
 
-    it("rt is a uniform formula for every year (primaDevengada − costo − gadq − gcom) — there's no separate 'desarrollo' term inside the true bench P&G", () => {
+    it("rt is a uniform formula for every year (primaDevengada − costo − ajusteSiniestralidad − gadq − gcom) — there's no separate 'desarrollo' term inside the true bench P&G", () => {
       const bench = finBench(richYear3Input());
       for (const p of [bench.p1, bench.p2!, bench.p3!]) {
-        expect(p.rt).toBeCloseTo(p.primaDevengada - p.costo - p.gadq - p.gcom, 6);
+        expect(p.rt).toBeCloseTo(p.primaDevengada - p.costo - p.ajusteSiniestralidad - p.gadq - p.gcom, 6);
       }
+    });
+
+    it("ajusteSiniestralidad is 0 for Año 1 and Año 3 — only Año 2 carries the one-time release", () => {
+      const bench = finBench(richYear3Input());
+      expect(bench.p1.ajusteSiniestralidad).toBe(0);
+      expect(bench.p3!.ajusteSiniestralidad).toBe(0);
     });
 
     it("reservas1 (feeding bal1.reservasTec) is always liabilityYear1.reserva — the true unpaid ultimate — never a market-wide estimate, whether or not Año 2's development has been computed yet", () => {
@@ -707,6 +713,70 @@ describe("finBench", () => {
       // confirm the actual result is strictly less than that.
       expect(bench.p3!.costo).toBeLessThan(expectedCosto3 + dev.devTailY1InY3 + dev.devTailY2InY3);
     });
+  });
+
+  describe("Ajuste de siniestralidad (Año 2) is a real event, not just a reporting line", () => {
+    it("is exactly -FZ.sevRevisionA1Pct × Año 1's own remaining share of the reserve at Año 2's close (osY1endY2, not the full 2027 closing reserve), and raises p2.rt by exactly that magnitude", () => {
+      const dev = fakeDevelopment();
+      const bench = finBench(richYear3Input());
+      const expectedAjuste = -FZ.sevRevisionA1Pct * dev.osY1endY2;
+      expect(bench.p2!.ajusteSiniestralidad).toBeCloseTo(expectedAjuste, 6);
+
+      const rtWithoutAjuste = bench.p2!.primaDevengada - bench.p2!.costo - bench.p2!.gadq - bench.p2!.gcom;
+      expect(bench.p2!.rt).toBeCloseTo(rtWithoutAjuste - expectedAjuste, 6);
+    });
+
+    it("reduces bal2.reservasTec by exactly the same amount it raises rt — the release isn't just reported, the liability genuinely shrinks", () => {
+      const dev = fakeDevelopment();
+      const bench = finBench(richYear3Input());
+      const expectedAjuste = -FZ.sevRevisionA1Pct * dev.osY1endY2;
+      expect(bench.bal2!.reservasTec).toBeCloseTo(dev.reservaFinY2 + expectedAjuste, 6);
+    });
+
+    it("never drives reservas2 negative even when the release would exceed Año 1's full 2027 closing reserve, because it's based on what's left at Año 2's close instead", () => {
+      const dev = fakeDevelopment();
+      const bench = finBench(richYear3Input());
+      // Sanity check on the fixture itself: osY1endY2 is a strict subset of
+      // Año 1's much larger 2027 closing reserve (most of it already paid
+      // down by Año 2's close) — exactly the gap that used to risk a
+      // negative reserve when the release was based on the 2027 figure.
+      expect(dev.osY1endY2).toBeLessThan(liabilityYear1.reserva);
+      expect(bench.bal2!.reservasTec).toBeGreaterThanOrEqual(0);
+    });
+
+    it("carries forward into bal3.reservasTec, capped at what's actually still outstanding of Año 1's origin by Año 3's own close (osY1endY3) — never the raw Año 2 dollar amount unconditionally", () => {
+      const input = richYear3Input();
+      const bench = finBench(input);
+      const dev = input.development!;
+      const releaseY2 = FZ.sevRevisionA1Pct * dev.osY1endY2;
+      const releaseCarriedToY3 = Math.min(releaseY2, dev.osY1endY3);
+      const proj3 = projectYear3({
+        year1InsuredCount: input.year1.insuredCount!,
+        year2InsuredCount: input.year2!.insuredCount!,
+        year2PrimaEmitida: bench.p2!.primaEmitida,
+        year2Retention: input.year2Retention!,
+        claimCountY2: dev.claimCountY2,
+        ultY2: dev.ultY2,
+        osY1endY3: dev.osY1endY3,
+        osY2endY3: dev.osY2endY3,
+        paidY2inY2: dev.paidY2inY2,
+      })!;
+      expect(bench.bal3!.reservasTec).toBeCloseTo(proj3.reservas3 - releaseCarriedToY3, 6);
+      expect(bench.bal3!.reservasTec).toBeGreaterThanOrEqual(0);
+    });
+
+    it("never appears for Año 1 or Año 3's own P&G — only Año 2 gets a new release event, even though its Balance effect persists", () => {
+      const bench = finBench(richYear3Input());
+      expect(bench.p1.ajusteSiniestralidad).toBe(0);
+      expect(bench.p3!.ajusteSiniestralidad).toBe(0);
+    });
+
+    // Exact Activos = Pasivo + Patrimonio closure with the ajuste applied is
+    // already covered end-to-end by the "identidad contable cierra" suite
+    // below, which runs against genuine almSimRealYear() fixtures — this
+    // file's richYear3Input() uses a hand-rolled fake AlmYearBenchInput, not
+    // a real ALM run, so it carries its own small residual unrelated to this
+    // feature (see this file's other closure tests' own doc comments).
   });
 
   describe("RT / RI split", () => {

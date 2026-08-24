@@ -162,7 +162,7 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
   });
 });
 
-describe("Ajuste de siniestralidad (a useTrueValue formula term: a fixed 10% release of the true reserva técnica A1, independent of any team submission)", () => {
+describe("Ajuste de siniestralidad (a primary fact — no formula — graded straight against the true engine's p2.ajusteSiniestralidad, independent of any team submission)", () => {
   const bench = {
     p1: {
       primaEmitida: 1_000_000_000,
@@ -181,27 +181,24 @@ describe("Ajuste de siniestralidad (a useTrueValue formula term: a fixed 10% rel
       uneta: 119_000_000,
       reservas: 300_000_000,
     },
-    bal1: {
-      reservasTec: 300_000_000, // true reserva técnica A1
+    p2: {
+      // −10% of Año 1's own remaining share of the reserve at Año 2's close
+      // (development.osY1endY2) — a real finBench() output, not derived
+      // from bal1_reservasTec here (see finBench.ts's own doc comment).
+      ajusteSiniestralidad: -30_000_000,
     },
   } as unknown as FinBenchResult;
 
-  it("grades against −10% of the true reserva técnica A1, regardless of the team's own Día 2 p1_costo submission", () => {
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, new Map(), TOLERANCE, bench);
-    expect(result!.bench).toBeCloseTo(-30_000_000, 6);
-    expect(result!.score).toBe(100);
-  });
-
-  it("doesn't change when the team's own Día 2 p1_costo submission is present — it's not an input to this formula", () => {
+  it("grades against the true engine's p2.ajusteSiniestralidad, regardless of the team's own Día 2 p1_costo submission", () => {
     const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_costo"), 450_000_000);
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, ownValues, TOLERANCE, bench);
+    ownValues.set(ownValueKey("d2", "p1_costo"), 450_000_000); // irrelevant for a primary concept's own grading
+    const result = scoreConcepto("p2_ajusteSiniestralidad", -30_000_000, bench, TOLERANCE, ownValues);
     expect(result!.bench).toBeCloseTo(-30_000_000, 6);
     expect(result!.score).toBe(100);
   });
 
   it("is ungradable (null, not 0) when no bench is passed at all", () => {
-    const result = scoreFormulaConcepto("p2_ajusteSiniestralidad", -30_000_000, new Map(), TOLERANCE); // bench omitted
+    const result = scoreConcepto("p2_ajusteSiniestralidad", -30_000_000, null, TOLERANCE);
     expect(result!.score).toBeNull();
   });
 });

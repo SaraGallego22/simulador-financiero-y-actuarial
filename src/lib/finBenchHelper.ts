@@ -10,6 +10,7 @@ import type { PortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
 import { projectYear3 } from "@/domain/finance/projectYear3";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
+import { FZ } from "@/domain/finance/constants";
 import type { FinBenchResult, AlmYearBenchInput } from "@/domain/finance/finBench";
 
 export interface TeamFinBenchBundle {
@@ -254,7 +255,23 @@ export async function computeFinBenchBundlesForCohort(
         // projected claims settling within their own year. The tails are real
         // money paid even though they're no longer a P&G cost — they were
         // already expensed in their own accident year (see projectYear3.ts).
-        const tailAnio1 = liabilityYear1.L.slice(12, 24);
+        //
+        // Año 1's tail is scaled by (1 − FZ.sevRevisionA1Pct): the same 10%
+        // "Ajuste de siniestralidad" release Año 2 recognizes against Año 1's
+        // origin (see p2.ajusteSiniestralidad in finBench.ts) is real money
+        // that will genuinely never leave the portfolio, not just a reporting
+        // adjustment — so the ALM's actual cash tail has to shrink by the
+        // same proportion the Balance's reserve does, or the two would
+        // silently disagree about how much of Año 1's claims are still owed.
+        // Uniform scaling (not a fixed dollar subtraction) keeps this
+        // consistent at every horizon: development.osY1endY2 (what Año 1
+        // still owed at Año 2's close) splits exactly into this tail
+        // (what pays out during Año 3) plus development.osY1endY3 (what's
+        // still open after Año 3) — scaling both pieces by the same factor
+        // removes exactly FZ.sevRevisionA1Pct × osY1endY2 in total, matching
+        // the release recognized in Año 2's P&G exactly, whichever horizon
+        // you look at it from.
+        const tailAnio1 = liabilityYear1.L.slice(12, 24).map((v) => (v || 0) * (1 - FZ.sevRevisionA1Pct));
         const tailAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(12, 24) ?? [];
         const claimsYear3 = proj3.ownClaimsSchedule12.map((own, i) => own + (tailAnio1[i] || 0) + (tailAnio2[i] || 0));
         realAlmYear3 = almSimRealYear(3, claimsYear3, year2Decision, proj3.prima3 / BUILD_MONTHS, realAlmYear2.finalState, year2.totalPremium, 0);
