@@ -302,10 +302,11 @@ export function GuiaPasanteDia3() {
             Pasivo total es la suma de las cuatro.
           </p>
           <p>
-            <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: Capital Social más la utilidad neta acumulada, menos cualquier
-            financiamiento externo que hayas tenido que traer para cubrir una brecha de caja en tu ALM real (Necesidades de patrimonio o deuda,
-            arriba). Se calcula por acumulación: el patrimonio del año anterior más la utilidad neta que ese año generó en el P&G. Es el punto
-            exacto donde el estado de resultados (un flujo) termina alimentando al Balance (una foto).
+            <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: Capital Social más la utilidad neta acumulada. Se calcula por
+            acumulación: el patrimonio del año anterior más la utilidad neta que ese año generó en el P&amp;G. Es el punto exacto donde el estado de
+            resultados (un flujo) termina alimentando al Balance (una foto). Si tuviste que traer plata de afuera para cubrir una brecha de caja en tu
+            ALM, eso consume patrimonio hasta dejarlo en cero; de ahí en adelante es deuda, y va en Necesidades de patrimonio o deuda (arriba). Nunca en
+            los dos lados a la vez.
           </p>
           <p>
             La última línea, <strong>Pasivo + Patrimonio</strong>, es la verificación de que toda la foto es consistente: debe coincidir exactamente
@@ -345,8 +346,8 @@ export function GuiaPasanteDia3() {
             La prima depende de cuántas pólizas conservas (retención) y cuántas ganas de nuevo. El costo de siniestros de 2029 es <strong>solo</strong>{" "}
             el siniestro propio de 2029 proyectado, y esta vez sin línea de ajuste de siniestralidad: lo que sigue pagándose de siniestros de 2027/2028
             ya se reconoció como costo en su propio año de accidente, y sigue existiendo como saldo de reserva en el Balance (ver sección 5.2). Y el
-            Resultado de inversiones lo razonas a partir de tu propio ALM real de 2028: qué rindió efectivamente tu portafolio, más allá de lo que su
-            rendimiento nominal prometía. Ver sección 4 para cómo razonar cada pieza.
+            Resultado de inversiones es un año más de tu propio portafolio: el saldo con que cierras 2028, más la prima que entra y menos los siniestros
+            y gastos que salen durante 2029, rindiendo a la tasa que ese portafolio realmente logró. Ver sección 4 para cómo razonar cada pieza.
           </p>
         </SubSection>
 
@@ -404,29 +405,32 @@ export function GuiaPasanteDia3() {
                 <li>
                   <strong>Cuántas pólizas.</strong> Parte de tu libro real del 2028 y aplícale la tasa de retención que ya observaste de 2027 a 2028
                   (está en los insumos de hoy) — esas son las que conservas. A eso súmale las pólizas nuevas que esperes ganar en 2029; cuántas nuevas
-                  entraron en 2028 es la referencia natural, y moverte de ahí exige una razón concreta.
+                  entraron en 2028 es la referencia natural.
                 </li>
                 <li>
                   <strong>Por cuánto.</strong> Tu prima media por póliza del 2028 (prima emitida ÷ pólizas aseguradas de ese año), ajustada por la
                   misma inflación de siniestros del punto 3: un equipo que retarifica para 2029 traslada esa expectativa tanto a su costo como a su
-                  precio, no deja el precio quieto.
+                  precio.
                 </li>
               </ul>
             </li>
             <li>
-              <strong>2. Costo de siniestros — solo lo que ocurre en 2029, separando frecuencia de severidad.</strong> Es en base fecha de accidente:
-              lo que sigas pagando en 2029 de siniestros de 2027 y 2028 no entra aquí (ya se reconoció como costo en el P&amp;G de su propio año y hoy
-              solo vive como saldo de reserva en el Balance), y tampoco hay línea de Ajuste de siniestralidad, que es exclusiva del 2028.
+              <strong>2. Costo de siniestros — solo lo que ocurre en 2029.</strong> Es en base fecha de accidente: lo que sigas pagando en 2029 de
+              siniestros de 2027 y 2028 no entra aquí (ya se reconoció como costo en el P&amp;G de su propio año y hoy solo vive como saldo de reserva
+              en el Balance), y tampoco hay línea de Ajuste de siniestralidad, que es exclusiva del 2028.
               <ul className="mt-1 list-[circle] pl-5">
                 <li>
-                  <strong>Frecuencia</strong> — qué proporción de tu libro tuvo siniestro en 2028. Se mantiene estable de un año a otro salvo que
-                  tengas una razón concreta para moverla (por ejemplo, un cambio de perfil de la cartera que tú mismo provocaste al retarifar).
+                  <strong>Trabaja con el costo por póliza.</strong> Tu costo último del 2028 — el que estimaste con tu triángulo, sección 2 — dividido
+                  entre las pólizas que aseguraste ese año te dice cuánto siniestro cuesta cada póliza de tu cartera. Ese cociente ya lleva adentro la
+                  frecuencia y la severidad, y es lo que puedes medir con la información que tienes: el conteo de siniestros que ves avisados hoy sigue
+                  incompleto, así que una frecuencia contada sobre lo avisado se queda corta. Estimarla de verdad exige desarrollar también el conteo,
+                  con el mismo triángulo que ya armaste para los montos.
                 </li>
                 <li>
-                  <strong>Severidad</strong> — cuánto costó en promedio cada siniestro del 2028, medida sobre el costo <strong>último</strong> de ese
-                  año (el que estimaste con tu triángulo, sección 2), no sobre lo avisado hasta hoy. Esta sí cambia: se infla un año.
+                  <strong>De frecuencia y severidad, solo una se mueve.</strong> La frecuencia se mantiene estable de un año a otro; la severidad sube
+                  por inflación. Por eso a ese costo por póliza le aplicas un año de inflación de siniestros, y nada más.
                 </li>
-                <li>Con esas dos y el número de pólizas del punto 1 ya tienes el siniestro propio del 2029.</li>
+                <li>Multiplícalo por las pólizas del punto 1 y tienes el siniestro propio del 2029.</li>
               </ul>
             </li>
             <li>
@@ -436,12 +440,14 @@ export function GuiaPasanteDia3() {
               del punto 2 y en el precio del punto 1.
             </li>
             <li>
-              <strong>4. Resultado de inversiones — hereda la tasa del 2028, no el monto.</strong> Lo que se traslada es el rendimiento que tu
-              portafolio realizó de verdad durante el 2028 (lo que devengó sobre el saldo que tuviste invertido en promedio), no el rendimiento nominal
-              que su calendario prometía en el papel: si vendiste algo bajo presión, esa pérdida ya está descontada de lo que devengaste, así que esa
-              tasa realizada queda por debajo de la nominal. Esa tasa aplícala sobre las reservas técnicas que proyectaste para 2029 — las colas que
-              siguen abiertas de 2027 y 2028 más la parte del siniestro propio de 2029 que quede sin pagar dentro del mismo año —, que no son las del
-              2028. El capital que hayas tenido que comprometer no entra en esta línea: ese golpe lo ves en el Balance, contra tu patrimonio.
+              <strong>4. Resultado de inversiones — un año más de tu portafolio.</strong> El 2029 arranca con el portafolio que traes del cierre de 2028:
+              esa es la línea Inversiones de tu propio Balance de ese año. Durante los 12 meses le entra tu prima proyectada mes a mes y le salen los pagos
+              de siniestros del año — las colas de 2027 y 2028 que siguen liquidándose, que salen de caja aunque ya no sean costo del P&amp;G, más lo que
+              se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones. Para llegar al
+              número no necesitas simular mes a mes: con la tasa que tu portafolio realizó de verdad en 2028 (lo que devengó sobre el saldo que tuviste
+              invertido en promedio, no el rendimiento nominal de tu calendario) aplicada al saldo inicial más la mitad del flujo neto del año, quedas
+              suficientemente cerca. Lo que sí cambia el resultado es quedarte sin caja: si tu proyección te obliga a vender antes de tiempo, esa pérdida
+              se come parte del rendimiento.
             </li>
             <li>
               <strong>5. Las once líneas restantes salen de las tres anteriores.</strong> Liberas la RPND que constituiste en 2028 y constituyes la
@@ -533,7 +539,7 @@ export function GuiaPasanteDia3() {
             formulaNotes={[
               "Cuentas por pagar / RPND = 10% / 20% de la Prima emitida de ese año (la de 2027 la reportaste en Día 2).",
               "Cuentas por cobrar sale de la rotación de cartera de 30 días de la sección 3.",
-              "Caja e Inversiones en 2027/2028 dependen de tu propio flujo de caja real y tu Capital Social. Para 2029, que se proyecta sin ALM propio, Caja vuelve al 15% de la Prima emitida de ese año.",
+              "Caja e Inversiones dependen, en los tres años, de tu propio flujo de caja y tu Capital Social: cuánta prima entró, cuánto siniestro y gasto salió, y qué quedó invertido al cierre. En 2029 son los mismos flujos, proyectados.",
               "Necesidades de patrimonio o deuda va del lado del Pasivo — solo es distinta de 0 si tu equipo agotó por completo su portafolio real (Capital Social incluido) y aun así necesitó más. Para casi todos los equipos es 0.",
               "Pasivo total = Reservas técnicas + RPND + Cuentas por pagar + Necesidades de patrimonio o deuda.",
               "Pasivo + Patrimonio debe ser exactamente igual a Activos totales.",
@@ -545,8 +551,8 @@ export function GuiaPasanteDia3() {
           <div className="rounded border border-[var(--color-brand-gray-light)] p-3">
             <p className="text-sm">
               El costo real de siniestros del 2027 (4) + tu calendario de portafolio de Día 2 → alimentan el estado de resultados del 2028 (5.1) → que junto
-              con la retención real de 2028 y el rendimiento realmente devengado por tu ALM real, te da la proyección del 2029 (5.1b) → cada año, junto
-              con el capital comprometido de tu ALM real, te da el Balance de ese año (5.2).
+              con la retención real de 2028 y un año más de tu propio portafolio, te da la proyección del 2029 (5.1b) → cada año, junto con la caja, las
+              inversiones y el capital comprometido de tu ALM al cierre, te da el Balance de ese año (5.2).
             </p>
             <p className="mt-2 text-sm">
               Estas mismas cifras (Balance de cada año, Resultado técnico/de inversiones) siguen siendo relevantes en las etapas siguientes del
