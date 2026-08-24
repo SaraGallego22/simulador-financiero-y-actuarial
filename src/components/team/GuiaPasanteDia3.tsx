@@ -420,17 +420,19 @@ export function GuiaPasanteDia3() {
               en el Balance), y tampoco hay línea de Ajuste de siniestralidad, que es exclusiva del 2028.
               <ul className="mt-1 list-[circle] pl-5">
                 <li>
-                  <strong>Trabaja con el costo por póliza.</strong> Tu costo último del 2028 — el que estimaste con tu triángulo, sección 2 — dividido
-                  entre las pólizas que aseguraste ese año te dice cuánto siniestro cuesta cada póliza de tu cartera. Ese cociente ya lleva adentro la
-                  frecuencia y la severidad, y es lo que puedes medir con la información que tienes: el conteo de siniestros que ves avisados hoy sigue
-                  incompleto, así que una frecuencia contada sobre lo avisado se queda corta. Estimarla de verdad exige desarrollar también el conteo,
-                  con el mismo triángulo que ya armaste para los montos.
+                  <strong>Frecuencia</strong> — qué proporción de tu libro tuvo siniestro en 2028. Se mantiene estable de un año a otro. Ojo con de
+                  dónde la sacas: el conteo de siniestros que ves avisados hoy todavía está incompleto, así que contar cabezas sobre lo avisado la deja
+                  corta. Estimarla de verdad exige desarrollar también el conteo, con el mismo triángulo que ya armaste para los montos.
                 </li>
                 <li>
-                  <strong>De frecuencia y severidad, solo una se mueve.</strong> La frecuencia se mantiene estable de un año a otro; la severidad sube
-                  por inflación. Por eso a ese costo por póliza le aplicas un año de inflación de siniestros, y nada más.
+                  <strong>Severidad</strong> — cuánto costó en promedio cada siniestro del 2028, medida sobre el costo <strong>último</strong> de ese
+                  año (el que estimaste con tu triángulo, sección 2), no sobre lo avisado hasta hoy. Esta sí cambia: se infla un año.
                 </li>
-                <li>Multiplícalo por las pólizas del punto 1 y tienes el siniestro propio del 2029.</li>
+                <li>Frecuencia × severidad × las pólizas del punto 1, y tienes el siniestro propio del 2029.</li>
+                <li>
+                  Antes de salir a medir nada, escribe las dos definiciones con tus propios números y multiplícalas. Mira qué sobrevive en el producto:
+                  puede que te ahorre medir una de las dos.
+                </li>
               </ul>
             </li>
             <li>
@@ -443,11 +445,7 @@ export function GuiaPasanteDia3() {
               <strong>4. Resultado de inversiones — un año más de tu portafolio.</strong> El 2029 arranca con el portafolio que traes del cierre de 2028:
               esa es la línea Inversiones de tu propio Balance de ese año. Durante los 12 meses le entra tu prima proyectada mes a mes y le salen los pagos
               de siniestros del año — las colas de 2027 y 2028 que siguen liquidándose, que salen de caja aunque ya no sean costo del P&amp;G, más lo que
-              se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones. Para llegar al
-              número no necesitas simular mes a mes: con la tasa que tu portafolio realizó de verdad en 2028 (lo que devengó sobre el saldo que tuviste
-              invertido en promedio, no el rendimiento nominal de tu calendario) aplicada al saldo inicial más la mitad del flujo neto del año, quedas
-              suficientemente cerca. Lo que sí cambia el resultado es quedarte sin caja: si tu proyección te obliga a vender antes de tiempo, esa pérdida
-              se come parte del rendimiento.
+              se pague del siniestro propio de 2029 — y los gastos. Lo que ese saldo devengue en el año es tu Resultado de inversiones.
             </li>
             <li>
               <strong>5. Las once líneas restantes salen de las tres anteriores.</strong> Liberas la RPND que constituiste en 2028 y constituyes la
@@ -488,6 +486,10 @@ export function GuiaPasanteDia3() {
           </li>
           <li>¿Qué pasaría con tu Balance si el desarrollo real de los siniestros del 2027 hubiera sido más lento de lo esperado?</li>
           <li>¿Qué factores además de la retención de pólizas podrían justificar una proyección de 2029 distinta a la que hiciste?</li>
+          <li>
+            Cuando proyectas el siniestro de 2029 como frecuencia × severidad, ¿qué te hace falta medir de verdad de tu 2028? ¿Y cómo cambia eso lo que
+            necesitas del triángulo?
+          </li>
           <li>
             Si tuvieras que explicarle a un inversionista por qué la utilidad neta y el flujo de caja de un mismo año pueden diferir tanto, ¿qué le
             dirías?
