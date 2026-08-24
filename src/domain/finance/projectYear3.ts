@@ -85,11 +85,11 @@ export function projectYear3(i: Year3ProjectionInput): Year3Projection | null {
   // que también salen del Año 2 observado. Sin ese dato cae al ritmo genérico
   // del kernel.
   //
-  // No es DEV_FRAC[0]: ese 55% es lo que se paga en los primeros 12 meses
-  // *desde el primer pago*, que llega 3 meses después del aviso — usarlo como
-  // si fuera "dentro del año de accidente" triplicaba los pagos del año y
-  // dejaba la reserva de Año 3 en 45% del último, contra el ~83% que la
-  // convolución real deja en Año 1 y Año 2.
+  // Ojo con no confundirla con el rezago de pago en sí: un siniestro se paga
+  // completo 3 meses después de su aviso, pero lo que se paga *dentro del año
+  // de accidente* depende además de cuándo se avisó cada uno — los de octubre
+  // en adelante no alcanzan a pagarse dentro del año, y son parte de la
+  // reserva de cierre.
   const velocidadPago =
     i.paidY2inY2 != null && i.ultY2 > 0 ? Math.min(1, Math.max(0, i.paidY2inY2 / i.ultY2)) : PAID_WITHIN_ACCIDENT_YEAR;
   // El perfil mensual sí viene del kernel (nada se paga los primeros meses,

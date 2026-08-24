@@ -58,16 +58,16 @@ describe("generateChile", () => {
     // severity/date generation directly.
     const firstClaim = policies[4];
     expect(firstClaim).toMatchObject({ id: 5, edadConductor: 72, tipoVehiculo: "furgon", zona: "austral", genero: "M" });
-    expect(firstClaim.years[2021]).toEqual({ siniestro: 1, fechaSiniestro: "2021-07-25", fechaAviso: "2021-07-27", montoUf: 273 });
-    expect(firstClaim.years[2022]).toEqual({ siniestro: 1, fechaSiniestro: "2022-10-31", fechaAviso: "2022-12-25", montoUf: 143 });
-    expect(firstClaim.years[2023]).toEqual({ siniestro: 1, fechaSiniestro: "2023-08-11", fechaAviso: "2023-08-22", montoUf: 262 });
+    expect(firstClaim.years[2021]).toEqual({ siniestro: 1, fechaSiniestro: "2021-07-25", fechaAviso: "2021-08-17", montoUf: 273 });
+    expect(firstClaim.years[2022]).toEqual({ siniestro: 1, fechaSiniestro: "2022-10-31", fechaAviso: "2024-08-31", montoUf: 143 });
+    expect(firstClaim.years[2023]).toEqual({ siniestro: 1, fechaSiniestro: "2023-08-11", fechaAviso: "2023-12-20", montoUf: 262 });
 
     // A policy with a gap year (claim in 2021 and 2023, none in 2022).
     const gapYear = policies[12];
     expect(gapYear).toMatchObject({ id: 13, edadConductor: 50, tipoVehiculo: "furgon", zona: "centro", genero: "F" });
-    expect(gapYear.years[2021]).toEqual({ siniestro: 1, fechaSiniestro: "2021-12-22", fechaAviso: "2021-12-25", montoUf: 488 });
+    expect(gapYear.years[2021]).toEqual({ siniestro: 1, fechaSiniestro: "2021-12-22", fechaAviso: "2022-01-30", montoUf: 488 });
     expect(gapYear.years[2022]).toEqual({ siniestro: 0, fechaSiniestro: "", fechaAviso: "", montoUf: "" });
-    expect(gapYear.years[2023]).toEqual({ siniestro: 1, fechaSiniestro: "2023-05-23", fechaAviso: "2023-05-31", montoUf: 136 });
+    expect(gapYear.years[2023]).toEqual({ siniestro: 1, fechaSiniestro: "2023-05-23", fechaAviso: "2023-08-25", montoUf: 136 });
 
     const last = policies[499];
     expect(last).toMatchObject({ id: 500, edadConductor: 74, tipoVehiculo: "station_wagon", zona: "sur", genero: "F" });

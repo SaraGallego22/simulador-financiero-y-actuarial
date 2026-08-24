@@ -1,4 +1,4 @@
-import { KERNEL, BUILD_MONTHS, HORIZON, VAL_MONTH } from "./constants";
+import { KERNEL, BUILD_MONTHS, LIABILITY_HORIZON, VAL_MONTH } from "./constants";
 
 export interface ClaimForLiability {
   teamId: number;
@@ -41,7 +41,7 @@ export function computeLiabilitySchedules(
   const result = new Map<number, LiabilitySchedule>();
   for (const teamId of teamIds) {
     const byMonth = ultimateByTeamMonth.get(teamId);
-    const L = new Array(HORIZON).fill(0);
+    const L = new Array(LIABILITY_HORIZON).fill(0);
     const payY1 = new Array(BUILD_MONTHS).fill(0);
     if (byMonth) {
       for (const [noticeMonth, ultimate] of byMonth) {
@@ -52,7 +52,7 @@ export function computeLiabilitySchedules(
             payY1[calendarMonth] += ultimate * KERNEL[m];
           }
           const t = calendarMonth - VAL_MONTH;
-          if (t >= 0 && t < HORIZON) L[t] += ultimate * KERNEL[m];
+          if (t >= 0 && t < LIABILITY_HORIZON) L[t] += ultimate * KERNEL[m];
         }
       }
     }

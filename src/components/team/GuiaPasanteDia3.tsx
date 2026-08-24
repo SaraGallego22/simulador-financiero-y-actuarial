@@ -11,7 +11,7 @@ import {
   thClass,
   tdClass,
 } from "./GuiaShared";
-import { CHAIN_LADDER_TAIL_FACTOR, DEV_FRAC, LAG_AVISO_PAGO } from "@/domain/reserving/constants";
+import { CHAIN_LADDER_TAIL_FACTOR, LAG_AVISO_PAGO } from "@/domain/reserving/constants";
 
 /** Vertical financial-statement template with real row labels (unlike the generic ALM tables of Día 2, these have known line items) and one blank input column per year, so it visually matches DeliverablesForm's grouped rendering. */
 function StatementTemplate({ rowLabels, columns, emphasizedLabels, formulaNotes }: { rowLabels: string[]; columns: string[]; emphasizedLabels?: string[]; formulaNotes?: string[] }) {
@@ -247,9 +247,9 @@ export function GuiaPasanteDia3() {
             información: cerca de 24 meses para tus meses de ocurrencia de comienzos del 2027.
           </p>
           <p>
-            Incluso esa edad más madura se queda algo corta: con un rezago de aviso que puede llegar hasta 730 días (~2 años) desde la ocurrencia,
-            sigue quedando un remanente muy pequeño de siniestros del 2027 por avisar a estas alturas. Ese remanente se cubre con un factor de cola
-            — este, a diferencia de los edad a edad, sí te lo damos, porque estimarlo exigiría ver lo que pasa después del corte de tu reporte:
+            Incluso esa edad más madura se queda corta, y no por poco: el rezago de aviso puede llegar hasta 5 años desde la ocurrencia, así que a
+            estas alturas todavía falta por avisarse una parte nada despreciable de los siniestros del 2027. Ese remanente se cubre con un factor de
+            cola — este, a diferencia de los edad a edad, sí te lo damos, porque estimarlo exigiría ver lo que pasa después del corte de tu reporte:
           </p>
           <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-4 text-center">
             <p className="font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)] sm:text-lg">
@@ -257,9 +257,9 @@ export function GuiaPasanteDia3() {
             </p>
           </div>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            Un factor pequeño (~0.3%) a propósito: con esta distribución de rezago de aviso, la enorme mayoría de los siniestros ya se conoce a los
-            24 meses. Sigue siendo positivo — por eso Chain Ladder real siempre incluye un factor de cola, aunque sea modesto — y queda muy por
-            debajo del ajuste que traen los factores edad a edad que calculas tú mismo, encadenados.
+            No es un ajuste menor: con este rezago de aviso, a los 24 meses todavía falta por conocerse cerca de una cuarta parte del costo último de
+            un año de accidente. Ignorarlo te dejaría la reserva corta en esa misma proporción — por eso Chain Ladder real siempre incluye un factor
+            de cola, y por eso este pesa tanto como buena parte de los factores edad a edad que calculas tú mismo.
           </p>
           <p>
             <strong>Esta es una forma de estimar distinta a la que usaste en Día 2.</strong> El método Expected Loss Ratio parte de un supuesto
@@ -280,24 +280,19 @@ export function GuiaPasanteDia3() {
             incurrido no sale de caja el día que ocurre, y esa diferencia de tiempo es justamente lo que le da sentido a invertir la prima. Las reglas
             de pago de este mercado son fijas y las mismas para todos:
           </p>
-          <ul className="list-disc pl-5">
-            <li>
-              El primer pago de un siniestro llega <strong>{LAG_AVISO_PAGO} meses después del aviso</strong> — no de la ocurrencia. Un siniestro que
-              tarda en avisarse tarda otro tanto en empezar a pagarse.
-            </li>
-            <li>
-              Desde ahí el monto se liquida repartido parejo a lo largo de <strong>3 años</strong>:{" "}
-              <strong>{(DEV_FRAC[0] * 100).toFixed(0)}%</strong> durante los primeros 12 meses, <strong>{(DEV_FRAC[1] * 100).toFixed(0)}%</strong> en
-              los 12 siguientes y <strong>{(DEV_FRAC[2] * 100).toFixed(0)}%</strong> en los últimos 12 — es decir,{" "}
-              {(DEV_FRAC[0] * 100).toFixed(0)}%÷12 cada mes durante el primer año de desarrollo, y así.
-            </li>
-          </ul>
+          <p>
+            La regla de pago de este mercado es una sola, y es simple: <strong>un siniestro se paga completo {LAG_AVISO_PAGO} meses después de que se
+            avisa</strong>. No después de que ocurre — después de que se avisa. Nada antes, nada después.
+          </p>
+          <p>
+            Lo que hace interesante el problema no es entonces el pago en sí, sino <strong>cuánto tarda en avisarse</strong>. Ese rezago es largo y
+            muy disperso: hay siniestros que se avisan en días y otros que tardan años. Tu propio triángulo es la mejor fuente que tienes para
+            medirlo, porque es exactamente lo que desarrolla.
+          </p>
           <p>
             De ahí sale algo que conviene tener claro antes de proyectar nada: <strong>de los siniestros que ocurren en un año, dentro de ese mismo
-            año calendario sale mucho menos plata de la que uno esperaría.</strong> Los de enero alcanzan a pagar de abril a diciembre; los de
-            octubre no alcanzan a pagar nada. La mayor parte del año de accidente queda en reserva y se paga en los dos años siguientes. No confundas
-            ese {(DEV_FRAC[0] * 100).toFixed(0)}% del primer año de desarrollo — que se cuenta desde el primer pago de cada siniestro — con lo que
-            sale de caja dentro del año en que ocurrieron: son cosas distintas, y la segunda es bastante menor.
+            año calendario sale muy poca plata.</strong> Solo se paga lo que alcanzó a avisarse antes de octubre — y como el aviso es lento, eso es
+            una fracción menor del año. Todo lo demás queda en reserva y sale de caja en los años siguientes, a medida que se va avisando.
           </p>
           <p>
             Puedes verlo en tus propios números: la columna <strong>Pago Siniestros</strong> de tu ALM real del 2027, en esta misma pestaña, es

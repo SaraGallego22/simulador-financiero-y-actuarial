@@ -70,7 +70,7 @@ describe("generateColombia", () => {
     expect(u.siniestro[1]).toBe(1);
     expect(Math.abs(u.sev[1] - 8721795)).toBeLessThan(10);
     expect(epochDayToIso(u.fechaSinEpochDay[1])).toBe("2027-08-11");
-    expect(epochDayToIso(u.fechaAvisoEpochDay[1])).toBe("2027-08-28");
+    expect(epochDayToIso(u.fechaAvisoEpochDay[1])).toBe("2028-03-02");
 
     const row8 = getExposure(u, 8);
     expect(row8).toMatchObject({ id: 9, edad: 46, tipo: "pickup", zona: "urbana", genero: "M", marca: "mazda" });

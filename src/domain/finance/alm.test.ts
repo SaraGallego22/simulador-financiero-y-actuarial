@@ -17,13 +17,14 @@ import { INSTRUMENT_BY_ID, RISK_FREE_RATE } from "./instruments";
 import type { Allocation, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
 import type { Position } from "./alm";
 
-// A handful of claims spread across the Year-1 window, notified early enough
-// that meaningful amounts land in both payY1 and the post-valuation reserve.
-const claims = [
-  { teamId: 1, noticeMonth: 0, severity: 5_000_000 },
-  { teamId: 1, noticeMonth: 3, severity: 8_000_000 },
-  { teamId: 1, noticeMonth: 6, severity: 3_000_000 },
-];
+// A Year-1 accident book whose claims are noticed month by month across two
+// years — which is what a real one looks like now that the reporting lag
+// carries the liability's whole duration: most of an accident year is still
+// unreported when the year closes. Each claim is then paid in full
+// LAG_AVISO_PAGO months later, so the schedule is smooth rather than lumpy,
+// and it straddles the valuation date: the early notices land in payY1, the
+// rest in the post-valuation reserve the ALM has to fund.
+const claims = Array.from({ length: 24 }, (_, noticeMonth) => ({ teamId: 1, noticeMonth, severity: 1_000_000 }));
 const lib = computeLiabilitySchedules(claims, [1]).get(1)!;
 
 /**
@@ -227,12 +228,14 @@ describe("almSim / scoreFinanciero", () => {
     // (finBench's bal1/bal2) are untouched — this is the part that matters
     // for "aplica bien para ambos años de siniestro".
     expect(score!.capitalComprometidoY1).toBe(0);
-    // toBeCloseTo, not toBe(0) exactly — 60 months of floating-point cash-flow
-    // accumulation (gastos included) can leave a sub-cent residual here
-    // depending on the exact expense ratio; see the next assertion for the
-    // real tolerance that matters (a fraction of a rounding error against
-    // Capital Social, not a real erosion).
-    expect(score!.capitalComprometidoY2).toBeCloseTo(0, 6);
+    // Año 2 no queda exactamente en cero, y ya no por punto flotante: el ALM
+    // ficticio se fondea con la reserva y paga esa misma reserva MÁS gastos
+    // (25% de la prima nocional), así que estructuralmente le falta caja. Con
+    // el pago concentrado tres meses después del aviso, el portafolio tiene
+    // mucho menos tiempo para que el rendimiento cubra esa diferencia que
+    // cuando los siniestros se pagaban goteando 39 meses. Lo que se verifica
+    // es lo que importa: contra el Capital Social sigue siendo despreciable.
+    expect(score!.capitalComprometidoY2 / CAPITAL_SOCIAL).toBeLessThan(1e-4);
     // Some lumpy month past Year 2 may still nick a negligible amount —
     // this fixture's 3-claim horizon isn't perfectly smooth — but it stays
     // a rounding error against Capital Social, not a real erosion.

@@ -1,21 +1,39 @@
 /**
- * Payment development pattern (Chile-calibrated, 3 development years), ported
- * from DEV_FRAC/LAG_AVISO_PAGO/VAL_MONTH/HORIZON/BUILD_MONTHS in the legacy
- * prototype, line ~1494-1501.
+ * Payment timing. A claim settles in full LAG_AVISO_PAGO months after it is
+ * NOTICED — not after it occurs, which is what makes the reporting lag carry
+ * essentially all of the liability's duration (see sampleReportingLag()).
+ *
+ * This replaces the legacy prototype's 3-development-year spread
+ * (DEV_FRAC = [0.55, 0.30, 0.15], Chile-calibrated, ported at line ~1494-1501):
+ * an accident year no longer drips out over 39 months, it closes out one
+ * quarter after each claim is reported. The consequences are deliberate and
+ * worth knowing before touching this: the technical reserve at a year's close
+ * is now essentially IBNR plus the last quarter's notices, and every liability
+ * the ALM has to fund is short-dated, so duration matching favours short
+ * instruments far more than it used to.
  */
-export const DEV_FRAC = [0.55, 0.3, 0.15]; // year 0, 1, 2
-export const LAG_AVISO_PAGO = 3; // fixed months between notice and first payment
+export const LAG_AVISO_PAGO = 3; // months between notice and payment
 export const VAL_MONTH = 12; // valuation at month 12 (2028-01), counted from base year Jan
-export const HORIZON = 48; // months of liability projection from the valuation date
+export const HORIZON = 48; // months the FICTITIOUS ALM projects past its build-up phase (see almSim) — not a reserving figure
 export const BUILD_MONTHS = 12; // Year 1 premium build-up months
 
-/** Monthly payment kernel from notice month (index 0 = month of notice). Ported from buildKernel(). */
+/** Hard ceiling on the reporting lag, in days (5 years) — see sampleReportingLag() in generation/dates.ts. */
+export const LAG_AVISO_MAX_DIAS = 1825;
+
+/**
+ * Months of liability projection from the valuation date. Must outrun the
+ * worst case a claim can reach: an accident in the last month of Año 2
+ * (month 23), noticed LAG_AVISO_MAX_DIAS later (60 months) and paid
+ * LAG_AVISO_PAGO after that, lands at month 86 — 74 past the valuation. Kept
+ * deliberately separate from HORIZON, which drives the fictitious ALM's own
+ * 60-month run and has no business growing when the reporting lag does.
+ */
+export const LIABILITY_HORIZON = 96;
+
+/** Monthly payment kernel from notice month (index 0 = month of notice): the whole ultimate lands on a single month. */
 export function buildKernel(): number[] {
-  const k = new Array(LAG_AVISO_PAGO + 36).fill(0);
-  for (let m = 0; m < 36; m++) {
-    const devYear = Math.floor(m / 12);
-    k[LAG_AVISO_PAGO + m] = DEV_FRAC[devYear] / 12;
-  }
+  const k = new Array(LAG_AVISO_PAGO + 1).fill(0);
+  k[LAG_AVISO_PAGO] = 1;
   return k;
 }
 
@@ -29,12 +47,10 @@ export const KERNEL = buildKernel();
  * real years; a projected year has no per-claim notice dates to convolve, so
  * the even spread is the assumption that replaces them.
  *
- * Front months are 0: nothing is paid until LAG_AVISO_PAGO months after
- * notice, so the profile ramps up through the year instead of being flat.
- * Its sum is much smaller than DEV_FRAC[0] — that constant is the share paid
- * in the first 12 months *from the first payment*, not within the accident
- * year, and using it as if it were the latter overstates within-year payments
- * by about 3x (measured: 17% vs 55%).
+ * The first LAG_AVISO_PAGO months are 0 and the rest are flat: with notices
+ * spread evenly and every claim settling in one shot a quarter later, each
+ * month from April on pays exactly one month's worth of notices. What doesn't
+ * fit inside the year — the last quarter's notices — is what the reserve is.
  */
 export const ACCIDENT_YEAR_PAYMENT_SHARE: number[] = (() => {
   const share = new Array(12).fill(0);
@@ -83,4 +99,4 @@ export function cumulativeKernelAt(daysAfterNotice: number): number {
  * majority of claims are reported well within 24 months, so only a small
  * sliver remains genuinely unreported even at that point.
  */
-export const CHAIN_LADDER_TAIL_FACTOR = 1.003;
+export const CHAIN_LADDER_TAIL_FACTOR = 1.35;

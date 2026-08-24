@@ -60,7 +60,7 @@ describe("projectYear3", () => {
     expect(paid).toBeCloseTo(p.costo3 * (i.paidY2inY2! / i.ultY2), 4);
   });
 
-  it("reparte esos pagos con el perfil del kernel, no plano: nada sale los primeros meses y de ahí en adelante crece", () => {
+  it("reparte esos pagos con el perfil del kernel: nada durante el rezago de aviso, y de ahí en adelante parejo", () => {
     const p = projectYear3(base())!;
     expect(p.ownClaimsSchedule12[0]).toBe(0);
     expect(p.ownClaimsSchedule12[11]).toBeGreaterThan(0);
@@ -70,15 +70,15 @@ describe("projectYear3", () => {
     for (let m = 0; m < 12; m++) expect(p.ownClaimsSchedule12[m]).toBeCloseTo(ACCIDENT_YEAR_PAYMENT_SHARE[m] * escala, 4);
   });
 
-  it("sin el dato de Año 2 cae al ritmo genérico del kernel, no a DEV_FRAC[0] — que es la velocidad medida desde el primer pago, no dentro del año de accidente", () => {
+  it("sin el dato de Año 2 cae al ritmo genérico del kernel", () => {
     const i = base();
     delete i.paidY2inY2;
     const p = projectYear3(i)!;
     const paid = p.ownClaimsSchedule12.reduce((s, v) => s + v, 0);
     expect(paid / p.costo3).toBeCloseTo(PAID_WITHIN_ACCIDENT_YEAR, 10);
-    // Muy por debajo del 55% de DEV_FRAC[0]: dentro del propio año calendario
-    // apenas se paga ~17% del último.
-    expect(PAID_WITHIN_ACCIDENT_YEAR).toBeLessThan(0.25);
+    // Con avisos repartidos parejo y pago completo 3 meses después, lo que
+    // alcanza a pagarse dentro del año son los avisos de los primeros 9 meses.
+    expect(PAID_WITHIN_ACCIDENT_YEAR).toBeCloseTo(9 / 12, 10);
   });
 
   it("returns null when the real inputs it projects from don't exist yet", () => {
