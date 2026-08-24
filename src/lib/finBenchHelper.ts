@@ -8,6 +8,7 @@ import { BUILD_MONTHS } from "@/domain/reserving/constants";
 import { isPortfolioDecisionV4 } from "@/domain/finance/instruments";
 import type { PortfolioDecisionV4 } from "@/domain/finance/instruments";
 import { finBench } from "@/domain/finance/finBench";
+import { projectYear3 } from "@/domain/finance/projectYear3";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import type { FinBenchResult, AlmYearBenchInput } from "@/domain/finance/finBench";
 
@@ -16,6 +17,8 @@ export interface TeamFinBenchBundle {
   /** The real ALM's own Año 1/Año 2 results (rows, capitalSocialRestante, etc.) — the exact same runs that fed bench.p1/p2/bal1/bal2 above, exposed so admin/day/[n] can show the real ALM ladder/breakdown without recomputing anything separately (see almSimRealYear()'s doc comment on why that used to drift out of sync with what actually got graded). null when the team has no Día 1/2 portfolio decision to run. */
   realAlmYear1: AlmRealYearResult | null;
   realAlmYear2: AlmRealYearResult | null;
+  /** Año 3's continuation of the same real ALM, funded by the *projected* prima3 and paying the projected Año 3 claims schedule (see projectYear3.ts) — what feeds bench.p3's Resultado de inversiones and bench.bal3's asset side. null until Año 2's real ALM and the Año 3 projection both exist. */
+  realAlmYear3: AlmRealYearResult | null;
 }
 
 /**
@@ -42,9 +45,12 @@ export interface TeamFinBenchBundle {
  * almSimRealYear()'s doc comment), funded by Año 2's real premium against
  * Año 1's development landing in Año 2 (liabilityYear1.L's first 12
  * entries) *plus* Año 2's own new claims' own first-year payments (a fresh
- * LiabilitySchedule computed from year2ClaimsByTeamId). There is no reason
- * to simulate past month 12 of either year — the real ALM only exists to
- * feed that one year's real P&G/Balance, unlike the fictitious ALM (an
+ * LiabilitySchedule computed from year2ClaimsByTeamId), and Año 3 as the
+ * same continuation one year further out — the only one whose funding and
+ * claims are *projected* (projectYear3.ts) rather than observed, since there
+ * is no third market and no third accident year. There is no reason to
+ * simulate past month 12 of any of them — the real ALM only exists to feed
+ * that one year's real P&G/Balance, unlike the fictitious ALM (an
  * independent 60-month run per year, unchanged — see almSim()).
  *
  * Año 2's schedule is Día 2's own (`alloc1`) by default, but a team can
@@ -216,20 +222,69 @@ export async function computeFinBenchBundlesForCohort(
         .reduce((s, p) => s + p.book, 0);
     }
 
+    // Año 3 continues the same real ALM 12 months further out — the one year
+    // whose funding and claims are projected rather than observed (there is
+    // no third market and no third accident year). It runs on the positions
+    // the team genuinely holds at Año 2's close, so its income and year-end
+    // book value describe the team's actual portfolio, not a closed-form
+    // proxy on a different base. The schedule is Año 2's own (a team submits
+    // no calendar for Año 3), read again from its own relative month 0, the
+    // same way Año 2 re-reads Año 1's — see almSimRealYear()'s doc comment.
+    // No consulting fee is ever carried here: Año 3 assumes a book the team
+    // prices itself (see FinBenchInput.outsourcedYear2's doc comment).
+    let realAlmYear3: AlmRealYearResult | null = null;
+    let almYear3: AlmYearBenchInput | undefined;
+    const development = developmentByTeamId?.get(teamId);
+    if (realAlmYear2 && year2Decision && year2 && year2Retention && development) {
+      const proj3 = projectYear3({
+        year1InsuredCount: year1.insuredCount,
+        year2InsuredCount: year2.insuredCount,
+        year2PrimaEmitida: year2.totalPremium,
+        year2Retention,
+        claimCountY2: development.claimCountY2,
+        ultY2: development.ultY2,
+        osY1endY3: development.osY1endY3,
+        osY2endY3: development.osY2endY3,
+      });
+      if (proj3) {
+        // Cash leaving the portfolio during calendar Año 3: Año 1's and Año
+        // 2's real remaining tails (indices 12..23 of each schedule — index 0
+        // is calendar Año 2, see the Año 2 call above) plus Año 3's own
+        // projected claims settling within their own year. The tails are real
+        // money paid even though they're no longer a P&G cost — they were
+        // already expensed in their own accident year (see projectYear3.ts).
+        const tailAnio1 = liabilityYear1.L.slice(12, 24);
+        const tailAnio2 = year2LiabilityByTeamId?.get(teamId)?.L.slice(12, 24) ?? [];
+        const claimsYear3 = proj3.ownClaimsSchedule12.map((own, i) => own + (tailAnio1[i] || 0) + (tailAnio2[i] || 0));
+        realAlmYear3 = almSimRealYear(3, claimsYear3, year2Decision, proj3.prima3 / BUILD_MONTHS, realAlmYear2.finalState, year2.totalPremium, 0);
+        if (realAlmYear3) {
+          almYear3 = {
+            portYield: realAlmYear3.portYield,
+            income: realAlmYear3.income,
+            capitalComprometido: realAlmYear3.capitalComprometidoAcumulado,
+            effectiveYield: realAlmYear3.effectiveYield,
+            cajaFinalAnio: realAlmYear3.cajaFinalAnio,
+            portfolioBookValue: realAlmYear3.portfolioBookValue,
+          };
+        }
+      }
+    }
+
     const bench = finBench({
       year1: { totalPremium: year1.totalPremium, claimsAmount: year1.claimsAmount, insuredCount: year1.insuredCount },
       year2: year2 ? { totalPremium: year2.totalPremium, claimsAmount: year2.claimsAmount, insuredCount: year2.insuredCount } : undefined,
       liabilityYear1,
-      development: developmentByTeamId?.get(teamId),
+      development,
       almYear1,
       almYear2,
+      almYear3,
       year2Retention,
       marketRisk,
       accBookValue2,
       outsourcedYear1: outsourcedYear1.has(teamId),
       outsourcedYear2: outsourcedYear2.has(teamId),
     });
-    results.set(teamId, { bench, realAlmYear1, realAlmYear2 });
+    results.set(teamId, { bench, realAlmYear1, realAlmYear2, realAlmYear3 });
   }
 
   return results;

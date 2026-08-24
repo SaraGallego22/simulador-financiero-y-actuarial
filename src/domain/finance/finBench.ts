@@ -1,7 +1,6 @@
 import { FZ, CORR_MERCADO, CAPITAL_SOCIAL, ACC_STRESS_PCT } from "./constants";
 import { sampleStdev } from "./stats";
-import { CLAIMS_INFLATION_ANNUAL } from "../generation/constants";
-import { DEV_FRAC } from "../reserving/constants";
+import { projectYear3 } from "./projectYear3";
 import type { LiabilitySchedule } from "../reserving/liability";
 import type { TeamDevelopment } from "../reserving/development";
 import type { MarketRiskAtYearEnd } from "./alm";
@@ -141,6 +140,8 @@ export interface FinBenchInput {
   development?: TeamDevelopment;
   almYear1: AlmYearBenchInput | null;
   almYear2?: AlmYearBenchInput | null;
+  /** Año 3's real-ALM continuation, funded by the *projected* prima3 and paying the *projected* Año 3 claims schedule (see projectYear3.ts and finBenchHelper.ts) — the same 12-month machinery Año 1/Año 2 use, on the positions the team genuinely holds at the end of Año 2. Undefined/null falls back to the closed-form `reservas3 × effectiveYield` estimate this used to be. */
+  almYear3?: AlmYearBenchInput | null;
   /** Año 2's real retained-vs-new policy split (from TeamSimResult.extra) — needed only for the Año 3 prima projection; undefined falls back to the flat FZ.growth3 projection. */
   year2Retention?: { retainedCount: number; newCount: number };
   /** Riesgo de tasa/riesgo de inflación (see computeMarketRiskAtAño2End in alm.ts), computed by the caller (finBenchHelper.ts) from the team's real Año-2-end positions + post-Año-2 liability schedule — finBench() just threads these through, it has no access to raw Position[] data itself. null/undefined when there's no real Año 2 ALM to value from. */
@@ -221,27 +222,35 @@ function pyg(
  * portfolioBookValue. caja is likewise a real fact: the real ALM's own
  * year-end Caja Mínima balance, not a flat percentage of annual premium.
  * Both fall back to the old flat-percentage/Capital-Social-at-capital0
- * treatment when there's no real ALM decision submitted at all — Año 3
- * instead passes `solveInversiones=true` (see finBench()'s doc comment on
- * bal3): with no real ALM ever behind Año 3 in the first place, there's no
- * independent fact left for a plug to override, unlike here.
+ * treatment when there's no real ALM decision submitted at all. Año 3 now
+ * has an ALM of its own too (almYear3 — a genuine continuation on the team's
+ * real Año-2-end positions, funded by projected flows), so it reads these
+ * lines the same way Año 1/Año 2 do; `solveInversiones=true` survives only
+ * for the case where no ALM ran at all, where nothing independent exists for
+ * a plug to override.
  *
- * necesidadesPatrimonioODeuda now equals capitalComprometido directly — the
- * old `max(0, capitalComprometido − capital0)` subtraction stopped making
- * sense once Capital Social is invested and gets force-liquidated like
- * anything else before capitalComprometido can ever become nonzero: by the
- * time it does, capital0 is *already* fully spent (it went through ordinary
- * forced liquidation first, inside almSimRealYear() — see its doc comment),
- * so any capitalComprometido at all is, by construction, genuinely external
- * financing needed beyond everything the team had, not an excess over some
- * remaining Capital Social balance. It still sits on the LIABILITY side
- * (added into pasivo by the caller, alongside reservasTec/rpnd/cxp — never
- * into activos): the same capitalComprometido is already subtracted once
- * from patrimonio (equity side) and is embedded in a *lower* inversiones
- * (asset side, since the real ALM's own book value reflects however much
- * had to be liquidated) — adding it again into activos would double-count
- * that deduction's sign, not undo it. This is NOT the line that forces the
- * sheet to close — caja/inversiones being real, independently-computed
+ * necesidadesPatrimonioODeuda is whatever capitalComprometido is left after
+ * patrimonio has absorbed as much of it as it could without going below zero
+ * — committed capital eats equity first, and only the excess is recognized as
+ * a liability. It is never both at once: doing both with the full amount
+ * (which this used to do) counted it twice, and since patrimonio and this
+ * line sit on the SAME side of the identity, the two cancelled and left the
+ * sheet short by exactly that amount whenever the portfolio bottomed out at
+ * zero and `inversiones` could no longer absorb it on the asset side
+ * (measured: gaps of 233B and 1,233B on a team that exhausted its book).
+ *
+ * In practice the absorbed part is always zero: committing capital requires
+ * having exhausted LIQ *and* the entire portfolio, Capital Social included
+ * (see almSimRealYear()), and a team that got there has long since burned
+ * through its equity — across every measured scenario, patrimonio sat between
+ * −485B and −2,120B by the time capitalComprometido was nonzero. So this is
+ * the full amount in every reachable case, and the clamp exists because that
+ * is the accounting rule, not because it is expected to bind.
+ *
+ * It sits on the LIABILITY side (added into pasivo by the caller, alongside
+ * reservasTec/rpnd/cxp — never into activos): the cash it brought in was
+ * spent paying claims the same month, so it shows up as a lower reserve, not
+ * as an asset. This is NOT the line that forces the sheet to close — caja/inversiones being real, independently-computed
  * facts (not solved for) means this line alone doesn't guarantee Activos =
  * Pasivo+Patrimonio; as of the cxcHoldback0/cxpHoldback0 adjustment in
  * almSimRealYear() (alm.ts) making the real ALM's own cash mechanics
@@ -263,11 +272,27 @@ function balance(
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
   const rpnd = pygY.rpndConstituida;
-  const patrimonio = capital0 + retenido - capitalComprometido;
+  // Capital comprometido: consume patrimonio hasta dejarlo en cero, y solo
+  // el exceso se reconoce como pasivo (necesidadesPatrimonioODeuda abajo).
+  // Antes se hacía *las dos cosas* con el monto completo — se restaba de
+  // patrimonio Y se sumaba al pasivo —, lo que lo contaba dos veces: como
+  // ambos están del mismo lado de la identidad, se cancelaban entre sí y la
+  // hoja quedaba corta por exactamente ese monto (medido: brechas de 233B y
+  // 1.233B en un equipo que agotó su portafolio; ver finBench.test.ts).
+  //
+  // En la práctica `absorbidoPorPatrimonio` siempre es 0: comprometer
+  // capital exige haber agotado LIQ y el portafolio entero, Capital Social
+  // incluido (ver almSimRealYear()), y para llegar ahí el patrimonio ya se
+  // quemó — en todos los escenarios medidos, cuando capitalComprometido > 0
+  // el patrimonio previo va de −485B a −2.120B. El término existe porque la
+  // regla contable es esa, no porque se espere que se active.
+  const patrimonioAntesDeComprometer = capital0 + retenido;
+  const absorbidoPorPatrimonio = Math.min(capitalComprometido, Math.max(0, patrimonioAntesDeComprometer));
+  const patrimonio = patrimonioAntesDeComprometer - absorbidoPorPatrimonio;
   const caja = almYear ? almYear.cajaFinalAnio : FZ.cajaPct * pygY.primaEmitida;
   const cxc = (FZ.diasRotacionCxc * pygY.primaEmitida) / 365;
   const cxp = FZ.cxpPct * pygY.primaEmitida;
-  const necesidadesPatrimonioODeuda = capitalComprometido;
+  const necesidadesPatrimonioODeuda = capitalComprometido - absorbidoPorPatrimonio;
   // Impuesto por pagar: the real ALM never models a tax payment as a real
   // cash outflow, in ANY year (see AlmYearBenchInput's doc comment) — so
   // it's not just THIS year's own tax expense (pygY.imp) still unpaid, it's
@@ -278,16 +303,13 @@ function balance(
   // unpaid tax bill, since patrimonio (via retenido) already subtracted it.
   const impuestoPorPagar = impuestoAcumulado;
   const pasivo = reservasTec + rpnd + cxp + necesidadesPatrimonioODeuda + impuestoPorPagar;
-  // Año 3 (solveInversiones=true, see finBench()'s doc comment on bal3) has
-  // no real ALM run of its own to draw inversiones from at all — every other
-  // line is already a mechanical projection (reservasTec is a runoff
-  // projection, not genuine reserving; caja/cxc/cxp are the same fixed-%
-  // conventions Año 1/2 fall back to). With nothing independently real left
-  // to respect, inversiones solves for whatever balances the sheet exactly,
-  // same as how a real pro-forma projection plugs its cash line — this is
-  // NOT reintroducing the old "residual that hides everything" pattern
-  // (§4.3's caveat), which was specifically about never overriding a real
-  // ALM fact; there is no real fact here to override.
+  // solveInversiones is the last resort: no ALM run at all behind this year
+  // (not even Año 3's projected continuation), so every line is a mechanical
+  // convention and inversiones solves for whatever balances the sheet, the
+  // way a pro-forma projection plugs its cash line. This is NOT the old
+  // "residual that hides everything" pattern (§4.3's caveat), which was
+  // about never overriding a real ALM fact with a plug — when one exists,
+  // `almYear` above wins and this branch is never reached.
   const inversiones = almYear
     ? almYear.portfolioBookValue
     : solveInversiones
@@ -323,7 +345,7 @@ function balance(
  * (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
-  const { year1, year2, liabilityYear1, development, almYear1, almYear2, year2Retention, marketRisk, accBookValue2 } = input;
+  const { year1, year2, liabilityYear1, development, almYear1, almYear2, almYear3, year2Retention, marketRisk, accBookValue2 } = input;
   const feePct1 = input.outsourcedYear1 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
   const feePct2 = input.outsourcedYear2 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
 
@@ -380,68 +402,42 @@ export function finBench(input: FinBenchInput): FinBenchResult {
     p2.portYield2 = portYield2;
   }
 
-  // Año 3 is never simulated (no third market, no third ALM year) — it's a
-  // projection built from real Año1/Año2 data wherever that's possible, only
-  // falling back to a flat growth rate for the one piece that genuinely
-  // can't exist yet (Año 3's own accident-year claims).
+  // Año 3 has no market of its own and no accident year of its own, so its
+  // P&G is projected from what Año 1 and Año 2 really produced
+  // (projectYear3.ts — the same function finBenchHelper.ts runs to fund and
+  // pay Año 3's ALM continuation, so both sides describe one Año 3, not two).
   let p3: PnL | null = null;
   let reservas3 = 0;
-  if (
-    p2 &&
-    year2 &&
-    development &&
-    year1.insuredCount != null &&
-    year2.insuredCount != null &&
-    year2Retention &&
-    development.claimCountY2 > 0
-  ) {
-    // Prima: retained + new policies (Año 2's real market outcome), not a
-    // flat growth rate on the premium total — but each policy's own premium
-    // is repriced by CLAIMS_INFLATION_ANNUAL (the same 9% severity uses
-    // below), since a team repricing for 2029 would carry the same claims-
-    // inflation assumption into next year's rate, not hold last year's
-    // average premium per policy flat.
-    const retentionRate = year2Retention.retainedCount / year1.insuredCount;
-    const retainedPolicies3 = retentionRate * year2.insuredCount;
-    const newPolicies3 = year2Retention.newCount;
-    const insuredCount3 = retainedPolicies3 + newPolicies3;
-    const avgPremiumPerPolicy2 = p2.primaEmitida / year2.insuredCount;
-    const prima3 = insuredCount3 * avgPremiumPerPolicy2 * (1 + CLAIMS_INFLATION_ANNUAL);
+  const proj3 =
+    p2 && year2 && development && year1.insuredCount != null && year2.insuredCount != null && year2Retention
+      ? projectYear3({
+          year1InsuredCount: year1.insuredCount,
+          year2InsuredCount: year2.insuredCount,
+          year2PrimaEmitida: p2.primaEmitida,
+          year2Retention,
+          claimCountY2: development.claimCountY2,
+          ultY2: development.ultY2,
+          osY1endY3: development.osY1endY3,
+          osY2endY3: development.osY2endY3,
+        })
+      : null;
+  if (proj3 && p2 && year2) {
+    reservas3 = proj3.reservas3;
 
-    // Costo: only Año 3's own (projected) accident-year claims — frequency
-    // held at Año 2's observed rate, severity inflated by
-    // CLAIMS_INFLATION_ANNUAL (the same rate the engine already uses for
-    // Año1->Año2, reused as-is — see that constant's doc comment for why
-    // this isn't double-counted against the Chile real-trend clue).
-    // devTailY1InY3/devTailY2InY3 (Año 1's/Año 2's real, exact final
-    // payment tranches landing in calendar Año 3) are deliberately NOT added
-    // here anymore — that money was already recognized as incurred cost in
-    // its own accident year's P&G (Año 1's/Año 2's `costo`, both already
-    // true ultimates — see liability.ts/development.ts). Including it again
-    // in Año 3 would double-count it; it's purely a Balance-side reserve
-    // run-off from here (see reservas3 below), with no further P&G effect.
-    const frecuencia2 = development.claimCountY2 / year2.insuredCount;
-    const severidad2 = development.ultY2 / development.claimCountY2;
-    const severidad3 = severidad2 * (1 + CLAIMS_INFLATION_ANNUAL);
-    const siniestrosNuevosAño3 = insuredCount3 * frecuencia2 * severidad3;
-    const costo3 = siniestrosNuevosAño3;
-
-    // Reservas: the matching outstanding tails (same real data) plus the
-    // projected Año3 claims' own first development-year outstanding balance
-    // (DEV_FRAC[0] = 55% paid within their own accident year, 45% still open).
-    const osAño3Propio = siniestrosNuevosAño3 * (1 - DEV_FRAC[0]);
-    reservas3 = development.osY1endY3 + development.osY2endY3 + osAño3Propio;
-
-    // Resultado de inversiones: the *realized* yield Año 2's real ALM
-    // actually earned, not the tree's nominal rate — a team that had to
-    // force-sell or commit capital in Año 2 carries that into its Año 3
-    // projection instead of the projection "forgetting" it. Falls back to
-    // the nominal portYield if no real ALM ran for Año 2.
-    const rinv3 = reservas3 * (almYear2?.effectiveYield ?? portYield);
+    // Resultado de inversiones: Año 3's own ALM continuation earns it, on
+    // the positions the team actually holds at the end of Año 2 — same
+    // machinery as rinv1/rinv2, so the base doesn't silently change between
+    // Año 2 and Año 3. Without a real Año 2 ALM to continue from there's
+    // nothing to run, and this falls back to the closed-form estimate it
+    // used to be: the realized yield applied to Año 3's reservas. That
+    // fallback understates a genuine portfolio (which also holds Capital
+    // Social and the accumulated premium float, both far larger than the
+    // technical reserve), which is exactly why it's only a fallback now.
+    const rinv3 = almYear3 ? almYear3.income : reservas3 * (almYear2?.effectiveYield ?? portYield);
 
     // Releases Año 2's own RPND holdback.
     const rpndLiberada3 = FZ.rpndPct * year2.totalPremium;
-    p3 = pyg(prima3, rpndLiberada3, costo3, rinv3, reservas3);
+    p3 = pyg(proj3.prima3, rpndLiberada3, proj3.costo3, rinv3, reservas3);
   } else if (p2) {
     // Fallback: the flat growth-rate projection, unchanged, for whenever the
     // richer inputs above aren't available yet.
@@ -461,59 +457,34 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   const capitalComprometidoY2 = almY2?.capitalComprometido ?? 0;
   const bal1 = balance(p1, capital0, p1.uneta, capitalComprometidoY1, almYear1, p1.imp)!;
   const bal2 = p2 ? balance(p2, capital0, p1.uneta + p2.uneta, capitalComprometidoY2, almY2, p1.imp + p2.imp) : null;
-  // Year 3 is a projection, not an independently ALM-simulated year (see
-  // README §5) — there's no third ALM run to measure a real erosion from,
-  // so capitalComprometido is projected off the Año1->Año2 trend instead of
-  // just carrying Año 2's checkpoint flat forward. capitalComprometido is
-  // cumulative and never repays itself on its own (see alm.ts), so the
-  // Y1->Y2 delta is always >= 0; projecting the same delta forward is the
-  // same "no new erosion assumed" outcome in the common case (delta = 0)
-  // but continues a real trend when one exists.
-  const capitalComprometidoY3 = capitalComprometidoY2 + (capitalComprometidoY2 - capitalComprometidoY1);
-  // No real ALM run exists for Año 3 (never simulated, see p3 above), so
-  // `caja` still falls back to the flat-percentage treatment balance()
-  // already applies whenever there's no ALM decision at all. `inversiones`
-  // can't use that same flat Capital-Social-only fallback here, though: unlike
-  // patrimonio (which keeps compounding retained utilidad/pérdida through
-  // p3.uneta above), a static `capital0` never grows or shrinks with the
-  // team's own results, so the two sides of the sheet would drift apart by
-  // the team's full 3-year cumulative P&L — this was the actual cause of
-  // Balance Año 3 not squaring (checked against a live cohort: gaps up to
-  // ~50% of Pasivo+Patrimonio, not the small few-percent residual §4.3
-  // documents for Año 1/2).
+  // Año 3's capital comprometido and its Balance's asset side come from its
+  // own ALM continuation (almYear3), exactly like Año 1's and Año 2's do —
+  // `caja` from that year's real Caja Mínima at close, `inversiones` from
+  // its own year-end book value, `capitalComprometido` from whatever the
+  // year actually had to commit. The inputs that fund and drain it are
+  // projections (prima3, the projected claims schedule — see
+  // projectYear3.ts), but the portfolio it runs on is genuinely the one the
+  // team holds at Año 2's close.
   //
-  // Two approaches were tried and rejected before this one (both checked
-  // against the same live cohort):
-  //  1. Extrapolate portfolioBookValue's own raw Año1->Año2 dollar delta the
-  //     same way capitalComprometidoY3 is trended above — overshoots, because
-  //     that delta is dominated by a full year of gross premium cash inflow
-  //     (the real ALM reinvests every month's premium), one to two orders of
-  //     magnitude bigger than a year's *net* retained profit.
-  //  2. Carry Año 2's inversiones forward by exactly Año 3's own equity
-  //     growth (patrimonioY3 − bal2.patrimonio) — closer, but still misses a
-  //     real driver: a team whose reservasTec runs off a lot between Año 2
-  //     and Año 3 (claims genuinely getting paid in cash) sees that cash
-  //     leave the real portfolio without patrimonio ever moving — the
-  //     expense was already booked the year the claim was incurred, so
-  //     paying it is a pure balance-sheet movement (Dr reserva, Cr caja),
-  //     invisible to any patrimonio-based delta. For a team whose book
-  //     shrank sharply (e.g. a disastrous Año 1 book running off through
-  //     Año 3 while new business collapsed), this alone produced gaps over
-  //     100% of Pasivo+Patrimonio.
-  //
-  // Since Año 3 is a mechanical projection with *no* real ALM to respect in
-  // the first place — every other line here is already a formula/estimate
-  // (reservasTec a runoff projection, not genuine reserving; caja/cxc/cxp the
-  // same fixed-% conventions Año 1/2 fall back to) — inversiones solves for
-  // whatever value closes Activos = Pasivo + Patrimonio exactly, the same
-  // way a real pro-forma financial projection plugs its cash line. This does
-  // NOT reintroduce the "residual that hides everything" pattern §4.3 warns
-  // against for Año 1/2: that warning is specifically about never overriding
-  // a real, independently-simulated ALM fact with a balancing plug — there
-  // is no such fact for Año 3 to override.
+  // Before that continuation existed there was no Año 3 ALM at all, and
+  // `inversiones` had to be solved as the plug that closed the sheet. Two
+  // cheaper approximations were tried and rejected first, both checked
+  // against a live cohort, and they're worth remembering as traps if this is
+  // ever reworked: (1) extrapolating portfolioBookValue's raw Año1->Año2
+  // dollar delta overshoots badly, because that delta is dominated by a full
+  // year of gross premium inflow, one to two orders of magnitude bigger than
+  // a year's net retained profit; (2) carrying Año 2's inversiones forward by
+  // Año 3's own equity growth misses reserve run-off entirely — a team whose
+  // reservasTec drains between Año 2 and Año 3 sees that cash leave the
+  // portfolio without patrimonio ever moving (the expense was booked in the
+  // accident year; paying it is Dr reserva / Cr caja), which produced gaps
+  // over 100% of Pasivo+Patrimonio for a shrinking book.
+  const capitalComprometidoY3 = almYear3 ? almYear3.capitalComprometido : capitalComprometidoY2 + (capitalComprometidoY2 - capitalComprometidoY1);
   const retenidoY3 = p1.uneta + (p2 ? p2.uneta : 0) + (p3 ? p3.uneta : 0);
   const impuestoAcumuladoY3 = p1.imp + (p2 ? p2.imp : 0) + (p3 ? p3.imp : 0);
-  const bal3 = p3 ? balance(p3, capital0, retenidoY3, capitalComprometidoY3, null, impuestoAcumuladoY3, true) : null;
+  // solveInversiones (the balancing plug) only when no Año 3 ALM ran —
+  // same fallback path as rinv3 above.
+  const bal3 = p3 ? balance(p3, capital0, retenidoY3, capitalComprometidoY3, almYear3 ?? null, impuestoAcumuladoY3, !almYear3) : null;
 
   const balN = bal2 || bal1;
   const pygN = p2 || p1;
