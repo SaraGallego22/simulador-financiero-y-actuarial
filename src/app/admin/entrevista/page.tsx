@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { TeamSelect } from "@/components/TeamSelect";
+import { INTERVIEW_SKILLS } from "@/lib/interview";
 import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { InterviewSkillsForm } from "./InterviewSkillsForm";
 import { InterviewComments } from "./InterviewComments";
@@ -119,8 +120,10 @@ export default async function AdminInterviewPage({ searchParams }: { searchParam
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-3">
                           <InterviewSkillsForm
-                            // Same remount trick as SoftSkillEvaluationForm — see its doc comment.
-                            key={`${member.id}:${Object.values(memberRatings).join(",")}`}
+                            // Same remount trick as SoftSkillEvaluationForm — see its doc
+                            // comment on why this is built from INTERVIEW_SKILLS (a fixed
+                            // order) instead of Object.values(memberRatings).
+                            key={`${member.id}:${INTERVIEW_SKILLS.map((s) => memberRatings[s] ?? "").join(",")}`}
                             id={member.id}
                             initial={memberRatings}
                           />
