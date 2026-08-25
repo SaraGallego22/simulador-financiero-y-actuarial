@@ -11,7 +11,7 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
 
 /** Same eligibility gate as runSimulation.ts's isPriced() — see its doc comment. */
 function isPriced(tariff: Float32Array | undefined, exposureIndex: number): boolean {
-  return !tariff || !Number.isNaN(tariff[exposureIndex]);
+  return !tariff || tariff[exposureIndex] > 0;
 }
 
 /**

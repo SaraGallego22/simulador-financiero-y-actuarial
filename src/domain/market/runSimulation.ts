@@ -57,19 +57,22 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
 
 /**
  * Whether `tariff` makes its team an eligible candidate for `exposureIndex`
- * at all — distinct from getPremium()'s fallback, which only protects the
- * price math (-beta*log(premium)) from an explicit, legitimately-submitted
- * premium of 0. A missing entry (UNSENT_PREMIUM/NaN, see tariffUpload.ts) is
- * not a price to fall back from — the team simply never priced this
- * exposure, so it can't win it in any phase, not even via fallbackPremium.
- * `!tariff` (no array at all for this team) is treated as eligible for
- * every exposure, same permissive default getPremium() uses — in production
- * every eligible team always has a full-length array (see
- * lib/tariffAccess.ts's getTariffArray()), so this only matters for tests
- * that exercise phase mechanics without real per-exposure tariff data.
+ * at all — a premium of exactly 0 is not a price to fall back from, it's
+ * "not priced": the same rule the upload coverage check, meanPremium, and
+ * medianOfPositive all use (see MIN_COVERAGE's doc comment in
+ * tariffUpload.ts) for exactly the same reason — a team's own CSV never
+ * distinguishes "this row was never included" from "this row was included
+ * with 0" once stored (both are 0 either way, see teams/tariffs/route.ts),
+ * so both mean the same thing here: this team isn't a candidate for this
+ * exposure in any phase, not even via fallbackPremium. `!tariff` (no array
+ * at all for this team) is treated as eligible for every exposure, same
+ * permissive default getPremium() uses — in production every eligible team
+ * always has a full-length array (see lib/tariffAccess.ts's
+ * getTariffArray()), so this only matters for tests that exercise phase
+ * mechanics without real per-exposure tariff data.
  */
 function isPriced(tariff: Float32Array | undefined, exposureIndex: number): boolean {
-  return !tariff || !Number.isNaN(tariff[exposureIndex]);
+  return !tariff || tariff[exposureIndex] > 0;
 }
 
 /**
