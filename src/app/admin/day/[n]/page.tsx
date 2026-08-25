@@ -26,8 +26,8 @@ import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { SoftSkillsRadarChart } from "@/components/SoftSkillsRadarChart";
 import { TeamSelect } from "@/components/TeamSelect";
-import { averageSoftSkillsByMember, ACTIVITY_TITLES, SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
-import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
+import { averageSoftSkillsByMember, ACTIVITY_TITLES } from "@/lib/softSkills";
+import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS } from "@/lib/interview";
 import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { Dia1TeamDetail } from "./Dia1TeamDetail";
 import { Dia2TeamDetail } from "./Dia2TeamDetail";
@@ -1100,7 +1100,7 @@ export default async function AdminDayPage({
                                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                           Habilidades blandas
                                         </p>
-                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} />
+                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={440} />
                                       </div>
 
                                       <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
@@ -1108,12 +1108,14 @@ export default async function AdminDayPage({
                                           Comentarios de habilidades blandas
                                         </p>
                                         {softSkillMemberComments.length > 0 ? (
-                                          <div className="flex flex-col gap-1.5">
+                                          <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto pr-1">
                                             {softSkillMemberComments.map((c) => (
-                                              <p key={c.id} className="text-xs text-[var(--color-foreground)]">
-                                                <span className="font-semibold text-[var(--color-brand-text-secondary)]">{ACTIVITY_TITLES[c.activity] ?? `Actividad ${c.activity}`}:</span>{" "}
-                                                &ldquo;{c.text}&rdquo; — {SOFT_SKILL_COMMENT_AUTHOR}
-                                              </p>
+                                              <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                                  {ACTIVITY_TITLES[c.activity] ?? `Actividad ${c.activity}`}
+                                                </p>
+                                                <p className="mt-0.5 break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
+                                              </div>
                                             ))}
                                           </div>
                                         ) : (
@@ -1139,11 +1141,11 @@ export default async function AdminDayPage({
                                               }).join(" · ")}
                                             </p>
                                             {interviewMemberComments.length > 0 && (
-                                              <div className="mt-1.5 flex flex-col gap-1">
+                                              <div className="mt-1.5 flex max-h-40 flex-col gap-1.5 overflow-y-auto pr-1">
                                                 {interviewMemberComments.map((c) => (
-                                                  <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
-                                                    &ldquo;{c.text}&rdquo; — {INTERVIEW_COMMENT_AUTHOR}
-                                                  </p>
+                                                  <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
+                                                    <p className="break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
+                                                  </div>
                                                 ))}
                                               </div>
                                             )}
@@ -1151,9 +1153,9 @@ export default async function AdminDayPage({
                                         ) : (
                                           <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin entrevista registrada todavía.</p>
                                         )}
-                                        <a href="/admin/entrevista" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
+                                        <Link href="/admin/entrevista" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
                                           Editar en Entrevista individual →
-                                        </a>
+                                        </Link>
                                       </div>
 
                                       {hasHistorial && (
