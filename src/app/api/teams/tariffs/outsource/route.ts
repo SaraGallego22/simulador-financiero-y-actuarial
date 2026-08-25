@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCohortForTeamId } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
 import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
+import { isDayLocked, DAY_LOCKED_ERROR } from "@/lib/dayLock";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { generateOutsourcedTariff, meanPremium } from "@/domain/pricing/outsourced";
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const day = Number(body?.day);
   if (![1, 2].includes(day)) return NextResponse.json({ error: "Parámetro day inválido" }, { status: 400 });
+  if (await isDayLocked(teamId, day)) return NextResponse.json({ error: DAY_LOCKED_ERROR }, { status: 403 });
 
   const cohort = await getCohortForTeamId(teamId);
   const universe = cohort ? await loadUniverse(cohort.id) : null;

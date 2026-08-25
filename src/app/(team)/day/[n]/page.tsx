@@ -195,6 +195,10 @@ export default async function TeamDayPage({
     );
   }
   const teamId = session?.user.teamId ?? null;
+  // Once a later day is open, this day's own submissions are frozen — a
+  // team can't go back and revise an earlier day's answers after seeing how
+  // it played out on a following day's page.
+  const locked = day < cohort.openDay;
 
   // Only the serializable fields — Concepto.get is a function and can't
   // cross the Server->Client Component boundary (see DeliverablesForm).
@@ -415,9 +419,10 @@ export default async function TeamDayPage({
               initialMeanPremium={submission?.outsourced && !dayResult ? null : (submission?.meanPremium ?? null)}
               initialOutsourced={submission?.outsourced ?? false}
               resultsRevealed={!!dayResult}
+              locked={locked}
             />
             {TAB_NOTES[1]?.portfolio && <TabNote>{TAB_NOTES[1].portfolio}</TabNote>}
-            <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} />
+            <MinVarianceForm initialWeights={isMinVarianceAllocation(allocation?.allocation) ? allocation.allocation : null} locked={locked} />
           </>
         )}
 
@@ -438,10 +443,11 @@ export default async function TeamDayPage({
               initialMeanPremium={submission?.outsourced && !dayResult ? null : (submission?.meanPremium ?? null)}
               initialOutsourced={submission?.outsourced ?? false}
               resultsRevealed={!!dayResult}
+              locked={locked}
             />
 
             {TAB_NOTES[2]?.portfolio && <TabNote>{TAB_NOTES[2].portfolio}</TabNote>}
-            <PortfolioForm day={2} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} />
+            <PortfolioForm day={2} initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null} locked={locked} />
 
             {reportConcepts.length > 0 && (
               <>
@@ -454,7 +460,7 @@ export default async function TeamDayPage({
                     Loss Ratio Esperado (ver la guía de este día, sección 2).
                   </div>
                 )}
-                <DeliverablesForm day={2} concepts={reportConcepts} initialValues={deliverableValues} />
+                <DeliverablesForm day={2} concepts={reportConcepts} initialValues={deliverableValues} locked={locked} />
               </>
             )}
           </>
@@ -503,12 +509,13 @@ export default async function TeamDayPage({
                   initialDecision={isPortfolioDecisionV4(allocation?.allocation) ? allocation.allocation : null}
                   title="Portafolio de inversión — 2028 (opcional)"
                   showCapitalSocial={false}
+                  locked={locked}
                 />
 
                 {reportConcepts.length > 0 && (
                   <>
                     {TAB_NOTES[3]?.deliverables && <TabNote>{TAB_NOTES[3].deliverables}</TabNote>}
-                    <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} />
+                    <DeliverablesForm day={3} concepts={reportConcepts} initialValues={deliverableValues} locked={locked} />
                   </>
                 )}
               </>
@@ -574,14 +581,14 @@ export default async function TeamDayPage({
                 {reportConcepts.length > 0 && (
                   <>
                     {TAB_NOTES[4]?.deliverables && <TabNote>{TAB_NOTES[4].deliverables}</TabNote>}
-                    <DeliverablesForm day={4} concepts={reportConcepts} initialValues={deliverableValues} />
+                    <DeliverablesForm day={4} concepts={reportConcepts} initialValues={deliverableValues} locked={locked} />
                   </>
                 )}
 
                 {hasAnalitica && (
                   <>
                     {TAB_NOTES[4]?.analytics && <TabNote>{TAB_NOTES[4].analytics}</TabNote>}
-                    <AnalyticsForm day={4} initialPicks={analyticsPicksByKey} />
+                    <AnalyticsForm day={4} initialPicks={analyticsPicksByKey} locked={locked} />
                   </>
                 )}
               </>

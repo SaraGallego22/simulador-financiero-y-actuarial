@@ -5,6 +5,7 @@ import { N_COLOMBIA } from "@/domain/generation/constants";
 import { BYTES_PER_PREMIUM, MIN_COVERAGE, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
 import { toFloat32View } from "@/lib/binary";
 import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
+import { isDayLocked, DAY_LOCKED_ERROR } from "@/lib/dayLock";
 
 async function requireTeam() {
   const session = await auth();
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
   if (totalChunks !== chunkCount(N_COLOMBIA)) {
     return NextResponse.json({ error: "totalChunks no coincide con el tamaño esperado del universo" }, { status: 400 });
   }
+  if (await isDayLocked(teamId, day)) return NextResponse.json({ error: DAY_LOCKED_ERROR }, { status: 403 });
 
   const chunkBytes = Buffer.from(await request.arrayBuffer());
   const { start, end } = chunkByteRange(chunkIndex, N_COLOMBIA);

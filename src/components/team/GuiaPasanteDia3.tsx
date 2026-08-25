@@ -346,10 +346,11 @@ export function GuiaPasanteDia3() {
             El costo de siniestros del 2028 es, en <strong>base fecha de accidente</strong>, únicamente lo ocurrido dentro del 2028; lo del 2027 ya se
             reconoció como costo en el P&G de ese año, sin importar cuándo se avisara. Lo que sí es propio de este año es una línea aparte:{" "}
             <strong>Ajuste de siniestralidad (A1)</strong>. Gracias a una revisión realizada por el equipo actuarial de la compañía, se determinó que
-            la severidad de los casos restantes por pagar de 2027 está sobreestimada en un 10%. Repórtala como un valor negativo, porque es una
-            liberación: entra junto al costo antes de llegar al Resultado Técnico, y al
-            ser negativa termina sumando a tu utilidad. Se calcula sobre la reserva técnica real de cierre de 2027, independiente de lo que tú mismo
-            reportaste como Costo de Siniestros A1 en Día 2.
+            la severidad de los casos de 2027 que siguen pendientes de pago al cierre de 2028 está sobreestimada en un 10%. Repórtala como un valor
+            negativo, porque es una liberación: entra junto al costo antes de llegar al Resultado Técnico, y al ser negativa termina sumando a tu
+            utilidad. Se calcula sobre lo que de la reserva de 2027 sigue sin pagarse al cierre de 2028 — no sobre el saldo completo que cerraste en
+            2027, buena parte del cual ya se pagó durante el año —, así que también reduce en esa misma cantidad la línea de Reservas técnicas que
+            reportas en el Balance de 2028. Independiente de lo que tú mismo reportaste como Costo de Siniestros A1 en Día 2.
           </p>
           <p>
             Tu prima devengada del 2028 sale de un juego de reservas, la liberación que corresponda de la RPND de 2027 y la constitución de las primas
@@ -385,7 +386,8 @@ export function GuiaPasanteDia3() {
           </p>
           <p className="text-[15px] italic text-[var(--color-brand-text-secondary)]">
             Las reservas técnicas de cada año son siempre el saldo real por pagar (RSA + IBNR para el 2027; lo pendiente de ambos orígenes al cierre
-            del 2028), y se reportan como una línea del Balance.
+            del 2028, ya descontado el Ajuste de siniestralidad; lo pendiente de los tres orígenes al cierre de 2029), y se reportan como una línea
+            del Balance.
           </p>
         </SubSection>
       </Section>

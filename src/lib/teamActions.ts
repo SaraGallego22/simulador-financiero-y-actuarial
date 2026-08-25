@@ -9,6 +9,7 @@ import { TARGET_RETURN, portfolioExpectedReturn } from "@/domain/finance/markowi
 import { conceptosDia } from "@/domain/grading/concepts";
 import type { Dia } from "@/domain/grading/concepts";
 import { isValidSectorPick } from "@/domain/grading/sectors";
+import { isDayLocked, DAY_LOCKED_ERROR } from "./dayLock";
 
 async function requireTeam(): Promise<string> {
   const session = await auth();
@@ -72,6 +73,7 @@ export interface SubmitPortfolioState {
  */
 export async function submitPortfolioAction(day: number, _prev: SubmitPortfolioState, formData: FormData): Promise<SubmitPortfolioState> {
   const teamId = await requireTeam();
+  if (await isDayLocked(teamId, day)) return { error: DAY_LOCKED_ERROR };
 
   const raw = formData.get("decisionSchedule");
   if (raw == null || raw === "") return { error: "No se recibió ningún portafolio." };
@@ -116,6 +118,7 @@ export interface SubmitMinVarianceState {
  */
 export async function submitMinVarianceAction(_prev: SubmitMinVarianceState, formData: FormData): Promise<SubmitMinVarianceState> {
   const teamId = await requireTeam();
+  if (await isDayLocked(teamId, 1)) return { error: DAY_LOCKED_ERROR };
 
   const weights: Record<string, number> = {};
   for (const ins of INSTRUMENTS) {
@@ -165,6 +168,7 @@ export async function submitDeliverablesAction(
   formData: FormData
 ): Promise<SubmitDeliverablesState> {
   const teamId = await requireTeam();
+  if (await isDayLocked(teamId, day)) return { error: DAY_LOCKED_ERROR };
   const concepts = conceptosDia(`d${day}` as Dia).filter((c) => c.tipo === "reporte");
   if (concepts.length === 0) return { error: "Este día no tiene entregables numéricos." };
 
@@ -214,6 +218,7 @@ export async function submitAnalyticsAction(
   formData: FormData
 ): Promise<SubmitAnalyticsState> {
   const teamId = await requireTeam();
+  if (await isDayLocked(teamId, day)) return { error: DAY_LOCKED_ERROR };
 
   const rows: { list: string; rank: number; dimA: string; valA: string; dimB: string; valB: string; estimatedMultiplier: number | null }[] = [];
   for (const list of SECTOR_LISTS) {

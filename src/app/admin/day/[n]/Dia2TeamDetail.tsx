@@ -15,18 +15,11 @@ export interface Dia2TeamOption {
     rpndLiberada: number;
     primaDevengada: number;
     costo: number;
+    ajusteSiniestralidad: number;
     gadq: number;
     gcom: number;
     rt: number;
   } | null;
-  /**
-   * −FZ.sevRevisionA1Pct × bal1.reservasTec (see concepts.ts's
-   * p2_ajusteSiniestralidad) — finBench's own p2.rt deliberately excludes
-   * this (see PnL.rt's doc comment in finBench.ts), so it's threaded
-   * through separately to reconstruct the same RT the team is actually
-   * graded against (concepts.ts's p2_rt formula).
-   */
-  ajusteSiniestralidad: number | null;
   /** The team's month-0 schedule allocation (its starting investment decision) — see PortfolioDecisionV4's doc comment. */
   weights: Allocation | null;
 }
@@ -66,11 +59,6 @@ export function Dia2TeamDetail({ teams }: { teams: Dia2TeamOption[] }) {
   if (!selected) return null;
 
   const p2 = selected.pnl;
-  // finBench's p2.rt deliberately excludes Ajuste de siniestralidad (it's
-  // graded as its own line, see p2_ajusteSiniestralidad in concepts.ts) —
-  // add it back here so the reference RT shown matches what the team is
-  // actually graded against (concepts.ts's p2_rt formula subtracts it).
-  const ajuste = selected.ajusteSiniestralidad ?? 0;
   const pnlRows = p2
     ? [
         { label: "Prima emitida", value: p2.primaEmitida },
@@ -78,14 +66,13 @@ export function Dia2TeamDetail({ teams }: { teams: Dia2TeamOption[] }) {
         { label: "RPND liberada", value: p2.rpndLiberada },
         { label: "Prima devengada", value: p2.primaDevengada, isTotal: true },
         { label: "Costo siniestros", value: -p2.costo },
-        // Row shows the release's CONTRIBUTION to the running total (−ajuste,
-        // positive — it adds to utilidad), not the raw concept value: `ajuste`
-        // itself is stored/reported negative (see p2_ajusteSiniestralidad in
-        // concepts.ts), and the P&G formula subtracts it (RT = ... − ajuste).
-        { label: "Ajuste de siniestralidad (A1)", value: -ajuste },
+        // ajusteSiniestralidad is itself negative (a release) — its
+        // CONTRIBUTION to the running total is −ajuste, positive, since the
+        // P&G formula subtracts it (RT = ... − ajusteSiniestralidad).
+        { label: "Ajuste de siniestralidad (A1)", value: -p2.ajusteSiniestralidad },
         { label: "Gastos de adquisición", value: -p2.gadq },
         { label: "Gastos de comisión", value: -p2.gcom },
-        { label: "RT (Resultado Técnico)", value: p2.rt - ajuste, isTotal: true },
+        { label: "RT (Resultado Técnico)", value: p2.rt, isTotal: true },
       ]
     : [];
 

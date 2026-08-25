@@ -7,6 +7,7 @@ import type { PortfolioDecisionV4, MonthlyAllocationEntry, Allocation } from "@/
 import { BUILD_MONTHS, HORIZON } from "@/domain/reserving/constants";
 import { PortfolioScheduleView } from "@/components/AlmLadderTable";
 import { Button } from "@/components/ui/button";
+import { LockIcon } from "@/components/ui/icons";
 
 const TOTAL_MONTHS = BUILD_MONTHS + HORIZON;
 
@@ -30,7 +31,15 @@ function allocationToRows(allocation: Allocation): GridRows {
   return rows;
 }
 
-function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id: string, weight: number) => void }) {
+function AllocationStepGrid({
+  rows,
+  onChange,
+  disabled = false,
+}: {
+  rows: GridRows;
+  onChange: (id: string, weight: number) => void;
+  disabled?: boolean;
+}) {
   const total = Object.values(rows).reduce((a, w) => a + (w || 0), 0);
   return (
     <div>
@@ -44,7 +53,8 @@ function AllocationStepGrid({ rows, onChange }: { rows: GridRows; onChange: (id:
               step="1"
               value={rows[ins.id] || ""}
               onChange={(e) => onChange(ins.id, Number(e.target.value))}
-              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+              disabled={disabled}
+              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50"
             />
           </label>
         ))}
@@ -71,6 +81,7 @@ export function PortfolioForm({
   initialDecision,
   title,
   showCapitalSocial = true,
+  locked = false,
 }: {
   day: number;
   initialDecision: PortfolioDecisionV4 | null;
@@ -85,6 +96,8 @@ export function PortfolioForm({
    * default, just not shown or editable.
    */
   showCapitalSocial?: boolean;
+  /** True once a later day is open — this day's portfolio can no longer be resubmitted. */
+  locked?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<SubmitPortfolioState, FormData>(submitPortfolioAction.bind(null, day), {});
 
@@ -125,7 +138,7 @@ export function PortfolioForm({
   const everyCheckpointHasWeight = schedule.every((e) => Object.values(e.allocation).reduce((s, w) => s + (Number(w) || 0), 0) > 0);
   const capitalSocialAllocation = rowsToAllocation(capitalSocialRows);
   const capitalSocialHasWeight = Object.values(capitalSocialAllocation).reduce((s, w) => s + (Number(w) || 0), 0) > 0;
-  const canSubmit = !hasDuplicateMonths && everyCheckpointHasWeight && capitalSocialHasWeight && sorted[0]?.month === 0;
+  const canSubmit = !locked && !hasDuplicateMonths && everyCheckpointHasWeight && capitalSocialHasWeight && sorted[0]?.month === 0;
 
   return (
     <form
@@ -141,6 +154,12 @@ export function PortfolioForm({
         posterior.
       </p>
 
+      {locked && (
+        <p className="mb-4 flex items-center gap-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Día bloqueado — el evaluador habilitó un día posterior, ya no puedes cambiar este portafolio.
+        </p>
+      )}
+
       <div className="flex flex-col gap-4">
         {showCapitalSocial && (
           <div className="rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-blue-light)] p-3">
@@ -149,7 +168,7 @@ export function PortfolioForm({
               Decisión aparte de tu calendario de abajo: cómo se invierte tu Capital Social desde el mes 0 del 2027. Una vez invertido, sigue el mismo
               calendario que la prima; lo único propio es su punto de partida.
             </p>
-            <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} />
+            <AllocationStepGrid rows={capitalSocialRows} onChange={(id, w) => setCapitalSocialRows((prev) => ({ ...prev, [id]: w }))} disabled={locked} />
           </div>
         )}
 
@@ -171,17 +190,18 @@ export function PortfolioForm({
                       step="1"
                       value={checkpoint.month}
                       onChange={(e) => updateCheckpointMonth(originalIndex, Number(e.target.value))}
-                      className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+                      disabled={locked}
+                      className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50"
                     />
                   </label>
                 )}
-                {!isFirst && (
+                {!isFirst && !locked && (
                   <Button type="button" variant="secondary" size="sm" onClick={() => removeCheckpoint(originalIndex)}>
                     Quitar
                   </Button>
                 )}
               </div>
-              <AllocationStepGrid rows={checkpoint.rows} onChange={(id, w) => updateCheckpointWeight(originalIndex, id, w)} />
+              <AllocationStepGrid rows={checkpoint.rows} onChange={(id, w) => updateCheckpointWeight(originalIndex, id, w)} disabled={locked} />
             </div>
           );
         })}
@@ -190,7 +210,7 @@ export function PortfolioForm({
           <p className="text-xs text-[var(--color-brand-red)]">Dos cambios de estrategia no pueden caer en el mismo mes.</p>
         )}
 
-        {checkpoints.length < MAX_SCHEDULE_ENTRIES && (
+        {checkpoints.length < MAX_SCHEDULE_ENTRIES && !locked && (
           <Button type="button" variant="secondary" onClick={addCheckpoint} className="w-fit">
             Agregar cambio de estrategia
           </Button>
