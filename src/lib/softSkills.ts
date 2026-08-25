@@ -37,12 +37,23 @@ export const RATING_LABELS: Record<SoftSkillRating, string> = {
   NO_EVIDENCIA: "No se evidencia la competencia",
 };
 
-/** Ordinal 1-4 conversion of the qualitative scale, for the consolidado's per-competency nota (averaged across the 3 activities). */
-export const RATING_SCORES: Record<SoftSkillRating, number> = {
-  NO_EVIDENCIA: 1,
-  REGULAR: 2,
-  BUENO: 3,
-  EXCELENTE: 4,
+/**
+ * Ordinal 1-3 conversion of the qualitative scale, for the consolidado's
+ * per-competency nota (averaged across the 3 activities).
+ *
+ * "No se evidencia la competencia" scores `null`, not a number: it records
+ * that the activity gave no evidence either way about that competency, which
+ * is not the same as evidence of a low level. It used to be the bottom of a
+ * 1-4 scale, so a single activity where the competency never came up dragged
+ * the member's average below someone actually rated REGULAR on it. It's
+ * excluded from the average instead (NA), and the three ratings that do score
+ * span the full 1-3 range.
+ */
+export const RATING_SCORES: Record<SoftSkillRating, number | null> = {
+  NO_EVIDENCIA: null,
+  REGULAR: 1,
+  BUENO: 2,
+  EXCELENTE: 3,
 };
 
 export const SOFT_SKILL_ACTIVITIES = [1, 2, 3] as const;
@@ -71,14 +82,20 @@ export interface SoftSkillEvalRow {
  * across however many of the 3 activities rated it — shared by the member
  * consolidado (consolidado.ts) and the per-team subjective grading view
  * (admin/day/[n]/page.tsx's radar chart), so both read the same numbers.
+ *
+ * NO_EVIDENCIA ratings are skipped, not averaged in (see RATING_SCORES), so
+ * a competency rated only that way ends up with no nota at all rather than a
+ * low one.
  */
 export function averageSoftSkillsByMember(evals: SoftSkillEvalRow[]): Map<string, Partial<Record<SoftSkillCompetency, number>>> {
   const rawScores = new Map<string, Partial<Record<SoftSkillCompetency, number[]>>>();
   for (const e of evals) {
+    const score = RATING_SCORES[e.rating as SoftSkillRating];
+    if (score == null) continue;
     if (!rawScores.has(e.teamMemberId)) rawScores.set(e.teamMemberId, {});
     const byCompetency = rawScores.get(e.teamMemberId)!;
     const competency = e.competency as SoftSkillCompetency;
-    (byCompetency[competency] ??= []).push(RATING_SCORES[e.rating as SoftSkillRating]);
+    (byCompetency[competency] ??= []).push(score);
   }
 
   const result = new Map<string, Partial<Record<SoftSkillCompetency, number>>>();

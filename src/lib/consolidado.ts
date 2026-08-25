@@ -358,7 +358,9 @@ export interface MemberConsolidadoRow {
   // comment) — this whole function is only ever called from admin routes.
   // One nota per competency, averaging
   // RATING_SCORES across whichever of the 3 activities rated that
-  // competency for this member (missing if none did).
+  // competency for this member — missing if none did, and also missing if
+  // every rating was "No se evidencia", which is NA rather than a low score
+  // (see softSkills.ts).
   softSkills: Partial<Record<SoftSkillCompetency, number>>;
   softSkillComments: { activity: number; text: string }[];
 }
