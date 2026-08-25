@@ -145,4 +145,24 @@ describe("enforceMinPoliciesFloor (direct)", () => {
     expect(t3).toBeGreaterThan(100);
     expect(uninsured).toBe(0);
   });
+
+  it("never tops up a deficient team with an exposure it never priced (NaN), even if that leaves it short of the floor", () => {
+    const assignment = buildAssignment(6000, 6000, 100); // 7900 uninsured, plenty in raw count
+    // Team 3 only priced the first 200 of the 7900 uninsured (-1) exposures
+    // — everything else in the donation pool is NaN for team 3 specifically.
+    const team3Tariff = new Float32Array(n).fill(NaN);
+    for (let k = 12100; k < 12100 + 200; k++) team3Tariff[k] = 1_000_000;
+    const tariffsWithGap = new Map<number, Float32Array>([[3, team3Tariff]]);
+
+    enforceMinPoliciesFloor(n, assignment, tariffsWithGap, floorTeams);
+    const { t1, t2, t3 } = countAll(assignment);
+    // Team 3's deficit is 4900, but it only priced 200 of the available pool
+    // — it lands 200 above its start (100), not at the floor.
+    expect(t3).toBe(300);
+    expect(t3).toBeLessThan(MIN_POLICIES_PER_TEAM);
+    // Teams 1/2 (no tariff entry at all in tariffsWithGap => permissive,
+    // same as the other direct tests) are untouched by team 3's shortfall.
+    expect(t1).toBe(6000);
+    expect(t2).toBe(6000);
+  });
 });

@@ -176,3 +176,81 @@ describe("runSimulation", () => {
     ).toThrow();
   });
 });
+
+// An exposure a team never priced (UNSENT_PREMIUM/NaN — see tariffUpload.ts)
+// must never win it that exposure, even via fallbackPremium — distinct from
+// an explicit premium of 0, which is a real (if unusual) submitted price and
+// still makes the team a candidate.
+describe("runSimulation — unpriced (NaN) exposures", () => {
+  const universe = generateColombia(42, N);
+  const teams: TeamInfo[] = [
+    { id: 1, fallbackPremium: 900_000 }, // cheapest team — would organically win almost everything
+    { id: 2, fallbackPremium: 1_000_000 },
+    { id: 3, fallbackPremium: 1_100_000 },
+  ];
+
+  it("never assigns an exposure to a team that left it as NaN, even though that team is the cheapest everywhere else", () => {
+    const team1Tariff = flatTariff(N, 900_000);
+    const unpricedIndex = 10;
+    team1Tariff[unpricedIndex] = NaN;
+    const tariffs = new Map<number, Float32Array>([
+      [1, team1Tariff],
+      [2, flatTariff(N, 1_000_000)],
+      [3, flatTariff(N, 1_100_000)],
+    ]);
+    const { assignment } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9,
+      capacityByTeamId: unlimited(teams),
+    });
+    expect(assignment[unpricedIndex]).not.toBe(1);
+    expect([2, 3]).toContain(assignment[unpricedIndex]);
+  });
+
+  it("leaves an exposure uninsured (-1) when every team left it as NaN", () => {
+    const unpricedIndex = 10;
+    const t1 = flatTariff(N, 900_000);
+    const t2 = flatTariff(N, 1_000_000);
+    const t3 = flatTariff(N, 1_100_000);
+    t1[unpricedIndex] = NaN;
+    t2[unpricedIndex] = NaN;
+    t3[unpricedIndex] = NaN;
+    const tariffs = new Map<number, Float32Array>([
+      [1, t1],
+      [2, t2],
+      [3, t3],
+    ]);
+    const { assignment } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9,
+      capacityByTeamId: unlimited(teams),
+    });
+    expect(assignment[unpricedIndex]).toBe(-1);
+  });
+
+  it("still lets a team win an exposure it explicitly priced at 0 — distinct from never pricing it", () => {
+    const zeroPricedIndex = 10;
+    const team1Tariff = flatTariff(N, 900_000);
+    team1Tariff[zeroPricedIndex] = 0;
+    const tariffs = new Map<number, Float32Array>([
+      [1, team1Tariff],
+      [2, flatTariff(N, 1_000_000)],
+      [3, flatTariff(N, 1_100_000)],
+    ]);
+    const { assignment } = runSimulation(universe, tariffs, teams, {
+      seed: 42,
+      beta: 1.5,
+      marcaScale: 0.3,
+      cuotaPct: 0.9,
+      capacityByTeamId: unlimited(teams),
+    });
+    // Team 1 is still eligible (falls back to its own fallbackPremium for the
+    // log-utility math), so it can still win this exposure like any other —
+    // unlike the NaN case above, which excludes the team entirely.
+    expect([1, 2, 3]).toContain(assignment[zeroPricedIndex]);
+  });
+});

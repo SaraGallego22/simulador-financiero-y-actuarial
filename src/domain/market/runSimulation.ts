@@ -56,6 +56,23 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
 }
 
 /**
+ * Whether `tariff` makes its team an eligible candidate for `exposureIndex`
+ * at all — distinct from getPremium()'s fallback, which only protects the
+ * price math (-beta*log(premium)) from an explicit, legitimately-submitted
+ * premium of 0. A missing entry (UNSENT_PREMIUM/NaN, see tariffUpload.ts) is
+ * not a price to fall back from — the team simply never priced this
+ * exposure, so it can't win it in any phase, not even via fallbackPremium.
+ * `!tariff` (no array at all for this team) is treated as eligible for
+ * every exposure, same permissive default getPremium() uses — in production
+ * every eligible team always has a full-length array (see
+ * lib/tariffAccess.ts's getTariffArray()), so this only matters for tests
+ * that exercise phase mechanics without real per-exposure tariff data.
+ */
+function isPriced(tariff: Float32Array | undefined, exposureIndex: number): boolean {
+  return !tariff || !Number.isNaN(tariff[exposureIndex]);
+}
+
+/**
  * 3-phase discrete-choice market-clearing simulation, ported from correrSim()
  * in the legacy prototype, line ~3013:
  *
@@ -107,15 +124,20 @@ export function runSimulation(
   const gumbel1 = () => -Math.log(-Math.log(r1() + 1e-10));
   const gumbel2 = () => -Math.log(-Math.log(r2() + 1e-10));
 
-  // Phase 1: logit-utility preference assignment
-  const prefTeam = new Int32Array(n);
+  // Phase 1: logit-utility preference assignment. A team that never priced
+  // this exposure (isPriced() false) isn't a candidate at all — if no team
+  // priced it, prefTeam[k] stays -1 and the exposure goes straight to
+  // Phase 3 (which will also find no eligible team and leave it uninsured).
+  const prefTeam = new Int32Array(n).fill(-1);
   const prefPremium = new Float64Array(n);
   for (let k = 0; k < n; k++) {
     let bestU = -Infinity;
-    let bestTeam = teams[0];
+    let bestTeam: TeamInfo | null = null;
     let bestPremium = 0;
     for (const team of teams) {
-      const premium = getPremium(tariffsByTeam.get(team.id), k, team.fallbackPremium);
+      const tariff = tariffsByTeam.get(team.id);
+      if (!isPriced(tariff, k)) continue;
+      const premium = getPremium(tariff, k, team.fallbackPremium);
       const u = -params.beta * Math.log(premium / 1_000_000) + gumbel1() * params.marcaScale;
       if (u > bestU) {
         bestU = u;
@@ -123,8 +145,10 @@ export function runSimulation(
         bestPremium = premium;
       }
     }
-    prefTeam[k] = bestTeam.id;
-    prefPremium[k] = bestPremium;
+    if (bestTeam) {
+      prefTeam[k] = bestTeam.id;
+      prefPremium[k] = bestPremium;
+    }
   }
 
   // Phase 2: ration by market-share cap, keeping each team's highest-premium
@@ -135,7 +159,10 @@ export function runSimulation(
   // simulation-trigger request badly enough to cause a production OOM.
   const countByTeam = new Map<number, number>();
   for (const team of teams) countByTeam.set(team.id, 0);
-  for (let k = 0; k < n; k++) countByTeam.set(prefTeam[k], (countByTeam.get(prefTeam[k]) ?? 0) + 1);
+  for (let k = 0; k < n; k++) {
+    if (prefTeam[k] === -1) continue; // no team priced this exposure — never enters a team's own bucket
+    countByTeam.set(prefTeam[k], (countByTeam.get(prefTeam[k]) ?? 0) + 1);
+  }
 
   const indicesByTeam = new Map<number, Int32Array>();
   const fillPos = new Map<number, number>();
@@ -145,6 +172,7 @@ export function runSimulation(
   }
   for (let k = 0; k < n; k++) {
     const id = prefTeam[k];
+    if (id === -1) continue;
     const indices = indicesByTeam.get(id)!;
     const pos = fillPos.get(id)!;
     indices[pos] = k;
@@ -174,8 +202,8 @@ export function runSimulation(
   for (let k = 0; k < n; k++) {
     if (assignment[k] !== -1) continue;
 
-    const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0);
-    if (!available.length) continue; // uninsured: no team has capacity left
+    const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0 && isPriced(tariffsByTeam.get(t.id), k));
+    if (!available.length) continue; // uninsured: no team has capacity left, or none priced this exposure
 
     let bestU = -Infinity;
     let bestTeam = available[0];
