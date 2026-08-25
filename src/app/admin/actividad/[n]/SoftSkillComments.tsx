@@ -3,6 +3,7 @@
 import { addSoftSkillCommentAction, deleteSoftSkillCommentAction, updateSoftSkillCommentAction } from "@/lib/adminActions";
 import { SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
 import { EditableComment } from "@/components/ui/editable-comment";
+import { AddCommentForm } from "@/components/ui/add-comment-form";
 
 export interface SoftSkillCommentItem {
   id: string;
@@ -33,18 +34,7 @@ export function SoftSkillComments({ teamMemberId, activity, comments }: { teamMe
         </div>
       )}
 
-      <form action={addAction} className="flex flex-col gap-2">
-        <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
-          Nuevo comentario ({SOFT_SKILL_COMMENT_AUTHOR})
-          <textarea name="text" rows={2} className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm" />
-        </label>
-        <button
-          type="submit"
-          className="self-start rounded-full px-3 py-1.5 text-xs font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
-        >
-          Agregar
-        </button>
-      </form>
+      <AddCommentForm action={addAction} label={`Nuevo comentario (${SOFT_SKILL_COMMENT_AUTHOR})`} />
     </div>
   );
 }
