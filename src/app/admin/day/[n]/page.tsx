@@ -26,7 +26,7 @@ import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
 import { SoftSkillsRadarChart } from "@/components/SoftSkillsRadarChart";
 import { TeamSelect } from "@/components/TeamSelect";
-import { averageSoftSkillsByMember } from "@/lib/softSkills";
+import { averageSoftSkillsByMember, ACTIVITY_TITLES, SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
 import { INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS, INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
 import type { InterviewSkill, InterviewSkillScore } from "@/lib/interview";
 import { Dia1TeamDetail } from "./Dia1TeamDetail";
@@ -87,6 +87,7 @@ export default async function AdminDayPage({
     universeRunForSectors,
     analyticsRecs,
     softSkillEvals,
+    softSkillComments,
     interviewSkillRatings,
     interviewComments,
   ] = await Promise.all([
@@ -166,6 +167,9 @@ export default async function AdminDayPage({
     // same "day >= 2" gate as memberEvaluations above, not activeTab, so
     // switching tabs doesn't need another round trip.
     day >= 2 ? prisma.softSkillEvaluation.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } } }) : Promise.resolve([]),
+    day >= 2
+      ? prisma.softSkillComment.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } }, orderBy: [{ activity: "asc" }, { createdAt: "asc" }] })
+      : Promise.resolve([]),
     day >= 2 ? prisma.interviewSkillRating.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } } }) : Promise.resolve([]),
     day >= 2
       ? prisma.interviewComment.findMany({ where: { teamMember: { team: { cohortId: cohort.id } } }, orderBy: { createdAt: "asc" } })
@@ -198,6 +202,11 @@ export default async function AdminDayPage({
   // Habilidades blandas (radar) and TH interview (read-only summary) for the
   // redesigned "subj" tab below.
   const softSkillsByMemberId = averageSoftSkillsByMember(softSkillEvals);
+  const softSkillCommentsByMemberId = new Map<string, (typeof softSkillComments)[number][]>();
+  for (const c of softSkillComments) {
+    if (!softSkillCommentsByMemberId.has(c.teamMemberId)) softSkillCommentsByMemberId.set(c.teamMemberId, []);
+    softSkillCommentsByMemberId.get(c.teamMemberId)!.push(c);
+  }
   const interviewRatingsByMemberId = new Map<string, Partial<Record<InterviewSkill, InterviewSkillScore>>>();
   for (const r of interviewSkillRatings) {
     if (!interviewRatingsByMemberId.has(r.teamMemberId)) interviewRatingsByMemberId.set(r.teamMemberId, {});
@@ -1074,6 +1083,7 @@ export default async function AdminDayPage({
                             const interviewRatings = interviewRatingsByMemberId.get(member.id);
                             const interviewMemberComments = interviewCommentsByMemberId.get(member.id) ?? [];
                             const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
+                            const softSkillMemberComments = softSkillCommentsByMemberId.get(member.id) ?? [];
                             return (
                               <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-6">
                                 <div className="flex flex-col gap-6 lg:flex-row">
@@ -1084,7 +1094,7 @@ export default async function AdminDayPage({
                                     <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                                   </div>
 
-                                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2">
+                                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
                                     <div className="flex min-w-0 flex-col gap-4">
                                       <div>
                                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -1093,6 +1103,29 @@ export default async function AdminDayPage({
                                         <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} />
                                       </div>
 
+                                      <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
+                                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          Comentarios de habilidades blandas
+                                        </p>
+                                        {softSkillMemberComments.length > 0 ? (
+                                          <div className="flex flex-col gap-1.5">
+                                            {softSkillMemberComments.map((c) => (
+                                              <p key={c.id} className="text-xs text-[var(--color-foreground)]">
+                                                <span className="font-semibold text-[var(--color-brand-text-secondary)]">{ACTIVITY_TITLES[c.activity] ?? `Actividad ${c.activity}`}:</span>{" "}
+                                                &ldquo;{c.text}&rdquo; — {SOFT_SKILL_COMMENT_AUTHOR}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin comentarios registrados todavía.</p>
+                                        )}
+                                        <Link href="/admin/actividad/1" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
+                                          Editar en Habilidades blandas →
+                                        </Link>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex min-w-0 flex-col gap-4">
                                       <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
                                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                                           Entrevista TH
