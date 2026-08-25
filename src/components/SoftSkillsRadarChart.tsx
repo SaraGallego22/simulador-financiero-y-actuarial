@@ -1,9 +1,11 @@
 import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS } from "@/lib/softSkills";
 import type { SoftSkillCompetency } from "@/lib/softSkills";
 
-// RATING_SCORES range: 1 (No se evidencia) .. 4 (Excelente) — see softSkills.ts.
-const RADAR_MAX = 4;
-const RADAR_RINGS = [1, 2, 3, 4];
+// RATING_SCORES range: 1 (Regular) .. 3 (Excelente) — "No se evidencia" is
+// NA and never becomes a number, so it has no ring of its own (see
+// softSkills.ts).
+const RADAR_MAX = 3;
+const RADAR_RINGS = [1, 2, 3];
 
 function polar(cx: number, cy: number, r: number, angle: number) {
   return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
@@ -35,9 +37,9 @@ function wrapLabel(label: string, maxChars = 16): string[] {
 /**
  * One member's habilidades blandas profile across the 8 fixed competencies
  * (see softSkills.ts), averaged over whichever of the 3 activities rated
- * each one so far. A competency not yet rated by any activity plots at the
- * center (0) rather than being omitted — reads as "not yet assessed" on
- * this in-progress snapshot, distinct from a "No se evidencia" (1) rating.
+ * each one so far. A competency with no nota plots at the center (0) rather
+ * than being omitted — that covers both "not rated yet" and "rated only as
+ * No se evidencia", since the latter is NA and never becomes a number.
  */
 export function SoftSkillsRadarChart({ scores, size = 340 }: { scores: Partial<Record<SoftSkillCompetency, number>>; size?: number }) {
   const hasAnyData = Object.keys(scores).length > 0;
@@ -121,7 +123,7 @@ export function SoftSkillsRadarChart({ scores, size = 340 }: { scores: Partial<R
       </div>
 
       {!hasAnyData && (
-        <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin calificaciones de habilidades blandas registradas todavía.</p>
+        <p className="text-xs text-[var(--color-brand-text-secondary)]">Todavía no hay competencias evidenciadas.</p>
       )}
 
       {hasAnyData && (

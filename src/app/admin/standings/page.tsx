@@ -81,7 +81,8 @@ export default async function AdminStandingsPage() {
         </div>
         <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
           Promedio de la Nota general (1-5) que cada integrante recibió en la calificación subjetiva de los Días 2-4. Las columnas de habilidades
-          blandas son el promedio de las 3 actividades (escala 1-4: No se evidencia / Regular / Bueno / Excelente) — ver comentarios de TH en el CSV.
+          blandas son el promedio de las 3 actividades (Regular 1 / Bueno 2 / Excelente 3; «No se evidencia» queda como NA y no entra al promedio) —
+          ver comentarios de TH en el CSV.
         </p>
         <Table>
           <Table.Head>
