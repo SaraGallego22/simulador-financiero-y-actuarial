@@ -35,10 +35,14 @@ interface TeamAggregate {
 
 /**
  * When exactly one team has a complete tariff, there's no "choice" to
- * simulate — a market of one insurer gets the whole universe by definition.
- * runSimulation()/runSimulationYear2() deliberately require >=2 teams (a
- * discrete-choice model needs >=2 alternatives to mean anything), so this
- * monopoly case is handled here instead of relaxing that domain invariant.
+ * simulate — a market of one insurer gets whatever it priced, by
+ * definition. runSimulation()/runSimulationYear2() deliberately require >=2
+ * teams (a discrete-choice model needs >=2 alternatives to mean anything),
+ * so this monopoly case is handled here instead of relaxing that domain
+ * invariant. Still respects per-exposure pricing: an exposure the sole team
+ * never priced (NaN/UNSENT_PREMIUM, see tariffUpload.ts) goes to assignment
+ * -1 (uninsured) exactly like an unpriced exposure would in a multi-team
+ * market — a monopoly doesn't get to "win" business it never quoted either.
  */
 function aggregateMonopoly(
   n: number,
@@ -47,12 +51,20 @@ function aggregateMonopoly(
   sev: Float32Array,
   tariff: Float32Array,
   fallbackPremium: number
-): TeamAggregate {
+): { aggregate: TeamAggregate; assignment: Int32Array } {
+  const assignment = new Int32Array(n);
+  let insuredCount = 0;
   let totalPremium = 0;
   let claimsCount = 0;
   let claimsAmount = 0;
   let sumLambda = 0;
   for (let k = 0; k < n; k++) {
+    if (Number.isNaN(tariff[k])) {
+      assignment[k] = -1;
+      continue;
+    }
+    assignment[k] = 1;
+    insuredCount++;
     const premium = tariff[k] || fallbackPremium;
     totalPremium += premium;
     sumLambda += lam[k];
@@ -61,10 +73,11 @@ function aggregateMonopoly(
       claimsAmount += sev[k];
     }
   }
-  // No capacity constraint applies here — a monopoly gets the whole
-  // universe by definition (see this function's doc comment), so its
-  // capacity limit is trivially "everything it got".
-  return { insuredCount: n, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda, capacityLimit: n, rawCapacityLimit: n };
+  // No capacity constraint applies here — a monopoly's solvency ceiling is
+  // trivially "the whole universe" (see this function's doc comment);
+  // insuredCount can still be under `n` when the sole team left some
+  // exposures unpriced.
+  return { aggregate: { insuredCount, totalPremium, claimsCount, claimsAmount, rejectedCount: 0, sumLambda, capacityLimit: n, rawCapacityLimit: n }, assignment };
 }
 
 export async function POST(request: Request) {
@@ -154,29 +167,35 @@ export async function POST(request: Request) {
     // claim aggregates can be written once at the end, while the assignment
     // is still in memory — see the saveClaimAggregates() call.
     let finalAssignment: Int32Array | null = null;
-    let monopolyTeamId: string | null = null;
 
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
-      monopolyTeamId = t.id;
       const tariff = getTariffArray(t.tariffSubmissions[0], universe);
       const fallbackPremium = t.tariffSubmissions[0].meanPremium!;
-      aggregateByTeamId.set(
-        t.id,
-        aggregateMonopoly(universe.n, monopolyLam, monopolySiniestro, monopolySev, tariff, fallbackPremium)
+      const { aggregate, assignment: monopolyAssignment } = aggregateMonopoly(
+        universe.n,
+        monopolyLam,
+        monopolySiniestro,
+        monopolySev,
+        tariff,
+        fallbackPremium
       );
-      // A monopoly insures the whole universe by definition (see
-      // aggregateMonopoly's doc comment) — reuse the same median helper with
-      // a single-team "everyone assigned to id 1" array instead of a second
-      // implementation.
-      const wholeUniverseAssignment = new Int32Array(universe.n).fill(1);
+      aggregateByTeamId.set(t.id, aggregate);
+      // Reuse the same median helper with the real per-exposure assignment
+      // (numeric id 1, or -1 where the sole team never priced the exposure —
+      // see aggregateMonopoly's doc comment) instead of a second implementation.
       const median = computeMedianWonPremiumByNumericId(
         universe.n,
-        wholeUniverseAssignment,
+        monopolyAssignment,
         new Map([[1, tariff]]),
         new Map([[1, fallbackPremium]])
       ).get(1);
       if (median != null) medianWonPremiumByTeamId.set(t.id, median);
+      finalAssignment = monopolyAssignment;
+      await prisma.simulationRun.update({
+        where: { id: run.id },
+        data: { resultData: new Uint8Array(Buffer.from(monopolyAssignment.buffer)) },
+      });
     } else {
       const numericIdByTeamId = new Map<string, number>();
       const teamInfos: TeamInfo[] = eligibleTeams.map((t, i) => {
@@ -260,13 +279,15 @@ export async function POST(request: Request) {
     // load had to fetch that 4,000,000-byte blob (~12s) and rescan all
     // 1,000,000 exposures just to rebuild these few hundred numbers — see the
     // TeamClaimAggregate model's doc comment.
-    const soleTeamId = monopolyTeamId;
-    const assignment = finalAssignment;
-    const teamIdForIndex: (index: number) => string | null = soleTeamId
-      ? () => soleTeamId
-      : assignment
-        ? (k) => teamIdByNumericId[assignment[k]] ?? null
-        : () => null;
+    // finalAssignment is always set by this point — both branches above
+    // populate it (monopoly's own numeric id 1 is registered in
+    // teamIdByNumericId the same as any multi-team numeric id, see its
+    // construction above) — so a single assignment-based lookup covers both.
+    const assignment = finalAssignment!;
+    const teamIdForIndex = (k: number): string | null => {
+      const numericId = assignment[k];
+      return numericId === -1 ? null : (teamIdByNumericId[numericId] ?? null);
+    };
     await saveClaimAggregates(run.id, "year1", aggregateClaimsByTeamMonth(universe, universe.n, teamIdForIndex));
     if (year2Claims) {
       await saveClaimAggregates(run.id, "year2", aggregateClaimsByTeamMonth(year2Claims, universe.n, teamIdForIndex));

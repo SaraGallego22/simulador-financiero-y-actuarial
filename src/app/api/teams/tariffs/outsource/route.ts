@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCohortForTeamId } from "@/lib/cohort";
 import { getUniverseForSeed } from "@/lib/teamBook";
-import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
+import { hasDaySimResult, medianOfPriced } from "@/lib/tariffAccess";
 import { isDayLocked, DAY_LOCKED_ERROR } from "@/lib/dayLock";
 import { getExposure } from "@/domain/generation/generateColombia";
 import { generateOutsourcedTariff, meanPremium } from "@/domain/pricing/outsourced";
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
   const premiums = generateOutsourcedTariff(universe);
   const mean = meanPremium(premiums);
-  const median = medianOfPositive(premiums);
+  const median = medianOfPriced(premiums);
 
   await prisma.tariffSubmission.upsert({
     where: { teamId_day: { teamId, day } },

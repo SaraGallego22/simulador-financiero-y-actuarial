@@ -36,6 +36,11 @@ function getPremium(tariff: Float32Array | undefined, exposureIndex: number, fal
   return v || fallback;
 }
 
+/** Same eligibility gate as runSimulation.ts's isPriced() — see its doc comment. */
+function isPriced(tariff: Float32Array | undefined, exposureIndex: number): boolean {
+  return !tariff || !Number.isNaN(tariff[exposureIndex]);
+}
+
 /**
  * Year-2 market clearing with retention inertia: same 3-phase discrete-choice
  * structure as runSimulation(), but each exposure gets an extra utility bonus
@@ -81,16 +86,21 @@ export function runSimulationYear2(
   const gumbel2 = () => -Math.log(-Math.log(r2() + 1e-10));
 
   // Phase 1: logit-utility preference assignment, with a retention bonus
-  // toward each exposure's Year-1 team.
-  const prefTeam = new Int32Array(n);
+  // toward each exposure's Year-1 team. A team that didn't reprice this
+  // exposure this year isn't a candidate — the retention bonus only
+  // applies among teams that actually priced it (see isPriced()); the old
+  // Year-1 relationship alone doesn't grandfather a missing Year-2 price in.
+  const prefTeam = new Int32Array(n).fill(-1);
   const prefPremium = new Float64Array(n);
   for (let k = 0; k < n; k++) {
     const currentTeamId = previousAssignment[k];
     let bestU = -Infinity;
-    let bestTeam = teams[0];
+    let bestTeam: TeamInfo | null = null;
     let bestPremium = 0;
     for (const team of teams) {
-      const premium = getPremium(tariffsByTeam.get(team.id), k, team.fallbackPremium);
+      const tariff = tariffsByTeam.get(team.id);
+      if (!isPriced(tariff, k)) continue;
+      const premium = getPremium(tariff, k, team.fallbackPremium);
       let u = -params.beta * Math.log(premium / 1_000_000) + gumbel1() * params.marcaScale;
       if (team.id === currentTeamId) u += params.retentionFactor * gumbel2() * 2.5;
       if (u > bestU) {
@@ -99,8 +109,10 @@ export function runSimulationYear2(
         bestPremium = premium;
       }
     }
-    prefTeam[k] = bestTeam.id;
-    prefPremium[k] = bestPremium;
+    if (bestTeam) {
+      prefTeam[k] = bestTeam.id;
+      prefPremium[k] = bestPremium;
+    }
   }
 
   // Phase 2: ration by market-share cap, keeping each team's highest-premium
@@ -109,7 +121,10 @@ export function runSimulationYear2(
   // that used to matter enough to cause a production OOM.
   const countByTeam = new Map<number, number>();
   for (const team of teams) countByTeam.set(team.id, 0);
-  for (let k = 0; k < n; k++) countByTeam.set(prefTeam[k], (countByTeam.get(prefTeam[k]) ?? 0) + 1);
+  for (let k = 0; k < n; k++) {
+    if (prefTeam[k] === -1) continue; // no team priced this exposure — never enters a team's own bucket
+    countByTeam.set(prefTeam[k], (countByTeam.get(prefTeam[k]) ?? 0) + 1);
+  }
 
   const indicesByTeam = new Map<number, Int32Array>();
   const fillPos = new Map<number, number>();
@@ -119,6 +134,7 @@ export function runSimulationYear2(
   }
   for (let k = 0; k < n; k++) {
     const id = prefTeam[k];
+    if (id === -1) continue;
     const indices = indicesByTeam.get(id)!;
     const pos = fillPos.get(id)!;
     indices[pos] = k;
@@ -151,8 +167,8 @@ export function runSimulationYear2(
   for (let k = 0; k < n; k++) {
     if (assignment[k] !== -1) continue;
 
-    const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0);
-    if (!available.length) continue; // uninsured: no team has capacity left
+    const available = teams.filter((t) => (remainingCapacity.get(t.id) ?? 0) > 0 && isPriced(tariffsByTeam.get(t.id), k));
+    if (!available.length) continue; // uninsured: no team has capacity left, or none priced this exposure
 
     let bestU = -Infinity;
     let bestTeam = available[0];

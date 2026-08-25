@@ -13,25 +13,28 @@ import type { ColombiaUniverse } from "@/domain/generation/generateColombia";
  * (CLAUDE.md §4.1).
  */
 /**
- * Median of the positive-priced entries in a per-policy premium array — same
- * "> 0 counts as covered" inclusion rule the mean premium calc already uses
- * (see tariffs/route.ts's coverage check), so the two numbers describe the
- * same underlying set of rows. Copies into a plain array to sort (Float32Array
- * has no comparator-based sort that runs in-place safely alongside the
- * caller's own reference), O(n log n) on up to 1,000,000 entries — a few
- * hundred ms, negligible next to the multi-second work already happening
- * wherever this is called (last-chunk tariff upload, outsourced tariff
- * generation, or the market simulation's own compute pass).
+ * Median of the *sent* entries in a per-policy premium array — same
+ * "not UNSENT_PREMIUM (NaN) counts as covered" inclusion rule the mean
+ * premium calc already uses (see tariffs/route.ts's coverage check), so the
+ * two numbers describe the same underlying set of rows. An explicit premium
+ * of 0 is a sent value and counts here; only an exposure the team never
+ * priced (still NaN) is excluded — see tariffUpload.ts's doc comment on
+ * UNSENT_PREMIUM. Copies into a plain array to sort (Float32Array has no
+ * comparator-based sort that runs in-place safely alongside the caller's own
+ * reference), O(n log n) on up to 1,000,000 entries — a few hundred ms,
+ * negligible next to the multi-second work already happening wherever this
+ * is called (last-chunk tariff upload, outsourced tariff generation, or the
+ * market simulation's own compute pass).
  */
-export function medianOfPositive(premiums: Float32Array): number {
-  const positive: number[] = [];
+export function medianOfPriced(premiums: Float32Array): number {
+  const priced: number[] = [];
   for (let i = 0; i < premiums.length; i++) {
-    if (premiums[i] > 0) positive.push(premiums[i]);
+    if (!Number.isNaN(premiums[i])) priced.push(premiums[i]);
   }
-  if (positive.length === 0) return 0;
-  positive.sort((a, b) => a - b);
-  const mid = Math.floor(positive.length / 2);
-  return positive.length % 2 === 0 ? (positive[mid - 1] + positive[mid]) / 2 : positive[mid];
+  if (priced.length === 0) return 0;
+  priced.sort((a, b) => a - b);
+  const mid = Math.floor(priced.length / 2);
+  return priced.length % 2 === 0 ? (priced[mid - 1] + priced[mid]) / 2 : priced[mid];
 }
 
 /**
@@ -41,11 +44,15 @@ export function medianOfPositive(premiums: Float32Array): number {
  * memory right after a market-clearing run (see /api/simulation/route.ts),
  * never a separate read: the ~4MB-per-team bytea cost this would otherwise
  * re-incur on every admin page load is exactly what CLAUDE.md §4.1 point 5
- * warns about (see medianOfPositive's own doc comment for the sibling case).
- * A policy priced at 0 in its own team's tariff falls back to that team's
- * `fallbackPremium`, mirroring aggregateMonopoly()'s/runSimulation()'s own
- * substitution — so this reads the same effective price the market/P&L
- * actually used, not a raw possibly-zero CSV entry.
+ * warns about (see medianOfPriced's own doc comment for the sibling case).
+ * A policy explicitly priced at 0 in its own team's tariff falls back to
+ * that team's `fallbackPremium`, mirroring aggregateMonopoly()'s/
+ * runSimulation()'s own substitution — so this reads the same effective
+ * price the market/P&L actually used, not a raw zero-priced CSV entry. An
+ * *unpriced* (NaN/UNSENT_PREMIUM) exposure never appears here at all: by
+ * construction `assignment` can no longer hand a team an exposure it never
+ * priced (see runSimulation.ts's isPriced()), so there's nothing to
+ * substitute for that case.
  */
 export function computeMedianWonPremiumByNumericId(
   n: number,
