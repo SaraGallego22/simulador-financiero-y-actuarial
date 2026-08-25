@@ -100,6 +100,7 @@ export interface BalanceSheet {
   reservasTec: number;
   /** Reserva de Prima No Devengada — same number as this year's PnL.rpndConstituida, a liability alongside reservasTec. */
   rpnd: number;
+  /** capital0 + retenido, minus whatever capitalComprometido that patrimonio itself could absorb — can still be negative, purely from retenido (accumulated losses), reported as-is with no floor. capitalComprometido beyond what patrimonio had is never subtracted further here — see necesidadesPatrimonioODeuda and balance()'s doc comment for why. */
   patrimonio: number;
   /** This year's real year-end Caja Mínima balance from the real ALM (AlmYearBenchInput.cajaFinalAnio) — falls back to the flat FZ.cajaPct×primaEmitida approximation only when there's no real ALM decision to simulate from at all. */
   caja: number;
@@ -107,7 +108,7 @@ export interface BalanceSheet {
   cxp: number;
   /** Real economic fact — this year's real ALM portfolio book value, which already includes Capital Social (funded into the tree at Año 1's start, see AlmYearBenchInput.portfolioBookValue) — never a balancing residual. */
   inversiones: number;
-  /** Equals capitalComprometido directly — a LIABILITY line (added into pasivo by the caller, never into activos), nonzero only once a team's entire real portfolio (Capital Social included) was exhausted via ordinary forced liquidation and LIQ still wasn't enough: genuinely external financing (equity or debt) needed beyond everything the team had. Zero for the vast majority of teams — the common case. See balance()'s doc comment for why this must live on the liability side, not the asset side. */
+  /** Whatever capitalComprometido is left after patrimonio absorbed as much of it as it had available — genuinely external financing (equity or debt) beyond everything the team had. A LIABILITY line (added into pasivo by the caller, never into activos). Zero for the vast majority of teams. See balance()'s doc comment for why this can't just be more negative patrimonio. */
   necesidadesPatrimonioODeuda: number;
   /** Cumulative unpaid income tax through the end of THIS year — every year's own PnL.imp to date (p1.imp for bal1, p1.imp+p2.imp for bal2, ...), not just this year's own, since the real ALM cash flow never models a tax payment in ANY year (see almSimRealYear()'s doc comment in alm.ts): a prior year's tax bill is exactly as unpaid at this year's close as it was at its own. Standard "Impuesto por pagar" liability, the same treatment rpnd/cxp already get. Without this line (or using only this year's own imp instead of the cumulative sum), Activos ran ahead of Pasivo+Patrimonio by whatever prior years' unpaid tax bills were missing — the dominant driver of Año 2's Balance not squaring. */
   impuestoPorPagar: number;
@@ -235,14 +236,47 @@ function pyg(
 }
 
 /**
- * capitalComprometido subtracts directly from patrimonio — it's the real
+ * patrimonio has no floor from retenido (accumulated losses): a team that
+ * lost more than capital0+retenido could cover is, correctly, insolvent on
+ * paper — pure accrual, nothing to reconcile it against, so it's reported
+ * as-is.
+ *
+ * capitalComprometido is different, and DOES need the split below
+ * (absorbidoPorPatrimonio / necesidadesPatrimonioODeuda): it's the real
  * consequence of the real Día 2 ALM having had LIQ *and* its entire
  * remaining real portfolio (Capital Social included — funded into the tree
  * at Año 1's start, see almSimRealYear() in alm.ts) all exhausted by a
  * cash-flow shortfall, and still needing more (see almSimRealYear's step 4).
- * This is a lasting equity hit, not something the year's ordinary P&L
- * (retenido) already captures — the P&L reflects accrual-basis annual
- * profitability, this reflects a within-year cash-timing failure.
+ * Once that happens, almSimRealYear() keeps funding Caja Mínima from that
+ * external draw rather than letting `caja` go negative (impossible — you
+ * can't hold negative cash) — so capitalComprometido is already doing work
+ * on the ASSET side: it's what holds `caja`/`inversiones` at their reported,
+ * non-catastrophic values. Subtracting the FULL capitalComprometido from
+ * patrimonio on top of that would double-count it — once invisibly (propping
+ * up caja) and once explicitly (subtracting from equity) — and `caja` stays
+ * flat no matter how large capitalComprometido gets while patrimonio would
+ * keep falling without limit, so the gap between them grows unboundedly
+ * (measured: up to 21× Activos in some scenarios — see finBench.test.ts).
+ * retenido has no equivalent asset-side floor effect (nothing about a bad
+ * underwriting year props up `caja`), which is exactly why it doesn't need
+ * this same treatment.
+ *
+ * So: capitalComprometido consumes existing patrimonio first
+ * (absorbidoPorPatrimonio — min(capitalComprometido, max(0, patrimonio
+ * before it))), and only the excess beyond what patrimonio had becomes
+ * necesidadesPatrimonioODeuda, a genuinely external-financing LIABILITY line
+ * (added into pasivo by the caller, never into activos) — the cash it
+ * brought in was spent paying claims the same month, so it shows up as a
+ * lower reserve, not as an asset. In practice the absorbed part is usually
+ * zero: reaching capitalComprometido > 0 at all already requires having
+ * exhausted LIQ and the entire portfolio (Capital Social included), and a
+ * team that got there has typically already burned through its patrimonio
+ * via a bad year's retenido first — but if patrimonio (before
+ * capitalComprometido) was still positive, it absorbs what it can, floors at
+ * zero from THIS cause specifically, and only the true excess becomes
+ * necesidadesPatrimonioODeuda. This never double-counts: absorbidoPorPatrimonio
+ * and necesidadesPatrimonioODeuda are `min`/subtracted-remainder of the same
+ * amount, never both the full capitalComprometido.
  *
  * inversiones is a real economic fact when a real ALM exists (Año 1/2), not a
  * plug: it's the real ALM's own year-end portfolio book value, which already
@@ -259,36 +293,15 @@ function pyg(
  * for the case where no ALM ran at all, where nothing independent exists for
  * a plug to override.
  *
- * necesidadesPatrimonioODeuda is whatever capitalComprometido is left after
- * patrimonio has absorbed as much of it as it could without going below zero
- * — committed capital eats equity first, and only the excess is recognized as
- * a liability. It is never both at once: doing both with the full amount
- * (which this used to do) counted it twice, and since patrimonio and this
- * line sit on the SAME side of the identity, the two cancelled and left the
- * sheet short by exactly that amount whenever the portfolio bottomed out at
- * zero and `inversiones` could no longer absorb it on the asset side
- * (measured: gaps of 233B and 1,233B on a team that exhausted its book).
- *
- * In practice the absorbed part is always zero: committing capital requires
- * having exhausted LIQ *and* the entire portfolio, Capital Social included
- * (see almSimRealYear()), and a team that got there has long since burned
- * through its equity — across every measured scenario, patrimonio sat between
- * −485B and −2,120B by the time capitalComprometido was nonzero. So this is
- * the full amount in every reachable case, and the clamp exists because that
- * is the accounting rule, not because it is expected to bind.
- *
- * It sits on the LIABILITY side (added into pasivo by the caller, alongside
- * reservasTec/rpnd/cxp — never into activos): the cash it brought in was
- * spent paying claims the same month, so it shows up as a lower reserve, not
- * as an asset. This is NOT the line that forces the sheet to close — caja/inversiones being real, independently-computed
- * facts (not solved for) means this line alone doesn't guarantee Activos =
- * Pasivo+Patrimonio; as of the cxcHoldback0/cxpHoldback0 adjustment in
- * almSimRealYear() (alm.ts) making the real ALM's own cash mechanics
- * genuinely consistent with cxc/cxp instead of silently assuming zero
- * collection/payment lag, plus impuestoAcumulado below being the cumulative
- * unpaid tax rather than just this year's own, Año 1/2 now close exactly
- * for the same reason Año 3 always has (see README §4.3) — there's no
- * remaining residual left to document as "known and small".
+ * caja/inversiones being real, independently-computed facts (not solved for)
+ * means nothing here guarantees Activos = Pasivo+Patrimonio by construction;
+ * as of the cxcHoldback0/cxpHoldback0 adjustment in almSimRealYear() (alm.ts)
+ * making the real ALM's own cash mechanics genuinely consistent with cxc/cxp
+ * instead of silently assuming zero collection/payment lag, plus
+ * impuestoAcumulado below being the cumulative unpaid tax rather than just
+ * this year's own, Año 1/2 now close exactly for the same reason Año 3 always
+ * has (see README §4.3) — there's no remaining residual left to document as
+ * "known and small".
  */
 function balance(
   pygY: PnL | null,
@@ -302,20 +315,6 @@ function balance(
   if (!pygY) return null;
   const reservasTec = pygY.reservas;
   const rpnd = pygY.rpndConstituida;
-  // Capital comprometido: consume patrimonio hasta dejarlo en cero, y solo
-  // el exceso se reconoce como pasivo (necesidadesPatrimonioODeuda abajo).
-  // Antes se hacía *las dos cosas* con el monto completo — se restaba de
-  // patrimonio Y se sumaba al pasivo —, lo que lo contaba dos veces: como
-  // ambos están del mismo lado de la identidad, se cancelaban entre sí y la
-  // hoja quedaba corta por exactamente ese monto (medido: brechas de 233B y
-  // 1.233B en un equipo que agotó su portafolio; ver finBench.test.ts).
-  //
-  // En la práctica `absorbidoPorPatrimonio` siempre es 0: comprometer
-  // capital exige haber agotado LIQ y el portafolio entero, Capital Social
-  // incluido (ver almSimRealYear()), y para llegar ahí el patrimonio ya se
-  // quemó — en todos los escenarios medidos, cuando capitalComprometido > 0
-  // el patrimonio previo va de −485B a −2.120B. El término existe porque la
-  // regla contable es esa, no porque se espere que se active.
   const patrimonioAntesDeComprometer = capital0 + retenido;
   const absorbidoPorPatrimonio = Math.min(capitalComprometido, Math.max(0, patrimonioAntesDeComprometer));
   const patrimonio = patrimonioAntesDeComprometer - absorbidoPorPatrimonio;

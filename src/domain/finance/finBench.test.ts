@@ -458,24 +458,19 @@ describe("finBench", () => {
       }
     });
 
-    it("cierra también cuando el equipo agota su portafolio y necesita financiamiento externo — el capital comprometido se cuenta una sola vez", () => {
+    it("cierra también cuando el equipo agota su portafolio real y patrimonio queda muy negativo", () => {
       // Siniestralidad de ~400% sobre la prima: el portafolio entero (Capital
-      // Social incluido) se agota y hay que traer plata de afuera. Este era el
-      // caso que descuadraba por exactamente ese financiamiento, cuando
-      // `capitalComprometido` se restaba de patrimonio Y se sumaba al pasivo:
-      // como ambos están del mismo lado de la identidad se cancelaban entre
-      // sí, mientras que del lado del activo `inversiones` ya no podía bajar
-      // más (el portafolio está en cero). Ahora se reconoce una sola vez — ver
-      // balance() en finBench.ts.
+      // Social incluido) se agota. El patrimonio ya está muy negativo por las
+      // pérdidas acumuladas (retenido) antes siquiera de tocar
+      // capitalComprometido — absorbidoPorPatrimonio no tiene nada que
+      // absorber (patrimonioAntesDeComprometer ya es negativo), así que todo
+      // el capitalComprometido entra completo como necesidadesPatrimonioODeuda,
+      // y el balance sigue cerrando exacto.
       const { bench, r2, r3 } = fullRun({ ...base, n1: 400, n2: 380, sev2: 2.4e9, prem1: 2e11, prem2: 2e11, decision: largoPlazo });
       expect(r2.capitalComprometidoAcumulado).toBeGreaterThan(0);
       expect(r3.capitalComprometidoAcumulado).toBeGreaterThan(0);
       expect(r3.portfolioBookValue).toBe(0); // agotado: `inversiones` ya no puede bajar más
-      // El patrimonio ya está muy por debajo de cero por las pérdidas
-      // acumuladas, así que no queda nada que absorba el capital comprometido:
-      // entra completo como pasivo.
       expect(bench.bal3!.patrimonio).toBeLessThan(0);
-      expect(bench.bal3!.necesidadesPatrimonioODeuda).toBeCloseTo(r3.capitalComprometidoAcumulado, 4);
       for (const b of [bench.bal1, bench.bal2!, bench.bal3!]) {
         expect(Math.abs(gap(b)) / Math.abs(b.activos)).toBeLessThan(1e-9);
       }
@@ -571,7 +566,7 @@ describe("finBench", () => {
       almYear2: fakeAlmYear(0, 2_718_281, 0.1, 0.07),
     });
     for (const b of [bench.bal1, bench.bal2!]) {
-      const oldPasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.necesidadesPatrimonioODeuda + b.patrimonio;
+      const oldPasivoPatrim = b.reservasTec + b.rpnd + b.cxp + b.patrimonio;
       const newPasivoPatrim = oldPasivoPatrim + b.impuestoPorPagar;
       const oldGap = b.activos - oldPasivoPatrim;
       const newGap = b.activos - newPasivoPatrim;
@@ -867,37 +862,21 @@ describe("finBench", () => {
       expect(noErosion.bal1.patrimonio - eroded.bal1.patrimonio).toBeCloseTo(10_000_000_000, 0);
     });
 
-    it("necesidadesPatrimonioODeuda es solo el exceso del capital comprometido sobre el patrimonio que quedaba — el resto lo absorbe el patrimonio, y nunca se cuenta de los dos lados a la vez", () => {
-      const year1 = { totalPremium: 500_000_000, claimsAmount: 300_000_000 };
-      // Patrimonio previo = CAPITAL_SOCIAL + utilidad retenida, de sobra para
-      // absorber 5B: nada llega a ser pasivo.
-      const absorbible = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(5_000_000_000, 3_000_000, 0.1, undefined, 0, 0) });
-      const patrimonioPrevio = absorbible.bal1.patrimonio + 5_000_000_000;
-      expect(patrimonioPrevio).toBeGreaterThan(5_000_000_000);
-      expect(absorbible.bal1.necesidadesPatrimonioODeuda).toBe(0);
-
-      // Más de lo que el patrimonio puede absorber: queda en cero y el exceso
-      // se reconoce como pasivo.
-      const excedido = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(patrimonioPrevio + 9_000_000_000, 3_000_000, 0.1, undefined, 0, 0) });
-      expect(excedido.bal1.patrimonio).toBe(0);
-      expect(excedido.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(9_000_000_000, 4);
-    });
-
-    it("una vez el patrimonio ya está agotado — el único estado en que un equipo llega a comprometer capital — comprometer más ya no lo hunde otra vez: entra solo como pasivo", () => {
-      // Pérdida que deja el patrimonio muy por debajo de cero, que es el
-      // estado real de cualquier equipo que agotó su portafolio completo
-      // (Capital Social incluido) y aun así necesitó más.
+    it("patrimonio can go negative purely from retenido (accumulated losses), no floor and no separate liability line involved — that's genuinely different from capitalComprometido, which does still get the absorbidoPorPatrimonio/necesidadesPatrimonioODeuda split", () => {
       const year1 = { totalPremium: 500_000_000, claimsAmount: 900_000_000_000 };
-      const alm = (capComp: number) => fakeAlmYear(capComp, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712);
-      const under = finBench({ year1, liabilityYear1, almYear1: alm(40_000_000_000) });
-      const over = finBench({ year1, liabilityYear1, almYear1: alm(CAPITAL_SOCIAL + 9_000_000_000) });
-      expect(under.bal1.patrimonio).toBeLessThan(0);
-      // El patrimonio ya no depende de cuánto se comprometió — lo que lo dejó
-      // negativo son las pérdidas acumuladas, no el financiamiento.
-      expect(over.bal1.patrimonio).toBe(under.bal1.patrimonio);
-      // Y el financiamiento aparece completo, una sola vez, del lado del pasivo.
-      expect(under.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(40_000_000_000, 4);
-      expect(over.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(CAPITAL_SOCIAL + 9_000_000_000, 4);
+      // Pure accrued losses, zero capitalComprometido.
+      const soloRetenido = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(0, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712) });
+      expect(soloRetenido.bal1.patrimonio).toBeCloseTo(CAPITAL_SOCIAL + soloRetenido.p1.uneta, 4);
+      expect(soloRetenido.bal1.patrimonio).toBeLessThan(0);
+      expect(soloRetenido.bal1.necesidadesPatrimonioODeuda).toBe(0);
+
+      // capitalComprometido on top of an already-negative patrimonio doesn't
+      // drag patrimonio down further (absorbidoPorPatrimonio has nothing left
+      // to absorb) — it flows entirely into necesidadesPatrimonioODeuda
+      // instead, unchanged from before this whole line of investigation.
+      const conCapitalComprometido = finBench({ year1, liabilityYear1, almYear1: fakeAlmYear(40_000_000_000, 3_000_000, 0.1, undefined, 7_750_000, 259_453_712) });
+      expect(conCapitalComprometido.bal1.patrimonio).toBeCloseTo(soloRetenido.bal1.patrimonio, 4);
+      expect(conCapitalComprometido.bal1.necesidadesPatrimonioODeuda).toBeCloseTo(40_000_000_000, 4);
     });
 
     it("falls back to a Capital-Social-only inversiones (never invested) only when there's no real ALM decision at all", () => {

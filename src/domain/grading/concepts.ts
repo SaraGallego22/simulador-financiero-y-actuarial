@@ -653,11 +653,9 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.inversiones,
-    // No formula: inversiones is the real ALM's own portfolio book value
-    // plus Capital Social not committed to cover a cash shortfall (floored
-    // at 0 — see bal1_necesidadesPatrimonioODeuda for what happens beyond
-    // that floor) — a real economic fact, never a plug that balances the
-    // sheet. Same "primary fact" treatment as caja above.
+    // No formula: inversiones is the real ALM's own portfolio book value —
+    // a real economic fact, never a plug that balances the sheet. Same
+    // "primary fact" treatment as caja above.
   },
   {
     id: "bal1_cxc",
@@ -720,11 +718,13 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.necesidadesPatrimonioODeuda,
-    // No formula: only nonzero once a team draws more Capital Social than it
-    // started with — a primary fact the team estimates from its own ALM
-    // reasoning, not a canned linear formula (see
+    // No formula: only nonzero once a team's capitalComprometido exceeds the
+    // patrimonio it had available to absorb it — a primary fact the team
+    // estimates from its own ALM reasoning, not a canned linear formula (see
     // BalanceSheet.necesidadesPatrimonioODeuda's doc comment). Lives on the
-    // liability side (feeds bal1_pasivo below), not activos.
+    // liability side (feeds bal1_pasivo below), not activos. Patrimonio
+    // itself (below) can still be negative on its own from accumulated
+    // losses — this line is only about capitalComprometido specifically.
   },
   {
     id: "bal1_impuestoPorPagar",
