@@ -146,11 +146,13 @@ describe("enforceMinPoliciesFloor (direct)", () => {
     expect(uninsured).toBe(0);
   });
 
-  it("never tops up a deficient team with an exposure it never priced (NaN), even if that leaves it short of the floor", () => {
+  it("never tops up a deficient team with an exposure it left at 0, even if that leaves it short of the floor", () => {
     const assignment = buildAssignment(6000, 6000, 100); // 7900 uninsured, plenty in raw count
     // Team 3 only priced the first 200 of the 7900 uninsured (-1) exposures
-    // — everything else in the donation pool is NaN for team 3 specifically.
-    const team3Tariff = new Float32Array(n).fill(NaN);
+    // — everything else in the donation pool is 0 for team 3 specifically
+    // (a fresh Float32Array already defaults to 0, matching a real
+    // TariffSubmission.data blob — see teams/tariffs/route.ts).
+    const team3Tariff = new Float32Array(n);
     for (let k = 12100; k < 12100 + 200; k++) team3Tariff[k] = 1_000_000;
     const tariffsWithGap = new Map<number, Float32Array>([[3, team3Tariff]]);
 

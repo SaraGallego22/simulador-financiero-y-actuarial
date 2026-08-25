@@ -40,9 +40,10 @@ interface TeamAggregate {
  * teams (a discrete-choice model needs >=2 alternatives to mean anything),
  * so this monopoly case is handled here instead of relaxing that domain
  * invariant. Still respects per-exposure pricing: an exposure the sole team
- * never priced (NaN/UNSENT_PREMIUM, see tariffUpload.ts) goes to assignment
- * -1 (uninsured) exactly like an unpriced exposure would in a multi-team
- * market — a monopoly doesn't get to "win" business it never quoted either.
+ * left at 0 (never priced it, or explicitly priced it at 0 — see
+ * runSimulation.ts's isPriced()) goes to assignment -1 (uninsured) exactly
+ * like an unpriced exposure would in a multi-team market — a monopoly
+ * doesn't get to "win" business it never quoted either.
  */
 function aggregateMonopoly(
   n: number,
@@ -59,7 +60,7 @@ function aggregateMonopoly(
   let claimsAmount = 0;
   let sumLambda = 0;
   for (let k = 0; k < n; k++) {
-    if (Number.isNaN(tariff[k])) {
+    if (!(tariff[k] > 0)) {
       assignment[k] = -1;
       continue;
     }

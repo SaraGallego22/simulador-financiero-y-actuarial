@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { parseCsv } from "@/lib/csv";
 import { tariffCsvSchema } from "@/lib/csvSchemas";
 import { N_COLOMBIA } from "@/domain/generation/constants";
-import { TARIFF_CHUNK_ROWS, MIN_COVERAGE, chunkCount, UNSENT_PREMIUM } from "@/lib/tariffUpload";
+import { TARIFF_CHUNK_ROWS, MIN_COVERAGE, chunkCount } from "@/lib/tariffUpload";
 import { Button } from "@/components/ui/button";
 import { LockIcon } from "@/components/ui/icons";
 
@@ -68,7 +68,7 @@ export function TariffUpload({
       return;
     }
 
-    const premiums = new Float32Array(N_COLOMBIA).fill(UNSENT_PREMIUM);
+    const premiums = new Float32Array(N_COLOMBIA);
     for (const row of rows) {
       const index = row.id_expuesto - 1;
       if (index >= 0 && index < N_COLOMBIA) premiums[index] = row.prima;

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { N_COLOMBIA } from "@/domain/generation/constants";
-import { BYTES_PER_PREMIUM, MIN_COVERAGE, UNSENT_PREMIUM_FLOAT32_LE_HEX, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
+import { BYTES_PER_PREMIUM, MIN_COVERAGE, chunkByteRange, chunkCount } from "@/lib/tariffUpload";
 import { toFloat32View } from "@/lib/binary";
-import { hasDaySimResult, medianOfPriced } from "@/lib/tariffAccess";
+import { hasDaySimResult, medianOfPositive } from "@/lib/tariffAccess";
 import { isDayLocked, DAY_LOCKED_ERROR } from "@/lib/dayLock";
 
 async function requireTeam() {
@@ -77,28 +77,26 @@ export async function POST(request: Request) {
   // full column here cost ~9x the logical upload size in Neon data transfer
   // per submission (read the growing blob back, then write it whole again,
   // 5 times), which is what actually exhausted the free-tier transfer quota.
-  // Falls back to a fresh blob (built server-side from a length, never sent
-  // over the wire) when there's no row yet or a size mismatch — same
-  // defensive reset the old buffer-alloc fallback did, but filled with
-  // UNSENT_PREMIUM's byte pattern (not zero bytes): every index not yet
-  // overlaid by a chunk must read back as "not sent" (excluded from the
-  // market and from coverage), not as an explicit premium of 0 — see
-  // tariffUpload.ts's doc comment on UNSENT_PREMIUM. outsourced is always
-  // reset to false here (even before the last chunk) — a team that
-  // previously hit "Tercerizar tarifas" instead of uploading its own CSV
-  // should stop being treated as outsourced from the first chunk, not just
-  // once the upload completes.
+  // Falls back to a fresh zero-filled blob (built server-side from a length,
+  // never sent over the wire) when there's no row yet or a size mismatch —
+  // same defensive reset the old buffer-alloc fallback did. Zero here reads
+  // as "not priced" everywhere downstream (see MIN_COVERAGE's doc comment in
+  // tariffUpload.ts) exactly like an index a chunk never overlaid should.
+  // outsourced is always reset to false here (even before the last chunk) —
+  // a team that previously hit "Tercerizar tarifas" instead of uploading its
+  // own CSV should stop being treated as outsourced from the first chunk,
+  // not just once the upload completes.
   await prisma.$executeRaw`
     INSERT INTO "TariffSubmission" ("id", "teamId", "day", "data", "outsourced", "submittedAt")
     VALUES (
       gen_random_uuid()::text, ${teamId}, ${day},
-      overlay(decode(repeat(${UNSENT_PREMIUM_FLOAT32_LE_HEX}, ${fullByteLength / BYTES_PER_PREMIUM}), 'hex') placing ${chunkBytes} from ${start + 1} for ${chunkBytes.byteLength}),
+      overlay(decode(repeat('00', ${fullByteLength}), 'hex') placing ${chunkBytes} from ${start + 1} for ${chunkBytes.byteLength}),
       false, now()
     )
     ON CONFLICT ("teamId", "day") DO UPDATE SET
       "data" = overlay(
         CASE WHEN octet_length("TariffSubmission"."data") = ${fullByteLength} THEN "TariffSubmission"."data"
-             ELSE decode(repeat(${UNSENT_PREMIUM_FLOAT32_LE_HEX}, ${fullByteLength / BYTES_PER_PREMIUM}), 'hex') END
+             ELSE decode(repeat('00', ${fullByteLength}), 'hex') END
         placing ${chunkBytes} from ${start + 1} for ${chunkBytes.byteLength}
       ),
       "outsourced" = false
@@ -116,11 +114,7 @@ export async function POST(request: Request) {
   let sum = 0;
   let covered = 0;
   for (let i = 0; i < N_COLOMBIA; i++) {
-    // Not-NaN, not ">0" — a team's explicit premium of 0 counts as sent
-    // (and pulls the average down accordingly), distinct from an exposure
-    // the team never priced at all (still UNSENT_PREMIUM/NaN here). See
-    // tariffUpload.ts's doc comment on UNSENT_PREMIUM.
-    if (!Number.isNaN(view[i])) {
+    if (view[i] > 0) {
       sum += view[i];
       covered++;
     }
@@ -130,13 +124,13 @@ export async function POST(request: Request) {
     // coverage) so the team can see what's missing — just don't mark it
     // complete.
     return NextResponse.json(
-      { error: `Cobertura insuficiente: solo ${((covered / N_COLOMBIA) * 100).toFixed(1)}% de las pólizas tienen una prima enviada (se requiere ${MIN_COVERAGE * 100}%).` },
+      { error: `Cobertura insuficiente: solo ${((covered / N_COLOMBIA) * 100).toFixed(1)}% de las pólizas tienen prima > 0 (se requiere ${MIN_COVERAGE * 100}%).` },
       { status: 422 }
     );
   }
 
   const meanPremium = sum / covered;
-  const medianPremium = medianOfPriced(view);
+  const medianPremium = medianOfPositive(view);
   await prisma.tariffSubmission.update({ where: { teamId_day: { teamId, day } }, data: { meanPremium, medianPremium } });
 
   return NextResponse.json({ chunkIndex, complete: true, meanPremium });
