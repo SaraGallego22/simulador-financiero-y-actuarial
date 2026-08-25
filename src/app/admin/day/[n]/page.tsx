@@ -1085,128 +1085,135 @@ export default async function AdminDayPage({
                             const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
                             const softSkillMemberComments = softSkillCommentsByMemberId.get(member.id) ?? [];
                             return (
-                              <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-6">
-                                <div className="flex flex-col gap-6 lg:flex-row">
-                                  <div className="flex shrink-0 flex-col items-center gap-3 lg:w-48">
-                                    <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={128} />
-                                    <p className="text-center text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
-                                    <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
-                                    <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
+                              <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-5">
+                                {/* Identity + per-member actions as one header strip. As a
+                                    fixed-width side rail (lg:w-48) this same content was
+                                    ~250px tall beside a ~650px row — it left the rest of
+                                    that column blank and took width away from the radar
+                                    and the comment boxes, which is where it's useful. */}
+                                <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--color-brand-gray-light)] pb-3">
+                                  <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={72} />
+                                  <p className="min-w-0 flex-1 text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                                  <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
+                                  <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
+                                </div>
+
+                                {/* Columns stretch to the tallest one (the radar's), and
+                                    each one's comment box grows into the leftover height
+                                    (flex-1 + an inner scroll area) — so all three end
+                                    flush instead of trailing off at different heights. */}
+                                <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                                  <div className="flex min-w-0 flex-col gap-4">
+                                    <div>
+                                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                        Habilidades blandas
+                                      </p>
+                                      <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={400} />
+                                    </div>
+
+                                    <div className="flex min-h-0 flex-1 flex-col rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
+                                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                        Comentarios de habilidades blandas
+                                      </p>
+                                      {softSkillMemberComments.length > 0 ? (
+                                        <div className="flex min-h-24 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+                                          {softSkillMemberComments.map((c) => (
+                                            <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
+                                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                                {ACTIVITY_TITLES[c.activity] ?? `Actividad ${c.activity}`}
+                                              </p>
+                                              <p className="mt-0.5 break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="flex-1 text-xs text-[var(--color-brand-text-secondary)]">Sin comentarios registrados todavía.</p>
+                                      )}
+                                      <Link href="/admin/actividad/1" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
+                                        Editar en Habilidades blandas →
+                                      </Link>
+                                    </div>
                                   </div>
 
-                                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-                                    <div className="flex min-w-0 flex-col gap-4">
-                                      <div>
-                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                          Habilidades blandas
-                                        </p>
-                                        <SoftSkillsRadarChart scores={softSkillsByMemberId.get(member.id) ?? {}} size={440} />
-                                      </div>
-
-                                      <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
-                                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                          Comentarios de habilidades blandas
-                                        </p>
-                                        {softSkillMemberComments.length > 0 ? (
-                                          <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto pr-1">
-                                            {softSkillMemberComments.map((c) => (
-                                              <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
-                                                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                                  {ACTIVITY_TITLES[c.activity] ?? `Actividad ${c.activity}`}
-                                                </p>
-                                                <p className="mt-0.5 break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin comentarios registrados todavía.</p>
-                                        )}
-                                        <Link href="/admin/actividad/1" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
-                                          Editar en Habilidades blandas →
-                                        </Link>
-                                      </div>
+                                  <div className="flex min-w-0 flex-col gap-4">
+                                    <div className="flex min-h-0 flex-1 flex-col rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
+                                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                        Entrevista TH
+                                      </p>
+                                      {hasInterview ? (
+                                        <>
+                                          <p className="text-xs text-[var(--color-foreground)]">
+                                            {INTERVIEW_SKILLS.map((skill) => {
+                                              const rating = interviewRatings?.[skill];
+                                              return `${INTERVIEW_SKILL_LABELS[skill]}: ${rating ? `${rating}/5` : "Sin definir"}`;
+                                            }).join(" · ")}
+                                          </p>
+                                          {interviewMemberComments.length > 0 && (
+                                            <div className="mt-1.5 flex min-h-24 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+                                              {interviewMemberComments.map((c) => (
+                                                <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
+                                                  <p className="break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <p className="flex-1 text-xs text-[var(--color-brand-text-secondary)]">Sin entrevista registrada todavía.</p>
+                                      )}
+                                      <Link href="/admin/entrevista" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
+                                        Editar en Entrevista individual →
+                                      </Link>
                                     </div>
 
-                                    <div className="flex min-w-0 flex-col gap-4">
-                                      <div className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)] p-4">
-                                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                          Entrevista TH
-                                        </p>
-                                        {hasInterview ? (
-                                          <>
-                                            <p className="text-xs text-[var(--color-foreground)]">
-                                              {INTERVIEW_SKILLS.map((skill) => {
-                                                const rating = interviewRatings?.[skill];
-                                                return `${INTERVIEW_SKILL_LABELS[skill]}: ${rating ? `${rating}/5` : "Sin definir"}`;
-                                              }).join(" · ")}
-                                            </p>
-                                            {interviewMemberComments.length > 0 && (
-                                              <div className="mt-1.5 flex max-h-40 flex-col gap-1.5 overflow-y-auto pr-1">
-                                                {interviewMemberComments.map((c) => (
-                                                  <div key={c.id} className="rounded bg-[var(--color-brand-blue-light)] px-2 py-1.5">
-                                                    <p className="break-words text-xs text-[var(--color-foreground)]">&ldquo;{c.text}&rdquo;</p>
-                                                  </div>
+                                    {hasHistorial && (
+                                      <details className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
+                                        <summary className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                                          Historial (Días anteriores)
+                                        </summary>
+                                        <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-4">
+                                          {priorDays.map((d) => {
+                                            const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
+                                            const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
+                                            if (!priorEv && priorComments.length === 0) return null;
+                                            return (
+                                              <div key={d} className="text-sm">
+                                                <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
+                                                <p className="text-xs text-[var(--color-foreground)]">
+                                                  Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
+                                                  {priorEv?.perfil ?? "—"}
+                                                </p>
+                                                {priorComments.map((c) => (
+                                                  <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
+                                                    &ldquo;{c.text}&rdquo; — {c.author}
+                                                  </p>
                                                 ))}
                                               </div>
-                                            )}
-                                          </>
-                                        ) : (
-                                          <p className="text-xs text-[var(--color-brand-text-secondary)]">Sin entrevista registrada todavía.</p>
-                                        )}
-                                        <Link href="/admin/entrevista" className="mt-1.5 inline-block text-xs text-[var(--color-brand-blue-accent)] underline">
-                                          Editar en Entrevista individual →
-                                        </Link>
-                                      </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </details>
+                                    )}
+                                  </div>
 
-                                      {hasHistorial && (
-                                        <details className="rounded-[var(--radius-sm)] border border-[var(--color-brand-gray-light)]">
-                                          <summary className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                                            Historial (Días anteriores)
-                                          </summary>
-                                          <div className="flex flex-col gap-2 border-t border-[var(--color-brand-gray-light)] p-4">
-                                            {priorDays.map((d) => {
-                                              const priorEv = historicalEvaluationsByMemberDay.get(`${member.id}:${d}`);
-                                              const priorComments = historicalCommentsByMemberDay.get(`${member.id}:${d}`) ?? [];
-                                              if (!priorEv && priorComments.length === 0) return null;
-                                              return (
-                                                <div key={d} className="text-sm">
-                                                  <p className="font-semibold text-[var(--color-brand-text-secondary)]">Día {d}</p>
-                                                  <p className="text-xs text-[var(--color-foreground)]">
-                                                    Nota: {priorEv?.notaGeneral ?? "—"} · Aprobó: {priorEv?.aprobado == null ? "—" : priorEv.aprobado ? "Sí" : "No"} · Perfil:{" "}
-                                                    {priorEv?.perfil ?? "—"}
-                                                  </p>
-                                                  {priorComments.map((c) => (
-                                                    <p key={c.id} className="text-xs text-[var(--color-brand-text-secondary)]">
-                                                      &ldquo;{c.text}&rdquo; — {c.author}
-                                                    </p>
-                                                  ))}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </details>
-                                      )}
-                                    </div>
-
-                                    <div className="flex min-w-0 flex-col gap-4">
-                                      <MemberEvaluationForm
-                                        // Keyed by the saved values so a successful save
-                                        // remounts the (uncontrolled) form instead of
-                                        // leaving its <select>s at whatever the native
-                                        // post-action form reset left them at — without
-                                        // this they visually snap to "Sin definir" even
-                                        // though the save succeeded.
-                                        key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
-                                        id={member.id}
-                                        day={day}
-                                        initial={{
-                                          notaGeneral: ev?.notaGeneral ?? null,
-                                          aprobado: ev?.aprobado ?? null,
-                                          perfil: ev?.perfil ?? null,
-                                        }}
-                                      />
-                                      <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
-                                    </div>
+                                  <div className="flex min-w-0 flex-col gap-4">
+                                    <MemberEvaluationForm
+                                      // Keyed by the saved values so a successful save
+                                      // remounts the (uncontrolled) form instead of
+                                      // leaving its <select>s at whatever the native
+                                      // post-action form reset left them at — without
+                                      // this they visually snap to "Sin definir" even
+                                      // though the save succeeded.
+                                      key={`${member.id}:${ev?.notaGeneral ?? ""}:${ev?.aprobado ?? ""}:${ev?.perfil ?? ""}`}
+                                      id={member.id}
+                                      day={day}
+                                      initial={{
+                                        notaGeneral: ev?.notaGeneral ?? null,
+                                        aprobado: ev?.aprobado ?? null,
+                                        perfil: ev?.perfil ?? null,
+                                      }}
+                                    />
+                                    <MemberComments teamMemberId={member.id} day={day} comments={commentsByMemberId.get(member.id) ?? []} />
                                   </div>
                                 </div>
                               </div>
