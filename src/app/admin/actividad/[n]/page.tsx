@@ -37,7 +37,7 @@ export default async function AdminActivityPage({
         // the selected team's headshots are rendered, so they're fetched
         // separately below instead of for all ~12 teams on every load (same
         // reason as admin/day/[n]).
-        members: { select: { id: true, name: true } },
+        members: { select: { id: true, name: true, carrera: true, universidad: true, semestre: true } },
       },
       orderBy: { createdAt: "asc" },
     }),
@@ -123,11 +123,19 @@ export default async function AdminActivityPage({
                 <div className="flex flex-col gap-6">
                   {selectedTeam.members.map((member) => {
                     const ratings = ratingsByMemberId.get(member.id) ?? {};
+                    // Same line as the entrevista view — any of the three roster
+                    // columns can be missing.
+                    const academic = [member.carrera, member.universidad, member.semestre && `Prácticas en ${member.semestre}`]
+                      .filter(Boolean)
+                      .join(" · ");
                     return (
                       <div key={member.id} className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] p-5 sm:flex-row">
                         <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
                           <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={120} />
-                          <p className="text-center text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                          <div className="text-center">
+                            <p className="text-sm font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                            {academic && <p className="text-xs text-[var(--color-brand-text-secondary)]">{academic}</p>}
+                          </div>
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-3">
                           <SoftSkillEvaluationForm
