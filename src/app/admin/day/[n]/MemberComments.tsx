@@ -19,9 +19,12 @@ export function MemberComments({ teamMemberId, day, comments }: { teamMemberId: 
   const addAction = addMemberCommentAction.bind(null, teamMemberId, day);
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3">
+    // flex-1 so this box absorbs whatever height its column has left over
+    // (the radar column sets the row height), with the list scrolling inside
+    // it and the "Nuevo comentario" form staying pinned below.
+    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3">
       {comments.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex min-h-24 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
           {comments.map((c) => (
             <EditableComment
               key={c.id}
