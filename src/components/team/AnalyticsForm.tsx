@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { submitAnalyticsAction, type SubmitAnalyticsState } from "@/lib/teamActions";
 import { SECTOR_DIMENSIONS } from "@/domain/grading/sectors";
 import { Button } from "@/components/ui/button";
+import { LockIcon } from "@/components/ui/icons";
 
 interface SlotValue {
   dimA: string;
@@ -28,11 +29,13 @@ function SectorSlotFields({
   rank,
   value,
   onChange,
+  disabled = false,
 }: {
   list: string;
   rank: number;
   value: SlotValue;
   onChange: (v: SlotValue) => void;
+  disabled?: boolean;
 }) {
   const prefix = `${list}-${rank}`;
   const selectClass = "rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50";
@@ -44,6 +47,7 @@ function SectorSlotFields({
           name={`${prefix}-dimA`}
           value={value.dimA}
           onChange={(e) => onChange({ ...value, dimA: e.target.value, valA: "" })}
+          disabled={disabled}
           className={selectClass}
         >
           <option value="">Dimensión A</option>
@@ -57,7 +61,7 @@ function SectorSlotFields({
           name={`${prefix}-valA`}
           value={value.valA}
           onChange={(e) => onChange({ ...value, valA: e.target.value })}
-          disabled={!value.dimA}
+          disabled={disabled || !value.dimA}
           className={selectClass}
         >
           <option value="">Valor</option>
@@ -71,6 +75,7 @@ function SectorSlotFields({
           name={`${prefix}-dimB`}
           value={value.dimB}
           onChange={(e) => onChange({ ...value, dimB: e.target.value, valB: "" })}
+          disabled={disabled}
           className={selectClass}
         >
           <option value="">Dimensión B</option>
@@ -84,7 +89,7 @@ function SectorSlotFields({
           name={`${prefix}-valB`}
           value={value.valB}
           onChange={(e) => onChange({ ...value, valB: e.target.value })}
-          disabled={!value.dimB}
+          disabled={disabled || !value.dimB}
           className={selectClass}
         >
           <option value="">Valor</option>
@@ -105,7 +110,8 @@ function SectorSlotFields({
           value={value.multiplier}
           onChange={(e) => onChange({ ...value, multiplier: e.target.value })}
           placeholder="ej. 1.3456"
-          className="w-24 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+          disabled={disabled}
+          className="w-24 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50"
         />
         <span className="text-[11px] text-[var(--color-brand-text-secondary)]">Usa hasta 4 decimales.</span>
       </label>
@@ -113,7 +119,16 @@ function SectorSlotFields({
   );
 }
 
-export function AnalyticsForm({ day, initialPicks }: { day: number; initialPicks: Record<string, SlotValue> }) {
+export function AnalyticsForm({
+  day,
+  initialPicks,
+  locked = false,
+}: {
+  day: number;
+  initialPicks: Record<string, SlotValue>;
+  /** True once a later day is open — this recommendation can no longer be resubmitted. */
+  locked?: boolean;
+}) {
   const [state, formAction, pending] = useActionState<SubmitAnalyticsState, FormData>(submitAnalyticsAction.bind(null, day), {});
   const [values, setValues] = useState<Record<string, SlotValue>>(() => {
     const v: Record<string, SlotValue> = {};
@@ -134,6 +149,13 @@ export function AnalyticsForm({ day, initialPicks }: { day: number; initialPicks
         esa posición. Se califica contra el ranking real de sectores del mercado completo, que no ves directamente — tu propia cartera y el CSV público
         del universo son tu única evidencia.
       </p>
+
+      {locked && (
+        <p className="mb-4 flex items-center gap-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Día bloqueado — el evaluador habilitó un día posterior, ya no puedes cambiar esta recomendación.
+        </p>
+      )}
+
       <div className="flex flex-col gap-5">
         {LISTS.map(({ key: list, label }) => (
           <div key={list}>
@@ -146,6 +168,7 @@ export function AnalyticsForm({ day, initialPicks }: { day: number; initialPicks
                   rank={rank}
                   value={values[`${list}-${rank}`]}
                   onChange={(v) => setValues((prev) => ({ ...prev, [`${list}-${rank}`]: v }))}
+                  disabled={locked}
                 />
               ))}
             </div>
@@ -154,9 +177,11 @@ export function AnalyticsForm({ day, initialPicks }: { day: number; initialPicks
       </div>
       {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
       {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Recomendación guardada.</p>}
-      <Button type="submit" disabled={pending} className="mt-4">
-        {pending ? "Guardando…" : "Guardar recomendación"}
-      </Button>
+      {!locked && (
+        <Button type="submit" disabled={pending} className="mt-4">
+          {pending ? "Guardando…" : "Guardar recomendación"}
+        </Button>
+      )}
     </form>
   );
 }

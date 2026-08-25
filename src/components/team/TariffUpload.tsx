@@ -7,6 +7,7 @@ import { tariffCsvSchema } from "@/lib/csvSchemas";
 import { N_COLOMBIA } from "@/domain/generation/constants";
 import { TARIFF_CHUNK_ROWS, MIN_COVERAGE, chunkCount } from "@/lib/tariffUpload";
 import { Button } from "@/components/ui/button";
+import { LockIcon } from "@/components/ui/icons";
 
 type Status =
   | { phase: "idle" }
@@ -28,6 +29,7 @@ export function TariffUpload({
   initialMeanPremium,
   initialOutsourced,
   resultsRevealed,
+  locked = false,
 }: {
   day: number;
   initialComplete: boolean;
@@ -35,6 +37,8 @@ export function TariffUpload({
   initialMeanPremium: number | null;
   initialOutsourced: boolean;
   resultsRevealed: boolean;
+  /** True once a later day is open — this day's tariff can no longer be replaced or outsourced. */
+  locked?: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>(() => {
@@ -132,26 +136,35 @@ export function TariffUpload({
         {N_COLOMBIA.toLocaleString("es-CO")} pólizas del universo.
       </p>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFile(file);
-          e.target.value = "";
-        }}
-        disabled={busy}
-        className="hidden"
-      />
-      <div className="mb-3 flex items-center gap-3">
-        <Button type="button" variant="secondary" size="default" onClick={() => inputRef.current?.click()} disabled={busy}>
-          Elegir archivo CSV
-        </Button>
-        <span className="truncate text-sm text-[var(--color-brand-text-secondary)]">
-          {fileName ?? "Ningún archivo seleccionado"}
-        </span>
-      </div>
+      {locked && (
+        <p className="mb-3 flex items-center gap-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Día bloqueado — el evaluador habilitó un día posterior, ya no puedes cambiar esta tarifa.
+        </p>
+      )}
+      {!locked && (
+        <>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = "";
+            }}
+            disabled={busy}
+            className="hidden"
+          />
+          <div className="mb-3 flex items-center gap-3">
+            <Button type="button" variant="secondary" size="default" onClick={() => inputRef.current?.click()} disabled={busy}>
+              Elegir archivo CSV
+            </Button>
+            <span className="truncate text-sm text-[var(--color-brand-text-secondary)]">
+              {fileName ?? "Ningún archivo seleccionado"}
+            </span>
+          </div>
+        </>
+      )}
 
       {status.phase === "parsing" && <p className="text-sm text-[var(--color-brand-text-secondary)]">Leyendo y validando el CSV…</p>}
       {status.phase === "uploading" && (
@@ -173,8 +186,8 @@ export function TariffUpload({
           {status.revealed && status.meanPremium != null ? (
             <>
               <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
-                Prima promedio asignada: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}. Puedes reemplazarla en cualquier
-                momento subiendo tu propio CSV arriba.
+                Prima promedio asignada: ${status.meanPremium.toLocaleString("es-CO", { maximumFractionDigits: 0 })}.
+                {!locked && " Puedes reemplazarla en cualquier momento subiendo tu propio CSV arriba."}
               </p>
               <a
                 href={`/api/teams/tariffs/outsource?day=${day}`}
@@ -185,14 +198,14 @@ export function TariffUpload({
             </>
           ) : (
             <p className="mt-1 text-sm text-[var(--color-brand-text-secondary)]">
-              El detalle de esta tarifa (prima promedio y descarga) estará disponible cuando el mercado de este día cierre. Puedes reemplazarla en
-              cualquier momento subiendo tu propio CSV arriba.
+              El detalle de esta tarifa (prima promedio y descarga) estará disponible cuando el mercado de este día cierre.
+              {!locked && " Puedes reemplazarla en cualquier momento subiendo tu propio CSV arriba."}
             </p>
           )}
         </div>
       )}
 
-      {!complete && (
+      {!complete && !locked && (
         <div className="mt-4 border-t border-[var(--color-brand-gray-light)] pt-3">
           {outsourceStatus.phase === "idle" && (
             <Button type="button" variant="secondary" size="sm" onClick={() => setOutsourceStatus({ phase: "confirming" })} disabled={busy}>

@@ -5,6 +5,7 @@ import { submitMinVarianceAction, type SubmitMinVarianceState } from "@/lib/team
 import { INSTRUMENTS } from "@/domain/finance/instruments";
 import { TARGET_RETURN } from "@/domain/finance/markowitz";
 import { Button } from "@/components/ui/button";
+import { LockIcon } from "@/components/ui/icons";
 
 function emptyWeights(): Record<string, number> {
   const w: Record<string, number> = {};
@@ -12,7 +13,14 @@ function emptyWeights(): Record<string, number> {
   return w;
 }
 
-export function MinVarianceForm({ initialWeights }: { initialWeights: Record<string, number> | null }) {
+export function MinVarianceForm({
+  initialWeights,
+  locked = false,
+}: {
+  initialWeights: Record<string, number> | null;
+  /** True once a later day is open — this exercise can no longer be resubmitted. */
+  locked?: boolean;
+}) {
   const [state, formAction, pending] = useActionState<SubmitMinVarianceState, FormData>(submitMinVarianceAction, {});
   const [weights, setWeights] = useState<Record<string, number>>(() => initialWeights ?? emptyWeights());
 
@@ -39,6 +47,12 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
         real, que se somete en Día 2 junto con tus cifras reales de prima y siniestros.
       </p>
 
+      {locked && (
+        <p className="mb-3 flex items-center gap-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Día bloqueado — el evaluador habilitó un día posterior, ya no puedes cambiar este portafolio.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {INSTRUMENTS.map((ins) => (
           <label key={ins.id} className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
@@ -50,7 +64,8 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
               name={`w-${ins.id}`}
               value={weights[ins.id] || ""}
               onChange={(e) => setWeights((w) => ({ ...w, [ins.id]: Number(e.target.value) }))}
-              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+              disabled={locked}
+              className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50"
             />
           </label>
         ))}
@@ -65,9 +80,11 @@ export function MinVarianceForm({ initialWeights }: { initialWeights: Record<str
         </p>
       </div>
 
-      <Button type="submit" variant="primary" loading={pending} loadingText="Guardando…" className="mt-4">
-        Guardar portafolio de mínima varianza
-      </Button>
+      {!locked && (
+        <Button type="submit" variant="primary" loading={pending} loadingText="Guardando…" className="mt-4">
+          Guardar portafolio de mínima varianza
+        </Button>
+      )}
 
       {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
       {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Portafolio guardado.</p>}

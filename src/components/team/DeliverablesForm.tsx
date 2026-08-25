@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { submitDeliverablesAction, type SubmitDeliverablesState } from "@/lib/teamActions";
 import { GROUP_LABELS } from "@/domain/grading/concepts";
 import type { ConceptGroup } from "@/domain/grading/concepts";
+import { LockIcon } from "@/components/ui/icons";
 
 /**
  * Deliberately not the full `Concepto` type — that includes a `get`
@@ -25,7 +26,7 @@ function isEmphasized(id: string): boolean {
   return EMPHASIZED_ID_SUFFIXES.some((suffix) => id.endsWith(suffix));
 }
 
-function StatementRow({ c, initialValue, pending }: { c: ConceptoSummary; initialValue: number | undefined; pending: boolean }) {
+function StatementRow({ c, initialValue, disabled }: { c: ConceptoSummary; initialValue: number | undefined; disabled: boolean }) {
   const emphasized = isEmphasized(c.id);
   return (
     <label
@@ -37,8 +38,8 @@ function StatementRow({ c, initialValue, pending }: { c: ConceptoSummary; initia
         step="any"
         name={c.id}
         defaultValue={initialValue ?? ""}
-        disabled={pending}
-        className="w-40 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-right text-sm"
+        disabled={disabled}
+        className="w-40 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-right text-sm disabled:opacity-50"
       />
     </label>
   );
@@ -48,10 +49,13 @@ export function DeliverablesForm({
   day,
   concepts,
   initialValues,
+  locked = false,
 }: {
   day: number;
   concepts: ConceptoSummary[];
   initialValues: Record<string, number>;
+  /** True once a later day is open — this day's report can no longer be resubmitted. */
+  locked?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<SubmitDeliverablesState, FormData>(
     submitDeliverablesAction.bind(null, day),
@@ -59,6 +63,7 @@ export function DeliverablesForm({
   );
 
   if (concepts.length === 0) return null;
+  const disabled = pending || locked;
 
   const grouped = new Map<ConceptGroup, ConceptoSummary[]>();
   const ungrouped: ConceptoSummary[] = [];
@@ -81,6 +86,12 @@ export function DeliverablesForm({
         motor con una banda de tolerancia — no tienen que ser exactos, pero sí razonablemente cercanos.
       </p>
 
+      {locked && (
+        <p className="mb-4 flex items-center gap-2 rounded border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+          <LockIcon className="h-4 w-4 shrink-0" /> Día bloqueado — el evaluador habilitó un día posterior, ya no puedes cambiar este reporte.
+        </p>
+      )}
+
       <div className="flex flex-col gap-5">
         {[...grouped.entries()].map(([group, groupConcepts]) => (
           <div key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
@@ -89,7 +100,7 @@ export function DeliverablesForm({
             </p>
             <div>
               {groupConcepts.map((c) => (
-                <StatementRow key={c.id} c={c} initialValue={initialValues[c.id]} pending={pending} />
+                <StatementRow key={c.id} c={c} initialValue={initialValues[c.id]} disabled={disabled} />
               ))}
             </div>
           </div>
@@ -105,8 +116,8 @@ export function DeliverablesForm({
                   step="any"
                   name={c.id}
                   defaultValue={initialValues[c.id] ?? ""}
-                  disabled={pending}
-                  className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+                  disabled={disabled}
+                  className="rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-50"
                 />
               </label>
             ))}
@@ -116,13 +127,15 @@ export function DeliverablesForm({
 
       {state.error && <p className="mt-3 text-sm text-[var(--color-brand-red)]">{state.error}</p>}
       {state.success && <p className="mt-3 text-sm text-[var(--color-brand-green)]">Reporte guardado.</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="mt-4 rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
-      >
-        {pending ? "Guardando…" : "Guardar reporte"}
-      </button>
+      {!locked && (
+        <button
+          type="submit"
+          disabled={pending}
+          className="mt-4 rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+        >
+          {pending ? "Guardando…" : "Guardar reporte"}
+        </button>
+      )}
     </form>
   );
 }
