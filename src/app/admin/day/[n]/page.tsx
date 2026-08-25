@@ -1084,6 +1084,11 @@ export default async function AdminDayPage({
                             const interviewMemberComments = interviewCommentsByMemberId.get(member.id) ?? [];
                             const hasInterview = (interviewRatings && Object.keys(interviewRatings).length > 0) || interviewMemberComments.length > 0;
                             const softSkillMemberComments = softSkillCommentsByMemberId.get(member.id) ?? [];
+                            // Same shape as the entrevista view's line, from the roster CSV's
+                            // optional columns — any of the three can be missing.
+                            const academic = [member.carrera, member.universidad, member.semestre && `Prácticas en ${member.semestre}`]
+                              .filter(Boolean)
+                              .join(" · ");
                             return (
                               <div key={member.id} className="rounded-lg border border-[var(--color-brand-gray-light)] p-5">
                                 {/* Identity + per-member actions as one header strip. As a
@@ -1093,7 +1098,10 @@ export default async function AdminDayPage({
                                     and the comment boxes, which is where it's useful. */}
                                 <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--color-brand-gray-light)] pb-3">
                                   <MemberPhoto dataUri={photoByMemberId.get(member.id) ?? null} name={member.name} size={72} />
-                                  <p className="min-w-0 flex-1 text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-base font-semibold text-[var(--color-foreground)]">{member.name}</p>
+                                    {academic && <p className="text-xs text-[var(--color-brand-text-secondary)]">{academic}</p>}
+                                  </div>
                                   <AptitudesRiesgosToggle teamMemberId={member.id} day={day} active={ev?.aptitudesRiesgos ?? false} />
                                   <DeleteMemberButton teamMemberId={member.id} memberName={member.name} day={day} />
                                 </div>
