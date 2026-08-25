@@ -50,7 +50,7 @@ function AllocationStepGrid({
             <input
               type="number"
               min="0"
-              step="1"
+              step="0.001"
               value={rows[ins.id] || ""}
               onChange={(e) => onChange(ins.id, Number(e.target.value))}
               disabled={disabled}
@@ -59,8 +59,8 @@ function AllocationStepGrid({
           </label>
         ))}
       </div>
-      <p className={`mt-1 text-xs ${Math.round(total) === 100 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
-        Total: {total.toFixed(0)}% {Math.round(total) !== 100 && "(se normaliza automáticamente a 100%)"}
+      <p className={`mt-1 text-xs ${Math.abs(total - 100) < 0.001 ? "text-[var(--color-brand-green)]" : "text-[var(--color-brand-text-secondary)]"}`}>
+        Total: {total.toFixed(3)}% {Math.abs(total - 100) >= 0.001 && "(se normaliza automáticamente a 100%)"}
       </p>
     </div>
   );
