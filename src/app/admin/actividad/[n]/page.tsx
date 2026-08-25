@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { prisma } from "@/lib/prisma";
-import { ACTIVITY_TITLES, isValidSoftSkillActivity } from "@/lib/softSkills";
+import { ACTIVITY_TITLES, isValidSoftSkillActivity, SOFT_SKILL_COMPETENCIES } from "@/lib/softSkills";
 import type { SoftSkillCompetency, SoftSkillRating } from "@/lib/softSkills";
 import { memberPhotoDataUri } from "@/lib/memberPhoto";
 import { MemberPhoto } from "@/components/MemberPhoto";
@@ -132,7 +132,14 @@ export default async function AdminActivityPage({
                         <div className="flex min-w-0 flex-1 flex-col gap-3">
                           <SoftSkillEvaluationForm
                             // Same remount trick as MemberEvaluationForm — see its doc comment.
-                            key={`${member.id}:${Object.values(ratings).join(",")}`}
+                            // Built from SOFT_SKILL_COMPETENCIES (a fixed order), not
+                            // Object.values(ratings): the evaluations query below has no
+                            // orderBy, so Postgres can return a member's own rows in a
+                            // different order between requests even with no writes at all —
+                            // that flipped this key for members who weren't being saved,
+                            // remounting their form and wiping their in-progress (unsaved)
+                            // selections back to whatever was last persisted.
+                            key={`${member.id}:${SOFT_SKILL_COMPETENCIES.map((c) => ratings[c] ?? "").join(",")}`}
                             id={member.id}
                             activity={activity}
                             initial={ratings}
