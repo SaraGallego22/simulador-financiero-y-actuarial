@@ -53,13 +53,23 @@ function ObjectiveResultsCard({
   medianTariff,
 }: {
   yearLabel: string;
-  result: { insuredCount: number; claimsCount: number; rejectedCount: number; extra: unknown } | null;
+  result: { insuredCount: number; rejectedCount: number; extra: unknown } | null;
   /** Day whose CSV report to link. */
   reportDay: number;
   /** This team's own median submitted tariff for `reportDay` (TariffSubmission.medianPremium). */
   medianTariff?: number | null;
 }) {
-  const medianWonPremium = (result?.extra as { medianWonPremium?: number | null } | null)?.medianWonPremium ?? null;
+  const extra = result?.extra as {
+    medianWonPremium?: number | null;
+    tariffRiskCorr?: number | null;
+    capacityLimit?: number;
+    rawCapacityLimit?: number;
+  } | null;
+  const medianWonPremium = extra?.medianWonPremium ?? null;
+  // Deliberately NOT the claim count: that would hand teams their own
+  // siniestralidad, which Día 3 asks them to estimate from their report.
+  // This says only how well their pricing ordered risk, not its level.
+  const tariffRiskCorr = extra?.tariffRiskCorr ?? null;
   const fmtCop = (v: number | null | undefined) => (v == null ? "—" : `$${Math.round(v).toLocaleString("es-CO")}`);
   return (
     <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
@@ -75,9 +85,9 @@ function ObjectiveResultsCard({
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Siniestros</p>
+            <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Correlación tarifa–riesgo</p>
             <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">
-              {result.claimsCount.toLocaleString("es-CO")}
+              {tariffRiskCorr != null ? tariffRiskCorr.toFixed(2) : "—"}
             </p>
           </div>
           <div>
@@ -96,19 +106,26 @@ function ObjectiveResultsCard({
             <p className="text-xs uppercase text-[var(--color-brand-text-secondary)]">Cobro mediano</p>
             <p className="font-[family-name:var(--font-condensed)] text-xl font-bold text-[var(--color-brand-blue-accent)]">{fmtCop(medianWonPremium)}</p>
           </div>
-          {(() => {
-            const extra = result.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
-            if (extra?.capacityLimit == null || extra.rawCapacityLimit == null) return null;
-            return (
-              <div className="col-span-2 sm:col-span-3">
-                <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
-                  <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
-                  tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
-                  manteniendo un margen de solvencia de al menos 1.0x. En el Día 4 puedes ver la conexión completa con tu solvencia real.
-                </p>
-              </div>
-            );
-          })()}
+          {tariffRiskCorr != null && (
+            <div className="col-span-2 sm:col-span-3">
+              <p className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                <span className="font-semibold text-[var(--color-brand-blue-accent)]">Correlación tarifa–riesgo — </span>
+                qué tan bien tu tarifa ordenó el riesgo real de las pólizas que ganaste: la correlación, sobre tu propia cartera, entre lo que le
+                cobraste a cada expuesto y lo que ese expuesto costaba de verdad en valor esperado. 1.00 es un orden perfecto; 0 es una tarifa que no
+                distingue entre un riesgo bueno y uno malo. Mide el <strong>orden</strong>, no el nivel: una tarifa puede ordenar perfectamente el
+                riesgo y aun así estar toda cara o toda barata.
+              </p>
+            </div>
+          )}
+          {extra?.capacityLimit != null && extra.rawCapacityLimit != null && (
+            <div className="col-span-2 sm:col-span-3">
+              <p className="rounded border border-[var(--color-brand-cyan-light)] bg-[var(--color-brand-cyan-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
+                <span className="font-semibold text-[var(--color-brand-blue-accent)]">Tu límite de cuota este año — </span>
+                tu capital disponible y el riesgo de tu portafolio permitían asegurar hasta {extra.rawCapacityLimit.toLocaleString("es-CO")} pólizas
+                manteniendo un margen de solvencia de al menos 1.0x. En el Día 4 puedes ver la conexión completa con tu solvencia real.
+              </p>
+            </div>
+          )}
           <div className="col-span-2 sm:col-span-3 flex flex-col gap-1">
             <a
               href={`/api/teams/report?day=${reportDay}`}
