@@ -251,6 +251,7 @@ export default async function TeamDayPage({
     day1Allocation,
     day1TariffMedian,
     day2Result,
+    day2TariffMedian,
     day4Capacity1,
     day4Capacity2,
   ] = await Promise.all([
@@ -282,6 +283,11 @@ export default async function TeamDayPage({
       // Día 3 shows Día 2's ("2028") results.
       day === 3 && teamId
         ? prisma.teamSimResult.findFirst({ where: { teamId, simulationRun: { day: 2, status: "DONE" } }, orderBy: { simulationRun: { createdAt: "desc" } } })
+        : null,
+      // This team's own Día 2 tariff, for the "Prima mediana" tile on
+      // ObjectiveResultsCard — same pattern as day1TariffMedian above.
+      day === 3 && teamId
+        ? prisma.tariffSubmission.findUnique({ where: { teamId_day: { teamId, day: 2 } }, select: { medianPremium: true } })
         : null,
       // Día 4 retrospective: both years' capital-derived market-share limits
       // side by side, so a team whose growth was capped can connect it to the
@@ -495,7 +501,7 @@ export default async function TeamDayPage({
 
             {activeTab === "ref" && (
               <>
-                <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} />
+                <ObjectiveResultsCard yearLabel={SIMULATED_YEAR_LABEL[2]} result={day2Result} reportDay={3} medianTariff={day2TariffMedian?.medianPremium} />
 
                 <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
                   <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
