@@ -1,6 +1,8 @@
 "use client";
 
+import { useTransition } from "react";
 import { submitMemberEvaluationAction } from "@/lib/adminActions";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export interface MemberEvaluationInitial {
   notaGeneral: number | null;
@@ -19,9 +21,19 @@ export function MemberEvaluationForm({
   initial: MemberEvaluationInitial;
 }) {
   const action = submitMemberEvaluationAction.bind(null, id, day);
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
 
   return (
-    <form action={action} className="flex flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+    <form
+      action={(formData: FormData) => {
+        startTransition(async () => {
+          await action(formData);
+          toast.success("Calificación guardada.");
+        });
+      }}
+      className="flex flex-col gap-2 rounded border border-[var(--color-brand-gray-light)] p-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3"
+    >
       <label className="flex flex-col gap-1 text-xs text-[var(--color-brand-text-secondary)]">
         Nota general (1-5)
         <input
@@ -31,7 +43,8 @@ export function MemberEvaluationForm({
           max="5"
           name="notaGeneral"
           defaultValue={initial.notaGeneral ?? ""}
-          className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+          disabled={pending}
+          className="w-20 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-60"
         />
       </label>
 
@@ -40,7 +53,8 @@ export function MemberEvaluationForm({
         <select
           name="aprobado"
           defaultValue={initial.aprobado == null ? "" : String(initial.aprobado)}
-          className="w-28 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+          disabled={pending}
+          className="w-28 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-60"
         >
           <option value="">Sin definir</option>
           <option value="true">Sí</option>
@@ -53,7 +67,8 @@ export function MemberEvaluationForm({
         <select
           name="perfil"
           defaultValue={initial.perfil ?? ""}
-          className="w-32 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm"
+          disabled={pending}
+          className="w-32 rounded border border-[var(--color-brand-gray-light)] px-2 py-1 text-sm disabled:opacity-60"
         >
           <option value="">Sin definir</option>
           <option value="ACTUARIAL">Actuarial</option>
@@ -64,9 +79,10 @@ export function MemberEvaluationForm({
 
       <button
         type="submit"
-        className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-3 py-1.5 text-xs font-medium text-white hover:brightness-110"
+        disabled={pending}
+        className="rounded-full bg-[var(--color-brand-blue)] shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[var(--shadow-md)] px-3 py-1.5 text-xs font-medium text-white hover:brightness-110 disabled:opacity-60 disabled:pointer-events-none"
       >
-        Guardar
+        {pending ? "Guardando…" : "Guardar"}
       </button>
     </form>
   );
