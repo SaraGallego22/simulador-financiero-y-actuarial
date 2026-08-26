@@ -497,7 +497,7 @@ export default async function TeamDayPage({
                   )}
                 </div>
 
-                <DeliverablesReadOnly concepts={day2ReportConcepts} values={day2TrueValues} title="P&G / Balance real — Año 1" />
+                <DeliverablesReadOnly concepts={day2ReportConcepts} values={day2TrueValues} title="P&G real — Año 1" />
               </>
             )}
 

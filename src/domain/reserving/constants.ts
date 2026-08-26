@@ -95,12 +95,26 @@ export function cumulativeKernelAt(daysAfterNotice: number): number {
  * this can't be derived from a team's own report — it depends on the
  * reporting-lag tail beyond the report's own cutoff, which a team has no
  * visibility into. Verified empirically (not derived analytically) by
- * generating the full 1M-exposure Colombia universe and comparing true
- * ultimate severity against severity reported by notice year <= año de
- * ocurrencia + 1, across 5 seeds (42, 1, 7, 123, 999): consistently 1.0029-
- * 1.0039, reflecting sampleReportingLag()'s lognormal(mu=3.0, sigma=1.2)
- * distribution (median ~20 days) clamped to [1, 730] days — the vast
- * majority of claims are reported well within 24 months, so only a small
- * sliver remains genuinely unreported even at that point.
+ * generating the full 1M-exposure Colombia universe and comparing accident-
+ * year-2027 true ultimate severity against what has been *noticed* by the
+ * Día 3 report's own cutoff (end of 2028, i.e. ~24 months of development),
+ * across 5 seeds (42, 1, 7, 123, 999): consistently 1.339-1.352, i.e.
+ * 25.3-26.0% of the accident year still unreported at that point. That
+ * reflects sampleReportingLag()'s lognormal(mu=5.5, sigma=1.2) (median
+ * ~245 days) clamped to [1, LAG_AVISO_MAX_DIAS=1825] days — a genuinely
+ * long, dispersed notice tail, which is what makes the tail factor a
+ * first-order correction rather than a rounding adjustment.
+ *
+ * Re-measure if sampleReportingLag's parameters ever change again — sum
+ * `sev` over accident-year-2027 claims, once in full and once restricted to
+ * those with `fechaAvisoEpochDay` inside the report's cutoff, and divide.
+ * An earlier revision of this comment still quoted 1.0029-1.0039 from the
+ * old mu=3.0/730-day parameters long after they'd moved, which is worth
+ * knowing about twice over: the Guía del Pasante's §2 prose ("cerca de una
+ * cuarta parte") is calibrated to this number, and any cohort whose
+ * TeamClaimAggregate rows were persisted before such a change keeps the OLD
+ * notice dates while its downloadable CSV report regenerates from the
+ * current generator — the two then disagree, and only re-running that
+ * cohort's simulation reconciles them.
  */
 export const CHAIN_LADDER_TAIL_FACTOR = 1.35;

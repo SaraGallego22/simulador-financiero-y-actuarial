@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { toleranceBandScore, scoreConcepto, scoreFormulaConcepto, ownValueKey, CONCEPTO_BY_ID } from "./concepts";
-import type { ConceptTolerance } from "./concepts";
-import type { FinBenchResult } from "../finance/finBench";
+import { toleranceBandScore, scoreConcepto, scoreFormulaConcepto, ownValueKey, CONCEPTO_BY_ID, CONCEPTOS } from "./concepts";
+import type { ConceptTolerance, Dia } from "./concepts";
+import { finBench } from "../finance/finBench";
+import type { FinBenchResult, AlmYearBenchInput } from "../finance/finBench";
+import type { LiabilitySchedule } from "../reserving/liability";
+import { computeDevelopment } from "../reserving/development";
+import { CAPITAL_SOCIAL } from "../finance/constants";
 
 const TOLERANCE: ConceptTolerance = { tolerancePerfect: 0.05, toleranceZero: 0.4 };
 
@@ -201,6 +205,74 @@ describe("Ajuste de siniestralidad (a primary fact — no formula — graded str
     const result = scoreConcepto("p2_ajusteSiniestralidad", -30_000_000, null, TOLERANCE);
     expect(result!.score).toBeNull();
   });
+});
+
+/**
+ * The self-consistency check the rest of this file's per-concept tests can't
+ * give: a team that reports EXACTLY what the engine itself computed must score
+ * 100 on every single line. It's the one property that has to hold no matter
+ * how a concept is graded — `get()` against the truth, or `formula` against the
+ * team's own other lines — because both are supposed to describe the same
+ * Balance/P&G.
+ *
+ * This exists because it didn't, and nothing caught it: seven Balance lines
+ * graded the correct answer at 0 (or not at all) against a live cohort. Every
+ * one was a literal in a FormulaSpec that stopped matching the engine after
+ * balance() changed underneath it — cxp moved from a flat 10% of Prima Emitida
+ * to a 30-day rotation over gastos, Año 3's caja became a real ALM figure
+ * instead of FZ.cajaPct × prima, impuestoPorPagar became cumulative — and
+ * bal1_impuestoPorPagar was silently ungradable from a missing `day: "d2"` on a
+ * cross-day term. Per-concept unit tests all passed throughout: each checked
+ * its formula against itself, never against the engine.
+ */
+describe("every reporte concept grades the engine's own true value at 100", () => {
+  const liabilityYear1: LiabilitySchedule = { L: new Array(48).fill(0), payY1: new Array(12).fill(0), reserva: 20_000_000, hay: true };
+  const almYear = (income: number, effectiveYield?: number): AlmYearBenchInput => ({
+    portYield: 0.1,
+    income,
+    capitalComprometido: 0,
+    effectiveYield,
+    cajaFinalAnio: 7_500_000,
+    portfolioBookValue: CAPITAL_SOCIAL,
+  });
+  const development = computeDevelopment(
+    Array.from({ length: 100 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 })),
+    Array.from({ length: 80 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 })),
+    [1]
+  ).byTeam.get(1)!;
+
+  const bench = finBench({
+    year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000, insuredCount: 1000 },
+    year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
+    liabilityYear1,
+    development,
+    almYear1: almYear(2_000_000),
+    almYear2: almYear(2_718_281, 0.07),
+    almYear3: almYear(2_900_000, 0.07),
+    year2Retention: { retainedCount: 800, newCount: 200 },
+  });
+
+  // The "perfect submission": every concept's own true engine value, keyed by
+  // the day it's submitted on — exactly what a flawless team would upload.
+  const ownValues = new Map<string, number>();
+  for (const c of CONCEPTOS) {
+    if (c.tipo !== "reporte" || !c.get) continue;
+    const v = c.get(bench);
+    if (v != null) ownValues.set(ownValueKey(c.dia as Dia, c.id), v);
+  }
+
+  for (const c of CONCEPTOS) {
+    if (c.tipo !== "reporte" || !c.get) continue;
+    const trueValue = c.get(bench);
+    if (trueValue == null) continue;
+    it(`${c.id} (${c.label})`, () => {
+      const result = scoreConcepto(c.id, trueValue, bench, TOLERANCE, ownValues);
+      expect(result, `${c.id} returned no result`).not.toBeNull();
+      // null would mean ungradable — a formula whose inputs it can't resolve.
+      expect(result!.score, `${c.id} is ungradable (score=null)`).not.toBeNull();
+      expect(result!.score, `${c.id}: the engine's own value doesn't score 100`).toBe(100);
+    });
+  }
 });
 
 describe("sol_sigmaLR (sample stdev of siniestralidad/prima across Año 1/2/3, graded against the team's OWN P&G lines)", () => {

@@ -120,7 +120,7 @@ export function GuiaPasanteDia4() {
             resultado de hoy usa números distintos, aunque la forma sea la misma. Ver sección 5 para la fórmula exacta.
           </p>
           <p>
-            En Día 1, tu capital disponible era el mismo Capital Social fijo para los 12 equipos ($116.000 millones), y tu volatilidad de portafolio
+            En Día 1, tu capital disponible era el mismo Capital Social fijo para los 12 equipos ($120.000 millones), y tu volatilidad de portafolio
             venía de tu propia asignación de mínima varianza de ese mismo día. En Día 2, tu capital disponible pasó a ser tu patrimonio real de cierre
             de Año 1 — el que calculó el motor a partir del ALM real de Año 1 que sometiste ese mismo día, antes de tu Balance de Día 3 — así que un
             equipo que comprometió Capital Social en ese ALM para cubrir una caja entró a competir por pólizas de 2028 con menos
@@ -419,7 +419,7 @@ export function GuiaPasanteDia4() {
             <ScoreCard label="Pólizas máximas" formula="⌊Prima máxima ÷ tu propia prima promedio por póliza de ese año⌋" />
             <ScoreCard
               label="Capital disponible"
-              formula="Día 1: $116.000 millones (Capital Social, igual para los 12 equipos) · Día 2: tu patrimonio real de cierre de Año 1, el que calculó el motor a partir de tu ALM real de ese año"
+              formula="Día 1: $120.000 millones (Capital Social, igual para los 12 equipos) · Día 2: tu patrimonio real de cierre de Año 1, el que calculó el motor a partir de tu ALM real de ese año"
             />
             <ScoreCard
               label="Tu volRatio"
