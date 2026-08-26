@@ -1,6 +1,17 @@
 import type { FinBenchResult } from "../finance/finBench";
-import { FZ } from "../finance/constants";
+import { FZ, GASTOS_TOTAL_PCT } from "../finance/constants";
 import { sampleStdev } from "../finance/stats";
+
+/**
+ * Coefficients on Prima Emitida for the Balance's two rotation lines, derived
+ * from the same constants balance() itself uses in finBench.ts rather than
+ * written out as literals. These MUST stay derived: when cxp moved from a flat
+ * 10% of Prima Emitida to a 30-day rotation over *gastos* (see
+ * FZ.diasRotacionCxp), the engine changed but the hardcoded 0.1 here did not,
+ * and the correct answer scored 0 for every team on all three years.
+ */
+const CXC_COEFF = FZ.diasRotacionCxc / 365;
+const CXP_COEFF = (FZ.diasRotacionCxp * GASTOS_TOTAL_PCT) / 365;
 
 export type Perfil = "act" | "fin";
 export type Dia = "d1" | "d2" | "d3" | "d4";
@@ -666,7 +677,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.cxc,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 30 / 365, day: "d2" }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: CXC_COEFF, day: "d2" }] },
   },
   {
     id: "bal1_activos",
@@ -707,7 +718,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.cxp,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: 0.1, day: "d2" }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: CXP_COEFF, day: "d2" }] },
   },
   {
     id: "bal1_necesidadesPatrimonioODeuda",
@@ -735,10 +746,13 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.impuestoPorPagar,
-    // This year's own Impuesto (p1_imp), already recognized against
-    // patrimonio but not yet paid in cash — see BalanceSheet.impuestoPorPagar's
-    // doc comment for why this line exists.
-    formula: { kind: "linear", terms: [{ conceptId: "p1_imp", coeff: 1 }] },
+    // Cumulative unpaid Impuesto through this year's close — for Año 1 that's
+    // just its own p1_imp (no prior year), but Año 2/3 below sum every year to
+    // date, matching BalanceSheet.impuestoPorPagar (the real ALM never models a
+    // tax payment in ANY year, so no year's bill is ever settled). `day: "d2"`
+    // is required: p1_imp was submitted on Día 2, and without it the lookup
+    // misses and this line grades as ungradable rather than as anything.
+    formula: { kind: "linear", terms: [{ conceptId: "p1_imp", coeff: 1, day: "d2" }] },
   },
   {
     id: "bal1_pasivo",
@@ -811,7 +825,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.cxc ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 30 / 365 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: CXC_COEFF }] },
   },
   {
     id: "bal2_activos",
@@ -852,7 +866,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.cxp ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: 0.1 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p2_primaEmitida", coeff: CXP_COEFF }] },
   },
   {
     id: "bal2_necesidadesPatrimonioODeuda",
@@ -874,8 +888,15 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a2",
     get: (b) => b.bal2?.impuestoPorPagar ?? null,
-    // See bal1_impuestoPorPagar's doc comment.
-    formula: { kind: "linear", terms: [{ conceptId: "p2_imp", coeff: 1 }] },
+    // Cumulative: Año 1's own tax bill is exactly as unpaid at Año 2's close as
+    // it was at its own — see bal1_impuestoPorPagar's doc comment.
+    formula: {
+      kind: "linear",
+      terms: [
+        { conceptId: "p1_imp", coeff: 1, day: "d2" },
+        { conceptId: "p2_imp", coeff: 1 },
+      ],
+    },
   },
   {
     id: "bal2_pasivo",
@@ -926,7 +947,11 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.caja ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 0.15 }] },
+    // No formula — same treatment as bal1_caja/bal2_caja. Año 3 now has a real
+    // ALM continuation of its own (almYear3 in finBenchHelper.ts), so its caja
+    // is that run's own year-end Caja Mínima, not the flat FZ.cajaPct ×
+    // primaEmitida this used to grade against — that literal only ever matched
+    // balance()'s no-ALM fallback branch, so the correct answer scored 0.
   },
   {
     id: "bal3_inversiones",
@@ -954,7 +979,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.cxc ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 30 / 365 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: CXC_COEFF }] },
   },
   {
     id: "bal3_activos",
@@ -995,7 +1020,7 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.cxp ?? null,
-    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: 0.1 }] },
+    formula: { kind: "linear", terms: [{ conceptId: "p3_primaEmitida", coeff: CXP_COEFF }] },
   },
   {
     id: "bal3_necesidadesPatrimonioODeuda",
@@ -1017,8 +1042,15 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a3",
     get: (b) => b.bal3?.impuestoPorPagar ?? null,
-    // See bal1_impuestoPorPagar's doc comment.
-    formula: { kind: "linear", terms: [{ conceptId: "p3_imp", coeff: 1 }] },
+    // Cumulative across all three years — see bal1_impuestoPorPagar's doc comment.
+    formula: {
+      kind: "linear",
+      terms: [
+        { conceptId: "p1_imp", coeff: 1, day: "d2" },
+        { conceptId: "p2_imp", coeff: 1 },
+        { conceptId: "p3_imp", coeff: 1 },
+      ],
+    },
   },
   {
     id: "bal3_pasivo",

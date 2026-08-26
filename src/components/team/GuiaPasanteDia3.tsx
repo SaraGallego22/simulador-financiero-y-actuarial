@@ -82,6 +82,8 @@ const PYG_A3_ROWS = [
   "Utilidad neta",
 ];
 
+// El orden es exactamente el del formulario de entregables (CONCEPTOS,
+// grupo bal_a1/bal_a2/bal_a3 en concepts.ts).
 const BALANCE_ROWS = [
   "Caja",
   "Inversiones (valor del portafolio)",
@@ -91,6 +93,7 @@ const BALANCE_ROWS = [
   "RPND",
   "Cuentas por pagar",
   "Necesidades de patrimonio o deuda",
+  "Impuesto por pagar",
   "Pasivo total",
   "Patrimonio",
   "Pasivo + Patrimonio",
@@ -109,12 +112,12 @@ export function GuiaPasanteDia3() {
         insumos={[
           "Siniestros propios del 2027 avisados en 2027 y en 2028, más siniestros propios del 2028 avisados en 2028.",
           "Tu ALM real del 2027 mes a mes — incluida la columna de Pago Siniestros, la plata que efectivamente salió a pagar siniestros ese año.",
-          "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027/2028.",
-          "Retención real de pólizas de 2027 a 2028, para proyectar el 2029.",
+          "Capital comprometido acumulado y rendimiento real devengado por tu ALM real de 2027.",
+          "Marca de qué pólizas del 2028 ya eran tuyas en 2027 (columna asegurado_a1 del reporte), de donde sale tu retención para proyectar el 2029.",
         ]}
         entregables={[
           "Estado de resultados completo del 2028 (15 líneas) y proyección del 2029 (14 líneas).",
-          "Balance de 2027, 2028 y 2029 (11 líneas cada uno).",
+          "Balance de 2027, 2028 y 2029 (12 líneas cada uno).",
         ]}
       />
 
@@ -136,8 +139,8 @@ export function GuiaPasanteDia3() {
           </li>
           <li>
             <strong>Financiero — Balance de 2027, 2028 y 2029.</strong> El mismo balance simplificado (caja, inversiones, cuentas por cobrar/pagar,
-            reservas técnicas, Reserva de Prima No Devengada, patrimonio) para los tres años, terminando en el chequeo contable Pasivo + Patrimonio =
-            Activos.
+            reservas técnicas, Reserva de Prima No Devengada, impuesto por pagar, patrimonio) para los tres años, terminando en el chequeo contable
+            Pasivo + Patrimonio = Activos.
           </li>
           <li>
             <strong>Financiero — Portafolio 2028 (opcional).</strong> Ahora que ya conoces tu prima real del 2028, puedes reestructurar tu estrategia de
@@ -324,7 +327,13 @@ export function GuiaPasanteDia3() {
             <strong>Necesidades de patrimonio o deuda</strong> — distinta de cero solo si tu aseguradora agotó por completo su portafolio real
             (Capital Social incluido) y aun así necesitó más para cubrir un faltante de caja: ese exceso tuvo que salir de financiación fresca
             (capital nuevo o deuda), así que se reconoce como una obligación aparte. Para la inmensa mayoría de los equipos esta línea es cero.
-            Pasivo total es la suma de las cuatro.
+          </p>
+          <p>
+            La quinta línea del pasivo es <strong>Impuesto por pagar</strong>. El impuesto de cada año se reconoce como gasto en el estado de
+            resultados de ese año — ya redujo tu utilidad neta y, con ella, tu patrimonio — pero en este ejercicio nunca sale de caja: no hay ningún
+            mes en tu ALM en el que se pague. Mientras siga sin pagarse es una obligación, así que se <strong>acumula</strong>: el Impuesto por pagar
+            de un año es la suma de los impuestos de ese año y de todos los anteriores, no solo el del año que estás reportando. Pasivo total es la
+            suma de las cinco.
           </p>
           <p>
             <strong>Patrimonio</strong> es lo que queda para el dueño del negocio: Capital Social más la utilidad neta acumulada. Se calcula por
@@ -430,8 +439,9 @@ export function GuiaPasanteDia3() {
               <ul className="mt-1 list-[circle] pl-5">
                 <li>
                   <strong>Cuántas pólizas.</strong> Parte de tu libro real del 2028 y aplícale la tasa de retención que ya observaste de 2027 a 2028
-                  (está en los insumos de hoy) — esas son las que conservas. A eso súmale las pólizas nuevas que esperes ganar en 2029; cuántas nuevas
-                  entraron en 2028 es la referencia natural.
+                  — esas son las que conservas. La retención la mides con la columna <code>asegurado_a1</code> de tu reporte: cuántas de tus pólizas
+                  del 2028 ya eran tuyas en 2027, sobre cuántas tenías en 2027. A eso súmale las pólizas nuevas que esperes ganar en 2029; cuántas
+                  nuevas entraron en 2028 (las de <code>asegurado_a1</code> en cero) es la referencia natural.
                 </li>
                 <li>
                   <strong>Por cuánto.</strong> Tu prima media por póliza del 2028 (prima emitida ÷ pólizas aseguradas de ese año), ajustada por la
@@ -509,9 +519,13 @@ export function GuiaPasanteDia3() {
           <p>
             <strong>Las líneas de Activos y Pasivo se calculan de formas distintas entre sí.</strong> RPND sigue siendo un porcentaje fijo de la prima
             emitida; Cuentas por cobrar y Cuentas por pagar salen de una rotación de 30 días — sobre prima emitida y sobre gastos, respectivamente
-            (sección 3). Caja e Inversiones, en
+            (sección 2). Caja e Inversiones, en
             cambio, dependen de tu propio flujo de caja real ese año (lo que tu prima realmente cobrada alcanzó a cubrir, después de pagar siniestros
             y gastos) y de tu Capital Social.
+          </p>
+          <p>
+            <strong>Impuesto por pagar se acumula año a año</strong> (sección 2): el de 2028 incluye también el de 2027, y el de 2029 los tres. Es la
+            línea que más veces rompe la identidad contable cuando se reporta solo el impuesto del año.
           </p>
           <p>
             <strong>Inversiones es un número que puedes razonar directamente.</strong> Es lo que tu portafolio real de Día 2 efectivamente tiene

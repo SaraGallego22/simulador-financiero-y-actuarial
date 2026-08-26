@@ -149,11 +149,15 @@ export const RT_EXPENSE_PCT = FZ.gAdq + FZ.gCom;
  *    for the capital that makes the solvency margin (capital ÷ risk
  *    capital) exactly CAPACITY_TARGET_MARGIN (1.0) at that premium — by
  *    binary search, the same way maxPremiumForCapital() itself solves the
- *    inverse direction — gives ≈$115.95B COP; rounded to a clean $116B.
- *    At $116B, a team pricing at the same reference loss ratio capacity.ts
- *    already assumes for the "healthy" band can sustain the full ~10%
- *    market share this constant was calibrated against without being
- *    capital-constrained — the old $81B could not.
+ *    inverse direction — gives ≈$115.95B COP, which is where the $116B
+ *    figure in earlier revisions of this comment came from. The constant
+ *    itself was since rounded up to a clean $120B (the value below is
+ *    always the authority — quote it, not this derivation, in any
+ *    user-facing copy). At that level, a team pricing at the same
+ *    reference loss ratio capacity.ts already assumes for the "healthy"
+ *    band can sustain the full ~10% market share this constant was
+ *    calibrated against without being capital-constrained — the old $81B
+ *    could not.
  *
  * This single constant now also drives finBench()'s capital0 (see §4/§5 in
  * README) — replacing the old premium-based FZ.cap0Pct*totalPremium, since

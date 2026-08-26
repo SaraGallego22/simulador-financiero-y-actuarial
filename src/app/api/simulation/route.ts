@@ -15,6 +15,7 @@ import {
   saveClaimAggregates,
 } from "@/lib/teamBook";
 import { computeCapacityByTeamId } from "@/lib/capacityHelper";
+import { tariffRiskCorrelationByTeam } from "@/domain/pricing/riskCorrelation";
 
 // Same reasoning as /api/universe: runs synchronously, no queue — see
 // CLAUDE.md §4.1. Hobby's max duration is 300s.
@@ -168,6 +169,10 @@ export async function POST(request: Request) {
     // claim aggregates can be written once at the end, while the assignment
     // is still in memory — see the saveClaimAggregates() call.
     let finalAssignment: Int32Array | null = null;
+    // Hoisted out of the two branches below so the tariff-vs-risk correlation
+    // can be computed once, over every team's full priced book, for both the
+    // monopoly and the multi-team path (see tariffRiskCorrelationByTeam).
+    const tariffByNumericId = new Map<number, Float32Array>();
 
     if (eligibleTeams.length === 1) {
       const t = eligibleTeams[0];
@@ -192,6 +197,7 @@ export async function POST(request: Request) {
         new Map([[1, fallbackPremium]])
       ).get(1);
       if (median != null) medianWonPremiumByTeamId.set(t.id, median);
+      tariffByNumericId.set(1, tariff);
       finalAssignment = monopolyAssignment;
       await prisma.simulationRun.update({
         where: { id: run.id },
@@ -227,6 +233,7 @@ export async function POST(request: Request) {
       }
       const fallbackPremiumByNumericId = new Map<number, number>();
       for (const info of teamInfos) fallbackPremiumByNumericId.set(info.id, info.fallbackPremium);
+      for (const [id, arr] of tariffsByTeam) tariffByNumericId.set(id, arr);
 
       if (day === 2 && year2Claims) {
         const previousAssignment = await getPreviousAssignmentNumeric(cohort.id, 1, numericIdByTeamId, universe.n);
@@ -294,6 +301,20 @@ export async function POST(request: Request) {
       await saveClaimAggregates(run.id, "year2", aggregateClaimsByTeamMonth(year2Claims, universe.n, teamIdForIndex));
     }
 
+    // How well each team's own tariff ordered true risk, across everything it
+    // priced (not just the book it won — see tariffRiskCorrelationByTeam).
+    // Computed here, while the universe and every team's tariff array are
+    // already in memory: a page that wanted this later would have to
+    // regenerate the universe and re-read one 4MB tariff blob per team.
+    // year2Claims for a Día 2 run: Año 2's tariff is scored against Año 2's own
+    // risk, which differs per exposure (see purePremiums in riskCorrelation.ts).
+    const corrByNumericId = tariffRiskCorrelationByTeam(universe, tariffByNumericId, year2Claims);
+    const tariffRiskCorrByTeamId = new Map<string, number | null>();
+    for (const [numericId, corr] of corrByNumericId) {
+      const teamId = teamIdByNumericId[numericId];
+      if (teamId) tariffRiskCorrByTeamId.set(teamId, corr);
+    }
+
     await prisma.$transaction([
       prisma.simulationRun.update({ where: { id: run.id }, data: { status: "DONE", finishedAt: new Date() } }),
       ...eligibleTeams.map((t) => {
@@ -305,6 +326,7 @@ export async function POST(request: Request) {
           capacityLimit: agg.capacityLimit,
           rawCapacityLimit: agg.rawCapacityLimit,
           medianWonPremium: medianWonPremiumByTeamId.get(t.id) ?? null,
+          tariffRiskCorr: tariffRiskCorrByTeamId.get(t.id) ?? null,
         };
         return prisma.teamSimResult.upsert({
           where: { simulationRunId_teamId: { simulationRunId: run.id, teamId: t.id } },
