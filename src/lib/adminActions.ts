@@ -116,15 +116,20 @@ export async function updateRubricWeightsAction(formData: FormData): Promise<voi
 }
 
 /**
- * Sets how many days teams can currently see (Cohort.openDay, 1-4) — the
- * gate TeamNav/dashboard/day pages check before rendering a day's content
- * for a TEAM session, and the sole gate on when that day's results/grades
- * become visible to teams.
+ * Sets how many days teams can currently see (Cohort.openDay) — the gate
+ * TeamNav/dashboard/day pages check before rendering a day's content for a
+ * TEAM session, and the sole gate on when that day's results/grades become
+ * visible to teams.
+ *
+ * Accepts 1-5, one past the 4 real days: 5 means the challenge is over. Every
+ * day is then both visible and closed (openDay > day — see isDayLocked), which
+ * is what puts Día 4 into the team-facing ranking, since that only counts
+ * closed days. Capping at 4 would leave the last day permanently out of it.
  */
 export async function updateOpenDayAction(formData: FormData): Promise<void> {
   const session = await requireAdmin();
   const cohort = await getCohortForSession(session);
-  const openDay = Math.max(1, Math.min(4, Number(formData.get("openDay")) || 1));
+  const openDay = Math.max(1, Math.min(5, Number(formData.get("openDay")) || 1));
   await prisma.cohort.update({ where: { id: cohort.id }, data: { openDay } });
   revalidatePath("/admin/config");
   revalidatePath("/dashboard");

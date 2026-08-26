@@ -11,7 +11,12 @@ const fmt = (v: number | null) => (v != null ? v.toFixed(1) : "—");
 export default async function TeamStandingsPage() {
   const session = await auth();
   const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
-  const rows = await computeConsolidado(cohort.id, cohort.openDay);
+  // Only days already closed (openDay > day, the same rule that freezes their
+  // submissions — see isDayLocked) count towards what teams see here. The day
+  // in progress is still being graded, and a partial subjective grade would
+  // shuffle the top 3 as evaluators fill it in.
+  const rankingMaxDay = cohort.openDay - 1;
+  const rows = await computeConsolidado(cohort.id, rankingMaxDay);
   // Teams only ever see the top 3 — never their own exact position/nota
   // when they're outside it, and never any other team's raw data (see
   // CLAUDE.md §8).
@@ -24,7 +29,7 @@ export default async function TeamStandingsPage() {
         Top 3
       </h1>
       <p className="text-sm text-[var(--color-brand-text-secondary)]">
-        Nota de cada día y nota final ponderada de los días habilitados hasta ahora.
+        Nota de cada día ya cerrado y nota final ponderada de esos días. El día en curso entra al ranking cuando el evaluador habilita el siguiente.
       </p>
 
       {ranked.length === 0 ? (
@@ -54,7 +59,7 @@ export default async function TeamStandingsPage() {
                   </td>
                   {r.perDay.map((d, di) => (
                     <td key={di} className="px-4 py-2">
-                      {di + 1 <= cohort.openDay ? fmt(d.nota) : "—"}
+                      {di + 1 <= rankingMaxDay ? fmt(d.nota) : "—"}
                     </td>
                   ))}
                   <td className="px-4 py-2 font-[family-name:var(--font-condensed)] font-bold text-[var(--color-brand-blue-accent)]">

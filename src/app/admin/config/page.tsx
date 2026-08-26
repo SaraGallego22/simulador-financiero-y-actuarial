@@ -140,7 +140,8 @@ export default async function ConfigPage() {
           Progreso del reto
         </h2>
         <p className="text-sm text-[var(--color-brand-text-secondary)]">
-          Los equipos solo ven los días hasta este número. Súbelo a medida que avanza el reto.
+          Los equipos solo ven los días hasta este número. Súbelo a medida que avanza el reto. Cada día entra al ranking de los equipos cuando abres
+          el siguiente; elige &laquo;Reto terminado&raquo; para cerrar el Día 4 y publicar la nota final.
         </p>
 
         <form action={updateOpenDayAction} className="flex items-end gap-3 rounded-lg border border-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
@@ -156,6 +157,7 @@ export default async function ConfigPage() {
               <option value={2}>Día 2</option>
               <option value={3}>Día 3</option>
               <option value={4}>Día 4</option>
+              <option value={5}>Reto terminado</option>
             </select>
           </label>
           {isAdmin && (
