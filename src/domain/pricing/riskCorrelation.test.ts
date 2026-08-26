@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tariffRiskCorrelationByTeam } from "./riskCorrelation";
 import { generateColombia, getExposure } from "../generation/generateColombia";
+import { generateYear2Claims, year2Exposure } from "../generation/generateYear2Claims";
 import { calcMediaSev } from "./severity";
 
 /** A small deterministic universe — same generator, just fewer rows. */
@@ -83,6 +84,25 @@ describe("tariffRiskCorrelationByTeam", () => {
     expect(corr.get(1)).toBeCloseTo(1, 10);
     expect(corr.get(2)).toBeCloseTo(-1, 10);
     expect(corr.get(3)).toBeNull();
+  });
+
+  it("scores an Año 2 tariff against Año 2's own risk, not Año 1's", () => {
+    const year2 = generateYear2Claims(universe, 42);
+    const pureY2 = (k: number) => year2.lam[k] * calcMediaSev(year2Exposure(universe, k));
+
+    // A tariff that is exactly Año 2's pure premium scores 1 only when Año 2 is
+    // the basis; against Año 1's risk it falls short, because the two years'
+    // risk differs per exposure (vehicle a year older, and the claim history
+    // bumped only for whoever claimed in Año 1 — a non-uniform change that
+    // scale-invariance cannot absorb).
+    const t = new Map([[1, tariff(pureY2)]]);
+    expect(tariffRiskCorrelationByTeam(universe, t, year2).get(1)).toBeCloseTo(1, 10);
+    expect(tariffRiskCorrelationByTeam(universe, t).get(1)!).toBeLessThan(0.999);
+
+    // And symmetrically: an Año 1-perfect tariff is no longer perfect in Año 2.
+    const t1 = new Map([[1, tariff(purePremium)]]);
+    expect(tariffRiskCorrelationByTeam(universe, t1).get(1)).toBeCloseTo(1, 10);
+    expect(tariffRiskCorrelationByTeam(universe, t1, year2).get(1)!).toBeLessThan(0.999);
   });
 
   it("stays within [-1, 1] on a realistic noisy tariff", () => {

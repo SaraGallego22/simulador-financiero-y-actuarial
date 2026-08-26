@@ -33,6 +33,26 @@ export interface Year2Claims {
 
 const YEAR_2 = 2028;
 
+/**
+ * The same exposure one year on: the vehicle is a year older, and the claim
+ * history bumps if this policyholder claimed in Year 1. Both feed calcLambda
+ * AND calcMediaSev, so Year 2's risk profile genuinely differs per exposure —
+ * and not uniformly, since the history bump only lands on the subset that
+ * actually claimed.
+ *
+ * Exported so anything that needs Year 2's *expected* cost (rather than its
+ * realized claims) derives it from this same transform instead of restating
+ * it — see tariffRiskCorrelationByTeam in pricing/riskCorrelation.ts.
+ */
+export function year2Exposure(universe: ColombiaUniverse, index: number) {
+  const e1 = getExposure(universe, index);
+  return {
+    ...e1,
+    antig: e1.antig + 1,
+    hist: universe.siniestro[index] ? Math.min(e1.hist + 1, 5) : e1.hist,
+  };
+}
+
 export function generateYear2Claims(universe: ColombiaUniverse, seed = 42): Year2Claims {
   const r = seedRand(seed + 99_991);
   // Independent stream for catastrophic-outlier claims — see
@@ -49,13 +69,8 @@ export function generateYear2Claims(universe: ColombiaUniverse, seed = 42): Year
   const fechaAvisoEpochDay = new Int32Array(n).fill(-1);
 
   for (let i = 0; i < n; i++) {
-    const e1 = getExposure(universe, i);
     // Vehicle is a year older; claim history bumps if Year 1 had a claim.
-    const eYear2 = {
-      ...e1,
-      antig: e1.antig + 1,
-      hist: universe.siniestro[i] ? Math.min(e1.hist + 1, 5) : e1.hist,
-    };
+    const eYear2 = year2Exposure(universe, i);
 
     const lambda = calcLambda(eYear2);
     lam[i] = lambda;

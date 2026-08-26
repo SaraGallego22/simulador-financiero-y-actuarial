@@ -306,7 +306,9 @@ export async function POST(request: Request) {
     // Computed here, while the universe and every team's tariff array are
     // already in memory: a page that wanted this later would have to
     // regenerate the universe and re-read one 4MB tariff blob per team.
-    const corrByNumericId = tariffRiskCorrelationByTeam(universe, tariffByNumericId);
+    // year2Claims for a Día 2 run: Año 2's tariff is scored against Año 2's own
+    // risk, which differs per exposure (see purePremiums in riskCorrelation.ts).
+    const corrByNumericId = tariffRiskCorrelationByTeam(universe, tariffByNumericId, year2Claims);
     const tariffRiskCorrByTeamId = new Map<string, number | null>();
     for (const [numericId, corr] of corrByNumericId) {
       const teamId = teamIdByNumericId[numericId];

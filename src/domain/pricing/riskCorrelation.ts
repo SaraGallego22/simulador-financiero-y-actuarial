@@ -1,25 +1,37 @@
 import type { ColombiaUniverse } from "../generation/generateColombia";
 import { getExposure } from "../generation/generateColombia";
+import { year2Exposure } from "../generation/generateYear2Claims";
+import type { Year2Claims } from "../generation/generateYear2Claims";
 import { calcMediaSev } from "./severity";
 
 /**
- * Each exposure's true expected cost — prima pura = λ × severidad media, the
- * two halves of the generator's own model (calcLambda, already stored as
- * `universe.lam`, and calcMediaSev).
+ * Each exposure's true expected cost for the year being priced — prima pura =
+ * λ × severidad media, the two halves of the generator's own model (calcLambda,
+ * already stored as `lam`, and calcMediaSev).
+ *
+ * `year2Claims` selects which year: without it, Año 1's own risk; with it,
+ * Año 2's, which is genuinely different per exposure (a year older, and the
+ * claim history bumped for whoever claimed in Año 1 — see year2Exposure).
+ * That difference is NOT uniform, so it can't be waved away the way a flat
+ * factor can: grading a Día 2 tariff against Año 1's risk would score teams on
+ * the wrong year's book.
  *
  * Computed once for the whole universe and reused across every team: the
  * per-exposure `getExposure()`/`calcMediaSev()` work is the expensive part,
  * and it doesn't depend on who priced what.
  *
- * The constant outlier load the generator applies on top of calcMediaSev
- * (OUTLIER_CLAIM_PROBABILITY/MULTIPLIER) is deliberately left out: correlation
- * is scale-invariant, so a factor applied uniformly to every exposure cannot
- * move the result.
+ * The two flat loads the generator applies on top of calcMediaSev — the
+ * outlier load (OUTLIER_CLAIM_PROBABILITY/MULTIPLIER) and Año 2's
+ * CLAIMS_INFLATION_ANNUAL — are deliberately left out: correlation is
+ * scale-invariant, so a factor applied uniformly to every exposure cannot move
+ * the result.
  */
-function purePremiums(universe: ColombiaUniverse): Float64Array {
+function purePremiums(universe: ColombiaUniverse, year2Claims?: Year2Claims | null): Float64Array {
   const pure = new Float64Array(universe.n);
   for (let k = 0; k < universe.n; k++) {
-    pure[k] = universe.lam[k] * calcMediaSev(getExposure(universe, k));
+    pure[k] = year2Claims
+      ? year2Claims.lam[k] * calcMediaSev(year2Exposure(universe, k))
+      : universe.lam[k] * calcMediaSev(getExposure(universe, k));
   }
   return pure;
 }
@@ -28,6 +40,9 @@ function purePremiums(universe: ColombiaUniverse): Float64Array {
  * How well each team's tariff tracks true risk: the Pearson correlation,
  * across **every exposure the team priced**, between what it charged and what
  * that exposure actually costs in expected value (see purePremiums).
+ *
+ * Pass `year2Claims` for a Día 2 (Año 2) tariff so it's scored against Año 2's
+ * own risk — see purePremiums.
  *
  * The population is the team's whole tariff, not the book it went on to win.
  * The won book is a *selected* subset — a team tends to win exactly where it
@@ -52,9 +67,10 @@ function purePremiums(universe: ColombiaUniverse): Float64Array {
  */
 export function tariffRiskCorrelationByTeam(
   universe: ColombiaUniverse,
-  tariffsByNumericId: Map<number, Float32Array>
+  tariffsByNumericId: Map<number, Float32Array>,
+  year2Claims?: Year2Claims | null
 ): Map<number, number | null> {
-  const pure = purePremiums(universe);
+  const pure = purePremiums(universe, year2Claims);
   const result = new Map<number, number | null>();
 
   for (const [numericTeamId, tariff] of tariffsByNumericId) {
