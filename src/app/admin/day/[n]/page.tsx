@@ -18,7 +18,7 @@ import {
   sectorLabel,
   SECTOR_MIN_COUNT,
 } from "@/domain/grading/sectors";
-import { notaTarifacionAbsoluta, notaPerfilDia, computeRt } from "@/domain/grading/composite";
+import { notaTarifacionAbsoluta, notaPerfilDia } from "@/domain/grading/composite";
 import { FZ } from "@/domain/finance/constants";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import { computeConsolidado } from "@/lib/consolidado";
@@ -947,8 +947,8 @@ export default async function AdminDayPage({
 
       {activeTab === "resultados" && sectoresTeamOptions.length > 0 && <SectoresTeamDetail day={day} teams={sectoresTeamOptions} />}
 
-      {/* Financiero (finBench): en Día 2 acompaña al desglose de la nota en "Top del día"; en Días 3-4 cierra la pestaña "Resultados", debajo de los entregables que alimenta. */}
-      {((activeTab === "top" && day === 2) || (activeTab === "resultados" && day >= 3)) && finBenchByTeamId.size > 0 && (
+      {/* Financiero (finBench): en Días 3-4 cierra la pestaña "Resultados", debajo de los entregables que alimenta. Día 2 no lo muestra en ninguna pestaña. */}
+      {activeTab === "resultados" && day >= 3 && finBenchByTeamId.size > 0 && (
             <div className="overflow-x-auto rounded-b-[var(--radius-lg)] border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] shadow-[var(--shadow-sm)]">
               <div className="p-4 pb-0">
                 <h3 className="font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
@@ -1326,26 +1326,17 @@ export default async function AdminDayPage({
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                 <th className="px-4 py-2">Equipo</th>
-                <th className="px-4 py-2">RT</th>
                 <th className="px-4 py-2">Tarifas</th>
-                <th className="px-4 py-2">Nota financiera</th>
+                <th className="px-4 py-2">Nota P&amp;G</th>
+                <th className="px-4 py-2">Nota ALM</th>
                 <th className="px-4 py-2">Nota objetiva</th>
               </tr>
             </thead>
             <tbody>
               {teams.map((team) => {
-                const result = resultByTeamId.get(team.id);
-                // Día 2's RT releases Año 1's own RPND holdback as revenue — see composite.ts's computeRt().
-                const rpndLiberada = FZ.rpndPct * (finBenchByTeamId.get(team.id)?.p1.primaEmitida ?? 0);
-                const rt = result
-                  ? computeRt({
-                      ...result,
-                      rpndLiberada,
-                      acquisitionFeePct: outsourcedThisDay.has(team.id) ? OUTSOURCED_CONSULTING_FEE_PCT : 0,
-                    })
-                  : null;
                 const actuarialScore = actuarialScoreByTeamId.get(team.id);
                 const finScore = finReportScoreByTeamId.get(team.id);
+                const almScore = almScoreByTeamId.get(team.id)?.nota;
                 const objective = objectiveByTeamId.get(team.id);
                 return (
                   <tr key={team.id} className="border-t border-[var(--color-brand-gray-light)]">
@@ -1353,9 +1344,9 @@ export default async function AdminDayPage({
                       <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: team.color }} />
                       {team.name}
                     </td>
-                    <td className="px-4 py-2">{rt != null ? `$${Math.round(rt).toLocaleString("es-CO")}` : "—"}</td>
                     <td className="px-4 py-2">{actuarialScore != null ? actuarialScore.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2">{finScore != null ? finScore.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2">{almScore != null ? almScore.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{objective != null ? objective.toFixed(1) : "—"}</td>
                   </tr>
                 );
@@ -1363,10 +1354,10 @@ export default async function AdminDayPage({
             </tbody>
           </table>
           <p className="p-4 pt-2 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            &ldquo;Nota financiera&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Resultados) —{" "}
-            <strong>pero no es el componente financiero completo de la nota objetiva</strong>: ese promedia esta columna junto con la Nota ALM (ver la
-            sección &ldquo;ALM — calce del portafolio vs. reservas&rdquo; más abajo). La columna &ldquo;Tarifas&rdquo; sí es solo la tarifa: Día 2 no
-            tiene ningún reporte actuarial aparte — las reservas técnicas de 2027 se reportan hasta Día 3, como línea del Balance.
+            &ldquo;Nota P&amp;G&rdquo; es el promedio de las 13 líneas del estado de resultados del 2027 reportadas (pestaña Resultados). &ldquo;Nota
+            ALM&rdquo; es el calce del portafolio vs. reservas de ese mismo año (detalle en la sección &ldquo;ALM — calce del portafolio vs.
+            reservas&rdquo;, pestaña Resultados). El componente financiero de la nota objetiva promedia P&amp;G y ALM; &ldquo;Tarifas&rdquo; es
+            independiente de ambos — Día 2 no tiene ningún reporte actuarial aparte, las reservas técnicas de 2027 se reportan hasta Día 3.
           </p>
         </div>
       )}
