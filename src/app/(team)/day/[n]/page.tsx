@@ -110,10 +110,10 @@ function ObjectiveResultsCard({
             <div className="col-span-2 sm:col-span-3">
               <p className="rounded border border-[var(--color-brand-gray-light)] px-3 py-2 text-xs text-[var(--color-brand-text-secondary)]">
                 <span className="font-semibold text-[var(--color-brand-blue-accent)]">Correlación tarifa–riesgo — </span>
-                qué tan bien tu tarifa ordenó el riesgo real de las pólizas que ganaste: la correlación, sobre tu propia cartera, entre lo que le
-                cobraste a cada expuesto y lo que ese expuesto costaba de verdad en valor esperado. 1.00 es un orden perfecto; 0 es una tarifa que no
-                distingue entre un riesgo bueno y uno malo. Mide el <strong>orden</strong>, no el nivel: una tarifa puede ordenar perfectamente el
-                riesgo y aun así estar toda cara o toda barata.
+                qué tan bien tu tarifa ordenó el riesgo real: la correlación, sobre <strong>todos los expuestos que tarifaste</strong> (no solo los que
+                terminaste asegurando), entre lo que le cobraste a cada uno y lo que ese expuesto costaba de verdad en valor esperado. 1.00 es un orden
+                perfecto; 0 es una tarifa que no distingue entre un riesgo bueno y uno malo. Mide el <strong>orden</strong>, no el nivel: una tarifa
+                puede ordenar perfectamente el riesgo y aun así estar toda cara o toda barata.
               </p>
             </div>
           )}
