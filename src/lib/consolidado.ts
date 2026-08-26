@@ -91,9 +91,10 @@ export interface TeamConsolidado {
  * feeds them from what's actually stored for a cohort.
  *
  * `maxDay`, when passed, caps which days count towards the blend — the
- * team-facing standings page passes `cohort.openDay` so a team's own final
- * grade never reflects a day it can't see yet (admin's own views pass
- * nothing, so every day counts as soon as it's graded).
+ * team-facing standings page passes `cohort.openDay - 1`, so a team's final
+ * grade only reflects days already closed and fully graded, never the one in
+ * progress (admin's own views pass nothing, so every day counts as soon as
+ * it's graded).
  *
  * `universeOverride` lets a caller that already generated (or already has)
  * the Colombia universe this request pass it through instead of triggering
