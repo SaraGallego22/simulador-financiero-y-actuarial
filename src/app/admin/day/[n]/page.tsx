@@ -634,7 +634,7 @@ export default async function AdminDayPage({
                 Cifras en millones de pesos · ordenado de mejor a peor nota.
               </p>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                   <th className="px-4 py-2">Equipo</th>
@@ -780,7 +780,7 @@ export default async function AdminDayPage({
               Cifras en millones de pesos · ordenado de mejor a peor nota.
             </p>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full whitespace-nowrap text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-[var(--color-brand-text-secondary)]">
                 <th className="px-4 py-2">Equipo</th>
