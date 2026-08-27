@@ -148,26 +148,28 @@ export function GuiaPasanteDia4() {
             <em>tasa(plazo) = tasa_A + (plazo − plazo_A)/(plazo_B − plazo_A) × (tasa_B − tasa_A)</em>, con A el punto anterior y B el siguiente. Para
             un plazo antes de 3 meses o después de 36 meses (fuera del rango que cubren CDT90/TES1/TES3) la curva se mantiene plana en la tasa del
             punto dado más cercano — así que, por ejemplo, los flujos de tu pasivo de siniestros que vencen más allá del mes 36 se descuentan todos con
-            la tasa de TES3, y el principal y los cupones más lejanos de tu posición en TESUVR8 caen en ese mismo tramo plano, ya deflactado a la curva
-            real.
+            la tasa de TES3, y el principal y los cupones en UVR más lejanos de tu posición en TESUVR8 caen en ese mismo tramo plano de la curva real.
           </p>
           <p>
             La relación entre ambas curvas (Fisher) es (1+nominal) = (1+real) × (1+inflación) — despejando, la curva de inflación implícita que tu
             equipo debe usar en cada plazo es (1+nominal)/(1+real) − 1. Esa tercera curva se deriva de las otras dos, plazo por plazo.
           </p>
           <p>
-            TESUVR8 es el único instrumento del menú indexado a UVR (inflación) — su valor presente se descuenta con la curva{" "}
-            <strong>real</strong>, a su propio plazo remanente. Todo lo demás (CDT90/TES1/TES3, y tu pasivo de siniestros) se descuenta con la curva{" "}
-            <strong>nominal</strong>, cada flujo a su propio plazo. Un choque de <strong>tasa</strong> mueve toda la curva real (y, por Fisher, la
-            nominal con ella) — un choque de <strong>inflación</strong> mueve solo la curva de inflación implícita, dejando la curva real fija. Cuál
-            de los dos choques te desfavorece depende de qué tanto de tu portafolio real (al cierre de Año 2) quedó en TESUVR8 frente a instrumentos
-            nominales, comparado contra el perfil de tu pasivo — eso es lo que tu equipo tiene que descubrir.
+            TESUVR8 está denominado en <strong>UVR</strong>: su principal y sus cupones son montos fijos de UVR, no de pesos. Lo valoras en su propia
+            unidad — descuentas esos flujos en UVR con la curva <strong>real</strong>, cada uno a su propio plazo remanente, y conviertes el valor
+            presente resultante a pesos multiplicando por el valor de la UVR (<strong>$423,90 COP por UVR</strong>, dato dado). Todo lo demás
+            (CDT90/TES1/TES3, y tu pasivo de siniestros) va en pesos y se descuenta con la curva <strong>nominal</strong>, cada flujo a su propio
+            plazo. Un choque de <strong>tasa</strong> mueve toda la curva real (y, por Fisher, la nominal con ella) — un choque de{" "}
+            <strong>inflación</strong> mueve solo la curva de inflación implícita, dejando la curva real fija, así que una posición cuyos flujos y
+            curva de descuento están ambos en UVR conserva su valor en pesos. Cuál de los dos choques te desfavorece depende de qué tanto de tu
+            portafolio real (al cierre de Año 2) quedó en TESUVR8 frente a instrumentos nominales, comparado contra el perfil de tu pasivo — eso es
+            lo que tu equipo tiene que descubrir.
           </p>
           <p>
             TES3 y TESUVR8 pagan cupón anual (ver Día 2), así que su valor presente es la suma de cada cupón remanente más el principal del último
-            pago, cada uno descontado a su propio plazo en la curva que le corresponde (nominal para TES3, real para TESUVR8) — el mismo tipo de
-            cálculo &ldquo;cada flujo a su propio plazo&rdquo; que ya aplicas al pasivo, aplicado ahora también a estas dos posiciones. CDT90 y TES1
-            siguen siendo un único pago al vencer.
+            pago, cada uno descontado a su propio plazo. TES3 va en pesos sobre la curva nominal; los cupones y el principal de TESUVR8 van en UVR
+            sobre la curva real, y el total se pasa a pesos con el valor de la UVR. Es el mismo cálculo &ldquo;cada flujo a su propio plazo&rdquo; que
+            ya aplicas al pasivo, aplicado ahora también a estas dos posiciones. CDT90 y TES1 siguen siendo un único pago al vencer.
           </p>
           <p>
             El riesgo de acciones es más directo: tu exposición real en ACC al cierre de Año 2 (lo que efectivamente terminaste sosteniendo en ese
@@ -325,9 +327,10 @@ export function GuiaPasanteDia4() {
               alimenta el choque de riesgo de inflación se deriva de esas dos, plazo por plazo, vía Fisher.
             </li>
             <li>
-              <strong>Riesgo de tasa y riesgo de inflación afectan distinto a cada parte de tu portafolio.</strong> Solo TESUVR8 se descuenta con la
-              curva real; todo lo demás y tu pasivo de siniestros se mueven con la nominal. Qué tanto de tu portafolio real quedó en TESUVR8 frente a
-              instrumentos nominales, al cierre de Año 2, determina cuál de los dos choques (y en qué dirección) te desfavorece más.
+              <strong>Riesgo de tasa y riesgo de inflación afectan distinto a cada parte de tu portafolio.</strong> Los flujos de TESUVR8 están en UVR
+              y se descuentan con la curva real (y luego se convierten a pesos al valor de la UVR); todo lo demás y tu pasivo de siniestros van en
+              pesos sobre la nominal. Qué tanto de tu portafolio real quedó en TESUVR8 frente a instrumentos nominales, al cierre de Año 2, determina
+              cuál de los dos choques (y en qué dirección) te desfavorece más.
             </li>
             <li>
               <strong>El riesgo de tasa/inflación se valora con tu portafolio y pasivo reales al cierre de Año 2.</strong> Las posiciones que importan
@@ -407,11 +410,11 @@ export function GuiaPasanteDia4() {
             <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√(rPrimas² + (reservas×30%)² + 2×0.75×rPrimas×(reservas×30%))" />
             <ScoreCard
               label="Riesgo de tasa"
-              formula="peor de los dos choques (+50%/-50%) a la curva real, en NAV (PV activo real − PV pasivo real) al cierre de Año 2"
+              formula="peor de los dos choques (+50%/-50%) a la curva real, en NAV (PV activo − PV pasivo) al cierre de Año 2 — TESUVR8 se valora en UVR sobre la curva real y se pasa a pesos al valor de la UVR; el resto en pesos sobre la nominal"
             />
             <ScoreCard
               label="Riesgo de inflación"
-              formula="peor de los dos choques (+75%/-75%) a la curva de inflación implícita, en ese mismo NAV — TESUVR8 conserva su valor bajo este choque"
+              formula="peor de los dos choques (+75%/-75%) a la curva de inflación implícita, en ese mismo NAV — los flujos en UVR de TESUVR8 y su curva de descuento (la real) no se mueven, así que su valor en pesos no cambia"
             />
             <ScoreCard label="Riesgo de acciones (rAcciones)" formula="tu exposición real en ACC al cierre de Año 2 × 20%" />
             <ScoreCard
@@ -431,8 +434,8 @@ export function GuiaPasanteDia4() {
               formula="Utilidad Neta (año vigente, Día 3) − Costo de Capital Propio, Ke (10%) × Capital objetivo (1.5× RK)"
             />
             <ScoreCard
-              label="Curvas dadas"
-              formula="nominal = yields de CDT90/TES1/TES3 por plazo, interpolación lineal entre puntos y plana fuera de [3,36] meses · inflación implícita = despéjala de (1+nominal)/(1+real) = (1+inflación) en el único plazo donde conoces las dos (TESUVR8, 96 meses) — luego es la misma en cualquier otro plazo · real = (1+nominal)/(1+inflación) − 1 en cada plazo (siempre por cociente de Fisher)"
+              label="Datos dados"
+              formula="nominal = yields de CDT90/TES1/TES3 por plazo, interpolación lineal entre puntos y plana fuera de [3,36] meses · inflación implícita = despéjala de (1+nominal)/(1+real) = (1+inflación) en el único plazo donde conoces las dos (TESUVR8, 96 meses) — luego es la misma en cualquier otro plazo · real = (1+nominal)/(1+inflación) − 1 en cada plazo (siempre por cociente de Fisher) · valor de la UVR = $423,90 COP"
             />
           </div>
           <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
