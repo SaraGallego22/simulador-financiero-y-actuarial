@@ -241,12 +241,12 @@ export function GuiaPasanteDia4() {
             Los tres combinados (vía correlación, ver sección 5) son tu Riesgo de Mercado, uno de los dos insumos del RK.
           </p>
           <p>
-            Tu <strong>σ de siniestralidad</strong> se recalcula a partir de tus propias otras líneas ya reportadas — tu Costo de Siniestros y tu{" "}
-            <strong>Prima Devengada</strong> de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, suma tu propio Costo más tu propio Ajuste de
-            siniestralidad A1 (la misma liberación del 10% de reserva que ya reportaste en el Estado de resultados de Año 2, Día 3). El EVA se
-            recalcula igual, a partir de tu Utilidad Neta del año vigente de Día 3 y tu propio RK de hoy — y lo mismo aplica a tu{" "}
-            <strong>Margen de solvencia</strong> (tus propios Fondos propios ÷ tu propio RK) y tu <strong>Dividendo posible</strong> (tus propios
-            Fondos propios menos 1.5 veces tu propio RK). En los cuatro casos, un error previo en alguna de esas líneas te penaliza una sola vez.
+            Tu <strong>σ de siniestralidad</strong>, tu <strong>Margen de solvencia</strong>, tu <strong>Dividendo posible</strong> y tu{" "}
+            <strong>EVA</strong> se califican contra el valor del motor, con la misma banda de tolerancia que el resto de líneas. Para Día 4 ya tienes
+            el Estado de resultados y el Balance reales de Año 1 a Año 3 (revelados en Día 3), que es la base sobre la que se calculan estas cuatro
+            cifras. La σ es la desviación estándar del loss ratio (Costo ÷ Prima Devengada) de Año 1, 2 y 3, con el Costo de Año 1 corregido por el
+            Ajuste de siniestralidad A1 (la liberación del 10% de reserva del Estado de resultados de Año 2). El Margen es Fondos propios ÷ RK; el
+            Dividendo posible es máx(0, Fondos propios − 1.5 × RK); el EVA es la Utilidad Neta del año vigente menos Ke × 1.5 × RK.
           </p>
           <p>
             El riesgo de prima usa una medida de volumen prospectiva, no solo tu Prima Devengada del año vigente: es el <strong>mayor</strong>{" "}
@@ -291,9 +291,10 @@ export function GuiaPasanteDia4() {
         <SubSection title="Para la solvencia" accent="fin">
           <ul className="list-disc pl-5">
             <li>
-              <strong>Tu loss ratio de Año 1, para la σ de siniestralidad, corrige el Costo de Siniestros A1 de Día 2.</strong> Es ese mismo
-              Costo <strong>más</strong> tu propio Ajuste de siniestralidad A1 (reportado en el Estado de resultados de Año 2, Día 3): esa suma es la
-              que incorpora la revisión actuarial del 10% a tu siniestralidad de Año 1, y con ella a tu σ, tu riesgo de prima y tu RK.
+              <strong>El loss ratio de Año 1 que entra en la σ de siniestralidad lleva el Ajuste de siniestralidad A1.</strong> Es el Costo de
+              Siniestros A1 <strong>más</strong> el Ajuste de siniestralidad A1 (la revisión actuarial del 10% del Estado de resultados de Año 2, Día
+              3), sobre la Prima Devengada A1: esa suma es la que incorpora la revisión a la siniestralidad de Año 1, y con ella a la σ, al riesgo de
+              prima y al RK.
             </li>
             <li>
               <strong>El riesgo operacional es el mayor de dos cargos.</strong> Uno sobre tu prima emitida y otro sobre tu reserva técnica, ambos al
@@ -423,11 +424,11 @@ export function GuiaPasanteDia4() {
               formula="máx(4% × prima emitida al cierre de Año 2, 1.3% × reserva técnica al cierre de Año 2)"
             />
             <ScoreCard label="Requerimiento de Capital (RK)" formula="Básico + Riesgo operacional (suma lineal, sin correlación)" />
-            <ScoreCard label="Margen de solvencia" formula="tus propios Fondos propios ÷ tu propio RK (los mismos que reportaste arriba)" />
-            <ScoreCard label="Dividendo posible" formula="máx(0, tus propios Fondos propios − tu propio RK × 1.5)" />
+            <ScoreCard label="Margen de solvencia" formula="Fondos propios ÷ RK" />
+            <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
             <ScoreCard
               label="EVA (Valor Económico Agregado)"
-              formula="Utilidad Neta (año vigente, Día 3) − Costo de Capital Propio, Ke (10%) × Capital objetivo (1.5× tu propio RK)"
+              formula="Utilidad Neta (año vigente, Día 3) − Costo de Capital Propio, Ke (10%) × Capital objetivo (1.5× RK)"
             />
             <ScoreCard
               label="Curvas dadas"

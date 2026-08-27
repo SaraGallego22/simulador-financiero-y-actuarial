@@ -153,49 +153,11 @@ describe("scoreFormulaConcepto / scoreConcepto's formula dispatch", () => {
     expect(scoreFormulaConcepto("p1_costo", 300_000_000, new Map(), TOLERANCE)).toBeNull();
   });
 
-  it("sol_margen (ratio) grades against the team's own Fondos propios ÷ RK, not the true bench — a wrong own RK doesn't cost it twice", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d4", "sol_fp"), 100_000_000);
-    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // possibly wrong relative to the true bench, penalized separately on sol_rk itself
-    const result = scoreFormulaConcepto("sol_margen", 2.5, ownValues, TOLERANCE); // 100M / 40M, computed correctly off that same (wrong) RK
-    expect(result!.bench).toBeCloseTo(2.5, 6);
-    expect(result!.score).toBe(100);
-  });
-
-  it("sol_margen is ungradable (not 0) when the team's own sol_rk is 0", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d4", "sol_fp"), 100_000_000);
-    ownValues.set(ownValueKey("d4", "sol_rk"), 0);
-    const result = scoreFormulaConcepto("sol_margen", 999, ownValues, TOLERANCE);
-    expect(result!.score).toBeNull();
-  });
-
-  it("div (excessAboveTarget) clamps to 0 when the team's own Fondos propios don't clear 1.5× its own RK", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d4", "sol_fp"), 50_000_000);
-    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // 1.5x = 60M > 50M fondos propios
-    const result = scoreFormulaConcepto("div", 0, ownValues, TOLERANCE);
-    expect(result!.bench).toBe(0);
-    expect(result!.score).toBe(100);
-  });
-
-  it("div grades against the team's own Fondos propios − 1.5×RK, not the true bench, even off a wrong own RK", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d4", "sol_fp"), 200_000_000);
-    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // possibly wrong relative to the true bench
-    const ownDiv = 200_000_000 - 1.5 * 40_000_000;
-    const result = scoreFormulaConcepto("div", ownDiv, ownValues, TOLERANCE);
-    expect(result!.score).toBe(100);
-  });
-
-  it("eva (linear, on sol_rk not sol_fp) grades against the team's own Utilidad Neta and RK — never a credit off a negative sol_fp", () => {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d3", "p2_uneta"), 50_000_000);
-    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000);
-    const ownEva = 50_000_000 - 0.1 * 1.5 * 40_000_000; // Ke=0.1, targetMargin=1.5
-    const result = scoreFormulaConcepto("eva", ownEva, ownValues, TOLERANCE);
-    expect(result!.score).toBe(100);
-    expect(result!.bench).toBeCloseTo(44_000_000, 6);
+  it("Día 4 solvency lines (sol_sigmaLR, sol_margen, div, eva) carry no formula — scoreFormulaConcepto returns null; graded against the engine, see the dedicated describe below", () => {
+    for (const id of ["sol_sigmaLR", "sol_margen", "div", "eva"] as const) {
+      expect(CONCEPTO_BY_ID[id].formula, id).toBeUndefined();
+      expect(scoreFormulaConcepto(id, 1, new Map(), TOLERANCE), id).toBeNull();
+    }
   });
 });
 
@@ -286,24 +248,6 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
       if (!c.formula) continue;
       if (c.formula.kind === "taxOnUai") {
         expect(CONCEPTO_BY_ID[c.formula.uaiConceptId], `${c.id} -> ${c.formula.uaiConceptId}`).toBeDefined();
-        continue;
-      }
-      if (c.formula.kind === "ratio") {
-        expect(CONCEPTO_BY_ID[c.formula.numeratorConceptId], `${c.id} -> ${c.formula.numeratorConceptId}`).toBeDefined();
-        expect(CONCEPTO_BY_ID[c.formula.denominatorConceptId], `${c.id} -> ${c.formula.denominatorConceptId}`).toBeDefined();
-        continue;
-      }
-      if (c.formula.kind === "excessAboveTarget") {
-        expect(CONCEPTO_BY_ID[c.formula.baseConceptId], `${c.id} -> ${c.formula.baseConceptId}`).toBeDefined();
-        expect(CONCEPTO_BY_ID[c.formula.chargeConceptId], `${c.id} -> ${c.formula.chargeConceptId}`).toBeDefined();
-        continue;
-      }
-      if (c.formula.kind === "sampleStdevLossRatio") {
-        for (const y of c.formula.years) {
-          expect(CONCEPTO_BY_ID[y.costConceptId], `${c.id} -> ${y.costConceptId}`).toBeDefined();
-          expect(CONCEPTO_BY_ID[y.premiumConceptId], `${c.id} -> ${y.premiumConceptId}`).toBeDefined();
-          if (y.adjustmentConceptId) expect(CONCEPTO_BY_ID[y.adjustmentConceptId], `${c.id} -> ${y.adjustmentConceptId}`).toBeDefined();
-        }
         continue;
       }
       for (const term of c.formula.terms) {
@@ -425,39 +369,37 @@ describe("Balance Año 1 grades against the true engine value, not the team's ow
   });
 });
 
-describe("sol_sigmaLR (sample stdev of siniestralidad/prima across Año 1/2/3, graded against the team's OWN P&G lines)", () => {
-  function ownValuesFor(overrides: Partial<Record<string, number>> = {}): Map<string, number> {
-    const ownValues = new Map<string, number>();
-    ownValues.set(ownValueKey("d2", "p1_primaDevengada"), overrides.p1_primaDevengada ?? 1_000_000_000);
-    ownValues.set(ownValueKey("d2", "p1_costo"), overrides.p1_costo ?? 400_000_000);
-    ownValues.set(ownValueKey("d3", "p2_ajusteSiniestralidad"), overrides.p2_ajusteSiniestralidad ?? 50_000_000);
-    ownValues.set(ownValueKey("d3", "p2_primaDevengada"), overrides.p2_primaDevengada ?? 1_000_000_000);
-    ownValues.set(ownValueKey("d3", "p2_costo"), overrides.p2_costo ?? 500_000_000);
-    ownValues.set(ownValueKey("d3", "p3_primaDevengada"), overrides.p3_primaDevengada ?? 1_000_000_000);
-    ownValues.set(ownValueKey("d3", "p3_costo"), overrides.p3_costo ?? 550_000_000);
-    return ownValues;
+describe("Día 4 solvency lines graded straight against the engine (no formula — teams have the real Día 3 data by then)", () => {
+  // Own P&G / solvency lines set to nonsense: none of them must influence the score.
+  const ownValues = new Map<string, number>();
+  ownValues.set(ownValueKey("d2", "p1_costo"), 1);
+  ownValues.set(ownValueKey("d2", "p1_primaDevengada"), 1_000_000_000);
+  ownValues.set(ownValueKey("d3", "p2_costo"), 1);
+  ownValues.set(ownValueKey("d3", "p2_primaDevengada"), 1_000_000_000);
+  ownValues.set(ownValueKey("d3", "p3_costo"), 1);
+  ownValues.set(ownValueKey("d3", "p3_primaDevengada"), 1_000_000_000);
+  ownValues.set(ownValueKey("d3", "p2_ajusteSiniestralidad"), 0);
+  ownValues.set(ownValueKey("d3", "p2_uneta"), 0);
+  ownValues.set(ownValueKey("d4", "sol_fp"), 999);
+  ownValues.set(ownValueKey("d4", "sol_rk"), 1);
+
+  for (const id of ["sol_sigmaLR", "sol_margen", "div", "eva"] as const) {
+    it(`${id}: exact engine value scores 100, a value well outside the band scores 0 — the team's own lines are ignored`, () => {
+      const trueVal = CONCEPTO_BY_ID[id].get!(bench)!;
+      const exact = scoreConcepto(id, trueVal, bench, TOLERANCE, ownValues);
+      expect(exact!.bench).toBeCloseTo(trueVal, 6);
+      expect(exact!.score).toBe(100);
+      // trueVal ± (|trueVal| + 1): always > 100% relative error, whatever the sign or magnitude.
+      const wrong = trueVal + Math.sign(trueVal || 1) * (Math.abs(trueVal) + 1);
+      const off = scoreConcepto(id, wrong, bench, TOLERANCE, ownValues);
+      expect(off!.score).toBe(0);
+    });
   }
 
-  it("recomputes Año 1's loss ratio using the team's OWN Costo A1 CORRECTED by its OWN Ajuste de siniestralidad, not the raw Día 2 guess", () => {
-    // Corrected LR1 = (400M + 50M)/1,000M = 0.45; LR2 = 500M/1,000M = 0.50; LR3 = 550M/1,000M = 0.55.
-    // mean=0.50, sample variance = ((-0.05)^2+0^2+0.05^2)/2 = 0.0025, stdev = 0.05.
-    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValuesFor(), TOLERANCE);
-    expect(result).not.toBeNull();
-    expect(result!.bench).toBeCloseTo(0.05, 10);
-    expect(result!.score).toBe(100);
-  });
-
-  it("is ungradable (null, not 0) when the team's own Ajuste de siniestralidad is missing", () => {
-    const ownValues = ownValuesFor();
-    ownValues.delete(ownValueKey("d3", "p2_ajusteSiniestralidad"));
-    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValues, TOLERANCE);
-    expect(result!.score).toBeNull();
-  });
-
-  it("is ungradable when any year's own Costo/Prima is missing", () => {
-    const ownValues = ownValuesFor();
-    ownValues.delete(ownValueKey("d3", "p3_costo"));
-    const result = scoreFormulaConcepto("sol_sigmaLR", 0.05, ownValues, TOLERANCE);
-    expect(result!.score).toBeNull();
+  it("a missing submission grades 0 against the true engine value (no excuse — the real figure was revealed on Día 3)", () => {
+    const result = scoreConcepto("sol_sigmaLR", null, bench, TOLERANCE, ownValues);
+    expect(result!.val).toBeNull();
+    expect(result!.bench).toBeCloseTo(bench.solSigmaLR, 6);
+    expect(result!.score).toBe(0);
   });
 });

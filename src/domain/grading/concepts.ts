@@ -1,6 +1,5 @@
 import type { FinBenchResult } from "../finance/finBench";
 import { FZ, GASTOS_TOTAL_PCT } from "../finance/constants";
-import { sampleStdev } from "../finance/stats";
 
 /**
  * Coefficients on Prima Emitida for the Balance's two rotation lines, derived
@@ -38,52 +37,22 @@ export interface FormulaTerm {
 }
 
 /**
- * One year's term of `sol_sigmaLR`'s "sampleStdevLossRatio" FormulaSpec:
- * that year's loss ratio is `(costConceptId's own value [+ adjustmentConceptId's
- * own value, if present]) / premiumConceptId's own value`. `day` (both for
- * the cost/premium pair and, separately, for the adjustment) defaults to the
- * referencing concept's own `dia`, same convention as FormulaTerm.day —
- * `sol_sigmaLR` lives on d4 but every year's own P&G lines live on d2/d3, so
- * every entry sets it explicitly in practice. `adjustmentConceptId` exists
- * only for Año 1: its Día-2 Costo de Siniestros gets adjusted by Año 2's own
- * "Ajuste de siniestralidad" line (`p2_ajusteSiniestralidad`, a fixed 10%
- * release of the true reserva técnica A1 — see that concept's own comment),
- * so Año 1's loss ratio here uses the team's own ADJUSTED Año-1 claims, not
- * the Día-2 figure alone — the same adjustment the P&G's own Resultado
- * Técnico A2 formula already applies.
- */
-export interface LossRatioYearSpec {
-  costConceptId: string;
-  premiumConceptId: string;
-  day?: Dia;
-  adjustmentConceptId?: string;
-  adjustmentDay?: Dia;
-}
-
-/**
  * How a "formula" concept's expected value is derived from the team's OWN
  * other submitted values (never from the true finBench() bench) — see
  * scoreConcepto()'s doc comment for why. `"linear"` covers every formula
  * line except Impuesto, which needs a `max(0, ·)` clamp before applying the
  * tax rate — `"taxOnUai"` is a dedicated small case for that one shape
  * rather than generalizing the whole spec for a single non-linear formula.
- * `"sampleStdevLossRatio"` is `sol_sigmaLR`'s own dedicated shape, for the
- * same reason: a 3-year sample standard deviation of a ratio isn't
- * expressible as a linear combination of other concepts' values. `"ratio"`
- * is `sol_margen`'s own shape (fondos propios ÷ RK) — a plain division
- * isn't a linear combination either. `"excessAboveTarget"` is `div`'s own
- * shape, `max(0, base − targetMultiple×charge)` — the same one-clamp
- * pattern as `taxOnUai`, for a different non-linear formula. Both exist so
- * a team's own error in `sol_rk`/`sol_fp` costs it once, on that line,
- * instead of a second and third time on `sol_margen`/`div` too — the same
- * reasoning every other `formula` concept in this file already follows.
+ *
+ * Día 4's solvency lines (σ Siniestralidad, Margen de solvencia, Dividendos,
+ * EVA) deliberately carry NO formula: by Día 4 the team already has Año 1-3's
+ * real P&G/Balance revealed to it, so each is graded straight against the
+ * engine's own value (its `get()`), not recomputed from the team's earlier
+ * submissions.
  */
 export type FormulaSpec =
   | { kind: "linear"; terms: FormulaTerm[]; constant?: number }
-  | { kind: "taxOnUai"; uaiConceptId: string; rate: number }
-  | { kind: "sampleStdevLossRatio"; years: LossRatioYearSpec[] }
-  | { kind: "ratio"; numeratorConceptId: string; denominatorConceptId: string }
-  | { kind: "excessAboveTarget"; baseConceptId: string; chargeConceptId: string; targetMultiple: number };
+  | { kind: "taxOnUai"; uaiConceptId: string; rate: number };
 
 export interface Concepto {
   id: string;
@@ -1157,26 +1126,13 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "σ Siniestralidad (volatilidad de prima)",
     unit: "x",
-    // True value: sample stdev of costo/primaDevengada across Año 1/2/3, computed
-    // once inside finBench() itself (same number driving its own rPrimas — see
-    // FinBenchResult.solSigmaLR) — never recomputed separately here, so the
-    // reported concept and the engine's own RK calculation can't drift apart.
+    // Sample stdev of costo/primaDevengada across Año 1/2/3, computed once
+    // inside finBench() itself (the same number driving its own rPrimas — see
+    // FinBenchResult.solSigmaLR). No `formula`: by Día 4 the team already has
+    // Año 1-3's real P&G revealed to it, so the volatility it reports is
+    // graded straight against the engine's own figure, not recomputed from
+    // the team's earlier Costo/Prima Devengada submissions.
     get: (b) => b.solSigmaLR,
-    // Graded against the team's OWN P&G lines, not the truth directly: Año 1's
-    // loss ratio uses its own reported Costo/Prima Devengada A1 CORRECTED by its
-    // own Día-3 Ajuste de siniestralidad (see LossRatioYearSpec's doc comment),
-    // Año 2 and Año 3 use their own reported Costo/Prima Devengada as-is. Prima
-    // Devengada (not Emitida) in the denominator — loss ratio is a performance
-    // measure of what was actually earned, matching solSigmaLR's own true-value
-    // basis above and computeRt()/RT's (see composite.ts).
-    formula: {
-      kind: "sampleStdevLossRatio",
-      years: [
-        { costConceptId: "p1_costo", premiumConceptId: "p1_primaDevengada", day: "d2", adjustmentConceptId: "p2_ajusteSiniestralidad", adjustmentDay: "d3" },
-        { costConceptId: "p2_costo", premiumConceptId: "p2_primaDevengada", day: "d3" },
-        { costConceptId: "p3_costo", premiumConceptId: "p3_primaDevengada", day: "d3" },
-      ],
-    },
   },
   { id: "sol_rk", dia: "d4", perfil: "fin", tipo: "reporte", label: "Requerimiento de Capital", unit: "COP", get: (b) => b.solRk },
   { id: "sol_fp", dia: "d4", perfil: "fin", tipo: "reporte", label: "Fondos propios", unit: "COP", get: (b) => b.solFp },
@@ -1187,8 +1143,10 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "Margen de solvencia",
     unit: "x",
+    // Fondos propios ÷ RK. No `formula`: graded against the engine's own ratio,
+    // not the team's reported sol_fp/sol_rk — see sol_sigmaLR above, every Día 4
+    // solvency line is held to the real Día 3 data the team already has.
     get: (b) => b.solMargen,
-    formula: { kind: "ratio", numeratorConceptId: "sol_fp", denominatorConceptId: "sol_rk" },
   },
   {
     id: "div",
@@ -1197,8 +1155,10 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "Dividendos posibles",
     unit: "COP",
+    // max(0, fondos propios − FZ.targetMargin × RK). No `formula`: graded
+    // against the engine's own figure, not the team's reported sol_fp/sol_rk
+    // — see sol_sigmaLR above.
     get: (b) => b.div,
-    formula: { kind: "excessAboveTarget", baseConceptId: "sol_fp", chargeConceptId: "sol_rk", targetMultiple: FZ.targetMargin },
   },
   {
     id: "eva",
@@ -1207,21 +1167,13 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "EVA — Valor Económico Agregado",
     unit: "COP",
-    // EVA: Utilidad Neta del año vigente (Año 2 si ya existe, si no Año 1 —
-    // mismo "año vigente" que solFp/solMargen) menos el Costo de Capital
-    // Propio (Ke, FZ.costoCapital) sobre el capital objetivo — FZ.targetMargin
-    // × RK, no el propio solFp del equipo — ver el comentario de
-    // FZ.costoCapital para el porqué: solFp puede ser negativo (un equipo que
-    // comprometió Capital Social), lo que volvería el cargo de capital un
-    // abono; RK (una suma de cargos de riesgo no negativos) nunca puede serlo.
+    // Utilidad Neta del año vigente (Año 2 si ya existe, si no Año 1) menos el
+    // Costo de Capital Propio (Ke, FZ.costoCapital) sobre el capital objetivo
+    // (FZ.targetMargin × RK, no el solFp del equipo — RK, una suma de cargos
+    // no negativos, nunca puede ser negativo y volver el cargo un abono).
+    // No `formula`: graded against this true engine value — see sol_sigmaLR
+    // above, por Día 4 el equipo ya tiene el P&G real del Día 3.
     get: (b) => (b.p2 ? b.p2.uneta : b.p1.uneta) - FZ.costoCapital * FZ.targetMargin * b.solRk,
-    formula: {
-      kind: "linear",
-      terms: [
-        { conceptId: "p2_uneta", coeff: 1, day: "d3" },
-        { conceptId: "sol_rk", coeff: -FZ.costoCapital * FZ.targetMargin },
-      ],
-    },
   },
   // Riesgo de tasa/inflación: adverse-direction NAV move (Activo − Pasivo)
   // at end of Año 2 under a real-curve/implied-inflation shock — see
@@ -1300,11 +1252,10 @@ export function ownValueKey(day: Dia, conceptId: string): string {
  * team never submitted it — a team that leaves a line blank is graded as if
  * it had reported 0 there, not excused from grading on it (see
  * scoreConcepto()'s own doc comment for the platform-wide policy this
- * implements). Deliberately NOT used for `sampleStdevLossRatio` (see its own
- * branch below, kept on the old null-propagation) or for `useTrueValue`
- * terms (a missing TRUE engine fact — e.g. bench not computed yet — is a
- * system-state gap, not something the team failed to submit, so it must
- * keep propagating null instead of silently grading as 0).
+ * implements). Deliberately NOT used for `useTrueValue` terms (a missing TRUE
+ * engine fact — e.g. bench not computed yet — is a system-state gap, not
+ * something the team failed to submit, so it must keep propagating null
+ * instead of silently grading as 0).
  */
 function ownValueOrZero(ownValues: Map<string, number>, day: Dia, conceptId: string): number {
   return ownValues.get(ownValueKey(day, conceptId)) ?? 0;
@@ -1314,38 +1265,6 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
   if (spec.kind === "taxOnUai") {
     const uai = ownValueOrZero(ownValues, ownDay, spec.uaiConceptId);
     return spec.rate * Math.max(0, uai);
-  }
-  if (spec.kind === "ratio") {
-    const num = ownValueOrZero(ownValues, ownDay, spec.numeratorConceptId);
-    const den = ownValueOrZero(ownValues, ownDay, spec.denominatorConceptId);
-    if (den === 0) return null; // genuine division-by-zero guard, not a missing-input case
-    return num / den;
-  }
-  if (spec.kind === "excessAboveTarget") {
-    const base = ownValueOrZero(ownValues, ownDay, spec.baseConceptId);
-    const charge = ownValueOrZero(ownValues, ownDay, spec.chargeConceptId);
-    return Math.max(0, base - spec.targetMultiple * charge);
-  }
-  if (spec.kind === "sampleStdevLossRatio") {
-    // Deliberately NOT defaulted to 0 (unlike every other kind above/below):
-    // costo/primaDevengada with a defaulted primaDevengada=0 has no sensible
-    // value (0/0 or a division by zero), so a missing input here still makes
-    // the whole σ ungradable rather than silently picking a loss ratio for
-    // the team.
-    const ratios: number[] = [];
-    for (const y of spec.years) {
-      const cost = ownValues.get(ownValueKey(y.day ?? ownDay, y.costConceptId));
-      const premium = ownValues.get(ownValueKey(y.day ?? ownDay, y.premiumConceptId));
-      if (cost == null || premium == null || premium === 0) return null;
-      let adjustedCost = cost;
-      if (y.adjustmentConceptId) {
-        const adj = ownValues.get(ownValueKey(y.adjustmentDay ?? y.day ?? ownDay, y.adjustmentConceptId));
-        if (adj == null) return null;
-        adjustedCost += adj;
-      }
-      ratios.push(adjustedCost / premium);
-    }
-    return sampleStdev(ratios);
   }
   let total = spec.constant ?? 0;
   for (const term of spec.terms) {
@@ -1377,10 +1296,9 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
  * value instead (same treatment a primary concept gets). Returns
  * `{ score: null }` (still ungradable, not 0) only when neither an expected
  * value nor a true bench value can be produced at all — a `useTrueValue`
- * term whose bench fact doesn't exist yet, or `sampleStdevLossRatio`'s own
- * division-by-zero guard (see evalFormula()) — both system-state gaps, not
- * something the team failed to submit. `bench` is also needed to fall back
- * to the true value on a missing submission, and for formulas with a
+ * term whose bench fact doesn't exist yet (see evalFormula()), a system-state
+ * gap, not something the team failed to submit. `bench` is also needed to
+ * fall back to the true value on a missing submission, and for formulas with a
  * `useTrueValue` term (e.g. Ajuste de siniestralidad) — pass `null` only for
  * formulas/concepts that need neither.
  */
