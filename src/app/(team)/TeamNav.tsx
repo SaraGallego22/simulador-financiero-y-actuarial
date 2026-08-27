@@ -49,6 +49,21 @@ export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) 
         )
       )}
       <NavItem href="/mercado" label="Resultados del mercado" short="MK" active={pathname === "/mercado"} collapsed={collapsed} />
+      {/* Día 5 — the wrap-up screen, unlocked only once the admin marks the
+          challenge finished (openDay = 5). Shown locked before then, same as a
+          future day above. */}
+      {openDay >= 5 ? (
+        <NavItem href="/day/5" label="Día 5" short="D5" active={pathname === "/day/5"} collapsed={collapsed} />
+      ) : (
+        <span
+          title="Aún no disponible"
+          className={`flex items-center gap-1.5 rounded-[var(--radius-sm)] border-l-2 border-transparent px-2.5 py-1 font-[family-name:var(--font-condensed)] text-sm font-semibold uppercase tracking-wide text-white/40 ${
+            collapsed ? "justify-center" : ""
+          }`}
+        >
+          <LockIcon className="h-3.5 w-3.5 shrink-0" /> {!collapsed && "Día 5"}
+        </span>
+      )}
       <NavItem href="/standings" label="Ranking" short="RK" active={pathname === "/standings"} collapsed={collapsed} />
     </SidebarShell>
   );
