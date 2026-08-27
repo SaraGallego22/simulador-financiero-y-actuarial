@@ -553,6 +553,22 @@ export default async function TeamDayPage({
 
         {day === 4 && (
           <>
+            <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-cyan)] bg-[var(--color-brand-surface)] p-5">
+              <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                Plantilla de presentación
+              </h3>
+              <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
+                Formato base para la presentación de tu equipo. Descárgala y complétala con tus resultados del reto.
+              </p>
+              <a
+                href="/plantilla-presentacion-dia-4.pptx"
+                download
+                className="inline-block w-fit rounded-full px-4 py-2 text-sm font-medium text-[var(--color-brand-blue-accent)] bg-[var(--color-brand-blue-accent)]/12 shadow-[var(--shadow-sm)] transition-all hover:-translate-y-0.5 active:translate-y-0 hover:bg-[var(--color-brand-blue-accent)]/20 hover:shadow-[var(--shadow-md)]"
+              >
+                Descargar plantilla (PPTX)
+              </a>
+            </div>
+
             <PillTabBar
               tabs={[
                 { key: "ref", label: "Respuestas Día 3", href: `/day/4?tab=ref` },
