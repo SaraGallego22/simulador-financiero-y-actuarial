@@ -17,6 +17,7 @@ import { FZ } from "@/domain/finance/constants";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import type { SoftSkillCompetency } from "@/lib/softSkills";
+import { perfilPredominante } from "@/domain/grading/composite";
 
 export interface MarketLossRatio {
   lossRatio: number;
@@ -344,6 +345,9 @@ export interface MemberConsolidadoRow {
   teamColor: string;
   perDay: { day: number; notaGeneral: number | null; aprobado: boolean | null; perfil: EvaluationProfile | null; aptitudesRiesgos: boolean }[];
   promedio: number | null;
+  // Most common `perfil` across perDay, most-recent-day-wins on a tie — see
+  // perfilPredominante()'s doc comment.
+  perfilPredominante: EvaluationProfile | null;
   diasAprobados: number;
   diasEvaluados: number;
   // Días 2-4 where the "Mostró aptitudes para Riesgos" checkpoint was
@@ -364,6 +368,10 @@ export interface MemberConsolidadoRow {
   // (see softSkills.ts).
   softSkills: Partial<Record<SoftSkillCompetency, number>>;
   softSkillComments: { activity: number; text: string }[];
+  // TH's one-on-one interview comments (see interview.ts) — same CSV-only
+  // treatment as softSkillComments above; always authored by
+  // INTERVIEW_COMMENT_AUTHOR, so that's not carried per-row here either.
+  interviewComments: { text: string }[];
 }
 
 /**
@@ -419,6 +427,16 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
     softSkillCommentsByMemberId.get(c.teamMemberId)!.push({ activity: c.activity, text: c.text });
   }
 
+  const interviewCommentsRaw = await prisma.interviewComment.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+    orderBy: { createdAt: "asc" },
+  });
+  const interviewCommentsByMemberId = new Map<string, { text: string }[]>();
+  for (const c of interviewCommentsRaw) {
+    if (!interviewCommentsByMemberId.has(c.teamMemberId)) interviewCommentsByMemberId.set(c.teamMemberId, []);
+    interviewCommentsByMemberId.get(c.teamMemberId)!.push({ text: c.text });
+  }
+
   const rows: MemberConsolidadoRow[] = [];
   for (const team of teams) {
     for (const member of team.members) {
@@ -439,12 +457,14 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
         teamColor: team.color,
         perDay,
         promedio: notaPerfilDia(notas),
+        perfilPredominante: perfilPredominante(perDay),
         diasAprobados: perDay.filter((d) => d.aprobado === true).length,
         diasEvaluados: notas.length,
         aptitudesRiesgosCount: perDay.filter((d) => d.aptitudesRiesgos).length,
         comments: (commentsByMemberId.get(member.id) ?? []).map((c) => ({ day: c.day, author: c.author, text: c.text })),
         softSkills,
         softSkillComments: softSkillCommentsByMemberId.get(member.id) ?? [],
+        interviewComments: interviewCommentsByMemberId.get(member.id) ?? [],
       });
     }
   }
