@@ -26,6 +26,18 @@ export interface Year3ProjectionInput {
   osY2endY3: number;
   /** development.paidY2inY2 — how much of Año 2's own ultimate was actually paid within Año 2 itself. Sets how fast Año 3's own claims are assumed to settle; omitted (or with ultY2 = 0) falls back to PAID_WITHIN_ACCIDENT_YEAR, the kernel's own generic rate. */
   paidY2inY2?: number;
+  /**
+   * A team's own Día-3 "Prima emitida A3 (proy.)" submission, when it
+   * exceeds the mechanical baseline below — Año 3 has no real market to
+   * observe, so a team is allowed to propose a genuine growth strategy for
+   * it instead of only ever reproducing the mechanical projection (see
+   * concepts.ts's p3_primaEmitida: `scoringMode: "atLeast"` grades the
+   * baseline as the floor, not the target — more is never penalized).
+   * Ignored (baseline wins, as if this were omitted) when null/undefined or
+   * not strictly greater than the baseline — a team can't shrink Año 3
+   * below the mechanical floor this way, only grow it.
+   */
+  primaOverride?: number | null;
 }
 
 export interface Year3Projection {
@@ -65,7 +77,24 @@ export interface Year3Projection {
  * Note that `insuredCount3` and the inflation factor cancel in
  * `costo3 / prima3`: the projected loss ratio of Año 3 comes out identical
  * to Año 2's, whatever the retention. That's a direct consequence of
- * repricing both lines with the same rate, not an independent result.
+ * repricing both lines with the same rate, not an independent result. This
+ * still holds under a growth override (see `primaOverride` below): scaling
+ * `costo3` by the exact same factor as `prima3` cancels the factor out of
+ * their ratio too, so growing Año 3 changes its size, never its loss ratio.
+ *
+ * `primaOverride`, when it genuinely exceeds this baseline `prima3`, replaces
+ * it — the team's own growth hypothesis becomes Año 3's real premium — and
+ * `costo3` scales by that exact same factor (`primaOverride / prima3`), by
+ * construction preserving the baseline loss ratio: a team that grows the
+ * book doesn't get to also improve (or worsen) its underlying risk quality
+ * by choosing this number, only its volume. That same growth factor also
+ * scales `ownClaimsSchedule12` (a pure linear function of `costo3`) and the
+ * Año-3-own share of `reservas3` — never `osY1endY3`/`osY2endY3`, Año 1's and
+ * Año 2's own tails, which have nothing to do with Año 3's growth.
+ * `insuredCount3` is deliberately NOT rescaled to match: the override doesn't
+ * specify whether the growth comes from more policies or a higher average
+ * premium, so this number keeps describing the baseline retention outcome,
+ * not a back-solved policy count for the grown premium.
  */
 export function projectYear3(i: Year3ProjectionInput): Year3Projection | null {
   if (i.year1InsuredCount <= 0 || i.year2InsuredCount <= 0 || i.claimCountY2 <= 0) return null;
@@ -73,11 +102,16 @@ export function projectYear3(i: Year3ProjectionInput): Year3Projection | null {
   const retentionRate = i.year2Retention.retainedCount / i.year1InsuredCount;
   const insuredCount3 = retentionRate * i.year2InsuredCount + i.year2Retention.newCount;
   const avgPremiumPerPolicy2 = i.year2PrimaEmitida / i.year2InsuredCount;
-  const prima3 = insuredCount3 * avgPremiumPerPolicy2 * (1 + CLAIMS_INFLATION_ANNUAL);
+  const baselinePrima3 = insuredCount3 * avgPremiumPerPolicy2 * (1 + CLAIMS_INFLATION_ANNUAL);
 
   const frecuencia2 = i.claimCountY2 / i.year2InsuredCount;
   const severidad3 = (i.ultY2 / i.claimCountY2) * (1 + CLAIMS_INFLATION_ANNUAL);
-  const costo3 = insuredCount3 * frecuencia2 * severidad3;
+  const baselineCosto3 = insuredCount3 * frecuencia2 * severidad3;
+
+  const hasGrowth = i.primaOverride != null && i.primaOverride > baselinePrima3;
+  const growthFactor = hasGrowth ? i.primaOverride! / baselinePrima3 : 1;
+  const prima3 = hasGrowth ? i.primaOverride! : baselinePrima3;
+  const costo3 = baselineCosto3 * growthFactor;
 
   // Cuánto del siniestro propio de Año 3 alcanza a pagarse dentro del mismo
   // Año 3: la velocidad real que el equipo ya mostró en Año 2 (paidY2inY2 ÷

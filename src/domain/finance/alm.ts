@@ -1619,7 +1619,17 @@ function pvPositionsAtCurve(positions: Position[], nominalCurve: Curve, realCurv
     const remainingMonths = p.matM - AÑO2_END_MONTH;
     const curve = ins.id === "TESUVR8" ? realCurve : nominalCurve;
     if (isCouponBond(ins)) {
-      pv += pvCouponCashflows(p.book, ins.yield, remainingMonths, curve);
+      // TESUVR8's own coupon is real (displayYield(), the "Inflación + X%"
+      // already shown in the instrument menu), not ins.yield's raw nominal
+      // 12% — the same cash flow stepMonth() pays (unaffected by this),
+      // re-expressed in real terms (Fisher-equivalent at the base case,
+      // since inflation is one flat constant everywhere in this engine),
+      // discounted at the matching real curve. Using the raw nominal coupon
+      // here priced the position ~35% over par at a full 84-month remaining
+      // term and, worse, made it move under both riesgo de tasa AND riesgo
+      // de inflación instead of only the former.
+      const couponRate = ins.id === "TESUVR8" ? displayYield(ins) : ins.yield;
+      pv += pvCouponCashflows(p.book, couponRate, remainingMonths, curve);
     } else {
       const remainingYears = Math.max(0, remainingMonths / 12);
       const faceVal = p.book * Math.pow(1 + ins.yield, remainingYears);

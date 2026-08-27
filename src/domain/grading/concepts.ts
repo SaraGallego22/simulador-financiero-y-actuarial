@@ -69,12 +69,21 @@ export interface LossRatioYearSpec {
  * rather than generalizing the whole spec for a single non-linear formula.
  * `"sampleStdevLossRatio"` is `sol_sigmaLR`'s own dedicated shape, for the
  * same reason: a 3-year sample standard deviation of a ratio isn't
- * expressible as a linear combination of other concepts' values.
+ * expressible as a linear combination of other concepts' values. `"ratio"`
+ * is `sol_margen`'s own shape (fondos propios ÷ RK) — a plain division
+ * isn't a linear combination either. `"excessAboveTarget"` is `div`'s own
+ * shape, `max(0, base − targetMultiple×charge)` — the same one-clamp
+ * pattern as `taxOnUai`, for a different non-linear formula. Both exist so
+ * a team's own error in `sol_rk`/`sol_fp` costs it once, on that line,
+ * instead of a second and third time on `sol_margen`/`div` too — the same
+ * reasoning every other `formula` concept in this file already follows.
  */
 export type FormulaSpec =
   | { kind: "linear"; terms: FormulaTerm[]; constant?: number }
   | { kind: "taxOnUai"; uaiConceptId: string; rate: number }
-  | { kind: "sampleStdevLossRatio"; years: LossRatioYearSpec[] };
+  | { kind: "sampleStdevLossRatio"; years: LossRatioYearSpec[] }
+  | { kind: "ratio"; numeratorConceptId: string; denominatorConceptId: string }
+  | { kind: "excessAboveTarget"; baseConceptId: string; chargeConceptId: string; targetMultiple: number };
 
 export interface Concepto {
   id: string;
@@ -96,6 +105,18 @@ export interface Concepto {
    * arrive at on its own, graded straight against the truth.
    */
   formula?: FormulaSpec;
+  /**
+   * Changes how a PRIMARY (no `formula`) concept's submission is compared
+   * against its true bench value in scoreConcepto() — never consulted for a
+   * formula concept, where "exceeding" the team's own recomputed `expected`
+   * has no defined meaning. `"atLeast"`: meeting or exceeding the bench
+   * value always scores 100 (more is never penalized), only falling short
+   * of it decays via the normal band — see atLeastToleranceBandScore().
+   * Currently only `p3_primaEmitida` (Año 3's premium growth hypothesis;
+   * see its own comment for why "exceeding" the baseline is even possible
+   * to submit here without being a plain wrong answer).
+   */
+  scoringMode?: "atLeast";
 }
 
 /**
@@ -481,7 +502,27 @@ export const CONCEPTOS: Concepto[] = [
     },
   },
   // Día 3 — Estado de resultados Año 3 (proyectado, 14 líneas — libera la RPND de Año 2, constituye la propia; sin línea de ajuste de siniestralidad, ver README §4)
-  { id: "p3_primaEmitida", dia: "d3", perfil: "fin", tipo: "reporte", label: "Prima emitida A3 (proy.)", unit: "COP", group: "pyg_a3", get: (b) => b.p3?.primaEmitida ?? null },
+  {
+    id: "p3_primaEmitida",
+    dia: "d3",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Prima emitida A3 (proy.)",
+    unit: "COP",
+    group: "pyg_a3",
+    // Año 3 has no real market to observe, so a team may propose a genuine
+    // growth hypothesis above the engine's own mechanical baseline instead
+    // of only ever reproducing it — see projectYear3.ts's `primaOverride`.
+    // The baseline is graded as a floor, not a target (scoringMode
+    // "atLeast"): falling short of it decays like any other numeric miss,
+    // but a submission that genuinely exceeds it becomes Año 3's real
+    // premium (finBenchHelper.ts reads this same Deliverable and threads it
+    // into finBench()), at which point `get()` below already returns exactly
+    // what the team submitted — claims scale with it (same loss ratio,
+    // bigger book), never independently improving or worsening.
+    get: (b) => b.p3?.primaEmitida ?? null,
+    scoringMode: "atLeast",
+  },
   {
     id: "p3_rpndLiberada",
     dia: "d3",
@@ -1139,8 +1180,26 @@ export const CONCEPTOS: Concepto[] = [
   },
   { id: "sol_rk", dia: "d4", perfil: "fin", tipo: "reporte", label: "Requerimiento de Capital", unit: "COP", get: (b) => b.solRk },
   { id: "sol_fp", dia: "d4", perfil: "fin", tipo: "reporte", label: "Fondos propios", unit: "COP", get: (b) => b.solFp },
-  { id: "sol_margen", dia: "d4", perfil: "fin", tipo: "reporte", label: "Margen de solvencia", unit: "x", get: (b) => b.solMargen },
-  { id: "div", dia: "d4", perfil: "fin", tipo: "reporte", label: "Dividendos posibles", unit: "COP", get: (b) => b.div },
+  {
+    id: "sol_margen",
+    dia: "d4",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Margen de solvencia",
+    unit: "x",
+    get: (b) => b.solMargen,
+    formula: { kind: "ratio", numeratorConceptId: "sol_fp", denominatorConceptId: "sol_rk" },
+  },
+  {
+    id: "div",
+    dia: "d4",
+    perfil: "fin",
+    tipo: "reporte",
+    label: "Dividendos posibles",
+    unit: "COP",
+    get: (b) => b.div,
+    formula: { kind: "excessAboveTarget", baseConceptId: "sol_fp", chargeConceptId: "sol_rk", targetMultiple: FZ.targetMargin },
+  },
   {
     id: "eva",
     dia: "d4",
@@ -1148,17 +1207,19 @@ export const CONCEPTOS: Concepto[] = [
     tipo: "reporte",
     label: "EVA — Valor Económico Agregado",
     unit: "COP",
-    // Classic corporate-finance EVA (capital invertido = fondos propios/patrimonio, not
-    // the Solvency-II solRk requirement — see FZ.costoCapital's own comment for why):
-    // Utilidad Neta del año vigente (Año 2 si ya existe, si no Año 1 — mismo "año
-    // vigente" que solFp/solMargen) menos el costo de oportunidad de mantener ese
-    // patrimonio invertido en la aseguradora.
-    get: (b) => (b.p2 ? b.p2.uneta : b.p1.uneta) - FZ.costoCapital * b.solFp,
+    // EVA: Utilidad Neta del año vigente (Año 2 si ya existe, si no Año 1 —
+    // mismo "año vigente" que solFp/solMargen) menos el Costo de Capital
+    // Propio (Ke, FZ.costoCapital) sobre el capital objetivo — FZ.targetMargin
+    // × RK, no el propio solFp del equipo — ver el comentario de
+    // FZ.costoCapital para el porqué: solFp puede ser negativo (un equipo que
+    // comprometió Capital Social), lo que volvería el cargo de capital un
+    // abono; RK (una suma de cargos de riesgo no negativos) nunca puede serlo.
+    get: (b) => (b.p2 ? b.p2.uneta : b.p1.uneta) - FZ.costoCapital * FZ.targetMargin * b.solRk,
     formula: {
       kind: "linear",
       terms: [
         { conceptId: "p2_uneta", coeff: 1, day: "d3" },
-        { conceptId: "sol_fp", coeff: -FZ.costoCapital },
+        { conceptId: "sol_rk", coeff: -FZ.costoCapital * FZ.targetMargin },
       ],
     },
   },
@@ -1206,6 +1267,23 @@ export function toleranceBandScore(submittedValue: number, benchmarkValue: numbe
 }
 
 /**
+ * Like toleranceBandScore(), but for a deliverable where the true bench
+ * value is a floor, not a target — meeting or exceeding it is always a
+ * perfect answer, only falling short decays like the normal band. Backs
+ * Concepto.scoringMode "atLeast" (currently only p3_primaEmitida's Año 3
+ * growth hypothesis — see its own comment): the engine's own baseline
+ * projection is the minimum acceptable premium, and a team that genuinely
+ * grows it becomes Año 3's real premium (see projectYear3.ts's
+ * `primaOverride`), at which point `benchmarkValue` here already equals
+ * what the team submitted — this only meaningfully differs from a plain
+ * toleranceBandScore() call when the submission falls short of the floor.
+ */
+export function atLeastToleranceBandScore(submittedValue: number, benchmarkValue: number, tolerance: ConceptTolerance): number {
+  if (submittedValue >= benchmarkValue) return 100;
+  return toleranceBandScore(submittedValue, benchmarkValue, tolerance);
+}
+
+/**
  * Key format for the "own submitted values" lookup scoreFormulaConcepto()
  * (and scoreConcepto(), for formula concepts) reads from — `${day}:${conceptId}`,
  * covering every day at once (not just the day being graded), since a
@@ -1217,13 +1295,43 @@ export function ownValueKey(day: Dia, conceptId: string): string {
   return `${day}:${conceptId}`;
 }
 
+/**
+ * Reads one of the team's own submitted values, defaulting to 0 when the
+ * team never submitted it — a team that leaves a line blank is graded as if
+ * it had reported 0 there, not excused from grading on it (see
+ * scoreConcepto()'s own doc comment for the platform-wide policy this
+ * implements). Deliberately NOT used for `sampleStdevLossRatio` (see its own
+ * branch below, kept on the old null-propagation) or for `useTrueValue`
+ * terms (a missing TRUE engine fact — e.g. bench not computed yet — is a
+ * system-state gap, not something the team failed to submit, so it must
+ * keep propagating null instead of silently grading as 0).
+ */
+function ownValueOrZero(ownValues: Map<string, number>, day: Dia, conceptId: string): number {
+  return ownValues.get(ownValueKey(day, conceptId)) ?? 0;
+}
+
 function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, number>, bench: FinBenchResult | null): number | null {
   if (spec.kind === "taxOnUai") {
-    const uai = ownValues.get(ownValueKey(ownDay, spec.uaiConceptId));
-    if (uai == null) return null;
+    const uai = ownValueOrZero(ownValues, ownDay, spec.uaiConceptId);
     return spec.rate * Math.max(0, uai);
   }
+  if (spec.kind === "ratio") {
+    const num = ownValueOrZero(ownValues, ownDay, spec.numeratorConceptId);
+    const den = ownValueOrZero(ownValues, ownDay, spec.denominatorConceptId);
+    if (den === 0) return null; // genuine division-by-zero guard, not a missing-input case
+    return num / den;
+  }
+  if (spec.kind === "excessAboveTarget") {
+    const base = ownValueOrZero(ownValues, ownDay, spec.baseConceptId);
+    const charge = ownValueOrZero(ownValues, ownDay, spec.chargeConceptId);
+    return Math.max(0, base - spec.targetMultiple * charge);
+  }
   if (spec.kind === "sampleStdevLossRatio") {
+    // Deliberately NOT defaulted to 0 (unlike every other kind above/below):
+    // costo/primaDevengada with a defaulted primaDevengada=0 has no sensible
+    // value (0/0 or a division by zero), so a missing input here still makes
+    // the whole σ ungradable rather than silently picking a loss ratio for
+    // the team.
     const ratios: number[] = [];
     for (const y of spec.years) {
       const cost = ownValues.get(ownValueKey(y.day ?? ownDay, y.costConceptId));
@@ -1241,9 +1349,16 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
   }
   let total = spec.constant ?? 0;
   for (const term of spec.terms) {
-    const v = term.useTrueValue ? (bench ? (CONCEPTO_BY_ID[term.conceptId]?.get?.(bench) ?? null) : null) : ownValues.get(ownValueKey(term.day ?? ownDay, term.conceptId)) ?? null;
-    if (v == null) return null;
-    total += term.coeff * v;
+    if (term.useTrueValue) {
+      // A true engine fact, not a team submission — missing means the bench
+      // itself doesn't exist yet (system state), so this stays ungradable
+      // rather than defaulting to 0.
+      const v = bench ? (CONCEPTO_BY_ID[term.conceptId]?.get?.(bench) ?? null) : null;
+      if (v == null) return null;
+      total += term.coeff * v;
+    } else {
+      total += term.coeff * ownValueOrZero(ownValues, term.day ?? ownDay, term.conceptId);
+    }
   }
   return total;
 }
@@ -1251,11 +1366,23 @@ function evalFormula(spec: FormulaSpec, ownDay: Dia, ownValues: Map<string, numb
 /**
  * Grades a "formula" concept against a value recomputed from the team's OWN
  * other submitted lines (via its FormulaSpec) instead of the true bench —
- * see scoreConcepto()'s doc comment for why. Returns `{ score: null }` (not
- * a 0) when any required input is missing from `ownValues` — ungradable,
- * doesn't count, same convention as a blank submission elsewhere. `bench` is
- * only needed for formulas with a `useTrueValue` term (e.g. Ajuste de
- * siniestralidad) — pass `null` for formulas that don't have one.
+ * see scoreConcepto()'s doc comment for why. That "check it against your own
+ * other lines" protection only makes sense when the team actually submitted
+ * `conceptoId` itself: if they didn't, there's no "did they apply the
+ * formula consistently" question to ask, and comparing a defaulted 0
+ * against an `expected` that may ALSO be hollowed out to 0 by other missing
+ * lines would trivially score 100 (0 vs 0 has zero relative error) — the
+ * opposite of the intended "blank line grades as 0" policy. So a missing
+ * `conceptoId` falls back to grading 0 straight against the TRUE bench
+ * value instead (same treatment a primary concept gets). Returns
+ * `{ score: null }` (still ungradable, not 0) only when neither an expected
+ * value nor a true bench value can be produced at all — a `useTrueValue`
+ * term whose bench fact doesn't exist yet, or `sampleStdevLossRatio`'s own
+ * division-by-zero guard (see evalFormula()) — both system-state gaps, not
+ * something the team failed to submit. `bench` is also needed to fall back
+ * to the true value on a missing submission, and for formulas with a
+ * `useTrueValue` term (e.g. Ajuste de siniestralidad) — pass `null` only for
+ * formulas/concepts that need neither.
  */
 export function scoreFormulaConcepto(
   conceptoId: string,
@@ -1266,9 +1393,13 @@ export function scoreFormulaConcepto(
 ): ConceptScoreResult | null {
   const c = CONCEPTO_BY_ID[conceptoId];
   if (!c || !c.formula) return null;
-  if (submittedValue == null) return { val: null, bench: null, score: null };
+  const trueValue = bench && c.get ? c.get(bench) : null;
+  if (submittedValue == null) {
+    if (trueValue == null) return { val: null, bench: null, score: null };
+    return { val: null, bench: trueValue, score: toleranceBandScore(0, trueValue, tolerance) };
+  }
   const expected = evalFormula(c.formula, c.dia, ownValues, bench);
-  if (expected == null) return { val: submittedValue, bench: null, score: null };
+  if (expected == null) return { val: submittedValue, bench: trueValue, score: null };
   return { val: submittedValue, bench: expected, score: toleranceBandScore(submittedValue, expected, tolerance) };
 }
 
@@ -1289,13 +1420,17 @@ export function scoreFormulaConcepto(
  *    bench — so one upstream mistake (e.g. a wrong Costo de Siniestros)
  *    doesn't also tank every line that's algebraically downstream of it
  *    (RT, RI, UAI, Impuesto, Utilidad Neta, and on the Balance side
- *    Activos/Pasivo/Pasivo+Patrimonio/Inversiones). `bench` in the returned
- *    result still carries the true engine value when `get()` is present —
- *    informational only for these concepts, not what `score` is computed
- *    against. Callers that don't yet have an `ownValues` map for a formula
- *    concept should pass an empty Map — it grades as `null` (ungradable),
- *    the same as any other missing input, not a silent fallback to the old
- *    bench-comparison behavior.
+ *    Activos/Pasivo/Pasivo+Patrimonio/Inversiones) — but only when the team
+ *    actually submitted that downstream line itself; a missing submission
+ *    falls back to grading 0 against the true bench value directly (see
+ *    scoreFormulaConcepto()'s own doc comment for why: comparing a
+ *    defaulted 0 against an `expected` hollowed out to 0 by other missing
+ *    lines would trivially score 100). A missing input elsewhere (a team
+ *    that DID submit this line but left an upstream one blank) still grades
+ *    that upstream line as 0 in the formula, same platform-wide policy.
+ *    Callers that don't yet have an `ownValues` map for a formula concept
+ *    should pass an empty Map — every referenced line then grades as 0, the
+ *    same as if the team had submitted nothing for any of them.
  */
 export function scoreConcepto(
   conceptoId: string,
@@ -1309,7 +1444,10 @@ export function scoreConcepto(
   const b = bench && c.get ? c.get(bench) : null;
 
   if (c.formula) {
-    if (submittedValue == null) return { val: null, bench: b, score: null };
+    if (submittedValue == null) {
+      if (b == null) return { val: null, bench: null, score: null };
+      return { val: null, bench: b, score: toleranceBandScore(0, b, tolerance) };
+    }
     const expected = evalFormula(c.formula, c.dia, ownValues ?? new Map(), bench);
     if (expected == null) return { val: submittedValue, bench: b, score: null };
     return { val: submittedValue, bench: b, score: toleranceBandScore(submittedValue, expected, tolerance) };
@@ -1317,6 +1455,7 @@ export function scoreConcepto(
 
   if (!c.get) return null;
   if (!bench || b == null) return { val: submittedValue, bench: null, score: null };
-  if (submittedValue == null) return { val: null, bench: b, score: null };
-  return { val: submittedValue, bench: b, score: toleranceBandScore(submittedValue, b, tolerance) };
+  const effectiveValue = submittedValue ?? 0;
+  const score = c.scoringMode === "atLeast" ? atLeastToleranceBandScore(effectiveValue, b, tolerance) : toleranceBandScore(effectiveValue, b, tolerance);
+  return { val: submittedValue, bench: b, score };
 }

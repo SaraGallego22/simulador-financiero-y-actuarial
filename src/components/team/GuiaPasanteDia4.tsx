@@ -147,8 +147,9 @@ export function GuiaPasanteDia4() {
             (ej. 6 meses, entre CDT90 a 3 y TES1 a 12), la tasa es un promedio ponderado por qué tan cerca queda de cada uno —{" "}
             <em>tasa(plazo) = tasa_A + (plazo − plazo_A)/(plazo_B − plazo_A) × (tasa_B − tasa_A)</em>, con A el punto anterior y B el siguiente. Para
             un plazo antes de 3 meses o después de 36 meses (fuera del rango que cubren CDT90/TES1/TES3) la curva se mantiene plana en la tasa del
-            punto dado más cercano — así que, por ejemplo, el plazo remanente de una posición TESUVR8 que cae en la curva <strong>nominal</strong>{" "}
-            (para el choque de riesgo de inflación, que sí mueve lo nominal) usa la tasa de TES3 si ese plazo supera los 36 meses.
+            punto dado más cercano — así que, por ejemplo, los flujos de tu pasivo de siniestros que vencen más allá del mes 36 se descuentan todos con
+            la tasa de TES3, y el principal y los cupones más lejanos de tu posición en TESUVR8 caen en ese mismo tramo plano, ya deflactado a la curva
+            real.
           </p>
           <p>
             La relación entre ambas curvas (Fisher) es (1+nominal) = (1+real) × (1+inflación) — despejando, la curva de inflación implícita que tu
@@ -188,10 +189,38 @@ export function GuiaPasanteDia4() {
 
         <SubSection title="Creación de valor económico (EVA)" accent="fin">
           <p>
-            Una aseguradora crea valor cuando su utilidad supera el costo de oportunidad del patrimonio invertido en el negocio — lo que ese mismo
+            Una aseguradora crea valor cuando su utilidad supera el costo de oportunidad del capital invertido en el negocio — lo que ese mismo
             capital habría podido rendir en un uso alternativo de riesgo comparable. Una utilidad que se queda por debajo de ese costo destruye valor
-            aunque el resultado contable sea positivo. El EVA (Valor Económico Agregado) formaliza esa comparación: utilidad neta menos un cargo por
-            costo de capital sobre los fondos propios.
+            aunque el resultado contable sea positivo. El EVA (Valor Económico Agregado) formaliza esa comparación: utilidad neta menos un cargo por{" "}
+            <strong>Costo de Capital Propio</strong> sobre ese capital.
+          </p>
+          <p>
+            Esa resta no tiene una única forma estándar — varios marcos reales la formalizan distinto, porque cada uno responde una pregunta
+            distinta sobre qué capital importa. El <strong>EVA clásico</strong> (Stern Stewart &amp; Co.) es NOPAT (utilidad operativa neta
+            después de impuestos, antes de cualquier costo de financiamiento) menos el WACC (costo promedio ponderado de deuda y patrimonio)
+            aplicado sobre el capital invertido total de la empresa — pensado para una compañía que se financia con una mezcla real de deuda y
+            patrimonio. El <strong>Residual Income</strong> (o EVA de patrimonio) es utilidad neta menos el Costo de Capital Propio aplicado
+            sobre el patrimonio contable real — sin deuda de por medio, el marco que suelen usar bancos y aseguradoras, financiados casi
+            enteramente con patrimonio y reservas técnicas. Y una <strong>rentabilidad ajustada al riesgo</strong> carga ese mismo costo de
+            capital sobre un capital objetivo derivado del perfil de riesgo de la operación, no sobre el patrimonio que la empresa efectivamente
+            tiene — el mismo principio detrás de métricas como RAROC (Return on Risk-Adjusted Capital) en la industria financiera. Las tres
+            restan un cargo de capital a una medida de utilidad; la diferencia está en qué utilidad y, sobre todo, qué capital usa cada una.
+          </p>
+          <p>
+            El <strong>Costo de Capital Propio (Ke)</strong> es el retorno anual que razonablemente exige quien pone ese capital en la operación.
+            Se estima con metodologías reales de valoración: el <strong>CAPM</strong> (Ke = tasa libre de riesgo + beta × prima de riesgo de
+            mercado, sumando una prima de riesgo país cuando se valora una operación en un mercado emergente como este), el{" "}
+            <strong>método de build-up</strong> (sumar primas de riesgo — de mercado, de tamaño, específica de la empresa — a la tasa libre de
+            riesgo cuando no hay un beta observable, el caso típico de una aseguradora que no cotiza en bolsa), o el{" "}
+            <strong>modelo de crecimiento de dividendos</strong>. Este ejercicio fija Ke en 10%, un nivel razonable para una aseguradora en un
+            mercado emergente.
+          </p>
+          <p>
+            El capital sobre el que se cobra ese Ke es tu <strong>capital objetivo</strong> — el mismo 1.5× tu RK que ya define cuándo tienes
+            excedente para repartir dividendo (sección 5). El 1.5 es el multiplicador que convierte el RK — un mínimo regulatorio teórico — en
+            el capital de operación real que una aseguradora debería sostener: las calificadoras de riesgo y el apetito de riesgo del propio
+            directorio son las dos fuentes reales de ese múltiplo, porque una aseguradora que opera pegada al mínimo regulatorio no sostiene una
+            calificación de solvencia sólida ni tiene margen para absorber una mala racha.
           </p>
         </SubSection>
       </Section>
@@ -212,11 +241,18 @@ export function GuiaPasanteDia4() {
             Los tres combinados (vía correlación, ver sección 5) son tu Riesgo de Mercado, uno de los dos insumos del RK.
           </p>
           <p>
-            Tu <strong>σ de siniestralidad</strong> se recalcula a partir de tus propias otras líneas ya reportadas — tu Costo de Siniestros y Prima
-            Emitida de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, suma tu propio Costo más tu propio Ajuste de siniestralidad A1 (la misma
-            liberación del 10% de reserva que ya reportaste en el Estado de resultados de Año 2, Día 3). El EVA se recalcula igual, a partir de tu
-            Utilidad Neta del año vigente de Día 3 y tus Fondos propios de hoy. En ambos casos, un error previo en alguna de esas líneas te penaliza
-            una sola vez.
+            Tu <strong>σ de siniestralidad</strong> se recalcula a partir de tus propias otras líneas ya reportadas — tu Costo de Siniestros y tu{" "}
+            <strong>Prima Devengada</strong> de Año 1 (Día 2), Año 2 y Año 3 (Día 3). Para Año 1, suma tu propio Costo más tu propio Ajuste de
+            siniestralidad A1 (la misma liberación del 10% de reserva que ya reportaste en el Estado de resultados de Año 2, Día 3). El EVA se
+            recalcula igual, a partir de tu Utilidad Neta del año vigente de Día 3 y tu propio RK de hoy — y lo mismo aplica a tu{" "}
+            <strong>Margen de solvencia</strong> (tus propios Fondos propios ÷ tu propio RK) y tu <strong>Dividendo posible</strong> (tus propios
+            Fondos propios menos 1.5 veces tu propio RK). En los cuatro casos, un error previo en alguna de esas líneas te penaliza una sola vez.
+          </p>
+          <p>
+            El riesgo de prima usa una medida de volumen prospectiva, no solo tu Prima Devengada del año vigente: es el <strong>mayor</strong>{" "}
+            entre esa cifra y tu propia <strong>Prima Devengada A3</strong> (proyectada, Día 3) — la misma idea de &ldquo;el mayor entre lo
+            devengado en los últimos 12 meses y lo esperado en los próximos 12&rdquo; que usa la fórmula estándar de Solvencia II para este
+            cargo (ver sección 2).
           </p>
           <p>
             El RK se arma en dos niveles: <strong>Riesgo de Mercado</strong> (tasa, inflación, acciones) y <strong>Riesgo de Suscripción</strong>{" "}
@@ -264,6 +300,10 @@ export function GuiaPasanteDia4() {
               cierre de Año 2 — revisa cuál de los dos domina en tu caso antes de reportar.
             </li>
             <li>
+              <strong>El riesgo de prima usa el mayor entre dos primas devengadas.</strong> Tu propia Prima Devengada del año vigente y tu propia
+              Prima Devengada A3 (proyectada, Día 3) — revisa cuál de las dos domina en tu caso antes de reportar.
+            </li>
+            <li>
               <strong>Riesgo de Mercado y Riesgo de Suscripción se combinan de forma pitagórica en el Básico.</strong> El modelo asume correlación
               cero entre ambos, así que el Básico es la raíz de la suma de cuadrados, siempre menor o igual que su suma directa — un equipo con
               Mercado y Suscripción parecidos en magnitud paga menos capital combinado que uno con toda su exposición concentrada en uno solo de los
@@ -274,8 +314,9 @@ export function GuiaPasanteDia4() {
               brecha de caja, eso ya redujo tu patrimonio en el Balance de ese año — revisa tu Balance de Día 3 antes de calcular tu solvencia.
             </li>
             <li>
-              <strong>El EVA se mide contra el 10% de tus fondos propios.</strong> Si tu utilidad neta apenas superó (o quedó por debajo de) ese
-              umbral, tu EVA será bajo o negativo aun con una Utilidad Neta A2 positiva — reporta el cálculo completo.
+              <strong>El EVA se mide contra tu capital objetivo, no tu patrimonio real.</strong> El cargo es Ke × 1.5×RK — si tu Utilidad Neta
+              apenas superó (o quedó por debajo de) ese umbral, tu EVA será bajo o negativo aun con una Utilidad Neta A2 positiva — reporta el
+              cálculo completo.
             </li>
             <li>
               <strong>Las dos curvas salen de instrumentos que ya conoces.</strong> La nominal son los yields de CDT90/TES1/TES3, interpolados por
@@ -322,11 +363,20 @@ export function GuiaPasanteDia4() {
         </SubSection>
 
         <PreguntasAbiertas>
-          <li>¿Qué pasaría con tu RK si el regulador exigiera un margen de seguridad objetivo más alto que 1.5×?</li>
+          <li>
+            ¿Cuál de las tres — la EVA clásica de Stern Stewart, el Residual Income, o una rentabilidad ajustada al riesgo — describe mejor lo
+            que tu equipo reportó hoy como EVA? ¿Por qué una aseguradora podría preferir esa sobre las otras dos?
+          </li>
+          <li>Si tu patrimonio real fuera el doble (o la mitad) de lo que es, ¿debería cambiar el EVA que reportaste? ¿Cambia?</li>
+          <li>¿Qué pasaría con tu Dividendo posible y tu EVA de hoy si el regulador exigiera un margen de seguridad objetivo más alto que 1.5×? ¿Le pasaría lo mismo a tu RK?</li>
           <li>¿Cómo cambiaría tu recomendación sectorial si tuvieras acceso a la cartera completa del mercado, no solo la tuya?</li>
           <li>
             ¿Qué le dirías a la junta directiva de tu aseguradora sobre la relación entre qué tanto de tu portafolio de Día 2 quedó en TESUVR8 frente
             a instrumentos nominales, y el dividendo que pueden repartir hoy?
+          </li>
+          <li>
+            TESUVR8 es el único instrumento del menú indexado a inflación — ¿cómo deberías considerarlo al calcular tu Riesgo de tasa y tu
+            Riesgo de inflación de hoy?
           </li>
           <li>¿Cómo afecta la cantidad de asegurados de un sector al análisis de su multiplicador?</li>
           <li>¿Cómo cambiarían tus multiplicadores si los construyeras con la severidad promedio del sector en vez de con su pérdida agregada total?</li>
@@ -347,9 +397,12 @@ export function GuiaPasanteDia4() {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <ScoreCard
               label="σ de siniestralidad (sol_sigmaLR)"
-              formula="desviación estándar muestral (÷2, no ÷3) de [Costo A1 corregido ÷ Prima A1, Costo A2 ÷ Prima A2, Costo A3 ÷ Prima A3] — Costo A1 corregido = tu Costo de Siniestros A1 (Día 2) + tu Ajuste de siniestralidad A1 (Día 3)"
+              formula="desviación estándar muestral (÷2, no ÷3) de [Costo A1 corregido ÷ Prima Devengada A1, Costo A2 ÷ Prima Devengada A2, Costo A3 ÷ Prima Devengada A3] — Costo A1 corregido = tu Costo de Siniestros A1 (Día 2) + tu Ajuste de siniestralidad A1 (Día 3)"
             />
-            <ScoreCard label="Riesgo de prima (rPrimas)" formula="prima × tu propia σ de siniestralidad (sol_sigmaLR, arriba)" />
+            <ScoreCard
+              label="Riesgo de prima (rPrimas)"
+              formula="máx(Prima Devengada del año vigente, Prima Devengada A3 proyectada) × tu propia σ de siniestralidad (sol_sigmaLR, arriba)"
+            />
             <ScoreCard label="Riesgo de suscripción (rSusc)" formula="√(rPrimas² + (reservas×30%)² + 2×0.75×rPrimas×(reservas×30%))" />
             <ScoreCard
               label="Riesgo de tasa"
@@ -370,18 +423,23 @@ export function GuiaPasanteDia4() {
               formula="máx(4% × prima emitida al cierre de Año 2, 1.3% × reserva técnica al cierre de Año 2)"
             />
             <ScoreCard label="Requerimiento de Capital (RK)" formula="Básico + Riesgo operacional (suma lineal, sin correlación)" />
-            <ScoreCard label="Margen de solvencia" formula="Fondos propios (patrimonio) ÷ RK" />
-            <ScoreCard label="Dividendo posible" formula="máx(0, Fondos propios − RK × 1.5)" />
-            <ScoreCard label="EVA (Valor Económico Agregado)" formula="Utilidad Neta (año vigente, Día 3) − 10% × Fondos propios" />
+            <ScoreCard label="Margen de solvencia" formula="tus propios Fondos propios ÷ tu propio RK (los mismos que reportaste arriba)" />
+            <ScoreCard label="Dividendo posible" formula="máx(0, tus propios Fondos propios − tu propio RK × 1.5)" />
+            <ScoreCard
+              label="EVA (Valor Económico Agregado)"
+              formula="Utilidad Neta (año vigente, Día 3) − Costo de Capital Propio, Ke (10%) × Capital objetivo (1.5× tu propio RK)"
+            />
             <ScoreCard
               label="Curvas dadas"
               formula="nominal = yields de CDT90/TES1/TES3 por plazo, interpolación lineal entre puntos y plana fuera de [3,36] meses · inflación implícita = despéjala de (1+nominal)/(1+real) = (1+inflación) en el único plazo donde conoces las dos (TESUVR8, 96 meses) — luego es la misma en cualquier otro plazo · real = (1+nominal)/(1+inflación) − 1 en cada plazo (siempre por cociente de Fisher)"
             />
           </div>
           <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-            &ldquo;Prima&rdquo;/&ldquo;reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; (fuera de la fórmula de σ) son los mismos
-            números de tu Balance del año vigente (Día 3), listos para usar. La σ de siniestralidad es la única línea que mira los 3 años a la vez en
-            lugar de solo el año vigente. Riesgo de tasa, riesgo de inflación y riesgo de acciones se distinguen de las demás líneas de esta tabla en
+            &ldquo;Reservas&rdquo;/&ldquo;inversiones&rdquo;/&ldquo;patrimonio&rdquo; y la Prima Emitida del riesgo operacional son los mismos
+            números que ya reportaste para el año vigente en Día 3. La σ de siniestralidad y el riesgo de prima son las únicas líneas que van
+            sobre Prima <strong>Devengada</strong> en vez de Emitida — la σ mira los 3 años a la vez, y el riesgo de prima compara tu año vigente
+            contra tu propia proyección de Año 3. Riesgo de tasa, riesgo de inflación y riesgo de acciones se distinguen de las demás líneas de
+            esta tabla en
             un punto: salen de tu portafolio y pasivo <strong>reales</strong> al cierre de Año 2 — las posiciones que tu calendario real todavía tiene
             abiertas en ese momento — en lugar de tu Balance de Día 3.
           </p>

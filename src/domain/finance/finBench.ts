@@ -180,6 +180,8 @@ export interface FinBenchInput {
    */
   outsourcedYear1?: boolean;
   outsourcedYear2?: boolean;
+  /** A team's own Día-3 "Prima emitida A3 (proy.)" submission, threaded straight through to projectYear3()'s own `primaOverride` — see that function's doc comment for the full growth-hypothesis mechanic (only takes effect when it genuinely exceeds the mechanical baseline; costo3/reservas3/ownClaimsSchedule12 scale with it there, not here). */
+  year3PrimaOverride?: number | null;
 }
 
 /**
@@ -374,7 +376,7 @@ function balance(
  * (SIM_RES/SIM_RES2/FIN/BENCH_CACHE).
  */
 export function finBench(input: FinBenchInput): FinBenchResult {
-  const { year1, year2, liabilityYear1, development, almYear1, almYear2, almYear3, year2Retention, marketRisk, accBookValue2 } = input;
+  const { year1, year2, liabilityYear1, development, almYear1, almYear2, almYear3, year2Retention, marketRisk, accBookValue2, year3PrimaOverride } = input;
   const feePct1 = input.outsourcedYear1 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
   const feePct2 = input.outsourcedYear2 ? OUTSOURCED_CONSULTING_FEE_PCT : 0;
 
@@ -468,6 +470,7 @@ export function finBench(input: FinBenchInput): FinBenchResult {
           osY1endY3: development.osY1endY3,
           osY2endY3: development.osY2endY3,
           paidY2inY2: development.paidY2inY2,
+          primaOverride: year3PrimaOverride,
         })
       : null;
   if (proj3 && p2 && year2 && development) {
@@ -560,14 +563,25 @@ export function finBench(input: FinBenchInput): FinBenchResult {
   // the old flat FZ.primeVol then, since nothing reads solRk/rPrimas as a
   // graded figure before Día 4 anyway.
   const solSigmaLR = p2 && p3 ? sampleStdev([p1.costo / p1.primaDevengada, p2.costo / p2.primaDevengada, p3.costo / p3.primaDevengada]) : FZ.primeVol;
-  // rPrimas itself still applies that volatility rate to primaEmitida, not
-  // primaDevengada — the same base gastos use (see PnL.primaEmitida's doc
-  // comment): premium risk-capital is about the volume of business written
-  // (how much is currently on risk), not how much of it has earned out
-  // yet — solSigmaLR only changed *how the rate itself is measured*
-  // (against earned premium, a genuine performance ratio), not what it's
-  // then applied to (written premium, an exposure/volume figure).
-  const rPrimas = pygN.primaEmitida * solSigmaLR;
+  // rPrimas' volume measure follows Solvencia II's own prescribed shape for
+  // premium risk: max(prima devengada de los últimos 12 meses, prima
+  // devengada esperada de los próximos 12) — never primaEmitida. pygN is
+  // "los últimos 12 meses" (el año vigente); p3's own projection stands in
+  // for "los próximos 12" a real filing would use (Año 3 never has a market
+  // of its own — see projectYear3.ts). Falls back to pygN's own devengada
+  // alone when there's no Año 3 projection yet — same data-not-ready-yet
+  // convention solSigmaLR's FZ.primeVol fallback follows above; rPrimas/
+  // rSusc/rk are never graded before Día 4 anyway, which is when p2 AND p3
+  // both exist.
+  //
+  // Deliberately not capped by primaEmitida: a team whose book shrank
+  // sharply between Año 1 y Año 2 still carries a large trailing
+  // primaDevengada purely from that year's RPND release of Año 1's much
+  // bigger book — a real, pending accounting fact at that year's close, not
+  // a modeling error — and the max() keeps charging capital on it even once
+  // the current book is smaller.
+  const primaVolumen = p3 ? Math.max(pygN.primaDevengada, p3.primaDevengada) : pygN.primaDevengada;
+  const rPrimas = primaVolumen * solSigmaLR;
   const rReservas = reservasN * FZ.resVol;
   const rSusc = Math.sqrt(rPrimas * rPrimas + rReservas * rReservas + 2 * FZ.corrPR * rPrimas * rReservas);
 

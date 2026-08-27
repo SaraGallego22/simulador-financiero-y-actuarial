@@ -346,11 +346,6 @@ export default async function TeamDayPage({
   // realAlmYear1's doc comment in finBenchHelper.ts), not the fictitious
   // 60-month scenario Día 1/2's own ALM nota was graded on.
   let realAlmYear1: TeamFinBenchBundle["realAlmYear1"] = null;
-  // Only populated on Día 4 (see the day===4 block below) — Año 2/3's real
-  // ALM, shown alongside realAlmYear1 as one continuous 2027-2029 ladder on
-  // Día 4's "Respuestas Día 3" tab.
-  let realAlmYear2: TeamFinBenchBundle["realAlmYear2"] = null;
-  let realAlmYear3: TeamFinBenchBundle["realAlmYear3"] = null;
   // Día 2's TRUE P&G/Balance (Año 1), from finBench — shown as reference on
   // Día 3's "Respuestas Día 2" tab instead of the team's own Día 2 report
   // (deliberately the true engine values here, unlike every other day's own
@@ -369,25 +364,22 @@ export default async function TeamDayPage({
 
   // Same idea as day2TrueValues, one day later: Día 3's TRUE P&G/Balance
   // (Año 2 real + Año 3 proyectado), shown as reference on Día 4's
-  // "Respuestas Día 3" tab.
+  // "Respuestas Día 3" tab. realAlmYear2 is the real ALM's own portfolio at
+  // that same close — the exact positions Riesgo de tasa/Riesgo de
+  // inflación/Riesgo de acciones are computed from (see
+  // computeMarketRiskAtAño2End in alm.ts) — otherwise never shown to the team.
   const day3TrueValues: Record<string, number> = {};
+  let realAlmYear2: TeamFinBenchBundle["realAlmYear2"] = null;
   if (day === 4 && teamId) {
     const bundle = finBenchBundlesByTeamId.get(teamId);
     if (bundle) {
-      realAlmYear1 = bundle.realAlmYear1;
       realAlmYear2 = bundle.realAlmYear2;
-      realAlmYear3 = bundle.realAlmYear3;
       for (const c of conceptosDia("d3").filter((c) => c.tipo === "reporte")) {
         const v = c.get?.(bundle.bench);
         if (v != null) day3TrueValues[c.id] = v;
       }
     }
   }
-  // The three real-ALM runs, concatenated into one continuous 36-month
-  // ladder (2027 Jan through 2029 Dec) — AlmSimRow.mes is already a
-  // continuous, non-overlapping index across years by construction (see
-  // almSimRealYear()'s startMonth/mesLabel), so no renumbering is needed.
-  const fullAlmRows = [...(realAlmYear1?.rows ?? []), ...(realAlmYear2?.rows ?? []), ...(realAlmYear3?.rows ?? [])];
 
   // Día 1's minimum-variance result, shown on Día 2.
   let day1MinVarResult: MinVarResult | null = null;
@@ -600,51 +592,26 @@ export default async function TeamDayPage({
                   </div>
                 )}
 
-                {(realAlmYear1 || realAlmYear2 || realAlmYear3) && (
-                  <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
-                    <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                      ALM real completo — 2027 a 2029
-                    </h3>
-                    <div className="flex flex-col gap-4">
-                      {realAlmYear1 && (
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[1]}</p>
-                          <AlmRealYearTiles realYear={realAlmYear1} />
-                        </div>
-                      )}
-                      {realAlmYear2 && (
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[2]}</p>
-                          <AlmRealYearTiles realYear={realAlmYear2} />
-                        </div>
-                      )}
-                      {realAlmYear3 && (
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
-                            {SIMULATED_YEAR_LABEL[3]} (proyección)
-                          </p>
-                          <AlmRealYearTiles realYear={realAlmYear3} />
-                        </div>
-                      )}
-                      <details className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
-                        <summary className="cursor-pointer bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                          Caja mes a mes (2027-2029 completo)
-                        </summary>
-                        <div className="p-3">
-                          <AlmLadderTable rows={fullAlmRows} />
-                        </div>
-                      </details>
-                      <details className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
-                        <summary className="cursor-pointer bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-                          Valor del portafolio mes a mes (2027-2029 completo)
-                        </summary>
-                        <div className="p-3">
-                          <AlmPortfolioTable rows={fullAlmRows} />
-                        </div>
-                      </details>
+                <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                  <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                    ALM real — tu portafolio al cierre de {SIMULATED_YEAR_LABEL[2]}
+                  </h3>
+                  <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
+                    Las posiciones que este calendario todavía tiene abiertas en este punto son la base de tu Riesgo de tasa, Riesgo de
+                    inflación y Riesgo de acciones de hoy.
+                  </p>
+                  {realAlmYear2 ? (
+                    <div className="flex flex-col gap-3">
+                      <AlmRealYearTiles realYear={realAlmYear2} />
+                      <AlmLadderTable rows={realAlmYear2.rows} />
+                      <AlmPortfolioTable rows={realAlmYear2.rows} />
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                      Aún no tienes un portafolio guardado, o las reservas correspondientes todavía no están disponibles.
+                    </p>
+                  )}
+                </div>
 
                 <DeliverablesReadOnly
                   concepts={day3ReportConcepts}

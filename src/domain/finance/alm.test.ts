@@ -705,6 +705,21 @@ describe("computeMarketRiskAtAño2End", () => {
     expect(result.riesgoTasa).toBeGreaterThan(0);
   });
 
+  it("prices TESUVR8 with a real coupon (displayYield), not its raw nominal yield — a position discounted at its own matching rate must land near par, not ~35% over it", () => {
+    // 96 months remaining at valuation — matches TESUVR8's own plazoM, so
+    // realCurveRate(96) equals displayYield(TESUVR8) by construction
+    // (IMPLIED_INFLATION is solved exactly at that anchor tenor). Coupon and
+    // discount rate coinciding at every payment date (the nominal curve is
+    // flat past 36 months, so every one of this bond's annual coupon dates
+    // lands in that flat region too) means a correctly-priced bond must come
+    // out at par. Independently verified: base ≈ $100,096,929 on $100M book
+    // (pricing the OLD, buggy nominal-coupon version instead gives
+    // ≈$138,735,051 — 39% over par) and riesgoTasa ≈ $16,257,713.
+    const uvr8Positions: Position[] = [{ instrumentId: "TESUVR8", book: 100_000_000, yM: 0, matM: 120, accrued: 0 }];
+    const result = computeMarketRiskAtAño2End(uvr8Positions, []);
+    expect(result.riesgoTasa).toBeCloseTo(16_257_713, -5);
+  });
+
   it("a mixed real portfolio (TESUVR8 + CDT90 + LIQ) produces finite, non-negative figures", () => {
     const scheduleMixed = decision({ LIQ: 20, CDT90: 30, TESUVR8: 50 });
     const aporte = 200_000_000;
