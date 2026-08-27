@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
 import { getCohortForSession, getOrCreateActiveCohort } from "@/lib/cohort";
 import { computeConsolidado, computeMemberConsolidado } from "@/lib/consolidado";
-import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS } from "@/lib/softSkills";
+import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS, softSkillNotaTo5Scale } from "@/lib/softSkills";
+import { EVALUATION_PROFILE_LABELS } from "@/domain/grading/composite";
 import { Table } from "@/components/ui/table";
 import { TrophyIcon } from "@/components/ui/icons";
 
@@ -80,9 +81,10 @@ export default async function AdminStandingsPage() {
           </a>
         </div>
         <p className="mb-3 text-sm text-[var(--color-brand-text-secondary)]">
-          Promedio de la Nota general (1-5) que cada integrante recibió en la calificación subjetiva de los Días 2-4. Las columnas de habilidades
-          blandas son el promedio de las 3 actividades (Regular 1 / Bueno 2 / Excelente 3; «No se evidencia» queda como NA y no entra al promedio) —
-          ver comentarios de TH en el CSV.
+          Promedio de la Nota general (1-5) que cada integrante recibió en la calificación subjetiva de los Días 2-4. Perfil es el más asignado entre
+          Días 2-4 (empate lo rompe el día más reciente). Las columnas de habilidades blandas están en escala de 1 a 5 (promedio de las 3 actividades,
+          reescalado desde su 1-3 nativo; «No se evidencia» queda como NA y no entra al promedio) — el radar de habilidades blandas por equipo sigue
+          en su escala nativa de 1 a 3. Ver comentarios de TH (actividades y entrevista individual) en el CSV.
         </p>
         <Table>
           <Table.Head>
@@ -93,6 +95,7 @@ export default async function AdminStandingsPage() {
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Día 3</th>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Día 4</th>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Promedio</th>
+            <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Perfil</th>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Días aprobados</th>
             <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Aptitud Riesgos</th>
             {SOFT_SKILL_COMPETENCIES.map((c) => (
@@ -120,15 +123,19 @@ export default async function AdminStandingsPage() {
                 <td className="px-4 py-2 font-[family-name:var(--font-condensed)] text-base font-bold text-[var(--color-brand-blue-accent)]">
                   {r.promedio != null ? r.promedio.toFixed(1) : "—"}
                 </td>
+                <td className="px-4 py-2">{r.perfilPredominante ? EVALUATION_PROFILE_LABELS[r.perfilPredominante] : "—"}</td>
                 <td className="px-4 py-2">
                   {r.diasAprobados}/{r.diasEvaluados}
                 </td>
                 <td className="px-4 py-2">{r.aptitudesRiesgosCount}/3</td>
-                {SOFT_SKILL_COMPETENCIES.map((c) => (
-                  <td key={c} className="px-4 py-2">
-                    {r.softSkills[c] != null ? r.softSkills[c]!.toFixed(1) : "—"}
-                  </td>
-                ))}
+                {SOFT_SKILL_COMPETENCIES.map((c) => {
+                  const nota = softSkillNotaTo5Scale(r.softSkills[c]);
+                  return (
+                    <td key={c} className="px-4 py-2">
+                      {nota != null ? nota.toFixed(1) : "—"}
+                    </td>
+                  );
+                })}
               </Table.Row>
             ))}
           </tbody>
