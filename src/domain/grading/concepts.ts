@@ -677,7 +677,14 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.cxc,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: CXC_COEFF, day: "d2" }] },
+    // No formula, unlike bal2_cxc/bal3_cxc (which still grade against
+    // p2_primaEmitida/p3_primaEmitida, same-day and no `day` override): by
+    // Día 3 a team already has Año 1's true P&G revealed to it (see the
+    // team-facing "P&G real — Año 1" panel), so it should be held to the true
+    // Prima Emitida A1, not to whatever it typed in Día 2 — self-consistency
+    // against an already-corrigible Día 2 mistake would let that mistake
+    // "count as right" here. Años 2/3 have no such revealed truth yet — their
+    // own P&G is being computed the same day as this same Balance.
   },
   {
     id: "bal1_activos",
@@ -707,7 +714,12 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.rpnd,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_rpndConstituida", coeff: 1, day: "d2" }] },
+    // No formula — same reasoning as bal1_cxc above: Año 1's true RPND
+    // constituida is already revealed by Día 3 (see the team-facing "P&G
+    // real — Año 1" panel), so this grades against the truth directly rather
+    // than against whatever the team self-reported on Día 2. bal2_rpnd/
+    // bal3_rpnd keep grading against their own same-day p2_rpndConstituida/
+    // p3_rpndConstituida — no revealed truth exists yet for those years.
   },
   {
     id: "bal1_cxp",
@@ -718,7 +730,10 @@ export const CONCEPTOS: Concepto[] = [
     unit: "COP",
     group: "bal_a1",
     get: (b) => b.bal1.cxp,
-    formula: { kind: "linear", terms: [{ conceptId: "p1_primaEmitida", coeff: CXP_COEFF, day: "d2" }] },
+    // No formula — same reasoning as bal1_cxc above (Año 1's true Prima
+    // Emitida is already revealed by Día 3). bal2_cxp/bal3_cxp keep grading
+    // against their own same-day Prima Emitida — no revealed truth exists
+    // yet for those years.
   },
   {
     id: "bal1_necesidadesPatrimonioODeuda",
@@ -747,12 +762,15 @@ export const CONCEPTOS: Concepto[] = [
     group: "bal_a1",
     get: (b) => b.bal1.impuestoPorPagar,
     // Cumulative unpaid Impuesto through this year's close — for Año 1 that's
-    // just its own p1_imp (no prior year), but Año 2/3 below sum every year to
-    // date, matching BalanceSheet.impuestoPorPagar (the real ALM never models a
-    // tax payment in ANY year, so no year's bill is ever settled). `day: "d2"`
-    // is required: p1_imp was submitted on Día 2, and without it the lookup
-    // misses and this line grades as ungradable rather than as anything.
-    formula: { kind: "linear", terms: [{ conceptId: "p1_imp", coeff: 1, day: "d2" }] },
+    // just its own p1_imp (no prior year); Año 2/3 below sum every year to
+    // date, matching BalanceSheet.impuestoPorPagar (the real ALM never models
+    // a tax payment in ANY year, so no year's bill is ever settled).
+    // No formula: Año 1's true p1.imp is already revealed by Día 3 (see
+    // bal1_cxc's doc comment above), so this grades against the truth
+    // directly instead of against whatever the team self-reported for
+    // p1_imp on Día 2. bal2_impuestoPorPagar/bal3_impuestoPorPagar below keep
+    // their own formula (summing p1_imp/p2_imp/p3_imp from `ownValues`) —
+    // Años 2/3 have no revealed truth of their own yet.
   },
   {
     id: "bal1_pasivo",
