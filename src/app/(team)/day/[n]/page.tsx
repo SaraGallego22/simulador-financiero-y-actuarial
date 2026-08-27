@@ -346,6 +346,11 @@ export default async function TeamDayPage({
   // realAlmYear1's doc comment in finBenchHelper.ts), not the fictitious
   // 60-month scenario Día 1/2's own ALM nota was graded on.
   let realAlmYear1: TeamFinBenchBundle["realAlmYear1"] = null;
+  // Only populated on Día 4 (see the day===4 block below) — Año 2/3's real
+  // ALM, shown alongside realAlmYear1 as one continuous 2027-2029 ladder on
+  // Día 4's "Respuestas Día 3" tab.
+  let realAlmYear2: TeamFinBenchBundle["realAlmYear2"] = null;
+  let realAlmYear3: TeamFinBenchBundle["realAlmYear3"] = null;
   // Día 2's TRUE P&G/Balance (Año 1), from finBench — shown as reference on
   // Día 3's "Respuestas Día 2" tab instead of the team's own Día 2 report
   // (deliberately the true engine values here, unlike every other day's own
@@ -369,12 +374,20 @@ export default async function TeamDayPage({
   if (day === 4 && teamId) {
     const bundle = finBenchBundlesByTeamId.get(teamId);
     if (bundle) {
+      realAlmYear1 = bundle.realAlmYear1;
+      realAlmYear2 = bundle.realAlmYear2;
+      realAlmYear3 = bundle.realAlmYear3;
       for (const c of conceptosDia("d3").filter((c) => c.tipo === "reporte")) {
         const v = c.get?.(bundle.bench);
         if (v != null) day3TrueValues[c.id] = v;
       }
     }
   }
+  // The three real-ALM runs, concatenated into one continuous 36-month
+  // ladder (2027 Jan through 2029 Dec) — AlmSimRow.mes is already a
+  // continuous, non-overlapping index across years by construction (see
+  // almSimRealYear()'s startMonth/mesLabel), so no renumbering is needed.
+  const fullAlmRows = [...(realAlmYear1?.rows ?? []), ...(realAlmYear2?.rows ?? []), ...(realAlmYear3?.rows ?? [])];
 
   // Día 1's minimum-variance result, shown on Día 2.
   let day1MinVarResult: MinVarResult | null = null;
@@ -563,11 +576,6 @@ export default async function TeamDayPage({
                     <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                       Tu límite de cuota, 2027 vs. 2028
                     </h3>
-                    <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-                      Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si
-                      tu capital se ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás
-                      reportando este día.
-                    </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {capacityHistory.map((r) => {
                         const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
@@ -577,9 +585,6 @@ export default async function TeamDayPage({
                               {SIMULATED_YEAR_LABEL[r.simulationRun.day]}
                             </p>
                             <p className="mt-1 text-sm">
-                              Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                            </p>
-                            <p className="text-sm">
                               Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
                             </p>
                             <p className="text-sm">
@@ -595,7 +600,58 @@ export default async function TeamDayPage({
                   </div>
                 )}
 
-                <DeliverablesReadOnly concepts={day3ReportConcepts} values={day3TrueValues} title="P&G / Balance real — Año 2 y proyección Año 3" />
+                {(realAlmYear1 || realAlmYear2 || realAlmYear3) && (
+                  <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                    <h3 className="mb-3 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                      ALM real completo — 2027 a 2029
+                    </h3>
+                    <div className="flex flex-col gap-4">
+                      {realAlmYear1 && (
+                        <div>
+                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[1]}</p>
+                          <AlmRealYearTiles realYear={realAlmYear1} />
+                        </div>
+                      )}
+                      {realAlmYear2 && (
+                        <div>
+                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">{SIMULATED_YEAR_LABEL[2]}</p>
+                          <AlmRealYearTiles realYear={realAlmYear2} />
+                        </div>
+                      )}
+                      {realAlmYear3 && (
+                        <div>
+                          <p className="mb-1 text-xs font-semibold uppercase text-[var(--color-brand-text-secondary)]">
+                            {SIMULATED_YEAR_LABEL[3]} (proyección)
+                          </p>
+                          <AlmRealYearTiles realYear={realAlmYear3} />
+                        </div>
+                      )}
+                      <details className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
+                        <summary className="cursor-pointer bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                          Caja mes a mes (2027-2029 completo)
+                        </summary>
+                        <div className="p-3">
+                          <AlmLadderTable rows={fullAlmRows} />
+                        </div>
+                      </details>
+                      <details className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
+                        <summary className="cursor-pointer bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                          Valor del portafolio mes a mes (2027-2029 completo)
+                        </summary>
+                        <div className="p-3">
+                          <AlmPortfolioTable rows={fullAlmRows} />
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                )}
+
+                <DeliverablesReadOnly
+                  concepts={day3ReportConcepts}
+                  values={day3TrueValues}
+                  title="P&G / Balance real — Año 2 y proyección Año 3"
+                  collapsible
+                />
               </>
             )}
 
