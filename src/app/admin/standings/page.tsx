@@ -17,7 +17,15 @@ const fmt = (v: number | null) => (v != null ? v.toFixed(1) : "—");
 export default async function AdminStandingsPage() {
   const session = await auth();
   const cohort = session ? await getCohortForSession(session) : await getOrCreateActiveCohort();
-  const [rows, memberRows] = await Promise.all([computeConsolidado(cohort.id), computeMemberConsolidado(cohort.id)]);
+  // Same cutoff the team-facing top 3 uses (see (team)/standings/page.tsx):
+  // only days already closed count towards the final blend. A day still in
+  // progress — or one not yet open — would otherwise move the ranking as its
+  // grades get filled in.
+  const rankingMaxDay = cohort.openDay - 1;
+  const [rows, memberRows] = await Promise.all([
+    computeConsolidado(cohort.id, rankingMaxDay),
+    computeMemberConsolidado(cohort.id),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
@@ -26,8 +34,9 @@ export default async function AdminStandingsPage() {
           Consolidado final
         </h1>
         <p className="text-sm text-[var(--color-brand-text-secondary)]">
-          Nota final ponderada de los 4 días (objetiva + subjetiva). El objetivo mezcla resultado actuarial y
-          financiero; el subjetivo, la rúbrica por habilidad.
+          Nota final ponderada de los días ya cerrados (objetiva + subjetiva). El objetivo mezcla resultado actuarial y
+          financiero; el subjetivo, la rúbrica por habilidad. El día en curso entra al consolidado cuando se habilita el
+          siguiente.
         </p>
       </div>
 
@@ -55,7 +64,7 @@ export default async function AdminStandingsPage() {
               </td>
               {r.perDay.map((d, di) => (
                 <td key={di} className="px-4 py-2">
-                  {fmt(d.nota)}
+                  {di + 1 <= rankingMaxDay ? fmt(d.nota) : "—"}
                 </td>
               ))}
               <td className="px-4 py-2">{fmt(r.objectiveFinal)}</td>
