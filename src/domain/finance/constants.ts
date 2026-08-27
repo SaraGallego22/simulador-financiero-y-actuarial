@@ -188,3 +188,17 @@ export const ACC_STRESS_PCT = 0.2;
  * teams a genuine yearly chance to rebalance out of it.
  */
 export const ACC_ROLL_M = 12;
+
+/**
+ * Reference UVR → COP value used to price the UVR-denominated TESUVR8 in
+ * Día 4's riesgo de tasa / riesgo de inflación (see pvPositionsAtCurve in
+ * alm.ts). TESUVR8's face and annual coupons are fixed amounts of UVR: they
+ * are discounted on the real (UVR) curve and the resulting UVR present value
+ * is converted to pesos at this rate. ≈ 423.90 COP per UVR, a snapshot as of
+ * jul-2026 (when this exercise was authored; source: banrep.gov.co), held
+ * fixed rather than projected — discounting UVR cashflows on the real curve
+ * is already inflation-neutral, so this constant only sets the peso scale of
+ * the position, not its risk sensitivity. Given to teams in the Guía del
+ * Pasante's Día 4.
+ */
+export const UVR_COP_REFERENCE_VALUE = 423.9;

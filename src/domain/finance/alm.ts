@@ -2,7 +2,7 @@ import { BUILD_MONTHS, HORIZON } from "../reserving/constants";
 import type { LiabilitySchedule } from "../reserving/liability";
 import { INSTRUMENTS, INSTRUMENT_BY_ID, VOL_MAX, RISK_FREE_RATE, instrumentDurationM, isCouponBond, displayYield } from "./instruments";
 import type { Allocation, Instrument, MonthlyAllocationEntry, PortfolioDecisionV4 } from "./instruments";
-import { FZ, GASTOS_TOTAL_PCT, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL } from "./constants";
+import { FZ, GASTOS_TOTAL_PCT, CONCENTRATION_PENALTY_MU, CAPITAL_SOCIAL, UVR_COP_REFERENCE_VALUE } from "./constants";
 import { COVARIANCE_MATRIX, portfolioVariance } from "./markowitz";
 
 export const W_CUMPL_CAJA = 0.35;
@@ -1585,28 +1585,28 @@ const AÑO2_END_MONTH = BUILD_MONTHS + 12;
 type Curve = (months: number) => number;
 
 /**
- * PV of a team's real, open positions at the end of Año 2 — TESUVR8
- * discounted off the real curve at its own remaining term (it's
- * UVR-indexed, the menu's only genuinely inflation-linked instrument),
- * every other bond-like instrument off the nominal curve at its own
- * remaining term, LIQ/ACC at par (no defined duration — same treatment
- * pvPortafolio() already gives them; ACC's equity risk is priced
- * separately, see ACC_STRESS_PCT).
+ * PV of a team's real, open positions at the end of Año 2, each cashflow
+ * discounted at the curve rate for its own remaining tenor (a genuine
+ * curve, not one flat rate — a short-remaining CDT90 and a long-remaining
+ * TES3 discount at different points), LIQ/ACC at par (no defined duration;
+ * ACC's equity risk is priced separately, see ACC_STRESS_PCT).
  *
- * CDT90/TES1 (zero-coupon-style) grow their own current `book` to their own
- * `matM` at their own contractual `ins.yield` (same shape as
- * pvPortafolio()'s per-bond faceVal, just using the position's real
- * remaining term instead of a fresh plazoM), then discount that single
- * lump sum back to AÑO2_END_MONTH. TES3/TESUVR8 (coupon-bearing — see
- * isCouponBond() in instruments.ts) don't grow `book` at all — it's already
- * their flat principal (their yield having already been paid out as
- * periodic coupons, see stepMonth()) — so they're valued as the genuine
- * multi-cashflow stream of remaining coupons plus a final coupon+principal
- * (pvCouponCashflows(), shared with pvPortafolio() above), each cashflow
- * discounted at the curve rate for its own tenor. Either way this is a
- * genuine curve, not a single flat rate, so a short-remaining-term CDT90
- * position and a long-remaining-term TES3 position discount at different
- * points on the same nominal curve.
+ * TESUVR8 is UVR-denominated. Its face and annual coupons are fixed amounts
+ * of UVR, each settled in pesos at the UVR value on its payment date, so it
+ * is valued in its own unit: recover the UVR face from the peso book (bought
+ * a la par — see its `nota` in instruments.ts), discount the UVR
+ * coupon+principal stream on the real (UVR) curve at each cashflow's own
+ * tenor via pvCouponCashflows(), then convert the UVR present value back to
+ * pesos at UVR_COP_REFERENCE_VALUE. The coupon rate on the UVR face is the
+ * real rate (displayYield(), the "Inflación + X%" shown in the menu), not
+ * ins.yield's nominal 12%. Because both the cashflows and the discount curve
+ * are in UVR, an implied-inflation shock leaves this peso value unchanged.
+ *
+ * Every other bond discounts on the nominal curve: CDT90/TES1
+ * (zero-coupon-style) grow their `book` to `matM` at their contractual
+ * `ins.yield` and discount that single lump sum back; TES3 (coupon-bearing —
+ * see isCouponBond()) is the stream of remaining nominal coupons plus a
+ * final coupon+principal.
  */
 function pvPositionsAtCurve(positions: Position[], nominalCurve: Curve, realCurve: Curve): number {
   let pv = 0;
@@ -1617,23 +1617,18 @@ function pvPositionsAtCurve(positions: Position[], nominalCurve: Curve, realCurv
       continue;
     }
     const remainingMonths = p.matM - AÑO2_END_MONTH;
-    const curve = ins.id === "TESUVR8" ? realCurve : nominalCurve;
+    if (ins.id === "TESUVR8") {
+      const faceUvr = p.book / UVR_COP_REFERENCE_VALUE;
+      const pvUvr = pvCouponCashflows(faceUvr, displayYield(ins), remainingMonths, realCurve);
+      pv += pvUvr * UVR_COP_REFERENCE_VALUE;
+      continue;
+    }
     if (isCouponBond(ins)) {
-      // TESUVR8's own coupon is real (displayYield(), the "Inflación + X%"
-      // already shown in the instrument menu), not ins.yield's raw nominal
-      // 12% — the same cash flow stepMonth() pays (unaffected by this),
-      // re-expressed in real terms (Fisher-equivalent at the base case,
-      // since inflation is one flat constant everywhere in this engine),
-      // discounted at the matching real curve. Using the raw nominal coupon
-      // here priced the position ~35% over par at a full 84-month remaining
-      // term and, worse, made it move under both riesgo de tasa AND riesgo
-      // de inflación instead of only the former.
-      const couponRate = ins.id === "TESUVR8" ? displayYield(ins) : ins.yield;
-      pv += pvCouponCashflows(p.book, couponRate, remainingMonths, curve);
+      pv += pvCouponCashflows(p.book, ins.yield, remainingMonths, nominalCurve);
     } else {
       const remainingYears = Math.max(0, remainingMonths / 12);
       const faceVal = p.book * Math.pow(1 + ins.yield, remainingYears);
-      pv += faceVal / Math.pow(1 + curve(remainingMonths), remainingYears);
+      pv += faceVal / Math.pow(1 + nominalCurve(remainingMonths), remainingYears);
     }
   }
   return pv;
@@ -1666,13 +1661,14 @@ function pvLiabilityAtCurve(L: number[], nominalCurve: Curve): number {
  * applied to the *whole curve* at every tenor, not a single point:
  * - Riesgo de tasa shocks the REAL curve, holding each tenor's implied
  *   inflation fixed — the nominal curve moves as a mechanical consequence
- *   (Fisher, per tenor), so this moves TESUVR8 (direct real-curve shock)
- *   AND every nominal-discounted asset/liability (indirect, via the
- *   re-derived nominal curve) together.
+ *   (Fisher, per tenor), so this moves TESUVR8 (its UVR cashflows discount
+ *   on the shocked real curve) AND every nominal-discounted asset/liability
+ *   (indirect, via the re-derived nominal curve) together.
  * - Riesgo de inflación shocks the IMPLIED INFLATION curve, holding the
  *   real curve fixed — only the re-derived nominal curve moves, so
- *   TESUVR8 (real-curve-discounted, untouched) is insulated while
- *   everything nominal isn't. This is the asymmetry a team has to
+ *   TESUVR8's UVR cashflows (discounted on the untouched real curve, then
+ *   converted at UVR_COP_REFERENCE_VALUE) keep the same peso value while
+ *   everything nominal doesn't. This is the asymmetry a team has to
  *   discover: how much TESUVR8 vs. nominal bonds vs. LIQ it ends up
  *   holding by Año 2's close determines which of the two shocks actually
  *   hurts it, and by how much.
