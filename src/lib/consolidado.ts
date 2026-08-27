@@ -91,11 +91,14 @@ export interface TeamConsolidado {
  * notaDia) are already pure/tested; this is the app-specific plumbing that
  * feeds them from what's actually stored for a cohort.
  *
- * `maxDay`, when passed, caps which days count towards the blend — the
- * team-facing standings page passes `cohort.openDay - 1`, so a team's final
- * grade only reflects days already closed and fully graded, never the one in
- * progress (admin's own views pass nothing, so every day counts as soon as
- * it's graded).
+ * `maxDay`, when passed, drops every day after it from `perDay` entirely
+ * (objective, subjective and blended nota all null), so it never reaches
+ * objectiveFinal/subjectiveFinal/notaFinal. Both the team-facing standings
+ * page and the admin "Consolidado final" pass `cohort.openDay - 1`, so the
+ * ranking only reflects days already closed — never the one in progress, and
+ * never one the team can't open yet (which would otherwise score ~0, see the
+ * guard in the perDay map). The per-day admin grading view (admin/day/[n])
+ * passes nothing, so every day counts there as soon as it's graded.
  *
  * `universeOverride` lets a caller that already generated (or already has)
  * the Colombia universe this request pass it through instead of triggering
@@ -280,6 +283,15 @@ export async function computeConsolidado(
 
   const results: TeamConsolidado[] = teams.map((team) => {
     const perDay = [1, 2, 3, 4].map((day) => {
+      // A day past the cap contributes nothing — not a partial objective, not
+      // a subjective. scoreConcepto() scores an unsubmitted "reporte" concept
+      // as ~0 against its finBench value (concepts.ts), so without this a day
+      // the team can't even open yet would still land in objectiveFinal as a
+      // near-zero, dragging the whole ranking down. Nulls are dropped by the
+      // objectiveFinal/subjectiveFinal filters below.
+      if (maxDay != null && day > maxDay) {
+        return { objective: null, subjective: null, nota: null };
+      }
       const dayKey = `d${day}` as Dia;
       const reportConcepts = conceptosDia(dayKey).filter((c) => c.tipo === "reporte");
       const bench = finBenchByTeamId.get(team.id) ?? null;
@@ -316,12 +328,10 @@ export async function computeConsolidado(
 
       // Día 1 has no subjective grade at all (see MemberDayEvaluation's doc
       // comment) — pass an empty array so notaSubjetivaEquipo reports null
-      // without treating it as "still pending". Days beyond `maxDay` (a team
-      // can't see them yet) are withheld the same way.
+      // without treating it as "still pending". (Days beyond `maxDay` already
+      // returned above.)
       const memberNotas: (number | null)[] =
-        day === 1 || (maxDay != null && day > maxDay)
-          ? []
-          : team.members.map((m) => notaGeneralByMemberDay.get(`${m.id}:${day}`) ?? null);
+        day === 1 ? [] : team.members.map((m) => notaGeneralByMemberDay.get(`${m.id}:${day}`) ?? null);
       const subjective = notaSubjetivaEquipo(memberNotas).value;
 
       return { objective, subjective, nota: notaDia(objective, subjective, rubric.subjectiveWeight) };
