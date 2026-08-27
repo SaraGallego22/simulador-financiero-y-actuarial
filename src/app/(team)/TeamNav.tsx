@@ -48,6 +48,7 @@ export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) 
           </span>
         )
       )}
+      <NavItem href="/mercado" label="Resultados del mercado" short="MK" active={pathname === "/mercado"} collapsed={collapsed} />
       <NavItem href="/standings" label="Ranking" short="RK" active={pathname === "/standings"} collapsed={collapsed} />
     </SidebarShell>
   );
