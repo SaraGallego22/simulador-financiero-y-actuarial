@@ -568,11 +568,6 @@ export default async function TeamDayPage({
                     <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
                       Tu límite de cuota, 2027 vs. 2028
                     </h3>
-                    <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
-                      Este es el mismo límite de capacidad que viste en los resultados objetivos de cada año — puesto lado a lado para que veas si
-                      tu capital se ajustó entre años, y si eso coincide con el Requerimiento de Capital y el Margen de solvencia que estás
-                      reportando este día.
-                    </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {capacityHistory.map((r) => {
                         const extra = r.extra as { capacityLimit?: number; rawCapacityLimit?: number } | null;
@@ -582,9 +577,6 @@ export default async function TeamDayPage({
                               {SIMULATED_YEAR_LABEL[r.simulationRun.day]}
                             </p>
                             <p className="mt-1 text-sm">
-                              Límite de capital: <strong>{extra?.rawCapacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
-                            </p>
-                            <p className="text-sm">
                               Límite aplicado: <strong>{extra?.capacityLimit?.toLocaleString("es-CO") ?? "—"}</strong> pólizas
                             </p>
                             <p className="text-sm">
@@ -621,7 +613,12 @@ export default async function TeamDayPage({
                   )}
                 </div>
 
-                <DeliverablesReadOnly concepts={day3ReportConcepts} values={day3TrueValues} title="P&G / Balance real — Año 2 y proyección Año 3" />
+                <DeliverablesReadOnly
+                  concepts={day3ReportConcepts}
+                  values={day3TrueValues}
+                  title="P&G / Balance real — Año 2 y proyección Año 3"
+                  collapsible
+                />
               </>
             )}
 

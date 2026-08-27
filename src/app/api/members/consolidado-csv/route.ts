@@ -2,7 +2,9 @@ import Papa from "papaparse";
 import { auth } from "@/lib/auth";
 import { getCohortForSession } from "@/lib/cohort";
 import { computeMemberConsolidado } from "@/lib/consolidado";
-import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS, SOFT_SKILL_COMMENT_AUTHOR } from "@/lib/softSkills";
+import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS, SOFT_SKILL_COMMENT_AUTHOR, softSkillNotaTo5Scale } from "@/lib/softSkills";
+import { INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
+import { EVALUATION_PROFILE_LABELS } from "@/domain/grading/composite";
 
 const FIELDS = [
   "#",
@@ -12,11 +14,13 @@ const FIELDS = [
   "Día 3",
   "Día 4",
   "Promedio",
+  "Perfil",
   "Días aprobados",
   "Aptitud Riesgos",
   ...SOFT_SKILL_COMPETENCIES.map((c) => COMPETENCY_LABELS[c]),
   "Comentarios",
   "Comentarios TH (habilidades blandas)",
+  "Comentarios TH (entrevista individual)",
 ];
 
 /** Admin's own export — same full data as /admin/standings itself. */
@@ -40,11 +44,13 @@ export async function GET() {
     r.perDay[1]?.notaGeneral?.toFixed(1) ?? "",
     r.perDay[2]?.notaGeneral?.toFixed(1) ?? "",
     r.promedio?.toFixed(1) ?? "",
+    r.perfilPredominante ? EVALUATION_PROFILE_LABELS[r.perfilPredominante] : "",
     asText(`${r.diasAprobados}/${r.diasEvaluados}`),
     asText(`${r.aptitudesRiesgosCount}/3`),
-    ...SOFT_SKILL_COMPETENCIES.map((c) => r.softSkills[c]?.toFixed(1) ?? ""),
+    ...SOFT_SKILL_COMPETENCIES.map((c) => softSkillNotaTo5Scale(r.softSkills[c])?.toFixed(1) ?? ""),
     r.comments.map((c) => `[Día ${c.day}] ${c.author}: ${c.text}`).join(" | "),
     r.softSkillComments.map((c) => `[Actividad ${c.activity}] ${SOFT_SKILL_COMMENT_AUTHOR}: ${c.text}`).join(" | "),
+    r.interviewComments.map((c) => `${INTERVIEW_COMMENT_AUTHOR}: ${c.text}`).join(" | "),
   ]);
   // ";" instead of Papa Parse's default "," — the admin opens this directly in Excel, where a comma-separated CSV doesn't auto-split into columns under es-CO locale settings.
   const csv = Papa.unparse({ fields: FIELDS, data }, { delimiter: ";" });

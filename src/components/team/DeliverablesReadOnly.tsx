@@ -14,8 +14,30 @@ function formatValue(value: number | undefined, unit: ConceptoSummary["unit"]): 
   return value.toFixed(0);
 }
 
-/** Read-only P&G/Balance display — same grouping/emphasis as the editable DeliverablesForm, no input/submit. Used on Día 3 to show Año 1's TRUE finBench values as reference (see page.tsx's day2TrueValues), not a resubmission of anything the team itself typed. */
-export function DeliverablesReadOnly({ title, concepts, values }: { title: string; concepts: ConceptoSummary[]; values: Record<string, number> }) {
+/**
+ * Read-only P&G/Balance display — same grouping/emphasis as the editable
+ * DeliverablesForm, no input/submit. Used on Día 3 to show Año 1's TRUE
+ * finBench values as reference (see page.tsx's day2TrueValues), not a
+ * resubmission of anything the team itself typed.
+ */
+export function DeliverablesReadOnly({
+  title,
+  concepts,
+  values,
+  collapsible,
+}: {
+  title: string;
+  concepts: ConceptoSummary[];
+  values: Record<string, number>;
+  /**
+   * Renders each statement group as a closed-by-default <details> instead of
+   * always expanded — for a combined multi-group view (Día 4's "Respuestas
+   * Día 3", spanning all 4 of pyg_a2/bal_a2/pyg_a3/bal_a3 at once) where
+   * showing everything open simultaneously is unwieldy. Día 3's own
+   * single-group call (Año 1's P&G alone) doesn't need this.
+   */
+  collapsible?: boolean;
+}) {
   if (concepts.length === 0) return null;
 
   const grouped = new Map<ConceptGroup, ConceptoSummary[]>();
@@ -36,11 +58,8 @@ export function DeliverablesReadOnly({ title, concepts, values }: { title: strin
       </h3>
 
       <div className="flex flex-col gap-5">
-        {[...grouped.entries()].map(([group, groupConcepts]) => (
-          <div key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
-            <p className="bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
-              {GROUP_LABELS[group]}
-            </p>
+        {[...grouped.entries()].map(([group, groupConcepts]) => {
+          const rows = (
             <div>
               {groupConcepts.map((c) => (
                 <div
@@ -52,8 +71,24 @@ export function DeliverablesReadOnly({ title, concepts, values }: { title: strin
                 </div>
               ))}
             </div>
-          </div>
-        ))}
+          );
+          const groupLabelClass =
+            "bg-[var(--color-brand-blue-light)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-blue-accent)]";
+          if (!collapsible) {
+            return (
+              <div key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
+                <p className={groupLabelClass}>{GROUP_LABELS[group]}</p>
+                {rows}
+              </div>
+            );
+          }
+          return (
+            <details key={group} className="overflow-hidden rounded border border-[var(--color-brand-gray-light)]">
+              <summary className={`cursor-pointer ${groupLabelClass}`}>{GROUP_LABELS[group]}</summary>
+              {rows}
+            </details>
+          );
+        })}
 
         {ungrouped.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -215,3 +215,43 @@ export function notaDia(objective: number | null, subjective: number | null, sub
   }
   return objective ?? subjective ?? null;
 }
+
+/** Same string literals as Prisma's `EvaluationProfile` enum (see MemberDayEvaluation), redeclared here so this module stays free of a Prisma import. */
+export type EvaluationProfileValue = "ACTUARIAL" | "FINANCIERO" | "GENERALISTA";
+
+export const EVALUATION_PROFILE_LABELS: Record<EvaluationProfileValue, string> = {
+  ACTUARIAL: "Actuarial",
+  FINANCIERO: "Financiero",
+  GENERALISTA: "Generalista",
+};
+
+/**
+ * The `perfil` a member was assigned most often across Días 2-4 (see
+ * MemberEvaluationForm) — a single label to rank/sort/export by, since the
+ * raw per-day breakdown doesn't sort cleanly. Ties (including "assigned on
+ * only one day so far") are broken by recency: whichever tied profile was
+ * assigned on the latest day wins, on the reasoning that a more recent
+ * evaluation reflects more observation of the person than an earlier one.
+ */
+export function perfilPredominante(perDay: { day: number; perfil: EvaluationProfileValue | null }[]): EvaluationProfileValue | null {
+  const countByProfile = new Map<EvaluationProfileValue, number>();
+  const lastDayByProfile = new Map<EvaluationProfileValue, number>();
+  for (const { day, perfil } of perDay) {
+    if (!perfil) continue;
+    countByProfile.set(perfil, (countByProfile.get(perfil) ?? 0) + 1);
+    lastDayByProfile.set(perfil, Math.max(lastDayByProfile.get(perfil) ?? -Infinity, day));
+  }
+
+  let best: EvaluationProfileValue | null = null;
+  let bestCount = -Infinity;
+  let bestLastDay = -Infinity;
+  for (const [profile, count] of countByProfile) {
+    const lastDay = lastDayByProfile.get(profile)!;
+    if (count > bestCount || (count === bestCount && lastDay > bestLastDay)) {
+      best = profile;
+      bestCount = count;
+      bestLastDay = lastDay;
+    }
+  }
+  return best;
+}

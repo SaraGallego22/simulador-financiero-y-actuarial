@@ -5,6 +5,7 @@ import {
   notaSubjetivaEquipo,
   notaTarifacionAbsoluta,
   computeRt,
+  perfilPredominante,
   GOOD_PERFORMANCE_MARGIN_PCT,
   GOOD_PERFORMANCE_SCORE,
 } from "./composite";
@@ -202,5 +203,42 @@ describe("notaDia", () => {
   it("falls back when one side is missing", () => {
     expect(notaDia(80, null, 0.3)).toBe(80);
     expect(notaDia(null, 60, 0.3)).toBe(60);
+  });
+});
+
+describe("perfilPredominante", () => {
+  it("picks the profile assigned on the most days", () => {
+    const perDay = [
+      { day: 2, perfil: "FINANCIERO" as const },
+      { day: 3, perfil: "ACTUARIAL" as const },
+      { day: 4, perfil: "FINANCIERO" as const },
+    ];
+    expect(perfilPredominante(perDay)).toBe("FINANCIERO");
+  });
+
+  it("breaks a tie by the most recent day", () => {
+    const perDay = [
+      { day: 2, perfil: "FINANCIERO" as const },
+      { day: 3, perfil: "ACTUARIAL" as const },
+      { day: 4, perfil: "GENERALISTA" as const },
+    ];
+    expect(perfilPredominante(perDay)).toBe("GENERALISTA");
+  });
+
+  it("skips days with no perfil recorded when tie-breaking by recency", () => {
+    const perDay = [
+      { day: 2, perfil: "FINANCIERO" as const },
+      { day: 3, perfil: null },
+      { day: 4, perfil: "ACTUARIAL" as const },
+    ];
+    expect(perfilPredominante(perDay)).toBe("ACTUARIAL");
+  });
+
+  it("returns null when no day has a perfil yet", () => {
+    const perDay = [
+      { day: 2, perfil: null },
+      { day: 3, perfil: null },
+    ];
+    expect(perfilPredominante(perDay)).toBeNull();
   });
 });

@@ -109,3 +109,16 @@ export function averageSoftSkillsByMember(evals: SoftSkillEvalRow[]): Map<string
   }
   return result;
 }
+
+/**
+ * Presentation-only rescale of an `averageSoftSkillsByMember()` nota (native
+ * range 1-3, per RATING_SCORES) onto the same 1-5 scale as "Nota general" —
+ * for the member consolidado table/CSV (admin/standings), so those columns
+ * sit next to a 1-5 average without a scale mismatch. Everything upstream
+ * (the stored ratings, this file's own average, SoftSkillsRadarChart) stays
+ * on the native 1-3 scale; only apply this at the point of display/export.
+ */
+export function softSkillNotaTo5Scale(nota: number | null | undefined): number | null {
+  if (nota == null) return null;
+  return 1 + (nota - 1) * 2;
+}

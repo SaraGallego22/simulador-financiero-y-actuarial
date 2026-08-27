@@ -644,6 +644,7 @@ export default async function AdminDayPage({
                   <th className="px-4 py-2">Tarifa mediana</th>
                   <th className="px-4 py-2">Cobro mediano</th>
                   <th className="px-4 py-2">Loss ratio</th>
+                  <th className="px-4 py-2">Correlación</th>
                   <th className="px-4 py-2">RT</th>
                   <th className="px-4 py-2">Nota</th>
                 </tr>
@@ -654,7 +655,7 @@ export default async function AdminDayPage({
                   const bench = finBenchByTeamId.get(team.id)?.p1;
                   const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
                   const marketShare = result && totalInsuredThisYear > 0 ? result.insuredCount / totalInsuredThisYear : null;
-                  const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null } | null;
+                  const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null; tariffRiskCorr?: number | null } | null;
                   const actScore = actuarialScoreByTeamId.get(team.id);
                   const medianTariff = team.tariffSubmissions[0]?.medianPremium;
                   return (
@@ -669,6 +670,7 @@ export default async function AdminDayPage({
                       <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
                       <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
                       <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
+                      <td className="px-4 py-2">{capExtra?.tariffRiskCorr != null ? capExtra.tariffRiskCorr.toFixed(2) : "—"}</td>
                       <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
                       <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
                     </tr>
@@ -788,6 +790,7 @@ export default async function AdminDayPage({
                 <th className="px-4 py-2">Tarifa mediana</th>
                 <th className="px-4 py-2">Cobro mediano</th>
                 <th className="px-4 py-2">Loss ratio</th>
+                <th className="px-4 py-2">Correlación</th>
                 <th className="px-4 py-2">RT</th>
                 <th className="px-4 py-2">Nota</th>
               </tr>
@@ -798,7 +801,7 @@ export default async function AdminDayPage({
                 const bench = finBenchByTeamId.get(team.id)?.p2;
                 const lossRatio = bench && bench.primaDevengada > 0 ? bench.costo / bench.primaDevengada : null;
                 const marketShare = result && totalInsuredThisYear > 0 ? result.insuredCount / totalInsuredThisYear : null;
-                const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null } | null;
+                const capExtra = result?.extra as { capacityLimit?: number; medianWonPremium?: number | null; tariffRiskCorr?: number | null } | null;
                 const actScore = actuarialScoreByTeamId.get(team.id);
                 const medianTariff = team.tariffSubmissions[0]?.medianPremium;
                 return (
@@ -813,6 +816,7 @@ export default async function AdminDayPage({
                     <td className="px-4 py-2">{fmtCop(medianTariff)}</td>
                     <td className="px-4 py-2">{fmtCop(capExtra?.medianWonPremium)}</td>
                     <td className="px-4 py-2">{lossRatio != null ? `${(lossRatio * 100).toFixed(0)}%` : "—"}</td>
+                    <td className="px-4 py-2">{capExtra?.tariffRiskCorr != null ? capExtra.tariffRiskCorr.toFixed(2) : "—"}</td>
                     <td className="px-4 py-2">{bench ? fmtM(bench.rt) : "—"}</td>
                     <td className="px-4 py-2 font-semibold text-[var(--color-brand-blue-accent)]">{actScore != null ? actScore.toFixed(0) : "—"}</td>
                   </tr>

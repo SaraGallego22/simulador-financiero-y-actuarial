@@ -9,6 +9,36 @@ import { CAPITAL_SOCIAL } from "../finance/constants";
 
 const TOLERANCE: ConceptTolerance = { tolerancePerfect: 0.05, toleranceZero: 0.4 };
 
+// Shared finBench fixture — a plausible, non-degenerate Año 1-3 bench used by
+// every test below that needs a real `bench` to grade "reporte" concepts
+// against (both the exhaustive get()-vs-truth sweep and the Año 1-vs-Año 2/3
+// formula-policy tests).
+const liabilityYear1: LiabilitySchedule = { L: new Array(48).fill(0), payY1: new Array(12).fill(0), reserva: 20_000_000, hay: true };
+const almYear = (income: number, effectiveYield?: number): AlmYearBenchInput => ({
+  portYield: 0.1,
+  income,
+  capitalComprometido: 0,
+  effectiveYield,
+  cajaFinalAnio: 7_500_000,
+  portfolioBookValue: CAPITAL_SOCIAL,
+});
+const development = computeDevelopment(
+  Array.from({ length: 100 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 })),
+  Array.from({ length: 80 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 })),
+  [1]
+).byTeam.get(1)!;
+
+const bench = finBench({
+  year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000, insuredCount: 1000 },
+  year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
+  liabilityYear1,
+  development,
+  almYear1: almYear(2_000_000),
+  almYear2: almYear(2_718_281, 0.07),
+  almYear3: almYear(2_900_000, 0.07),
+  year2Retention: { retainedCount: 800, newCount: 200 },
+});
+
 describe("toleranceBandScore", () => {
   it("scores 100 within tolerancePerfect, 0 at/beyond toleranceZero, linear in between", () => {
     expect(toleranceBandScore(100, 100, TOLERANCE)).toBe(100);
@@ -343,32 +373,6 @@ describe("Ajuste de siniestralidad (a primary fact — no formula — graded str
  * its formula against itself, never against the engine.
  */
 describe("every reporte concept grades the engine's own true value at 100", () => {
-  const liabilityYear1: LiabilitySchedule = { L: new Array(48).fill(0), payY1: new Array(12).fill(0), reserva: 20_000_000, hay: true };
-  const almYear = (income: number, effectiveYield?: number): AlmYearBenchInput => ({
-    portYield: 0.1,
-    income,
-    capitalComprometido: 0,
-    effectiveYield,
-    cajaFinalAnio: 7_500_000,
-    portfolioBookValue: CAPITAL_SOCIAL,
-  });
-  const development = computeDevelopment(
-    Array.from({ length: 100 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 })),
-    Array.from({ length: 80 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 })),
-    [1]
-  ).byTeam.get(1)!;
-
-  const bench = finBench({
-    year1: { totalPremium: 500_000_000, claimsAmount: 300_000_000, insuredCount: 1000 },
-    year2: { totalPremium: 520_000_000, claimsAmount: 310_000_000, insuredCount: 1000 },
-    liabilityYear1,
-    development,
-    almYear1: almYear(2_000_000),
-    almYear2: almYear(2_718_281, 0.07),
-    almYear3: almYear(2_900_000, 0.07),
-    year2Retention: { retainedCount: 800, newCount: 200 },
-  });
-
   // The "perfect submission": every concept's own true engine value, keyed by
   // the day it's submitted on — exactly what a flawless team would upload.
   const ownValues = new Map<string, number>();
@@ -390,6 +394,35 @@ describe("every reporte concept grades the engine's own true value at 100", () =
       expect(result!.score, `${c.id}: the engine's own value doesn't score 100`).toBe(100);
     });
   }
+});
+
+describe("Balance Año 1 grades against the true engine value, not the team's own Día 2 P&G (Años 2/3 still do)", () => {
+  // A team that got the Balance line itself exactly right, but whose OWN
+  // Día 2/3 P&G submission for the same underlying fact is wrong (or
+  // missing) — the scenario that motivated this policy: by Día 3 a team
+  // already has Año 1's true P&G revealed to it, so an uncorrected Día 2
+  // mistake shouldn't be able to "count as right" via self-consistency.
+  const ownValues = new Map<string, number>();
+  ownValues.set(ownValueKey("d2", "p1_rpndConstituida"), -bench.bal1.rpnd); // sign-flipped, like a real Cóndor-style mistake
+  ownValues.set(ownValueKey("d2", "p1_primaEmitida"), bench.p1.primaEmitida * 2); // wildly wrong
+  ownValues.set(ownValueKey("d2", "p1_imp"), 0); // missing/zeroed out
+
+  it.each(["bal1_rpnd", "bal1_cxc", "bal1_cxp", "bal1_impuestoPorPagar"])("%s scores 100 against the truth despite a wrong own Día 2 value", (id) => {
+    const trueValue = CONCEPTO_BY_ID[id].get!(bench);
+    const result = scoreConcepto(id, trueValue, bench, TOLERANCE, ownValues);
+    expect(result!.score).toBe(100);
+  });
+
+  it("bal2_rpnd (Año 2) still grades against the team's own same-day p2_rpndConstituida, not the truth", () => {
+    const ownValuesYear2 = new Map<string, number>();
+    ownValuesYear2.set(ownValueKey("d3", "p2_rpndConstituida"), -bench.bal2!.rpnd); // same kind of mistake, one year later
+    const trueValue = bench.bal2!.rpnd;
+    const result = scoreConcepto("bal2_rpnd", trueValue, bench, TOLERANCE, ownValuesYear2);
+    // Unlike bal1_rpnd above: Año 2's own P&G isn't revealed truth yet, so
+    // this stays a self-consistency check and the sign-flipped own value
+    // drags the score down instead of scoring 100.
+    expect(result!.score).toBeLessThan(100);
+  });
 });
 
 describe("sol_sigmaLR (sample stdev of siniestralidad/prima across Año 1/2/3, graded against the team's OWN P&G lines)", () => {
