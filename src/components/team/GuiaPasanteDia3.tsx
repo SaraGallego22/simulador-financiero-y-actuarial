@@ -383,6 +383,13 @@ export function GuiaPasanteDia3() {
             Resultado de inversiones es un año más de tu propio portafolio: el saldo con que cierras 2028, más la prima que entra y menos los siniestros
             y gastos que salen durante 2029, rindiendo a la tasa que ese portafolio realmente logró. Ver sección 4 para cómo razonar cada pieza.
           </p>
+          <p>
+            A diferencia de 2027 y 2028, el 2029 no tiene un mercado real que te limite — así que tu Prima emitida de 2029 puede ser, además de la
+            proyección mecánica de retención más pólizas nuevas, una hipótesis genuina de crecimiento por encima de ella. Esa proyección mecánica es
+            el piso, no el objetivo: llegar a ella se califica bien, y superarla también — nunca peor por proponer más. Si tu prima de 2029 supera
+            esa proyección, se vuelve tu cifra real para todo lo que depende de ella (costo de siniestros, Balance, ALM), con tu misma siniestralidad
+            relativa — crecer el libro no cambia por sí solo qué tan bien o mal tarificas.
+          </p>
         </SubSection>
 
         <SubSection title="Balance — 2027, 2028 y 2029" accent="fin">

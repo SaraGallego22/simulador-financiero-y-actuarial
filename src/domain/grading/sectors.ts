@@ -266,6 +266,27 @@ export function rankForDisminuir(stats: SectorStat[]): SectorStat[] {
 /** How many rank positions off a pick can be before it scores 0 — see scoreSectorPicks(). */
 export const SECTOR_RANK_WINDOW = 10;
 
+/**
+ * Tolerance band for a sector's estimated multiplier — deliberately wider
+ * than RubricConfig's general tolerance (tolerancePerfect=5%, toleranceZero=
+ * 40%, used for every other numeric deliverable on the platform). Measured
+ * against an "ideal analyst" — a team's own real book, exactly the claims
+ * visibility their own Día 3 report gives them, the engine's own bucket
+ * cutoffs and metric (frequency × median severity) — across a real graded
+ * cohort: the achievable error on this specific estimate has a median
+ * around 14% and a 90th percentile around 40%, because a team's own book is
+ * a structurally biased sample of the market (see this file's own doc
+ * comment on why), not a matter of care or skill. The general band would
+ * put "perfect" at roughly the best quintile of achievable precision and
+ * "zero" at roughly the 90th percentile — capping even the best possible
+ * analysis in the 50s-70s regardless of skill. This band is calibrated so a
+ * genuinely careful analysis can approach 100, not just avoid 0. Not
+ * RubricConfig-driven (unlike the general band) — this reflects a
+ * structural property of the exercise, not an admin's grading-strictness
+ * preference.
+ */
+export const SECTOR_MULTIPLIER_TOLERANCE: ConceptTolerance = { tolerancePerfect: 0.15, toleranceZero: 0.55 };
+
 /** A named sector plus the team's own guess at its true multiplier — the second half of what a picked slot now grades on, see scoreSectorPicks(). */
 export interface SectorPick extends Sector {
   estimatedMultiplier: number | null;
@@ -282,11 +303,12 @@ export interface SectorPick extends Sector {
  *   0 here, same as a real sector named far out of place.
  * - **Estimated multiplier**: the same tolerance-band formula every other
  *   numeric estimate on this platform uses (toleranceBandScore(), see
- *   concepts.ts), comparing `pick.estimatedMultiplier` against the true
- *   sector's own `multiplier`. Scores 0 (not skipped) if the pick wasn't
- *   found in the true ranking at all (no real multiplier to compare
- *   against) or if the team left the estimate blank — naming a sector
- *   without also estimating its multiplier is a genuinely incomplete
+ *   concepts.ts), but against its own wider band (SECTOR_MULTIPLIER_TOLERANCE,
+ *   above — not RubricConfig's general one), comparing `pick.estimatedMultiplier`
+ *   against the true sector's own `multiplier`. Scores 0 (not skipped) if the
+ *   pick wasn't found in the true ranking at all (no real multiplier to
+ *   compare against) or if the team left the estimate blank — naming a
+ *   sector without also estimating its multiplier is a genuinely incomplete
  *   answer, not a smaller one.
  *
  * Missing slots (a team names fewer than 3) simply don't contribute — the
@@ -296,7 +318,7 @@ export interface SectorPick extends Sector {
  * since a team that explicitly left a slot blank didn't thereby promote a
  * later pick to an earlier position.
  */
-export function scoreSectorPicks(picks: (SectorPick | null | undefined)[], trueRanking: SectorStat[], tolerance: ConceptTolerance): number | null {
+export function scoreSectorPicks(picks: (SectorPick | null | undefined)[], trueRanking: SectorStat[]): number | null {
   let total = 0;
   let count = 0;
   for (let i = 0; i < picks.length; i++) {
@@ -311,7 +333,7 @@ export function scoreSectorPicks(picks: (SectorPick | null | undefined)[], trueR
     const rankScore = Math.max(0, 100 * (1 - gap / SECTOR_RANK_WINDOW));
     const multiplierScore =
       trueIndex !== -1 && pick.estimatedMultiplier != null
-        ? toleranceBandScore(pick.estimatedMultiplier, trueRanking[trueIndex].multiplier, tolerance)
+        ? toleranceBandScore(pick.estimatedMultiplier, trueRanking[trueIndex].multiplier, SECTOR_MULTIPLIER_TOLERANCE)
         : 0;
     total += (rankScore + multiplierScore) / 2;
   }
@@ -364,11 +386,10 @@ export function groupSectorPicksByTeam(rows: AnalyticsRecommendationRow[]): Map<
 export function scoreSectorRecommendation(
   picks: SectorPicks | undefined,
   trueCrecer: SectorStat[],
-  trueDisminuir: SectorStat[],
-  tolerance: ConceptTolerance
+  trueDisminuir: SectorStat[]
 ): number | null {
-  const crecerScore = scoreSectorPicks(picks?.crecer ?? [], trueCrecer, tolerance);
-  const disminuirScore = scoreSectorPicks(picks?.disminuir ?? [], trueDisminuir, tolerance);
+  const crecerScore = scoreSectorPicks(picks?.crecer ?? [], trueCrecer);
+  const disminuirScore = scoreSectorPicks(picks?.disminuir ?? [], trueDisminuir);
   const parts = [crecerScore, disminuirScore].filter((s): s is number => s != null);
   return parts.length > 0 ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
 }

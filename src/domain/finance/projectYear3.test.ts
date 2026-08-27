@@ -87,3 +87,49 @@ describe("projectYear3", () => {
     expect(projectYear3({ ...base(), year2InsuredCount: 0 })).toBeNull();
   });
 });
+
+describe("primaOverride — a team's own Año 3 growth hypothesis", () => {
+  it("is ignored at or below the baseline — the mechanical projection still wins, a team can't shrink Año 3 this way", () => {
+    const baseline = projectYear3(base())!;
+    const atBaseline = projectYear3({ ...base(), primaOverride: baseline.prima3 })!;
+    const belowBaseline = projectYear3({ ...base(), primaOverride: baseline.prima3 * 0.9 })!;
+    expect(atBaseline.prima3).toBeCloseTo(baseline.prima3, 4);
+    expect(atBaseline.costo3).toBeCloseTo(baseline.costo3, 4);
+    expect(belowBaseline.prima3).toBeCloseTo(baseline.prima3, 4);
+    expect(belowBaseline.costo3).toBeCloseTo(baseline.costo3, 4);
+  });
+
+  it("becomes prima3 exactly once it genuinely exceeds the baseline, scaling costo3 by that same factor", () => {
+    const baseline = projectYear3(base())!;
+    const grown = projectYear3({ ...base(), primaOverride: baseline.prima3 * 1.4 })!;
+    expect(grown.prima3).toBeCloseTo(baseline.prima3 * 1.4, 4);
+    expect(grown.costo3).toBeCloseTo(baseline.costo3 * 1.4, 4);
+  });
+
+  it("preserves the baseline loss ratio exactly under growth — a bigger book, never a different underlying quality", () => {
+    const baseline = projectYear3(base())!;
+    const grown = projectYear3({ ...base(), primaOverride: baseline.prima3 * 2.3 })!;
+    expect(grown.costo3 / grown.prima3).toBeCloseTo(baseline.costo3 / baseline.prima3, 10);
+  });
+
+  it("scales ownClaimsSchedule12 by the same growth factor, month by month", () => {
+    const baseline = projectYear3(base())!;
+    const grown = projectYear3({ ...base(), primaOverride: baseline.prima3 * 1.5 })!;
+    for (let m = 0; m < 12; m++) expect(grown.ownClaimsSchedule12[m]).toBeCloseTo(baseline.ownClaimsSchedule12[m] * 1.5, 4);
+  });
+
+  it("scales only Año 3's own share of reservas3 — Año 1's and Año 2's tails (osY1endY3/osY2endY3) never move", () => {
+    const i = base();
+    const baseline = projectYear3(i)!;
+    const grown = projectYear3({ ...i, primaOverride: baseline.prima3 * 1.5 })!;
+    const velocidad = i.paidY2inY2! / i.ultY2;
+    const ownShareGrown = grown.costo3 * (1 - velocidad);
+    expect(grown.reservas3).toBeCloseTo(i.osY1endY3 + i.osY2endY3 + ownShareGrown, 4);
+  });
+
+  it("does not rescale insuredCount3 — the override doesn't specify whether growth comes from more policies or higher average premium", () => {
+    const baseline = projectYear3(base())!;
+    const grown = projectYear3({ ...base(), primaOverride: baseline.prima3 * 3 })!;
+    expect(grown.insuredCount3).toBeCloseTo(baseline.insuredCount3, 6);
+  });
+});

@@ -327,7 +327,7 @@ export default async function AdminDayPage({
 
   const analiticaScoreByTeamId = new Map<string, number>();
   for (const [teamId, picks] of picksByTeamId) {
-    const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir, tolerance);
+    const score = scoreSectorRecommendation(picks, trueCrecer, trueDisminuir);
     if (score != null) analiticaScoreByTeamId.set(teamId, score);
   }
 
@@ -885,9 +885,17 @@ export default async function AdminDayPage({
                   demás variables.
                 </p>
                 <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
-                  Cada posición nombrada vale por dos cosas, 50/50: acertar la posición en el ranking real, y estimar el multiplicador de ese sector
-                  dentro de la misma banda de tolerancia que el resto de entregables numéricos — nombrar el sector sin estimar su multiplicador (o
-                  nombrar uno que no aparece en el ranking real) da 0 en esa mitad.
+                  Cada posición nombrada vale por dos cosas, 50/50: acertar la posición en el ranking real, y estimar el multiplicador de ese
+                  sector dentro de su propia banda de tolerancia (<code>SECTOR_MULTIPLIER_TOLERANCE</code> en <code>sectors.ts</code>: 15%/55%,
+                  más ancha que el 5%/40% general de la rúbrica) — nombrar el sector sin estimar su multiplicador (o nombrar uno que no aparece en
+                  el ranking real) da 0 en esa mitad.
+                </p>
+                <p className="mt-1 text-[15px] italic text-[var(--color-brand-text-secondary)]">
+                  <strong>Nota solo para administradores</strong> (no mencionar a los equipos): esa banda es más ancha a propósito, no por ser
+                  menos exigentes. Medido contra un &quot;analista ideal&quot; (la cartera real de un equipo, exactamente la visibilidad de
+                  siniestros que le da su propio reporte de Día 3, los cortes de bucket y la métrica del motor) sobre una cohorte real, el error
+                  del multiplicador estimado tiene una mediana de ~14% — la banda general (5%/40%) dejaría incluso el mejor análisis posible topado
+                  en 50-70 puntos, sin importar qué tan bien razone el equipo sobre el sesgo de su propia cartera.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">

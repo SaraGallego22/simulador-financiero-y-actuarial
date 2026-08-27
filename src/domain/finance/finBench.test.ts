@@ -910,4 +910,64 @@ describe("finBench", () => {
       expect(bench.solSigmaLR).toBe(FZ.primeVol);
     });
   });
+
+  describe("solRPrimas (Día 4's premium-risk volume measure: max of trailing and prospective Prima Devengada)", () => {
+    it("picks Año 3's projected Prima Devengada when the book is growing", () => {
+      const bench = finBench(richYear3Input());
+      expect(bench.p3!.primaDevengada).toBeGreaterThan(bench.p2!.primaDevengada);
+      const expectedRPrimas = Math.max(bench.p2!.primaDevengada, bench.p3!.primaDevengada) * bench.solSigmaLR;
+      expect(bench.solRPrimas).toBeCloseTo(expectedRPrimas, 4);
+    });
+
+    it("picks the trailing (año vigente) Prima Devengada, inflated by Año 1's RPND release, when the book shrinks sharply", () => {
+      const input: FinBenchInput = {
+        year1: { totalPremium: 1_000_000_000, claimsAmount: 600_000_000, insuredCount: 10_000 },
+        year2: { totalPremium: 50_000_000, claimsAmount: 30_000_000, insuredCount: 400 },
+        liabilityYear1,
+        development: computeDevelopment(
+          Array.from({ length: 600 }, (_, i) => ({ teamId: 1, noticeMonth: i % 12, ultimate: 1_000_000 })),
+          Array.from({ length: 30 }, (_, i) => ({ teamId: 1, noticeMonth: 12 + (i % 12), ultimate: 1_000_000 })),
+          [1]
+        ).byTeam.get(1)!,
+        almYear1: fakeAlmYear(),
+        almYear2: fakeAlmYear(0, 200_000, 0.1, 0.07),
+        year2Retention: { retainedCount: 350, newCount: 50 },
+      };
+      const bench = finBench(input);
+      // Año 2's own written premium collapsed, but its Prima Devengada still
+      // carries 20% of Año 1's much bigger book as RPND release, so it stays
+      // far above Año 3's projection (which tracks the now-small retained book).
+      expect(bench.p2!.primaDevengada).toBeGreaterThan(bench.p2!.primaEmitida * 2);
+      expect(bench.p2!.primaDevengada).toBeGreaterThan(bench.p3!.primaDevengada);
+      const expectedRPrimas = bench.p2!.primaDevengada * bench.solSigmaLR;
+      expect(bench.solRPrimas).toBeCloseTo(expectedRPrimas, 4);
+      // Confirms this is genuinely different from the old primaEmitida-based formula.
+      expect(bench.solRPrimas).not.toBeCloseTo(bench.p2!.primaEmitida * bench.solSigmaLR, 0);
+    });
+  });
+
+  describe("year3PrimaOverride (a team's own Año 3 growth hypothesis, threaded through to p3/bal3)", () => {
+    it("is ignored below the baseline — p3 stays on the mechanical projection", () => {
+      const baseline = finBench(richYear3Input());
+      const withLowOverride = finBench({ ...richYear3Input(), year3PrimaOverride: baseline.p3!.primaEmitida * 0.8 });
+      expect(withLowOverride.p3!.primaEmitida).toBeCloseTo(baseline.p3!.primaEmitida, 4);
+      expect(withLowOverride.p3!.costo).toBeCloseTo(baseline.p3!.costo, 4);
+    });
+
+    it("becomes p3.primaEmitida exactly once it exceeds the baseline, scaling p3.costo by the same factor", () => {
+      const baseline = finBench(richYear3Input());
+      const grown = finBench({ ...richYear3Input(), year3PrimaOverride: baseline.p3!.primaEmitida * 1.6 });
+      expect(grown.p3!.primaEmitida).toBeCloseTo(baseline.p3!.primaEmitida * 1.6, 4);
+      expect(grown.p3!.costo).toBeCloseTo(baseline.p3!.costo * 1.6, 4);
+      // Same accident-year loss ratio as the baseline — growth changes size, not underwriting quality.
+      expect(grown.p3!.costo / grown.p3!.primaEmitida).toBeCloseTo(baseline.p3!.costo / baseline.p3!.primaEmitida, 10);
+    });
+
+    it("carries through to bal3 (patrimonio/reservas) — the grown reality, not the baseline", () => {
+      const baseline = finBench(richYear3Input());
+      const grown = finBench({ ...richYear3Input(), year3PrimaOverride: baseline.p3!.primaEmitida * 1.6 });
+      expect(grown.bal3!.reservasTec).not.toBeCloseTo(baseline.bal3!.reservasTec, 0);
+      expect(grown.bal3!.rpnd).toBeCloseTo(FZ.rpndPct * grown.p3!.primaEmitida, 4);
+    });
+  });
 });

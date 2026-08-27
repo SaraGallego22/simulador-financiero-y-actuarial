@@ -127,6 +127,18 @@ export async function computeFinBenchBundlesForCohort(
   const outsourcedYear1 = new Set(outsourcedSubmissions.filter((s) => s.day === 1).map((s) => s.teamId));
   const outsourcedYear2 = new Set(outsourcedSubmissions.filter((s) => s.day === 2).map((s) => s.teamId));
 
+  // A team's own Año 3 growth hypothesis (concepts.ts's p3_primaEmitida,
+  // `scoringMode: "atLeast"`) — read here, once, and threaded through to
+  // BOTH of this function's two projectYear3() call sites below (the real
+  // ALM's own funding, and finBench()'s own p3/bal3) so they can never
+  // disagree about what Año 3's real premium is. projectYear3() itself
+  // ignores this unless it genuinely exceeds the mechanical baseline.
+  const year3PrimaOverrides = await prisma.deliverable.findMany({
+    where: { day: 3, conceptId: "p3_primaEmitida", team: { cohortId } },
+    select: { teamId: true, value: true },
+  });
+  const year3PrimaOverrideByTeamId = new Map(year3PrimaOverrides.map((d) => [d.teamId, d.value]));
+
   // Built with a first-wins loop, not `new Map(array.map(...))` — a team can
   // have several DONE runs for the same day (re-simulations while testing),
   // and results are ordered newest-first; `new Map` from an array of pairs
@@ -236,6 +248,7 @@ export async function computeFinBenchBundlesForCohort(
     let realAlmYear3: AlmRealYearResult | null = null;
     let almYear3: AlmYearBenchInput | undefined;
     const development = developmentByTeamId?.get(teamId);
+    const year3PrimaOverride = year3PrimaOverrideByTeamId.get(teamId) ?? null;
     if (realAlmYear2 && year2Decision && year2 && year2Retention && development) {
       const proj3 = projectYear3({
         year1InsuredCount: year1.insuredCount,
@@ -247,6 +260,7 @@ export async function computeFinBenchBundlesForCohort(
         osY1endY3: development.osY1endY3,
         osY2endY3: development.osY2endY3,
         paidY2inY2: development.paidY2inY2,
+        primaOverride: year3PrimaOverride,
       });
       if (proj3) {
         // Cash leaving the portfolio during calendar Año 3: Año 1's and Año
@@ -296,6 +310,7 @@ export async function computeFinBenchBundlesForCohort(
       almYear1,
       almYear2,
       almYear3,
+      year3PrimaOverride,
       year2Retention,
       marketRisk,
       accBookValue2,

@@ -364,11 +364,16 @@ export default async function TeamDayPage({
 
   // Same idea as day2TrueValues, one day later: Día 3's TRUE P&G/Balance
   // (Año 2 real + Año 3 proyectado), shown as reference on Día 4's
-  // "Respuestas Día 3" tab.
+  // "Respuestas Día 3" tab. realAlmYear2 is the real ALM's own portfolio at
+  // that same close — the exact positions Riesgo de tasa/Riesgo de
+  // inflación/Riesgo de acciones are computed from (see
+  // computeMarketRiskAtAño2End in alm.ts) — otherwise never shown to the team.
   const day3TrueValues: Record<string, number> = {};
+  let realAlmYear2: TeamFinBenchBundle["realAlmYear2"] = null;
   if (day === 4 && teamId) {
     const bundle = finBenchBundlesByTeamId.get(teamId);
     if (bundle) {
+      realAlmYear2 = bundle.realAlmYear2;
       for (const c of conceptosDia("d3").filter((c) => c.tipo === "reporte")) {
         const v = c.get?.(bundle.bench);
         if (v != null) day3TrueValues[c.id] = v;
@@ -594,6 +599,27 @@ export default async function TeamDayPage({
                     </div>
                   </div>
                 )}
+
+                <div className="rounded-lg border border-[var(--color-brand-gray-light)] border-t-4 border-t-[var(--color-brand-gray-light)] bg-[var(--color-brand-surface)] p-5">
+                  <h3 className="mb-2 font-[family-name:var(--font-condensed)] text-sm font-bold uppercase tracking-wide text-[var(--color-brand-blue-accent)]">
+                    ALM real — tu portafolio al cierre de {SIMULATED_YEAR_LABEL[2]}
+                  </h3>
+                  <p className="mb-3 text-xs text-[var(--color-brand-text-secondary)]">
+                    Las posiciones que este calendario todavía tiene abiertas en este punto son la base de tu Riesgo de tasa, Riesgo de
+                    inflación y Riesgo de acciones de hoy.
+                  </p>
+                  {realAlmYear2 ? (
+                    <div className="flex flex-col gap-3">
+                      <AlmRealYearTiles realYear={realAlmYear2} />
+                      <AlmLadderTable rows={realAlmYear2.rows} />
+                      <AlmPortfolioTable rows={realAlmYear2.rows} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--color-brand-text-secondary)]">
+                      Aún no tienes un portafolio guardado, o las reservas correspondientes todavía no están disponibles.
+                    </p>
+                  )}
+                </div>
 
                 <DeliverablesReadOnly concepts={day3ReportConcepts} values={day3TrueValues} title="P&G / Balance real — Año 2 y proyección Año 3" />
               </>

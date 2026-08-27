@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toleranceBandScore, scoreConcepto, scoreFormulaConcepto, ownValueKey, CONCEPTO_BY_ID, CONCEPTOS } from "./concepts";
+import { toleranceBandScore, atLeastToleranceBandScore, scoreConcepto, scoreFormulaConcepto, ownValueKey, CONCEPTO_BY_ID, CONCEPTOS } from "./concepts";
 import type { ConceptTolerance, Dia } from "./concepts";
 import { finBench } from "../finance/finBench";
 import type { FinBenchResult, AlmYearBenchInput } from "../finance/finBench";
@@ -21,6 +21,20 @@ describe("toleranceBandScore", () => {
   });
 });
 
+describe("atLeastToleranceBandScore", () => {
+  it("scores 100 for meeting or exceeding the benchmark, however far above it", () => {
+    expect(atLeastToleranceBandScore(100, 100, TOLERANCE)).toBe(100);
+    expect(atLeastToleranceBandScore(150, 100, TOLERANCE)).toBe(100);
+    expect(atLeastToleranceBandScore(10_000, 100, TOLERANCE)).toBe(100); // no ceiling
+  });
+
+  it("falls short of the benchmark exactly like the normal band", () => {
+    expect(atLeastToleranceBandScore(97, 100, TOLERANCE)).toBe(100); // 3% short, within tolerancePerfect
+    expect(atLeastToleranceBandScore(60, 100, TOLERANCE)).toBe(0); // 40% short, at toleranceZero
+    expect(atLeastToleranceBandScore(80, 100, TOLERANCE)).toBeCloseTo(toleranceBandScore(80, 100, TOLERANCE), 10);
+  });
+});
+
 describe("scoreFormulaConcepto / scoreConcepto's formula dispatch", () => {
   it("grades a linear formula concept against a value recomputed from the team's OWN submitted inputs, not the true bench", () => {
     const ownValues = new Map<string, number>();
@@ -32,10 +46,27 @@ describe("scoreFormulaConcepto / scoreConcepto's formula dispatch", () => {
     expect(result!.bench).toBeCloseTo(200_000, 6);
   });
 
-  it("returns a null score (ungradable, not 0) when a required own-input is missing", () => {
+  it("a missing own-input defaults to 0 in the formula, scoring against whatever that produces — not ungradable", () => {
+    // primaEmitida never submitted -> defaults to 0 -> expected rpndConstituida = 0.2*0 = 0,
+    // scored against the team's own (nonzero) submission for THIS line.
     const result = scoreFormulaConcepto("p1_rpndConstituida", 200_000, new Map(), TOLERANCE);
     expect(result).not.toBeNull();
-    expect(result!.score).toBeNull();
+    expect(result!.bench).toBe(0);
+    expect(result!.score).toBe(0);
+  });
+
+  it("a missing submission for the concept itself grades 0 against the TRUE bench, not against evalFormula()'s own expected value hollowed out to 0 by the SAME missing input", () => {
+    // primaEmitida is missing here too, so evalFormula()'s own expected
+    // would ALSO come out to 0.2*0=0 if this went down that path — the
+    // point of this test is that it must NOT: a missing conceptoId
+    // submission has to compare against the true bench (500,000 here), so a
+    // team that submits nothing doesn't trivially score 100 by matching
+    // 0-vs-0 on every formula concept it left blank.
+    const fakeBench = { p1: { rpndConstituida: 500_000 } } as unknown as FinBenchResult;
+    const result = scoreFormulaConcepto("p1_rpndConstituida", null, new Map(), TOLERANCE, fakeBench);
+    expect(result!.val).toBeNull();
+    expect(result!.bench).toBe(500_000);
+    expect(result!.score).toBe(0); // 0 vs the true 500,000 — badly wrong, not a false 100
   });
 
   it("a wrong upstream Costo doesn't cascade into a wrong RT/UAI/Utilidad Neta score, as long as the team applied the formula correctly to its own (wrong) Costo", () => {
@@ -81,13 +112,60 @@ describe("scoreFormulaConcepto / scoreConcepto's formula dispatch", () => {
     // p2_rpndLiberada (a Día 3 concept) = 0.2 * Día 2's own p1_primaEmitida.
     const result = scoreFormulaConcepto("p2_rpndLiberada", 0.2 * 500_000_000, ownValues, TOLERANCE);
     expect(result!.score).toBe(100);
-    // Without Día 2's value present at all, it's ungradable.
+    // Without Día 2's value present at all, it defaults to 0 in the formula
+    // (expected = 0.2*0 = 0), scored against the team's own submission.
     const missing = scoreFormulaConcepto("p2_rpndLiberada", 100_000_000, new Map(), TOLERANCE);
-    expect(missing!.score).toBeNull();
+    expect(missing!.bench).toBe(0);
+    expect(missing!.score).toBe(0);
   });
 
   it("a concept with no formula spec returns null from scoreFormulaConcepto (use scoreConcepto for primary concepts)", () => {
     expect(scoreFormulaConcepto("p1_costo", 300_000_000, new Map(), TOLERANCE)).toBeNull();
+  });
+
+  it("sol_margen (ratio) grades against the team's own Fondos propios ÷ RK, not the true bench — a wrong own RK doesn't cost it twice", () => {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d4", "sol_fp"), 100_000_000);
+    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // possibly wrong relative to the true bench, penalized separately on sol_rk itself
+    const result = scoreFormulaConcepto("sol_margen", 2.5, ownValues, TOLERANCE); // 100M / 40M, computed correctly off that same (wrong) RK
+    expect(result!.bench).toBeCloseTo(2.5, 6);
+    expect(result!.score).toBe(100);
+  });
+
+  it("sol_margen is ungradable (not 0) when the team's own sol_rk is 0", () => {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d4", "sol_fp"), 100_000_000);
+    ownValues.set(ownValueKey("d4", "sol_rk"), 0);
+    const result = scoreFormulaConcepto("sol_margen", 999, ownValues, TOLERANCE);
+    expect(result!.score).toBeNull();
+  });
+
+  it("div (excessAboveTarget) clamps to 0 when the team's own Fondos propios don't clear 1.5× its own RK", () => {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d4", "sol_fp"), 50_000_000);
+    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // 1.5x = 60M > 50M fondos propios
+    const result = scoreFormulaConcepto("div", 0, ownValues, TOLERANCE);
+    expect(result!.bench).toBe(0);
+    expect(result!.score).toBe(100);
+  });
+
+  it("div grades against the team's own Fondos propios − 1.5×RK, not the true bench, even off a wrong own RK", () => {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d4", "sol_fp"), 200_000_000);
+    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000); // possibly wrong relative to the true bench
+    const ownDiv = 200_000_000 - 1.5 * 40_000_000;
+    const result = scoreFormulaConcepto("div", ownDiv, ownValues, TOLERANCE);
+    expect(result!.score).toBe(100);
+  });
+
+  it("eva (linear, on sol_rk not sol_fp) grades against the team's own Utilidad Neta and RK — never a credit off a negative sol_fp", () => {
+    const ownValues = new Map<string, number>();
+    ownValues.set(ownValueKey("d3", "p2_uneta"), 50_000_000);
+    ownValues.set(ownValueKey("d4", "sol_rk"), 40_000_000);
+    const ownEva = 50_000_000 - 0.1 * 1.5 * 40_000_000; // Ke=0.1, targetMargin=1.5
+    const result = scoreFormulaConcepto("eva", ownEva, ownValues, TOLERANCE);
+    expect(result!.score).toBe(100);
+    expect(result!.bench).toBeCloseTo(44_000_000, 6);
   });
 });
 
@@ -139,9 +217,38 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
     expect(result!.bench).not.toBeCloseTo(ownRt, 0); // true bench's RT (210M) differs, but isn't what graded it
   });
 
-  it("a formula concept without an ownValues map grades as null (ungradable), not a silent fallback to bench comparison", () => {
+  it("a formula concept without an ownValues map grades every referenced line as 0, not a silent fallback to bench comparison", () => {
+    // p1_rt's formula references primaDevengada/costo/gadq/gcom, all
+    // missing here -> expected = 0 - 0 - 0 - 0 = 0 -> the team's own
+    // 210,000,000 submission scores badly against that, not null. `bench`
+    // in the result is still the informational true value (210M, from
+    // fakeBench.p1.rt) — score, not bench, is what's computed against `expected`.
     const result = scoreConcepto("p1_rt", 210_000_000, fakeBench, TOLERANCE);
-    expect(result!.score).toBeNull();
+    expect(result!.bench).toBe(210_000_000);
+    expect(result!.score).toBe(0);
+  });
+
+  it("a formula concept with NO own submission falls back to the true bench, even with no ownValues map at all", () => {
+    const result = scoreConcepto("p1_rt", null, fakeBench, TOLERANCE);
+    expect(result!.val).toBeNull();
+    expect(result!.bench).toBe(210_000_000); // fakeBench's own true p1.rt
+    expect(result!.score).toBe(0); // graded 0 against the true 210M, not a hollow 0-vs-0 match
+  });
+
+  it("a primary concept with no submission grades 0 against the true bench", () => {
+    const result = scoreConcepto("p1_costo", null, fakeBench, TOLERANCE);
+    expect(result!.val).toBeNull();
+    expect(result!.bench).toBe(400_000_000);
+    expect(result!.score).toBe(0);
+  });
+
+  it("p3_primaEmitida (scoringMode atLeast) scores 100 for meeting the true bench, and just as well for exceeding it", () => {
+    const bench = { p3: { primaEmitida: 300_000_000 } } as unknown as FinBenchResult;
+    expect(scoreConcepto("p3_primaEmitida", 300_000_000, bench, TOLERANCE)!.score).toBe(100);
+    // Genuinely more than the bench — never penalized, unlike a plain tolerance band would.
+    expect(scoreConcepto("p3_primaEmitida", 900_000_000, bench, TOLERANCE)!.score).toBe(100);
+    // Short of the bench still decays like any other numeric miss.
+    expect(scoreConcepto("p3_primaEmitida", 150_000_000, bench, TOLERANCE)!.score).toBe(0);
   });
 
   it("every concept referenced by a FormulaTerm actually exists in CONCEPTO_BY_ID (catches typos in cross-references)", () => {
@@ -149,6 +256,16 @@ describe("scoreConcepto — dispatches to formula grading only for formula conce
       if (!c.formula) continue;
       if (c.formula.kind === "taxOnUai") {
         expect(CONCEPTO_BY_ID[c.formula.uaiConceptId], `${c.id} -> ${c.formula.uaiConceptId}`).toBeDefined();
+        continue;
+      }
+      if (c.formula.kind === "ratio") {
+        expect(CONCEPTO_BY_ID[c.formula.numeratorConceptId], `${c.id} -> ${c.formula.numeratorConceptId}`).toBeDefined();
+        expect(CONCEPTO_BY_ID[c.formula.denominatorConceptId], `${c.id} -> ${c.formula.denominatorConceptId}`).toBeDefined();
+        continue;
+      }
+      if (c.formula.kind === "excessAboveTarget") {
+        expect(CONCEPTO_BY_ID[c.formula.baseConceptId], `${c.id} -> ${c.formula.baseConceptId}`).toBeDefined();
+        expect(CONCEPTO_BY_ID[c.formula.chargeConceptId], `${c.id} -> ${c.formula.chargeConceptId}`).toBeDefined();
         continue;
       }
       if (c.formula.kind === "sampleStdevLossRatio") {
