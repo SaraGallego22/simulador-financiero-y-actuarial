@@ -17,6 +17,7 @@ import { FZ } from "@/domain/finance/constants";
 import { OUTSOURCED_CONSULTING_FEE_PCT } from "@/domain/pricing/outsourced";
 import { averageSoftSkillsByMember } from "@/lib/softSkills";
 import type { SoftSkillCompetency } from "@/lib/softSkills";
+import type { InterviewSkill } from "@/lib/interview";
 import { perfilPredominante } from "@/domain/grading/composite";
 
 export interface MarketLossRatio {
@@ -353,6 +354,10 @@ export interface MemberConsolidadoRow {
   teamId: string;
   teamName: string;
   teamColor: string;
+  // Academic background from the roster CSV (see rosterRowSchema) — null when
+  // that optional column was absent. CSV-only, like the comment fields below.
+  carrera: string | null;
+  universidad: string | null;
   perDay: { day: number; notaGeneral: number | null; aprobado: boolean | null; perfil: EvaluationProfile | null; aptitudesRiesgos: boolean }[];
   promedio: number | null;
   // Most common `perfil` across perDay, most-recent-day-wins on a tie — see
@@ -382,6 +387,10 @@ export interface MemberConsolidadoRow {
   // treatment as softSkillComments above; always authored by
   // INTERVIEW_COMMENT_AUTHOR, so that's not carried per-row here either.
   interviewComments: { text: string }[];
+  // Excel/Programación on a 1-5 scale, from that same one-on-one interview
+  // (InterviewSkillRating, see interview.ts) — missing a key means TH left it
+  // unrated. CSV-only, admin-facing.
+  interviewSkills: Partial<Record<InterviewSkill, number>>;
 }
 
 /**
@@ -398,9 +407,9 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
 
   const teams = await prisma.team.findMany({
     where: { cohortId: cohort.id },
-    // Only id/name are read below — never the `photo` bytea. See
+    // Only these scalar columns are read below — never the `photo` bytea. See
     // computeConsolidado()'s equivalent query for why that matters.
-    include: { members: { select: { id: true, name: true } } },
+    include: { members: { select: { id: true, name: true, carrera: true, universidad: true } } },
     orderBy: { createdAt: "asc" },
   });
   const evaluations = await prisma.memberDayEvaluation.findMany({
@@ -447,6 +456,15 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
     interviewCommentsByMemberId.get(c.teamMemberId)!.push({ text: c.text });
   }
 
+  const interviewSkillRatings = await prisma.interviewSkillRating.findMany({
+    where: { teamMember: { team: { cohortId: cohort.id } } },
+  });
+  const interviewSkillsByMemberId = new Map<string, Partial<Record<InterviewSkill, number>>>();
+  for (const r of interviewSkillRatings) {
+    if (!interviewSkillsByMemberId.has(r.teamMemberId)) interviewSkillsByMemberId.set(r.teamMemberId, {});
+    interviewSkillsByMemberId.get(r.teamMemberId)![r.skill as InterviewSkill] = r.rating;
+  }
+
   const rows: MemberConsolidadoRow[] = [];
   for (const team of teams) {
     for (const member of team.members) {
@@ -465,6 +483,8 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
         teamId: team.id,
         teamName: team.name,
         teamColor: team.color,
+        carrera: member.carrera,
+        universidad: member.universidad,
         perDay,
         promedio: notaPerfilDia(notas),
         perfilPredominante: perfilPredominante(perDay),
@@ -475,6 +495,7 @@ export async function computeMemberConsolidado(cohortId?: string): Promise<Membe
         softSkills,
         softSkillComments: softSkillCommentsByMemberId.get(member.id) ?? [],
         interviewComments: interviewCommentsByMemberId.get(member.id) ?? [],
+        interviewSkills: interviewSkillsByMemberId.get(member.id) ?? {},
       });
     }
   }
