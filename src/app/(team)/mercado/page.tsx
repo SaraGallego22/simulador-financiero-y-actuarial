@@ -53,7 +53,7 @@ export default async function TeamMarketPage({ searchParams }: { searchParams: P
   const selected = visibleYears.find((y) => y.label === anio) ?? visibleYears[visibleYears.length - 1];
   // 2027/2028 tuvieron mercado (la simulación del Día 1/2); el 2029 es solo la
   // proyección financiera del Día 3 — sin mercado no hay cuota, prima mediana
-  // ni cobro medio.
+  // ni cobro mediano.
   const simDay = selected.index <= 2 ? selected.index : null;
 
   const universe = await getActiveColombiaUniverse(cohort.id);
@@ -102,7 +102,7 @@ export default async function TeamMarketPage({ searchParams }: { searchParams: P
       isMine: team.id === teamId,
       marketShare: sim && totalInsured > 0 ? sim.insuredCount / totalInsured : null,
       medianPremium: medianTariffByTeamId.get(team.id) ?? null,
-      cobroMedio: extra?.medianWonPremium ?? null,
+      cobroMediano: extra?.medianWonPremium ?? null,
       lossRatio: pnl && pnl.primaDevengada > 0 ? pnl.costo / pnl.primaDevengada : null,
       rt: pnl?.rt ?? null,
       patrimonio: bal?.patrimonio ?? null,
@@ -129,7 +129,7 @@ export default async function TeamMarketPage({ searchParams }: { searchParams: P
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Equipo</th>
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Market</th>
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Prima mediana</th>
-          <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Cobro medio</th>
+          <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Cobro mediano</th>
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Loss ratio</th>
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">RT</th>
           <th className="px-4 py-2 font-[family-name:var(--font-condensed)] text-xs uppercase tracking-wide">Patrimonio</th>
@@ -143,7 +143,7 @@ export default async function TeamMarketPage({ searchParams }: { searchParams: P
               </td>
               <td className="px-4 py-2">{fmtPct(r.marketShare)}</td>
               <td className="px-4 py-2">{fmtCop(r.medianPremium)}</td>
-              <td className="px-4 py-2">{fmtCop(r.cobroMedio)}</td>
+              <td className="px-4 py-2">{fmtCop(r.cobroMediano)}</td>
               <td className="px-4 py-2">{fmtPct(r.lossRatio)}</td>
               <td className="px-4 py-2">{fmtM(r.rt)}</td>
               <td className="px-4 py-2">{fmtM(r.patrimonio)}</td>
@@ -154,7 +154,7 @@ export default async function TeamMarketPage({ searchParams }: { searchParams: P
 
       {simDay == null && (
         <p className="text-xs text-[var(--color-brand-text-secondary)]">
-          {selected.label} es una proyección financiera: no hubo mercado ese año, así que no hay cuota de mercado, prima mediana ni cobro medio.
+          {selected.label} es una proyección financiera: no hubo mercado ese año, así que no hay cuota de mercado, prima mediana ni cobro mediano.
         </p>
       )}
     </main>
