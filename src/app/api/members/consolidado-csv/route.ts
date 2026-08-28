@@ -3,13 +3,15 @@ import { auth } from "@/lib/auth";
 import { getCohortForSession } from "@/lib/cohort";
 import { computeMemberConsolidado } from "@/lib/consolidado";
 import { SOFT_SKILL_COMPETENCIES, COMPETENCY_LABELS, SOFT_SKILL_COMMENT_AUTHOR, softSkillNotaTo5Scale } from "@/lib/softSkills";
-import { INTERVIEW_COMMENT_AUTHOR } from "@/lib/interview";
+import { INTERVIEW_COMMENT_AUTHOR, INTERVIEW_SKILLS, INTERVIEW_SKILL_LABELS } from "@/lib/interview";
 import { EVALUATION_PROFILE_LABELS } from "@/domain/grading/composite";
 
 const FIELDS = [
   "#",
   "Integrante",
   "Equipo",
+  "Carrera",
+  "Universidad",
   "Día 2",
   "Día 3",
   "Día 4",
@@ -17,6 +19,7 @@ const FIELDS = [
   "Perfil",
   "Días aprobados",
   "Aptitud Riesgos",
+  ...INTERVIEW_SKILLS.map((s) => `${INTERVIEW_SKILL_LABELS[s]} (entrevista TH)`),
   ...SOFT_SKILL_COMPETENCIES.map((c) => COMPETENCY_LABELS[c]),
   "Comentarios",
   "Comentarios TH (habilidades blandas)",
@@ -40,13 +43,18 @@ export async function GET() {
     i + 1,
     r.memberName,
     r.teamName,
+    r.carrera ?? "",
+    r.universidad ?? "",
     r.perDay[0]?.notaGeneral?.toFixed(1) ?? "",
     r.perDay[1]?.notaGeneral?.toFixed(1) ?? "",
     r.perDay[2]?.notaGeneral?.toFixed(1) ?? "",
     r.promedio?.toFixed(1) ?? "",
-    r.perfilPredominante ? EVALUATION_PROFILE_LABELS[r.perfilPredominante] : "",
+    // No perfil predominante (nobody graded `perfil` on Días 2-4, or a tie with
+    // no signal) reads as "Generalista", not a blank cell.
+    r.perfilPredominante ? EVALUATION_PROFILE_LABELS[r.perfilPredominante] : EVALUATION_PROFILE_LABELS.GENERALISTA,
     asText(`${r.diasAprobados}/${r.diasEvaluados}`),
     asText(`${r.aptitudesRiesgosCount}/3`),
+    ...INTERVIEW_SKILLS.map((s) => r.interviewSkills[s]?.toFixed(1) ?? ""),
     ...SOFT_SKILL_COMPETENCIES.map((c) => softSkillNotaTo5Scale(r.softSkills[c])?.toFixed(1) ?? ""),
     r.comments.map((c) => `[Día ${c.day}] ${c.author}: ${c.text}`).join(" | "),
     r.softSkillComments.map((c) => `[Actividad ${c.activity}] ${SOFT_SKILL_COMMENT_AUTHOR}: ${c.text}`).join(" | "),
