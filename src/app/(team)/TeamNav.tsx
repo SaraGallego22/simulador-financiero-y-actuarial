@@ -48,7 +48,6 @@ export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) 
           </span>
         )
       )}
-      <NavItem href="/mercado" label="Resultados del mercado" short="MK" active={pathname === "/mercado"} collapsed={collapsed} />
       {/* Día 5 — the wrap-up screen, unlocked only once the admin marks the
           challenge finished (openDay = 5). Shown locked before then, same as a
           future day above. */}
@@ -64,6 +63,8 @@ export function TeamNav({ openDay, badge }: { openDay: number; badge: string }) 
           <LockIcon className="h-3.5 w-3.5 shrink-0" /> {!collapsed && "Día 5"}
         </span>
       )}
+      {/* After the day sequence (incl. the Día 5 wrap-up) so it doesn't split the run of days. */}
+      <NavItem href="/mercado" label="Resultados del mercado" short="MK" active={pathname === "/mercado"} collapsed={collapsed} />
       <NavItem href="/standings" label="Ranking" short="RK" active={pathname === "/standings"} collapsed={collapsed} />
     </SidebarShell>
   );
